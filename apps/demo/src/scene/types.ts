@@ -1,5 +1,5 @@
 import type { PathCommand } from '../renderer/types';
-import type { Value } from '../parser/ast';
+import type { Value } from '@popcorn/parser';
 
 // Scene node types
 export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path';

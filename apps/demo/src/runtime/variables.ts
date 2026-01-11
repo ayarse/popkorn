@@ -1,11 +1,11 @@
-import type { Value, VariableDefinition } from '../parser/ast';
+import type { Value, VariableDefinition } from '@popcorn/parser';
 import {
   isVariableRefValue,
   isFunctionValue,
   isNumberValue,
   isLengthValue,
   isKeywordValue,
-} from '../parser/ast';
+} from '@popcorn/parser';
 import type { InputState } from './inputs';
 
 /**

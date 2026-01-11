@@ -1,24 +1,15 @@
 {
-  "name": "motion-scene-graph-poc",
+  "name": "popcorn",
   "private": true,
   "version": "0.1.0",
-  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "web-tree-sitter": "^0.26.3"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "~5.6.2",
-    "vite": "^6.0.3"
+    "dev": "bun --filter @popcorn/demo dev",
+    "build": "bun --filter @popcorn/demo build",
+    "build:grammar": "bun --filter tree-sitter-popcorn build",
+    "test:grammar": "bun --filter tree-sitter-popcorn test"
   }
 }

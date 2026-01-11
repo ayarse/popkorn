@@ -1,5 +1,5 @@
 /**
- * @file SceneGraph DSL grammar for tree-sitter
+ * @file Popcorn DSL grammar for tree-sitter
  * @description CSS-like language for defining scene graphs and animations
  */
 
@@ -7,7 +7,7 @@
 // @ts-check
 
 module.exports = grammar({
-  name: 'scenograph',
+  name: 'popcorn',
 
   // Tokens that can appear anywhere (whitespace and comments)
   extras: $ => [

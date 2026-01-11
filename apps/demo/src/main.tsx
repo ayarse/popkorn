@@ -1,7 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { initParser } from './parser'
+import { initParser } from '@popcorn/parser'
 
 // Initialize tree-sitter parser before rendering
 initParser().then(() => {

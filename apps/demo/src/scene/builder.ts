@@ -1,4 +1,4 @@
-import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock } from '../parser/ast';
+import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock } from '@popcorn/parser';
 import {
   isLengthValue,
   isColorValue,
@@ -10,7 +10,7 @@ import {
   isVariableRefValue,
   getNumericValue,
   getStringValue,
-} from '../parser/ast';
+} from '@popcorn/parser';
 import type {
   SceneNode,
   ShapeType,

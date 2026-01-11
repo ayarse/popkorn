@@ -5,7 +5,7 @@ export { MotionCanvas, useMotionScene } from './components';
 export type { MotionCanvasProps } from './components';
 
 // Parser
-export { parse, initParser, isParserReady } from './parser';
+export { parse, initParser, isParserReady } from '@popcorn/parser';
 export type {
   StyleSheet,
   Rule,
@@ -14,7 +14,7 @@ export type {
   KeyframeRule,
   KeyframeBlock,
   CanvasConfig,
-} from './parser';
+} from '@popcorn/parser';
 
 // Scene Graph
 export { buildSceneGraph, SceneBuilder } from './scene';

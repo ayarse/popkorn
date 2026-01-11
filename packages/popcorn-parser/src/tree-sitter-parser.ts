@@ -1,5 +1,5 @@
 /**
- * Tree-sitter based parser for SceneGraph DSL
+ * Tree-sitter based parser for Popcorn DSL
  * Transforms tree-sitter CST into our AST types
  */
 
@@ -21,7 +21,7 @@ let isInitializing = false;
 let initPromise: Promise<void> | null = null;
 
 /**
- * Initialize the tree-sitter parser with SceneGraph language
+ * Initialize the tree-sitter parser with Popcorn language
  * Must be called before parsing
  */
 export async function initParser(): Promise<void> {
@@ -38,7 +38,7 @@ export async function initParser(): Promise<void> {
     });
 
     parser = new Parser();
-    const language = await Language.load('/tree-sitter-scenograph.wasm');
+    const language = await Language.load('/tree-sitter-popcorn.wasm');
     parser.setLanguage(language);
   })();
 

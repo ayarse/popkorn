@@ -1,12 +1,12 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { Canvas2DRenderer } from '../renderer/canvas2d';
-import { parse } from '../parser';
+import { parse } from '@popcorn/parser';
+import type { CanvasConfig } from '@popcorn/parser';
 import { buildSceneGraph } from '../scene/builder';
 import { createRenderLoop, RenderLoop } from '../runtime/loop';
 import { createAnimationScheduler, AnimationScheduler } from '../animation/scheduler';
 import type { InputTracker } from '../runtime/inputs';
 import type { SceneNode } from '../scene/types';
-import type { CanvasConfig } from '../parser/ast';
 
 export interface MotionCanvasProps {
   /** CSS-like scene definition */
