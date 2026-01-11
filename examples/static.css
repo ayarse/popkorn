@@ -1,0 +1,44 @@
+/* Static Shapes Example */
+
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #1a1a2e;
+}
+
+#background {
+  shape: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
+  fill: #1a1a2e;
+}
+
+#redCircle {
+  shape: circle;
+  cx: 200px;
+  cy: 300px;
+  r: 80px;
+  fill: #e94560;
+}
+
+#blueRect {
+  shape: rect;
+  x: 400px;
+  y: 200px;
+  width: 150px;
+  height: 200px;
+  rx: 20px;
+  ry: 20px;
+  fill: #4ecdc4;
+}
+
+#yellowEllipse {
+  shape: ellipse;
+  cx: 650px;
+  cy: 300px;
+  rx: 60px;
+  ry: 100px;
+  fill: #ffe66d;
+}
