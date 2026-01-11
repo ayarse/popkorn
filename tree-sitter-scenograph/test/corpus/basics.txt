@@ -1,0 +1,247 @@
+================================================================================
+Simple ID selector rule
+================================================================================
+
+#box {
+  width: 100px;
+  fill: #ff0000;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (dimension
+          (unit)))
+      (declaration
+        (property
+          (identifier))
+        (color)))))
+
+================================================================================
+Class selector
+================================================================================
+
+.circle {
+  r: 50px;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (class_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (dimension
+          (unit))))))
+
+================================================================================
+Canvas selector
+================================================================================
+
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #1a1a2e;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (canvas_selector))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (dimension
+          (unit)))
+      (declaration
+        (property
+          (identifier))
+        (dimension
+          (unit)))
+      (declaration
+        (property
+          (identifier))
+        (color)))))
+
+================================================================================
+Root selector with custom properties
+================================================================================
+
+:root {
+  --cursor-x: 100px;
+  --cursor-y: 200px;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (root_selector))
+    (block
+      (declaration
+        (property
+          (custom_property))
+        (dimension
+          (unit)))
+      (declaration
+        (property
+          (custom_property))
+        (dimension
+          (unit))))))
+
+================================================================================
+Var function
+================================================================================
+
+#follower {
+  cx: var(--cursor-x);
+  cy: var(--cursor-y);
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (var_function
+          (custom_property)))
+      (declaration
+        (property
+          (identifier))
+        (var_function
+          (custom_property))))))
+
+================================================================================
+Comment
+================================================================================
+
+/* This is a comment */
+#box {
+  fill: #fff;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (comment)
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (color)))))
+
+================================================================================
+Number values
+================================================================================
+
+#shape {
+  opacity: 0.5;
+  x: 0;
+  y: -10;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (number))
+      (declaration
+        (property
+          (identifier))
+        (number))
+      (declaration
+        (property
+          (identifier))
+        (number)))))
+
+================================================================================
+Percentage value
+================================================================================
+
+#box {
+  opacity: 50%;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (percentage)))))
+
+================================================================================
+Function call
+================================================================================
+
+#shape {
+  transform: translate(100px, 200px);
+  fill: rgb(255, 0, 0);
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (function_call
+          (identifier)
+          (arguments
+            (dimension
+              (unit))
+            (dimension
+              (unit)))))
+      (declaration
+        (property
+          (identifier))
+        (function_call
+          (identifier)
+          (arguments
+            (number)
+            (number)
+            (number)))))))

@@ -5,7 +5,7 @@ export { MotionCanvas, useMotionScene } from './components';
 export type { MotionCanvasProps } from './components';
 
 // Parser
-export { parse, Parser, Lexer } from './parser';
+export { parse, initParser, isParserReady } from './parser';
 export type {
   StyleSheet,
   Rule,

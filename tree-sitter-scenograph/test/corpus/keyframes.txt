@@ -1,0 +1,111 @@
+================================================================================
+Simple keyframes
+================================================================================
+
+@keyframes fadeIn {
+  0% { opacity: 0 }
+  100% { opacity: 1 }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (keyframes_rule
+    (keyframes_name
+      (identifier))
+    (keyframes_block
+      (keyframe
+        (keyframe_selector_list
+          (percentage))
+        (declaration_block
+          (declaration
+            (property
+              (identifier))
+            (number))))
+      (keyframe
+        (keyframe_selector_list
+          (percentage))
+        (declaration_block
+          (declaration
+            (property
+              (identifier))
+            (number)))))))
+
+================================================================================
+Keyframes with from/to
+================================================================================
+
+@keyframes spin {
+  from { transform: rotate(0deg) }
+  to { transform: rotate(360deg) }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (keyframes_rule
+    (keyframes_name
+      (identifier))
+    (keyframes_block
+      (keyframe
+        (keyframe_selector_list)
+        (declaration_block
+          (declaration
+            (property
+              (identifier))
+            (function_call
+              (identifier)
+              (arguments
+                (dimension
+                  (unit)))))))
+      (keyframe
+        (keyframe_selector_list)
+        (declaration_block
+          (declaration
+            (property
+              (identifier))
+            (function_call
+              (identifier)
+              (arguments
+                (dimension
+                  (unit))))))))))
+
+================================================================================
+Keyframes with multiple selectors
+================================================================================
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1) }
+  50% { transform: scale(1.3) }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (keyframes_rule
+    (keyframes_name
+      (identifier))
+    (keyframes_block
+      (keyframe
+        (keyframe_selector_list
+          (percentage)
+          (percentage))
+        (declaration_block
+          (declaration
+            (property
+              (identifier))
+            (function_call
+              (identifier)
+              (arguments
+                (number))))))
+      (keyframe
+        (keyframe_selector_list
+          (percentage))
+        (declaration_block
+          (declaration
+            (property
+              (identifier))
+            (function_call
+              (identifier)
+              (arguments
+                (number)))))))))

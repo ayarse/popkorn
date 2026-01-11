@@ -1,0 +1,80 @@
+================================================================================
+Animation shorthand
+================================================================================
+
+#box {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (keyword
+          (identifier))
+        (dimension
+          (unit))
+        (keyword
+          (identifier))
+        (keyword
+          (identifier))))))
+
+================================================================================
+Transform function
+================================================================================
+
+#box {
+  transform: translate(100px, 200px);
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (function_call
+          (identifier)
+          (arguments
+            (dimension
+              (unit))
+            (dimension
+              (unit))))))))
+
+================================================================================
+Input function
+================================================================================
+
+:root {
+  --cursor-x: input(cursor.x);
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (root_selector))
+    (block
+      (declaration
+        (property
+          (custom_property))
+        (function_call
+          (identifier)
+          (arguments
+            (keyword
+              (member_expression
+                (identifier)
+                (identifier)))))))))

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { Canvas2DRenderer } from '../renderer/canvas2d';
-import { parse } from '../parser/parser';
+import { parse } from '../parser';
 import { buildSceneGraph } from '../scene/builder';
 import { createRenderLoop, RenderLoop } from '../runtime/loop';
 import { createAnimationScheduler, AnimationScheduler } from '../animation/scheduler';

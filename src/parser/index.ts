@@ -1,6 +1,4 @@
-export { Lexer } from './lexer';
-export type { Token, TokenType } from './lexer';
-export { Parser, parse } from './parser';
+export { initParser, isParserReady, parse } from './tree-sitter-parser';
 export type {
   StyleSheet,
   Rule,

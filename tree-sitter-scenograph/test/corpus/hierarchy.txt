@@ -1,0 +1,150 @@
+================================================================================
+Simple child rule
+================================================================================
+
+#parent {
+  shape: group;
+
+  > #child {
+    shape: circle;
+    r: 20px;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (keyword
+          (identifier)))
+      (child_rule
+        (rule
+          (selector
+            (id_selector
+              (identifier)))
+          (block
+            (declaration
+              (property
+                (identifier))
+              (keyword
+                (identifier)))
+            (declaration
+              (property
+                (identifier))
+              (dimension
+                (unit)))))))))
+
+================================================================================
+Deeply nested hierarchy
+================================================================================
+
+#root {
+  shape: group;
+
+  > #level1 {
+    shape: group;
+
+    > #level2 {
+      shape: circle;
+      r: 10px;
+    }
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (keyword
+          (identifier)))
+      (child_rule
+        (rule
+          (selector
+            (id_selector
+              (identifier)))
+          (block
+            (declaration
+              (property
+                (identifier))
+              (keyword
+                (identifier)))
+            (child_rule
+              (rule
+                (selector
+                  (id_selector
+                    (identifier)))
+                (block
+                  (declaration
+                    (property
+                      (identifier))
+                    (keyword
+                      (identifier)))
+                  (declaration
+                    (property
+                      (identifier))
+                    (dimension
+                      (unit))))))))))))
+
+================================================================================
+Multiple children
+================================================================================
+
+#container {
+  shape: group;
+
+  > #first {
+    fill: #ff0000;
+  }
+
+  > #second {
+    fill: #00ff00;
+  }
+}
+
+--------------------------------------------------------------------------------
+
+(stylesheet
+  (rule
+    (selector
+      (id_selector
+        (identifier)))
+    (block
+      (declaration
+        (property
+          (identifier))
+        (keyword
+          (identifier)))
+      (child_rule
+        (rule
+          (selector
+            (id_selector
+              (identifier)))
+          (block
+            (declaration
+              (property
+                (identifier))
+              (color)))))
+      (child_rule
+        (rule
+          (selector
+            (id_selector
+              (identifier)))
+          (block
+            (declaration
+              (property
+                (identifier))
+              (color))))))))
