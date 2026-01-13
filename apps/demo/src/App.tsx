@@ -1,23 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MotionCanvas } from './components/MotionCanvas';
 
 // Example scene definitions
 const examples = {
-  static: `
-/* Static shapes demo */
+  static: `/* Static shapes demo */
 :canvas {
   width: 800px;
   height: 600px;
   background: #1a1a2e;
-}
-
-#background {
-  shape: rect;
-  x: 0;
-  y: 0;
-  width: 800px;
-  height: 600px;
-  fill: #1a1a2e;
 }
 
 #redCircle {
@@ -46,11 +36,9 @@ const examples = {
   rx: 60px;
   ry: 100px;
   fill: #ffe66d;
-}
-`,
+}`,
 
-  animation: `
-/* Animation demo */
+  animation: `/* Animation demo */
 :canvas {
   width: 800px;
   height: 600px;
@@ -106,11 +94,9 @@ const examples = {
   ry: 60px;
   fill: #ffe66d;
   animation: bounce 1s ease-in-out infinite;
-}
-`,
+}`,
 
-  hierarchy: `
-/* Scene hierarchy demo */
+  hierarchy: `/* Scene hierarchy demo */
 :canvas {
   width: 800px;
   height: 600px;
@@ -180,11 +166,9 @@ const examples = {
       fill: #e94560;
     }
   }
-}
-`,
+}`,
 
-  interactive: `
-/* Interactive demo - cursor tracking */
+  interactive: `/* Interactive demo - cursor tracking */
 :canvas {
   width: 800px;
   height: 600px;
@@ -202,7 +186,6 @@ const examples = {
   100% { transform: scale(1); opacity: 0.8; }
 }
 
-/* Cursor follower - a circle that tracks the mouse */
 #cursorFollower {
   shape: circle;
   cx: var(--cursor-x);
@@ -212,7 +195,6 @@ const examples = {
   animation: pulse 1s ease-in-out infinite;
 }
 
-/* Static reference shapes */
 #topLeftCorner {
   shape: circle;
   cx: 100px;
@@ -229,168 +211,130 @@ const examples = {
   r: 20px;
   fill: #ffe66d;
   opacity: 0.5;
-}
-
-#centerMarker {
-  shape: rect;
-  x: 380px;
-  y: 280px;
-  width: 40px;
-  height: 40px;
-  rx: 5px;
-  ry: 5px;
-  fill: #888888;
-  opacity: 0.3;
-}
-
-/* Instructions text would go here in a real app */
-`,
+}`,
 };
 
+type ExampleKey = keyof typeof examples;
+
 function App() {
-  const [currentExample, setCurrentExample] = useState<keyof typeof examples>('animation');
+  const [currentExample, setCurrentExample] = useState<ExampleKey>('animation');
+  const [source, setSource] = useState(examples.animation);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSource(examples[currentExample]);
+  }, [currentExample]);
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
       backgroundColor: '#0a0a1a',
       color: '#ffffff',
       fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '20px',
     }}>
-      <h1 style={{ marginBottom: '10px', color: '#4ecdc4' }}>
-        Motion Scene Graph PoC
-      </h1>
-      <p style={{ marginBottom: '20px', color: '#888' }}>
-        CSS-like declarative language for interactive motion graphics
-      </p>
-
-      <div style={{ marginBottom: '20px' }}>
-        <button
-          onClick={() => setCurrentExample('static')}
-          style={{
-            padding: '10px 20px',
-            marginRight: '10px',
-            backgroundColor: currentExample === 'static' ? '#4ecdc4' : '#333',
-            color: currentExample === 'static' ? '#000' : '#fff',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          Static Shapes
-        </button>
-        <button
-          onClick={() => setCurrentExample('animation')}
-          style={{
-            padding: '10px 20px',
-            marginRight: '10px',
-            backgroundColor: currentExample === 'animation' ? '#4ecdc4' : '#333',
-            color: currentExample === 'animation' ? '#000' : '#fff',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          Animations
-        </button>
-        <button
-          onClick={() => setCurrentExample('hierarchy')}
-          style={{
-            padding: '10px 20px',
-            marginRight: '10px',
-            backgroundColor: currentExample === 'hierarchy' ? '#4ecdc4' : '#333',
-            color: currentExample === 'hierarchy' ? '#000' : '#fff',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          Scene Hierarchy
-        </button>
-        <button
-          onClick={() => setCurrentExample('interactive')}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: currentExample === 'interactive' ? '#4ecdc4' : '#333',
-            color: currentExample === 'interactive' ? '#000' : '#fff',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-          }}
-        >
-          Interactive (Cursor)
-        </button>
-      </div>
-
-      {error && (
-        <div style={{
-          backgroundColor: '#ff4444',
-          color: '#fff',
-          padding: '10px',
-          marginBottom: '20px',
-          borderRadius: '5px',
-        }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{
+      {/* Header */}
+      <header style={{
+        padding: '12px 20px',
+        borderBottom: '1px solid #333',
         display: 'flex',
+        alignItems: 'center',
         gap: '20px',
-        flexWrap: 'wrap',
+        flexShrink: 0,
       }}>
+        <h1 style={{ margin: 0, fontSize: '20px', color: '#4ecdc4' }}>
+          Popcorn
+        </h1>
+        <span style={{ color: '#666', fontSize: '13px' }}>
+          CSS-like DSL for interactive motion graphics
+        </span>
+
+        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+          {(Object.keys(examples) as ExampleKey[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => setCurrentExample(key)}
+              style={{
+                padding: '6px 14px',
+                backgroundColor: currentExample === key ? '#4ecdc4' : '#252530',
+                color: currentExample === key ? '#000' : '#888',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: currentExample === key ? 600 : 400,
+              }}
+            >
+              {key.charAt(0).toUpperCase() + key.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div style={{
+            backgroundColor: '#ff4444',
+            color: '#fff',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            maxWidth: '400px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {error}
+          </div>
+        )}
+      </header>
+
+      {/* Main content */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        overflow: 'hidden',
+      }}>
+        {/* Source panel */}
         <div style={{
-          border: '2px solid #333',
-          borderRadius: '10px',
-          overflow: 'hidden',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRight: '1px solid #333',
+        }}>
+          <textarea
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            spellCheck={false}
+            style={{
+              flex: 1,
+              backgroundColor: '#0f0f1a',
+              color: '#e0e0e0',
+              border: 'none',
+              padding: '16px',
+              fontSize: '13px',
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+              lineHeight: '1.6',
+              resize: 'none',
+              outline: 'none',
+            }}
+          />
+        </div>
+
+        {/* Animation panel */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#0a0a12',
         }}>
           <MotionCanvas
-            source={examples[currentExample]}
+            source={source}
             onError={(err) => setError(err.message)}
             onSceneReady={() => setError(null)}
           />
         </div>
-
-        <div style={{
-          flex: 1,
-          minWidth: '300px',
-          maxWidth: '500px',
-        }}>
-          <h3 style={{ color: '#4ecdc4', marginBottom: '10px' }}>Source</h3>
-          <pre style={{
-            backgroundColor: '#1a1a2e',
-            padding: '15px',
-            borderRadius: '10px',
-            overflow: 'auto',
-            maxHeight: '500px',
-            fontSize: '12px',
-            lineHeight: '1.5',
-          }}>
-            {examples[currentExample]}
-          </pre>
-        </div>
-      </div>
-
-      <div style={{
-        marginTop: '40px',
-        padding: '20px',
-        backgroundColor: '#1a1a2e',
-        borderRadius: '10px',
-      }}>
-        <h3 style={{ color: '#4ecdc4', marginBottom: '15px' }}>Features Demonstrated</h3>
-        <ul style={{ color: '#888', lineHeight: '2' }}>
-          <li>CSS-like syntax for scene definition</li>
-          <li>Shape types: rect, circle, ellipse, group</li>
-          <li>Transform properties: translate, rotate, scale</li>
-          <li>Appearance: fill, stroke, opacity</li>
-          <li>@keyframes animations with easing</li>
-          <li>Scene hierarchy with parent-child transforms</li>
-          <li>CSS variables with var() and input() for interactivity</li>
-          <li>Cursor tracking with input(cursor.x), input(cursor.y)</li>
-          <li>Canvas 2D rendering (ThorVG-compatible interface)</li>
-        </ul>
       </div>
     </div>
   );
