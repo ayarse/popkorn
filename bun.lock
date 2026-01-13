@@ -9,7 +9,7 @@
       "name": "@popcorn/demo",
       "version": "0.1.0",
       "dependencies": {
-        "@popcorn/parser": "workspace:*",
+        "@popcorn/player": "workspace:*",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
       },
@@ -26,6 +26,13 @@
       "version": "0.1.0",
       "dependencies": {
         "web-tree-sitter": "^0.26.0",
+      },
+    },
+    "packages/popcorn-player": {
+      "name": "@popcorn/player",
+      "version": "0.1.0",
+      "dependencies": {
+        "@popcorn/parser": "workspace:*",
       },
     },
     "packages/tree-sitter-popcorn": {
@@ -137,6 +144,8 @@
     "@popcorn/demo": ["@popcorn/demo@workspace:apps/demo"],
 
     "@popcorn/parser": ["@popcorn/parser@workspace:packages/popcorn-parser"],
+
+    "@popcorn/player": ["@popcorn/player@workspace:packages/popcorn-player"],
 
     "@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-beta.27", "", {}, "sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA=="],
 
