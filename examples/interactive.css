@@ -18,7 +18,7 @@
 
 /* Future: Circle follows cursor
 #follower {
-  shape: circle;
+  type: circle;
   cx: var(--cursor-x);
   cy: var(--cursor-y);
   r: 30px;
@@ -28,7 +28,7 @@
 
 /* For now, static version */
 #follower {
-  shape: circle;
+  type: circle;
   cx: 400px;
   cy: 300px;
   r: 30px;
@@ -42,7 +42,7 @@
 }
 
 #trail1 {
-  shape: circle;
+  type: circle;
   cx: 350px;
   cy: 280px;
   r: 20px;
@@ -52,7 +52,7 @@
 }
 
 #trail2 {
-  shape: circle;
+  type: circle;
   cx: 300px;
   cy: 260px;
   r: 15px;
@@ -62,7 +62,7 @@
 }
 
 #trail3 {
-  shape: circle;
+  type: circle;
   cx: 250px;
   cy: 250px;
   r: 10px;

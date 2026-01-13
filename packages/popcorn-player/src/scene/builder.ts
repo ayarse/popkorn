@@ -57,7 +57,7 @@ export class SceneBuilder {
 
     // First pass: find shape type
     for (const decl of rule.declarations) {
-      if (decl.property === 'shape') {
+      if (decl.property === 'type') {
         shapeType = getStringValue(decl.value) as ShapeType;
         break;
       }
@@ -104,7 +104,7 @@ export class SceneBuilder {
     }
 
     switch (property) {
-      case 'shape':
+      case 'type':
         // Already handled
         break;
 

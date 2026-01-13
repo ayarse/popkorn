@@ -15,7 +15,7 @@ const examples = {
 }
 
 #redCircle {
-  shape: circle;
+  type: circle;
   cx: 200px;
   cy: 300px;
   r: 80px;
@@ -23,7 +23,7 @@ const examples = {
 }
 
 #blueRect {
-  shape: rect;
+  type: rect;
   x: 400px;
   y: 200px;
   width: 150px;
@@ -34,7 +34,7 @@ const examples = {
 }
 
 #yellowEllipse {
-  shape: ellipse;
+  type: ellipse;
   cx: 650px;
   cy: 300px;
   rx: 60px;
@@ -67,7 +67,7 @@ const examples = {
 }
 
 #pulsingCircle {
-  shape: circle;
+  type: circle;
   cx: 200px;
   cy: 300px;
   r: 60px;
@@ -76,11 +76,11 @@ const examples = {
 }
 
 #spinningRect {
-  shape: group;
+  type: group;
   transform: translate(400px, 300px);
 
   > #rect {
-    shape: rect;
+    type: rect;
     x: -50px;
     y: -50px;
     width: 100px;
@@ -91,7 +91,7 @@ const examples = {
 }
 
 #bouncingEllipse {
-  shape: ellipse;
+  type: ellipse;
   cx: 650px;
   cy: 350px;
   rx: 40px;
@@ -119,11 +119,11 @@ const examples = {
 }
 
 #solarSystem {
-  shape: group;
+  type: group;
   transform: translate(400px, 300px);
 
   > #sun {
-    shape: circle;
+    type: circle;
     cx: 0;
     cy: 0;
     r: 50px;
@@ -131,11 +131,11 @@ const examples = {
   }
 
   > #earthOrbit {
-    shape: group;
+    type: group;
     animation: orbit 8s linear infinite;
 
     > #earth {
-      shape: circle;
+      type: circle;
       cx: 150px;
       cy: 0;
       r: 20px;
@@ -144,12 +144,12 @@ const examples = {
     }
 
     > #moonOrbit {
-      shape: group;
+      type: group;
       transform: translate(150px, 0);
       animation: orbit 2s linear infinite;
 
       > #moon {
-        shape: circle;
+        type: circle;
         cx: 35px;
         cy: 0;
         r: 8px;
@@ -159,11 +159,11 @@ const examples = {
   }
 
   > #marsOrbit {
-    shape: group;
+    type: group;
     animation: orbit 12s linear infinite;
 
     > #mars {
-      shape: circle;
+      type: circle;
       cx: 220px;
       cy: 0;
       r: 15px;
@@ -191,7 +191,7 @@ const examples = {
 }
 
 #cursorFollower {
-  shape: circle;
+  type: circle;
   cx: var(--cursor-x);
   cy: var(--cursor-y);
   r: 30px;
@@ -200,7 +200,7 @@ const examples = {
 }
 
 #topLeftCorner {
-  shape: circle;
+  type: circle;
   cx: 100px;
   cy: 100px;
   r: 20px;
@@ -209,7 +209,7 @@ const examples = {
 }
 
 #bottomRightCorner {
-  shape: circle;
+  type: circle;
   cx: 700px;
   cy: 500px;
   r: 20px;

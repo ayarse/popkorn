@@ -3,10 +3,10 @@ Simple child rule
 ================================================================================
 
 #parent {
-  shape: group;
+  type: group;
 
   > #child {
-    shape: circle;
+    type: circle;
     r: 20px;
   }
 }
@@ -46,13 +46,13 @@ Deeply nested hierarchy
 ================================================================================
 
 #root {
-  shape: group;
+  type: group;
 
   > #level1 {
-    shape: group;
+    type: group;
 
     > #level2 {
-      shape: circle;
+      type: circle;
       r: 10px;
     }
   }
@@ -104,7 +104,7 @@ Multiple children
 ================================================================================
 
 #container {
-  shape: group;
+  type: group;
 
   > #first {
     fill: #ff0000;

@@ -7,7 +7,7 @@
 }
 
 #background {
-  shape: rect;
+  type: rect;
   x: 0;
   y: 0;
   width: 800px;
@@ -16,7 +16,7 @@
 }
 
 #redCircle {
-  shape: circle;
+  type: circle;
   cx: 200px;
   cy: 300px;
   r: 80px;
@@ -24,7 +24,7 @@
 }
 
 #blueRect {
-  shape: rect;
+  type: rect;
   x: 400px;
   y: 200px;
   width: 150px;
@@ -35,7 +35,7 @@
 }
 
 #yellowEllipse {
-  shape: ellipse;
+  type: ellipse;
   cx: 650px;
   cy: 300px;
   rx: 60px;

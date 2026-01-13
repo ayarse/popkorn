@@ -29,7 +29,7 @@ The simplest way to use the player is via the `<popcorn-player>` custom element:
   const player = document.querySelector('popcorn-player');
   player.source = `
     #circle {
-      shape: circle;
+      type: circle;
       cx: 400px;
       cy: 300px;
       r: 50px;
@@ -175,7 +175,7 @@ See the main project README for full DSL documentation.
 
 ```css
 #rect {
-  shape: rect;
+  type: rect;
   x: 100px;
   y: 100px;
   width: 200px;
@@ -184,7 +184,7 @@ See the main project README for full DSL documentation.
 }
 
 #circle {
-  shape: circle;
+  type: circle;
   cx: 300px;
   cy: 200px;
   r: 50px;
@@ -201,7 +201,7 @@ See the main project README for full DSL documentation.
 }
 
 #spinner {
-  shape: rect;
+  type: rect;
   animation: spin 2s linear infinite;
 }
 ```
@@ -215,7 +215,7 @@ See the main project README for full DSL documentation.
 }
 
 #follower {
-  shape: circle;
+  type: circle;
   cx: var(--cursor-x);
   cy: var(--cursor-y);
   r: 20px;

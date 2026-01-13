@@ -39,7 +39,7 @@ The easiest way to use Popcorn is via the `<popcorn-player>` web component:
   const player = document.querySelector('popcorn-player');
   player.source = `
     #circle {
-      shape: circle;
+      type: circle;
       cx: 400px;
       cy: 300px;
       r: 50px;
@@ -91,7 +91,7 @@ loop.start();
 ```css
 /* Rectangle */
 #rect {
-  shape: rect;
+  type: rect;
   x: 100px;
   y: 100px;
   width: 200px;
@@ -104,7 +104,7 @@ loop.start();
 
 /* Circle */
 #circle {
-  shape: circle;
+  type: circle;
   cx: 300px;
   cy: 200px;
   r: 50px;
@@ -113,7 +113,7 @@ loop.start();
 
 /* Ellipse */
 #ellipse {
-  shape: ellipse;
+  type: ellipse;
   cx: 500px;
   cy: 200px;
   rx: 60px;
@@ -123,11 +123,11 @@ loop.start();
 
 /* Group (for nesting) */
 #group {
-  shape: group;
+  type: group;
   transform: translate(100px, 100px);
 
   > #child {
-    shape: circle;
+    type: circle;
     cx: 0;
     cy: 0;
     r: 20px;
@@ -163,7 +163,7 @@ loop.start();
 }
 
 #ball {
-  shape: circle;
+  type: circle;
   animation: bounce 1s ease-in-out infinite;
 }
 ```
@@ -188,7 +188,7 @@ Animation shorthand: `name duration timing-function iteration-count direction de
 }
 
 #follower {
-  shape: circle;
+  type: circle;
   cx: var(--cursor-x);
   cy: var(--cursor-y);
   r: 20px;

@@ -138,20 +138,20 @@ For the PoC, we support a strict subset of CSS plus minimal extensions.
 /* No combinators, pseudo-classes, or attribute selectors in PoC */
 ```
 
-#### Shape Definition (Extension)
+#### Type Definition (Extension)
 
-Since CSS doesn't define shapes, we add a `shape` property:
+Since CSS doesn't define shape types, we add a `type` property:
 
 ```css
 #background {
-  shape: rect;
+  type: rect;
   width: 800px;
   height: 600px;
   fill: #1a1a2e;
 }
 
 .dot {
-  shape: circle;
+  type: circle;
   cx: 100px;
   cy: 100px;
   r: 20px;
@@ -159,7 +159,7 @@ Since CSS doesn't define shapes, we add a `shape` property:
 }
 
 .path {
-  shape: path;
+  type: path;
   d: "M 10 10 L 50 50 L 10 50 Z";
   fill: none;
   stroke: #ffffff;
@@ -236,18 +236,18 @@ Hierarchy is defined by nesting in a special block syntax (extension):
 
 ```css
 #container {
-  shape: group;
+  type: group;
   transform: translate(100px, 100px);
   
   > #child1 {
-    shape: circle;
+    type: circle;
     cx: 0;
     cy: 0;
     r: 50px;
   }
   
   > #child2 {
-    shape: rect;
+    type: rect;
     x: 60px;
     y: -25px;
     width: 100px;
@@ -320,7 +320,7 @@ Input:
 }
 
 #box {
-  shape: rect;
+  type: rect;
   width: 100px;
   height: 100px;
   fill: #ff0000;
@@ -357,7 +357,7 @@ AST:
       "type": "rule",
       "selector": { "type": "id", "name": "box" },
       "declarations": [
-        { "property": "shape", "value": { "type": "keyword", "value": "rect" } },
+        { "property": "type", "value": { "type": "keyword", "value": "rect" } },
         { "property": "width", "value": { "type": "length", "value": 100, "unit": "px" } },
         { "property": "height", "value": { "type": "length", "value": 100, "unit": "px" } },
         { "property": "fill", "value": { "type": "color", "value": "#ff0000" } },
@@ -697,8 +697,8 @@ function renderNode(node: SceneNode, renderer: Renderer): void {
 
 **Demo:**
 ```css
-#bg { shape: rect; width: 400px; height: 300px; fill: #1a1a2e; }
-#dot { shape: circle; cx: 200px; cy: 150px; r: 30px; fill: #e94560; }
+#bg { type: rect; width: 400px; height: 300px; fill: #1a1a2e; }
+#dot { type: circle; cx: 200px; cy: 150px; r: 30px; fill: #e94560; }
 ```
 → Red circle on dark background
 
@@ -726,7 +726,7 @@ function renderNode(node: SceneNode, renderer: Renderer): void {
 }
 
 #dot {
-  shape: circle;
+  type: circle;
   cx: 200px; cy: 150px; r: 30px;
   fill: #e94560;
   animation: pulse 1.5s ease-in-out infinite;
@@ -756,7 +756,7 @@ function renderNode(node: SceneNode, renderer: Renderer): void {
 }
 
 #follower {
-  shape: circle;
+  type: circle;
   cx: var(--cursor-x);
   cy: var(--cursor-y);
   r: 20px;
@@ -876,15 +876,15 @@ motion-graph-poc/
 
 /* Scene */
 #center-group {
-  shape: group;
+  type: group;
   transform: translate(400px, 300px);
   
   > #orbit {
-    shape: group;
+    type: group;
     animation: spin 8s linear infinite;
     
     > #planet {
-      shape: circle;
+      type: circle;
       cx: 150px;
       cy: 0;
       r: 20px;
@@ -894,7 +894,7 @@ motion-graph-poc/
   }
   
   > #sun {
-    shape: circle;
+    type: circle;
     cx: 0;
     cy: 0;
     r: 50px;
