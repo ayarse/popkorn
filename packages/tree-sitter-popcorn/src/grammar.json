@@ -139,6 +139,66 @@
         {
           "type": "SYMBOL",
           "name": "child_rule"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pseudo_rule"
+        }
+      ]
+    },
+    "pseudo_rule": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "&"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "pseudo_selector"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "declaration_block"
+        }
+      ]
+    },
+    "pseudo_selector": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "hover_pseudo"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "active_pseudo"
+        }
+      ]
+    },
+    "hover_pseudo": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "STRING",
+          "value": "hover"
+        }
+      ]
+    },
+    "active_pseudo": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": ":"
+        },
+        {
+          "type": "STRING",
+          "value": "active"
         }
       ]
     },

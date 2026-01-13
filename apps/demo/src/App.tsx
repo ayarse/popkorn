@@ -231,6 +231,92 @@ const examples = {
   opacity: 0.5;
 }`,
 
+  hoverActive: `/* Hover & Active States Demo */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #1a1a2e;
+}
+
+/* Interactive button */
+#button {
+  type: rect;
+  x: 300px;
+  y: 250px;
+  width: 200px;
+  height: 60px;
+  rx: 10px;
+  fill: #3498db;
+
+  &:hover {
+    fill: #2980b9;
+    transform: scale(1.05);
+  }
+
+  &:active {
+    fill: #1a5276;
+    transform: scale(0.95);
+  }
+}
+
+/* Interactive circle */
+#circle1 {
+  type: circle;
+  cx: 150px;
+  cy: 300px;
+  r: 50px;
+  fill: #e94560;
+
+  &:hover {
+    fill: #ff6b8a;
+    transform: scale(1.1);
+  }
+
+  &:active {
+    fill: #c73e54;
+    transform: scale(0.9);
+  }
+}
+
+/* Another interactive circle */
+#circle2 {
+  type: circle;
+  cx: 650px;
+  cy: 300px;
+  r: 50px;
+  fill: #4ecdc4;
+
+  &:hover {
+    fill: #6ee6dd;
+    transform: scale(1.15);
+  }
+
+  &:active {
+    fill: #3ba89f;
+    transform: scale(0.85);
+  }
+}
+
+/* Interactive ellipse */
+#ellipse1 {
+  type: ellipse;
+  cx: 400px;
+  cy: 450px;
+  rx: 80px;
+  ry: 40px;
+  fill: #ffe66d;
+
+  &:hover {
+    fill: #fff59d;
+    transform: scale(1.08);
+  }
+
+  &:active {
+    fill: #e6cf62;
+    transform: scale(0.92);
+  }
+}`,
+
   bouncyBall: `/* Bouncy Ball - Per-keyframe easing demo */
 :canvas {
   width: 800px;

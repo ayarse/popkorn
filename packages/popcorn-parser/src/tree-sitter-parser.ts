@@ -14,6 +14,8 @@ import type {
   KeyframeBlock,
   CanvasConfig,
   VariableDefinition,
+  StateRule,
+  PseudoState,
 } from './ast';
 
 let parser: Parser | null = null;
@@ -110,6 +112,7 @@ function transformRule(node: SyntaxNode): Rule {
     selector: selectorNode ? transformSelector(selectorNode) : { type: 'id', name: 'unknown' },
     declarations: [],
     children: [],
+    states: [],
   };
 
   if (blockNode) {
@@ -121,11 +124,55 @@ function transformRule(node: SyntaxNode): Rule {
         if (innerRule) {
           rule.children.push(transformRule(innerRule));
         }
+      } else if (child.type === 'pseudo_rule') {
+        const stateRule = transformPseudoRule(child);
+        if (stateRule) {
+          rule.states.push(stateRule);
+        }
       }
     }
   }
 
   return rule;
+}
+
+function transformPseudoRule(node: SyntaxNode): StateRule | null {
+  const pseudoSelectorNode = findChild(node, 'pseudo_selector');
+  const declBlockNode = findChild(node, 'declaration_block');
+
+  if (!pseudoSelectorNode) {
+    return null;
+  }
+
+  // Determine the pseudo state from the selector
+  let state: PseudoState | null = null;
+  const hoverPseudo = findChild(pseudoSelectorNode, 'hover_pseudo');
+  const activePseudo = findChild(pseudoSelectorNode, 'active_pseudo');
+
+  if (hoverPseudo) {
+    state = 'hover';
+  } else if (activePseudo) {
+    state = 'active';
+  }
+
+  if (!state) {
+    return null;
+  }
+
+  // Extract declarations from the declaration block
+  const declarations: Declaration[] = [];
+  if (declBlockNode) {
+    for (const child of declBlockNode.namedChildren) {
+      if (child.type === 'declaration') {
+        declarations.push(transformDeclaration(child));
+      }
+    }
+  }
+
+  return {
+    state,
+    declarations,
+  };
 }
 
 function transformSelector(node: SyntaxNode): Selector {

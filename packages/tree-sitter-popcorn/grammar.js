@@ -76,7 +76,23 @@ module.exports = grammar({
     _block_item: $ => choice(
       $.declaration,
       $.child_rule,
+      $.pseudo_rule,
     ),
+
+    // Pseudo-class rules: &:hover { } and &:active { }
+    pseudo_rule: $ => seq(
+      '&',
+      $.pseudo_selector,
+      $.declaration_block,
+    ),
+
+    pseudo_selector: $ => choice(
+      $.hover_pseudo,
+      $.active_pseudo,
+    ),
+
+    hover_pseudo: $ => seq(':', 'hover'),
+    active_pseudo: $ => seq(':', 'active'),
 
     // Nested child rules use > combinator
     child_rule: $ => seq(

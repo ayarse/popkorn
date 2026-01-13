@@ -19,11 +19,21 @@ export interface CanvasConfig {
   background?: string;
 }
 
+// Pseudo-class states for interactive elements
+export type PseudoState = 'hover' | 'active';
+
+// State-specific style rules
+export interface StateRule {
+  state: PseudoState;
+  declarations: Declaration[];
+}
+
 export interface Rule {
   type: 'rule';
   selector: Selector;
   declarations: Declaration[];
   children: Rule[]; // For nested rules (hierarchy)
+  states: StateRule[]; // For pseudo-class rules (&:hover, &:active)
 }
 
 export interface Selector {

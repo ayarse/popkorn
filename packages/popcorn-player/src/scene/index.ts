@@ -18,6 +18,8 @@ export type {
   CubicBezier,
   AnimatableValue,
   PropertyBinding,
+  InteractionState,
+  StateStyles,
 } from './types';
 
 export {

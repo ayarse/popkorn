@@ -1,6 +1,6 @@
 // Re-export parser
 export { parse, initParser } from '@popcorn/parser';
-export type { StyleSheet, Rule, Declaration, Value, KeyframeRule, CanvasConfig, VariableDefinition } from '@popcorn/parser';
+export type { StyleSheet, Rule, Declaration, Value, KeyframeRule, CanvasConfig, VariableDefinition, PseudoState, StateRule } from '@popcorn/parser';
 
 // Web Component (main export)
 export { PopcornPlayer, registerPopcornPlayer } from './component';
@@ -37,6 +37,8 @@ export type {
   CubicBezier,
   AnimatableValue,
   PropertyBinding,
+  InteractionState,
+  StateStyles,
 } from './scene/types';
 export {
   createSceneNode,
@@ -68,3 +70,6 @@ export { RenderLoop, createRenderLoop } from './runtime/loop';
 export { InputTracker, getInputTracker, createInputTracker } from './runtime/inputs';
 export type { InputState } from './runtime/inputs';
 export { VariableResolver, getVariableResolver, createVariableResolver } from './runtime/variables';
+export { InteractionManager, createInteractionManager } from './runtime/interaction';
+export { hitTest, hitTestAll } from './runtime/hit-test';
+export type { Point, HitTestResult } from './runtime/hit-test';

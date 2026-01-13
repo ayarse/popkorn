@@ -17,6 +17,8 @@ export type {
   KeyframeRule,
   KeyframeBlock,
   CanvasConfig,
+  PseudoState,
+  StateRule,
 } from './ast';
 export {
   isLengthValue,

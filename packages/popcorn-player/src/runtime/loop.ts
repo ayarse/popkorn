@@ -3,6 +3,7 @@ import type { SceneNode, RectData, CircleData, EllipseData, PathData } from '../
 import { AnimationScheduler } from '../animation/scheduler';
 import { InputTracker, createInputTracker } from './inputs';
 import { VariableResolver, createVariableResolver } from './variables';
+import { InteractionManager, createInteractionManager } from './interaction';
 
 /**
  * Main render loop
@@ -17,17 +18,20 @@ export class RenderLoop {
   private backgroundColor: string | null = null;
   private inputTracker: InputTracker;
   private variableResolver: VariableResolver;
+  private interactionManager: InteractionManager;
 
   constructor(
     renderer: Renderer,
     scheduler?: AnimationScheduler,
     inputTracker?: InputTracker,
-    variableResolver?: VariableResolver
+    variableResolver?: VariableResolver,
+    interactionManager?: InteractionManager
   ) {
     this.renderer = renderer;
     this.scheduler = scheduler || new AnimationScheduler();
     this.inputTracker = inputTracker || createInputTracker();
     this.variableResolver = variableResolver || createVariableResolver();
+    this.interactionManager = interactionManager || createInteractionManager();
   }
 
   getInputTracker(): InputTracker {
@@ -38,8 +42,13 @@ export class RenderLoop {
     return this.variableResolver;
   }
 
+  getInteractionManager(): InteractionManager {
+    return this.interactionManager;
+  }
+
   setScene(root: SceneNode): void {
     this.sceneRoot = root;
+    this.interactionManager.setScene(root);
   }
 
   setBackgroundColor(color: string | null): void {
@@ -74,6 +83,9 @@ export class RenderLoop {
     // Update input state
     this.inputTracker.update(timestamp);
     this.variableResolver.updateInputState(this.inputTracker.getState());
+
+    // Update interaction state (hover, active)
+    this.interactionManager.update(this.inputTracker.getState());
 
     // Update animations
     if (this.sceneRoot) {

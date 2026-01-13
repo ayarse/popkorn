@@ -1,4 +1,4 @@
-import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock } from '@popcorn/parser';
+import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock, StateRule } from '@popcorn/parser';
 import {
   isLengthValue,
   isColorValue,
@@ -23,6 +23,7 @@ import type {
   EllipseData,
   PathData,
   TransformOriginValue,
+  StateStyles,
 } from './types';
 import { createSceneNode, cloneTransform, createDefaultTransformOrigin } from './types';
 import { parsePath } from './path-parser';
@@ -73,6 +74,20 @@ export class SceneBuilder {
     // Apply declarations
     this.applyDeclarations(node, rule.declarations);
 
+    // Extract state-specific styles from pseudo rules
+    if (rule.states && rule.states.length > 0) {
+      for (const stateRule of rule.states) {
+        const stateStyles = this.buildStateStyles(stateRule);
+        if (stateRule.state === 'hover') {
+          node.hoverStyles = stateStyles;
+        } else if (stateRule.state === 'active') {
+          node.activeStyles = stateStyles;
+        }
+      }
+      // Mark node as interactive if it has any state styles
+      node.interactive = true;
+    }
+
     // Process children
     for (const childRule of rule.children) {
       const childNode = this.buildNode(childRule);
@@ -86,6 +101,108 @@ export class SceneBuilder {
     node.baseOpacity = node.opacity;
 
     return node;
+  }
+
+  /**
+   * Build state-specific styles from a StateRule
+   */
+  private buildStateStyles(stateRule: StateRule): StateStyles {
+    const styles: StateStyles = {};
+
+    for (const decl of stateRule.declarations) {
+      const { property, value } = decl;
+
+      switch (property) {
+        case 'fill':
+          if (isColorValue(value)) {
+            styles.fill = value.value;
+          } else if (isKeywordValue(value)) {
+            if (value.value === 'none') {
+              styles.fill = null;
+            } else {
+              styles.fill = value.value;
+            }
+          } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
+            styles.fill = this.buildColorString(value);
+          }
+          break;
+
+        case 'stroke':
+          if (isColorValue(value)) {
+            styles.stroke = value.value;
+          } else if (isKeywordValue(value)) {
+            if (value.value === 'none') {
+              styles.stroke = null;
+            } else {
+              styles.stroke = value.value;
+            }
+          } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
+            styles.stroke = this.buildColorString(value);
+          }
+          break;
+
+        case 'stroke-width':
+          styles.strokeWidth = getNumericValue(value);
+          break;
+
+        case 'opacity':
+          styles.opacity = getNumericValue(value);
+          break;
+
+        case 'transform':
+          styles.transform = this.extractStateTransform(value);
+          break;
+      }
+    }
+
+    return styles;
+  }
+
+  /**
+   * Extract transform properties from a transform value for state styles
+   */
+  private extractStateTransform(value: Value): Partial<Transform> {
+    const transform: Partial<Transform> = {};
+
+    const extractSingle = (funcValue: { name: string; args: Value[] }) => {
+      switch (funcValue.name) {
+        case 'translate':
+          transform.translateX = getNumericValue(funcValue.args[0]);
+          transform.translateY = funcValue.args.length > 1 ? getNumericValue(funcValue.args[1]) : 0;
+          break;
+        case 'translateX':
+          transform.translateX = getNumericValue(funcValue.args[0]);
+          break;
+        case 'translateY':
+          transform.translateY = getNumericValue(funcValue.args[0]);
+          break;
+        case 'rotate':
+          transform.rotate = getNumericValue(funcValue.args[0]);
+          break;
+        case 'scale':
+          transform.scaleX = getNumericValue(funcValue.args[0]);
+          transform.scaleY = funcValue.args.length > 1 ? getNumericValue(funcValue.args[1]) : transform.scaleX;
+          break;
+        case 'scaleX':
+          transform.scaleX = getNumericValue(funcValue.args[0]);
+          break;
+        case 'scaleY':
+          transform.scaleY = getNumericValue(funcValue.args[0]);
+          break;
+      }
+    };
+
+    if (isFunctionValue(value)) {
+      extractSingle(value);
+    } else if (isListValue(value)) {
+      for (const v of value.values) {
+        if (isFunctionValue(v)) {
+          extractSingle(v);
+        }
+      }
+    }
+
+    return transform;
   }
 
   private applyDeclarations(node: SceneNode, declarations: Declaration[]): void {

@@ -4,6 +4,18 @@ import type { Value } from '@popcorn/parser';
 // Scene node types
 export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path';
 
+// Interaction state types
+export type InteractionState = 'normal' | 'hover' | 'active';
+
+// State-specific styles for interactive elements
+export interface StateStyles {
+  fill?: string | null;
+  stroke?: string | null;
+  strokeWidth?: number;
+  opacity?: number;
+  transform?: Partial<Transform>;
+}
+
 // Transform origin types
 export type TransformOriginUnit = 'px' | '%';
 
@@ -65,6 +77,12 @@ export interface SceneNode {
 
   // Dynamic property bindings (variables, input() functions)
   bindings: PropertyBinding[];
+
+  // Interaction state
+  interactionState: InteractionState;
+  hoverStyles: StateStyles | null;
+  activeStyles: StateStyles | null;
+  interactive: boolean;  // Whether this node responds to mouse events
 }
 
 export type ShapeData =
@@ -205,5 +223,9 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     baseFill: null,
     baseOpacity: 1,
     bindings: [],
+    interactionState: 'normal',
+    hoverStyles: null,
+    activeStyles: null,
+    interactive: false,
   };
 }
