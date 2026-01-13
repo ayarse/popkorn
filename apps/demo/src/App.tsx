@@ -230,6 +230,114 @@ const examples = {
   fill: #ffe66d;
   opacity: 0.5;
 }`,
+
+  bouncyBall: `/* Bouncy Ball - Per-keyframe easing demo */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #1a1a2e;
+}
+
+/*
+ * This animation demonstrates per-keyframe easing:
+ * - ease-in when falling (gravity accelerates the ball)
+ * - ease-out when rising (ball decelerates against gravity)
+ * - Squash/stretch at impact for realistic physics
+ */
+
+@keyframes ballBounce {
+  /* Start at top - begin falling with ease-in (acceleration) */
+  0% {
+    transform: translateY(0);
+    animation-timing-function: ease-in;
+  }
+  /* Hit ground - squash effect, then ease-out for rise */
+  45% {
+    transform: translateY(280px) scaleX(1.3) scaleY(0.7);
+    animation-timing-function: ease-out;
+  }
+  /* Rising - stretch slightly as ball leaves ground */
+  50% {
+    transform: translateY(260px) scaleX(0.9) scaleY(1.1);
+    animation-timing-function: ease-out;
+  }
+  /* Peak of bounce - momentary pause before falling again */
+  75% {
+    transform: translateY(100px) scaleX(1) scaleY(1);
+    animation-timing-function: ease-in;
+  }
+  /* Return to start position */
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes shadowPulse {
+  0% {
+    transform: scaleX(0.5) scaleY(1);
+    opacity: 0.2;
+    animation-timing-function: ease-in;
+  }
+  45% {
+    transform: scaleX(1.4) scaleY(1);
+    opacity: 0.5;
+    animation-timing-function: ease-out;
+  }
+  75% {
+    transform: scaleX(0.7) scaleY(1);
+    opacity: 0.25;
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: scaleX(0.5) scaleY(1);
+    opacity: 0.2;
+  }
+}
+
+/* Ground line */
+#ground {
+  type: rect;
+  x: 100px;
+  y: 480px;
+  width: 600px;
+  height: 4px;
+  rx: 2px;
+  fill: #4a4a6a;
+}
+
+/* Ball shadow - ellipse that grows as ball approaches */
+#ballShadow {
+  type: ellipse;
+  cx: 400px;
+  cy: 475px;
+  rx: 50px;
+  ry: 8px;
+  fill: #000000;
+  transform-origin: center;
+  animation: shadowPulse 1.2s linear infinite;
+}
+
+/* The bouncing ball */
+#ball {
+  type: circle;
+  cx: 400px;
+  cy: 150px;
+  r: 40px;
+  fill: #ff6b6b;
+  transform-origin: center bottom;
+  animation: ballBounce 1.2s linear infinite;
+}
+
+/* Ball highlight for 3D effect */
+#ballHighlight {
+  type: circle;
+  cx: 385px;
+  cy: 135px;
+  r: 12px;
+  fill: #ffaaaa;
+  transform-origin: 400px 190px;
+  animation: ballBounce 1.2s linear infinite;
+}`,
 };
 
 type ExampleKey = keyof typeof examples;
