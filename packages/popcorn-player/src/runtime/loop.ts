@@ -203,10 +203,22 @@ export class RenderLoop {
   private renderNode(node: SceneNode): void {
     this.renderer.save();
 
-    // Apply local transform
+    // Calculate the resolved transform origin in pixels
+    const { originX, originY } = this.resolveTransformOrigin(node);
+
+    // Apply transform-origin: translate to origin, apply transforms, translate back
+    // CSS transform order: translate -> (move to origin -> rotate/scale -> move back from origin)
     this.renderer.translate(node.transform.translateX, node.transform.translateY);
+
+    // Move to origin point, apply rotation/scale, move back
+    if (originX !== 0 || originY !== 0) {
+      this.renderer.translate(originX, originY);
+    }
     this.renderer.rotate(node.transform.rotate * Math.PI / 180);
     this.renderer.scale(node.transform.scaleX, node.transform.scaleY);
+    if (originX !== 0 || originY !== 0) {
+      this.renderer.translate(-originX, -originY);
+    }
 
     // Set style
     this.renderer.setFill(node.fill);
@@ -246,6 +258,74 @@ export class RenderLoop {
     }
 
     this.renderer.restore();
+  }
+
+  /**
+   * Resolve transform-origin to pixel values based on the shape's bounding box
+   * For percentage values, calculate relative to the shape's dimensions
+   */
+  private resolveTransformOrigin(node: SceneNode): { originX: number; originY: number } {
+    const origin = node.transform.transformOrigin;
+    const bounds = this.getShapeBounds(node);
+
+    const originX = this.resolveOriginValue(origin.x, bounds.x, bounds.width);
+    const originY = this.resolveOriginValue(origin.y, bounds.y, bounds.height);
+
+    return { originX, originY };
+  }
+
+  private resolveOriginValue(
+    value: { value: number; unit: 'px' | '%' },
+    offset: number,
+    dimension: number
+  ): number {
+    if (value.unit === '%') {
+      // Percentage is relative to the shape's bounding box
+      return offset + (value.value / 100) * dimension;
+    } else {
+      // Pixel values are absolute (relative to shape's local coordinate space)
+      return value.value;
+    }
+  }
+
+  /**
+   * Get the bounding box of a shape in local coordinates
+   */
+  private getShapeBounds(node: SceneNode): { x: number; y: number; width: number; height: number } {
+    switch (node.shapeData.type) {
+      case 'rect': {
+        const r = node.shapeData as RectData;
+        return { x: r.x, y: r.y, width: r.width, height: r.height };
+      }
+      case 'circle': {
+        const c = node.shapeData as CircleData;
+        return {
+          x: c.cx - c.r,
+          y: c.cy - c.r,
+          width: c.r * 2,
+          height: c.r * 2,
+        };
+      }
+      case 'ellipse': {
+        const e = node.shapeData as EllipseData;
+        return {
+          x: e.cx - e.rx,
+          y: e.cy - e.ry,
+          width: e.rx * 2,
+          height: e.ry * 2,
+        };
+      }
+      case 'path': {
+        // For paths, we would need to compute the bounding box from commands
+        // For now, return a default (0,0) origin with zero dimensions
+        // This means percentages will evaluate to 0 for paths
+        return { x: 0, y: 0, width: 0, height: 0 };
+      }
+      case 'group':
+      default:
+        // Groups have no intrinsic size, so percentages evaluate to 0
+        return { x: 0, y: 0, width: 0, height: 0 };
+    }
   }
 }
 

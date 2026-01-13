@@ -22,8 +22,9 @@ import type {
   CircleData,
   EllipseData,
   PathData,
+  TransformOriginValue,
 } from './types';
-import { createSceneNode, cloneTransform } from './types';
+import { createSceneNode, cloneTransform, createDefaultTransformOrigin } from './types';
 import { parsePath } from './path-parser';
 
 /**
@@ -111,6 +112,10 @@ export class SceneBuilder {
       // Transform properties
       case 'transform':
         this.applyTransform(node, value);
+        break;
+
+      case 'transform-origin':
+        this.applyTransformOrigin(node, value);
         break;
 
       // Position/size for rect
@@ -299,6 +304,107 @@ export class SceneBuilder {
       case 'scaleY':
         transform.scaleY = getNumericValue(args[0]);
         break;
+    }
+  }
+
+  /**
+   * Parse transform-origin property
+   * Supports:
+   * - Keywords: center, top, left, right, bottom, and combinations
+   * - Percentages: 50%, 100%
+   * - Pixels: 100px, 150px
+   * - Mixed: center 100px, 50% top
+   */
+  private applyTransformOrigin(node: SceneNode, value: Value): void {
+    const origin = createDefaultTransformOrigin();
+
+    // Handle single value or list of values
+    let values: Value[] = [];
+    if (isListValue(value)) {
+      values = value.values;
+    } else {
+      values = [value];
+    }
+
+    // Process first value (x-axis or keyword)
+    if (values.length >= 1) {
+      const firstVal = this.parseTransformOriginValue(values[0], 'x');
+      if (firstVal) {
+        // Check if it's a y-axis keyword used as first value (e.g., "top")
+        if (this.isYAxisKeyword(values[0])) {
+          origin.y = firstVal;
+          // If single y-axis keyword, x defaults to center (50%)
+          origin.x = { value: 50, unit: '%' };
+        } else {
+          origin.x = firstVal;
+        }
+      }
+    }
+
+    // Process second value (y-axis)
+    if (values.length >= 2) {
+      const secondVal = this.parseTransformOriginValue(values[1], 'y');
+      if (secondVal) {
+        // Check if first was a y-axis keyword; if so, this is x
+        if (this.isYAxisKeyword(values[0])) {
+          origin.x = secondVal;
+        } else {
+          origin.y = secondVal;
+        }
+      }
+    } else if (values.length === 1) {
+      // Single value - handle special cases
+      const firstVal = values[0];
+      if (isKeywordValue(firstVal) && firstVal.value === 'center') {
+        // "center" alone means center on both axes
+        origin.x = { value: 50, unit: '%' };
+        origin.y = { value: 50, unit: '%' };
+      } else if (!this.isYAxisKeyword(firstVal)) {
+        // Single x-axis value defaults y to 50% (center)
+        // This matches CSS behavior where "transform-origin: 100px" means "100px 50%"
+        origin.y = { value: 50, unit: '%' };
+      }
+    }
+
+    node.transform.transformOrigin = origin;
+  }
+
+  private isYAxisKeyword(value: Value): boolean {
+    return isKeywordValue(value) && (value.value === 'top' || value.value === 'bottom');
+  }
+
+  private parseTransformOriginValue(value: Value, axis: 'x' | 'y'): TransformOriginValue | null {
+    if (isKeywordValue(value)) {
+      return this.keywordToOriginValue(value.value, axis);
+    } else if (isLengthValue(value)) {
+      if (value.unit === '%') {
+        return { value: value.value, unit: '%' };
+      } else {
+        // Convert all other units to px (simplified)
+        return { value: value.value, unit: 'px' };
+      }
+    } else if (isNumberValue(value)) {
+      // Plain numbers treated as pixels
+      return { value: value.value, unit: 'px' };
+    }
+    return null;
+  }
+
+  private keywordToOriginValue(keyword: string, _axis: 'x' | 'y'): TransformOriginValue {
+    switch (keyword) {
+      case 'left':
+        return { value: 0, unit: '%' };
+      case 'right':
+        return { value: 100, unit: '%' };
+      case 'top':
+        return { value: 0, unit: '%' };
+      case 'bottom':
+        return { value: 100, unit: '%' };
+      case 'center':
+        return { value: 50, unit: '%' };
+      default:
+        // Unknown keyword defaults to 0
+        return { value: 0, unit: 'px' };
     }
   }
 

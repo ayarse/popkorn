@@ -2,6 +2,9 @@ export type {
   SceneNode,
   ShapeType,
   Transform,
+  TransformOrigin,
+  TransformOriginUnit,
+  TransformOriginValue,
   ShapeData,
   GroupData,
   RectData,
@@ -20,6 +23,7 @@ export type {
 export {
   createSceneNode,
   createDefaultTransform,
+  createDefaultTransformOrigin,
   cloneTransform,
 } from './types';
 

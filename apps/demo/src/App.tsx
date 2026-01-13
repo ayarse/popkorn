@@ -72,6 +72,7 @@ const examples = {
   cy: 300px;
   r: 60px;
   fill: #e94560;
+  transform-origin: center;
   animation: pulse 1.5s ease-in-out infinite;
 }
 
@@ -196,6 +197,7 @@ const examples = {
   cy: var(--cursor-y);
   r: 30px;
   fill: #e94560;
+  transform-origin: center;
   animation: pulse 1s ease-in-out infinite;
 }
 

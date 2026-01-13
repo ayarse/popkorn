@@ -4,6 +4,19 @@ import type { Value } from '@popcorn/parser';
 // Scene node types
 export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path';
 
+// Transform origin types
+export type TransformOriginUnit = 'px' | '%';
+
+export interface TransformOriginValue {
+  value: number;
+  unit: TransformOriginUnit;
+}
+
+export interface TransformOrigin {
+  x: TransformOriginValue;
+  y: TransformOriginValue;
+}
+
 // Property binding - stores a variable reference for dynamic resolution
 export interface PropertyBinding {
   property: string;  // e.g., 'cx', 'cy', 'r', 'opacity'
@@ -16,8 +29,9 @@ export interface Transform {
   rotate: number;       // degrees
   scaleX: number;
   scaleY: number;
-  anchorX: number;      // pivot point
+  anchorX: number;      // pivot point (deprecated, use transformOrigin)
   anchorY: number;
+  transformOrigin: TransformOrigin;  // CSS transform-origin
 }
 
 export interface SceneNode {
@@ -138,6 +152,14 @@ export interface KeyframeData {
 
 export type AnimatableValue = number | string | Transform;
 
+// Default transform origin (0 0, matching CSS behavior)
+export function createDefaultTransformOrigin(): TransformOrigin {
+  return {
+    x: { value: 0, unit: 'px' },
+    y: { value: 0, unit: 'px' },
+  };
+}
+
 // Helper to create default transform
 export function createDefaultTransform(): Transform {
   return {
@@ -148,12 +170,19 @@ export function createDefaultTransform(): Transform {
     scaleY: 1,
     anchorX: 0,
     anchorY: 0,
+    transformOrigin: createDefaultTransformOrigin(),
   };
 }
 
 // Helper to clone transform
 export function cloneTransform(t: Transform): Transform {
-  return { ...t };
+  return {
+    ...t,
+    transformOrigin: {
+      x: { ...t.transformOrigin.x },
+      y: { ...t.transformOrigin.y },
+    },
+  };
 }
 
 // Helper to create a default scene node

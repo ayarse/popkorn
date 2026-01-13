@@ -73,6 +73,17 @@ export function interpolateTransform(a: Transform, b: Transform, t: number): Tra
     scaleY: lerp(a.scaleY, b.scaleY, t),
     anchorX: lerp(a.anchorX, b.anchorX, t),
     anchorY: lerp(a.anchorY, b.anchorY, t),
+    transformOrigin: {
+      // Transform origin is typically not animated, but interpolate values in case
+      x: {
+        value: lerp(a.transformOrigin.x.value, b.transformOrigin.x.value, t),
+        unit: a.transformOrigin.x.unit, // Keep unit from first transform
+      },
+      y: {
+        value: lerp(a.transformOrigin.y.value, b.transformOrigin.y.value, t),
+        unit: a.transformOrigin.y.unit, // Keep unit from first transform
+      },
+    },
   };
 }
 
