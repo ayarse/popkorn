@@ -1,4 +1,8 @@
 import { useState, useEffect } from 'react';
+import Editor from 'react-simple-code-editor';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-css';
+import 'prismjs/themes/prism-tomorrow.css';
 import { MotionCanvas } from './components/MotionCanvas';
 
 // Example scene definitions
@@ -298,25 +302,21 @@ function App() {
         {/* Source panel */}
         <div style={{
           flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
+          overflow: 'auto',
           borderRight: '1px solid #333',
+          backgroundColor: '#0f0f1a',
         }}>
-          <textarea
+          <Editor
             value={source}
-            onChange={(e) => setSource(e.target.value)}
-            spellCheck={false}
+            onValueChange={setSource}
+            highlight={(code) => Prism.highlight(code, Prism.languages.css, 'css')}
+            padding={16}
             style={{
-              flex: 1,
-              backgroundColor: '#0f0f1a',
-              color: '#e0e0e0',
-              border: 'none',
-              padding: '16px',
+              minHeight: '100%',
               fontSize: '13px',
               fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
               lineHeight: '1.6',
-              resize: 'none',
-              outline: 'none',
+              backgroundColor: 'transparent',
             }}
           />
         </div>
