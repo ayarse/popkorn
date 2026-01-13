@@ -148,6 +148,7 @@ export interface CubicBezier {
 export interface KeyframeData {
   offset: number;  // 0-1
   properties: Record<string, AnimatableValue>;
+  easing?: TimingFunction;  // Per-keyframe easing (controls transition FROM this keyframe to the next)
 }
 
 export type AnimatableValue = number | string | Transform;

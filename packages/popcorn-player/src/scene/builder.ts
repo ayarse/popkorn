@@ -436,6 +436,9 @@ export class SceneBuilder {
         } else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') {
           direction = kw;
         }
+      } else if (isFunctionValue(v) && v.name === 'cubic-bezier') {
+        // Handle cubic-bezier(x1, y1, x2, y2)
+        timingFunction = this.parseCubicBezierFunction(v);
       } else if (isLengthValue(v)) {
         // Duration or delay (e.g., 2s, 500ms)
         if (v.unit === 's') {
@@ -482,10 +485,19 @@ export class SceneBuilder {
   }
 
   private buildKeyframes(rule: KeyframeRule): KeyframeData[] {
-    return rule.blocks.map(block => ({
-      offset: block.selectors[0] / 100, // Convert percentage to 0-1
-      properties: this.buildKeyframeProperties(block),
-    }));
+    return rule.blocks.map(block => {
+      const keyframeData: KeyframeData = {
+        offset: block.selectors[0] / 100, // Convert percentage to 0-1
+        properties: this.buildKeyframeProperties(block),
+      };
+
+      // Add per-keyframe easing if specified
+      if (block.easing) {
+        keyframeData.easing = this.parseTimingFunction(block.easing);
+      }
+
+      return keyframeData;
+    });
   }
 
   private buildKeyframeProperties(block: KeyframeBlock): Record<string, number | string | Transform> {
@@ -598,6 +610,50 @@ export class SceneBuilder {
     }
 
     return false;
+  }
+
+  /**
+   * Parse a timing function string into a TimingFunction type
+   * Handles both named keywords and cubic-bezier() strings
+   */
+  private parseTimingFunction(easingStr: string): TimingFunction {
+    // Check for named timing functions
+    if (easingStr === 'linear' || easingStr === 'ease' ||
+        easingStr === 'ease-in' || easingStr === 'ease-out' ||
+        easingStr === 'ease-in-out') {
+      return easingStr;
+    }
+
+    // Check for cubic-bezier()
+    const cubicBezierMatch = easingStr.match(/^cubic-bezier\(\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)$/);
+    if (cubicBezierMatch) {
+      return {
+        type: 'cubic-bezier',
+        x1: parseFloat(cubicBezierMatch[1]),
+        y1: parseFloat(cubicBezierMatch[2]),
+        x2: parseFloat(cubicBezierMatch[3]),
+        y2: parseFloat(cubicBezierMatch[4]),
+      };
+    }
+
+    // Default to ease
+    return 'ease';
+  }
+
+  /**
+   * Parse a cubic-bezier FunctionValue into a CubicBezier timing function
+   */
+  private parseCubicBezierFunction(func: { name: string; args: Value[] }): TimingFunction {
+    if (func.args.length >= 4) {
+      return {
+        type: 'cubic-bezier',
+        x1: getNumericValue(func.args[0]),
+        y1: getNumericValue(func.args[1]),
+        x2: getNumericValue(func.args[2]),
+        y2: getNumericValue(func.args[3]),
+      };
+    }
+    return 'ease';
   }
 }
 

@@ -1,15 +1,19 @@
-import type { SceneNode, KeyframeData, Transform, AnimatableValue } from '../scene/types';
+import type { SceneNode, KeyframeData, Transform, AnimatableValue, TimingFunction } from '../scene/types';
 import { cloneTransform } from '../scene/types';
 import { interpolateTransform, lerp } from '../scene/transform';
 import { parseColor } from '../renderer/types';
+import { applyEasing } from './easing';
 
 /**
  * Interpolate between keyframes at a given progress (0-1)
+ * Note: progress should already have the animation-level easing applied by the scheduler.
+ * Per-keyframe easing is applied here to the local progress between keyframes.
  */
 export function interpolateKeyframes(
   keyframes: KeyframeData[],
   progress: number,
-  baseNode: SceneNode
+  baseNode: SceneNode,
+  defaultEasing?: TimingFunction
 ): Partial<{
   transform: Transform;
   opacity: number;
@@ -47,7 +51,14 @@ export function interpolateKeyframes(
 
   // Calculate local progress between keyframes
   const range = nextKeyframe.offset - prevKeyframe.offset;
-  const localProgress = range > 0 ? (progress - prevKeyframe.offset) / range : 0;
+  let localProgress = range > 0 ? (progress - prevKeyframe.offset) / range : 0;
+
+  // Apply per-keyframe easing (from the previous keyframe)
+  // This easing controls the transition FROM prevKeyframe TO nextKeyframe
+  const keyframeEasing = prevKeyframe.easing || defaultEasing;
+  if (keyframeEasing) {
+    localProgress = applyEasing(localProgress, keyframeEasing);
+  }
 
   // Interpolate properties
   const result: Partial<{ transform: Transform; opacity: number; fill: string }> = {};

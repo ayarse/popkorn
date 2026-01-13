@@ -61,8 +61,14 @@ const examples = {
 }
 
 @keyframes bounce {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-50px); }
+  0% {
+    transform: translateY(0);
+    animation-timing-function: ease-out;
+  }
+  50% {
+    transform: translateY(-50px);
+    animation-timing-function: ease-in;
+  }
   100% { transform: translateY(0); }
 }
 
@@ -98,7 +104,7 @@ const examples = {
   rx: 40px;
   ry: 60px;
   fill: #ffe66d;
-  animation: bounce 1s ease-in-out infinite;
+  animation: bounce 1s linear infinite;
 }`,
 
   hierarchy: `/* Scene hierarchy demo */
@@ -114,8 +120,14 @@ const examples = {
 }
 
 @keyframes float {
-  0% { transform: translateY(0); }
-  50% { transform: translateY(-15px); }
+  0% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
+  50% {
+    transform: translateY(-15px);
+    animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  }
   100% { transform: translateY(0); }
 }
 

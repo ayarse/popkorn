@@ -1,6 +1,5 @@
 import type { SceneNode, AnimationInstance, AnimationDirection } from '../scene/types';
 import { cloneTransform } from '../scene/types';
-import { applyEasing } from './easing';
 import { interpolateKeyframes } from './keyframes';
 
 /**
@@ -51,11 +50,15 @@ export class AnimationScheduler {
 
       const progress = this.calculateProgress(animation, animationElapsed);
 
-      // Apply easing
-      const easedProgress = applyEasing(progress, animation.timingFunction);
-
       // Interpolate keyframes and apply to node
-      const interpolated = interpolateKeyframes(animation.keyframes, easedProgress, node);
+      // Pass the animation's timing function as the default for keyframes without their own easing
+      // Per-keyframe easing is applied within interpolateKeyframes
+      const interpolated = interpolateKeyframes(
+        animation.keyframes,
+        progress,
+        node,
+        animation.timingFunction
+      );
 
       if (interpolated.transform) {
         node.transform = interpolated.transform;

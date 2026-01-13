@@ -309,19 +309,52 @@ function transformKeyframe(node: SyntaxNode): KeyframeBlock {
   }
 
   const declarations: Declaration[] = [];
+  let easing: string | undefined;
+
   if (declBlockNode) {
     for (const child of declBlockNode.namedChildren) {
       if (child.type === 'declaration') {
-        declarations.push(transformDeclaration(child));
+        const decl = transformDeclaration(child);
+        // Extract animation-timing-function as per-keyframe easing
+        if (decl.property === 'animation-timing-function') {
+          easing = extractEasingString(decl.value);
+        } else {
+          declarations.push(decl);
+        }
       }
     }
   }
 
-  return {
+  const block: KeyframeBlock = {
     type: 'keyframe-block',
     selectors,
     declarations,
   };
+
+  if (easing) {
+    block.easing = easing;
+  }
+
+  return block;
+}
+
+/**
+ * Extract easing string from a Value
+ * Handles keywords (ease, ease-in, etc.) and cubic-bezier() functions
+ */
+function extractEasingString(value: Value): string {
+  if (value.type === 'keyword') {
+    return value.value;
+  }
+  if (value.type === 'function' && value.name === 'cubic-bezier') {
+    const args = value.args.map(arg => {
+      if (arg.type === 'number') return arg.value.toString();
+      if (arg.type === 'length') return arg.value.toString();
+      return '0';
+    });
+    return `cubic-bezier(${args.join(', ')})`;
+  }
+  return 'ease';
 }
 
 function extractCanvasConfig(rule: Rule): CanvasConfig {
