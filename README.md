@@ -1,6 +1,21 @@
 # Popcorn
 
-A CSS-like DSL for defining scene graphs and animations.
+**Lottie you can write by hand.** Popcorn is a CSS-subset DSL for scene graphs
+and motion graphics, played by a zero-dependency Canvas2D engine. It targets
+parity with Lottie players in rendering and animation capability — vector
+shapes, gradients, masks and track mattes, trim paths, motion paths, path
+morphing, symbols, per-subtree time scoping — while the format stays something
+a human (or an LLM) can author, read, and diff, where Lottie JSON is
+machine-generated and opaque.
+
+Design stance, in one paragraph: when a capability exists in CSS, Popcorn uses
+the CSS property and its semantics (`offset-path` for motion paths, `step-end`
+for holds, negative `animation-delay` for staggering, `z-index` for layering)
+rather than inventing syntax. Interactivity is declarative — `var()` and
+`input(cursor.x)` bindings — not a scripting engine. Real Lottie files convert
+into the DSL via the bundled converter (`tools/lottie2popcorn-cli.ts`, or the
+demo's Import Lottie button), validated continuously against the LottieFiles
+conformance corpus.
 
 ## Packages
 
@@ -639,8 +654,37 @@ AST — synchronously, with no dependencies or build step. Tests live alongside 
 **@popcorn/demo** is a React app that:
 
 - Uses the `<popcorn-player>` web component via a thin React wrapper
-- Provides example scenes to demonstrate features
+- Provides example scenes to demonstrate features (curated in
+  `packages/demo/src/examples.ts`, kept in sync with `examples/*.css`)
 - Shows the DSL source alongside the rendered output
+- Imports real Lottie JSON via the browser-safe converter core
+
+### Engine principles
+
+The player's correctness rests on a few structural rules (spelled out with
+their rationale in `CLAUDE.md` — read that before changing the engine):
+
+- One transform implementation: render and hit-testing both consume the
+  matrices in `scene/transform.ts` (transform-origin and motion-path placement
+  included), so what you see is always what you can hover.
+- Deterministic frames: every frame re-resolves node values from an immutable
+  base snapshot in a fixed order — bindings, then animation, then
+  `:hover`/`:active` — off a single seekable global timeline. `seek(t)` twice
+  renders the identical frame.
+- Properties become animatable by adding an entry to the property registry
+  (`animation/registry.ts`), never by special-casing the interpolator.
+
+### Lottie converter
+
+`tools/lottie2popcorn.ts` is the conversion core (browser-safe; the demo
+imports it), `tools/lottie2popcorn-cli.ts` the CLI (`--validate` runs the
+output through parse + buildSceneGraph; `--batch <dir>` converts a tree and
+prints a clean/warn/blocked table). A normalization layer canonicalizes
+real-world bodymovin output (legacy v4 keyframes, split positions, 0-255
+colors, missing names) before mapping, so minified production exports convert
+as reliably as pristine ones. Against the 80-file LottieFiles conformance
+corpus, 73 files convert (66 clean); the remainder use rare shape modifiers
+that mainstream Lottie players also skip.
 
 ## License
 
