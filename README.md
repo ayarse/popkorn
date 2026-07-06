@@ -405,6 +405,12 @@ their hit-testing and clipping): `nonzero` (default) or `evenodd`. With
 }
 ```
 
+The Lottie converter (`tools/lottie2popcorn.ts`) leans on this for **union-only
+merge paths**: Lottie merge modes 1/2 (normal/add) become a single `nonzero`
+path with one subpath per merged shape (a Canvas2D union of fills). Modes 3/4/5
+(subtract/intersect/exclude) stay blocked. Fills union exactly; a **stroke** on a
+merged path shows interior seams (subpath outlines aren't booleaned away).
+
 ### Animations
 
 ```css

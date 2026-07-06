@@ -351,3 +351,97 @@ test('normalize: hidden shape items (hd:true) are skipped entirely', () => {
   expect(css).toContain('type: ellipse');
   expect(css).toContain('fill: none');
 });
+
+// --- merge paths (mm) ------------------------------------------------------
+
+// A shape group whose drawables are unioned by a following mm modifier, then
+// painted by the group's fill. Modes 1/2 union; 3/4/5 block.
+function mergeDoc(drawables: any[], mm: number) {
+  return {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, ind: 1, nm: 'L', ks: {},
+      shapes: [{
+        ty: 'gr',
+        it: [
+          ...drawables,
+          { ty: 'mm', mm },
+          { ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+          { ty: 'tr' },
+        ],
+      }],
+    }],
+  };
+}
+
+test('merge: static rect+ellipse union into one path with two subpaths', () => {
+  const doc = mergeDoc([
+    { ty: 'rc', s: { a: 0, k: [10, 10] }, p: { a: 0, k: [0, 0] } },
+    { ty: 'el', s: { a: 0, k: [8, 8] }, p: { a: 0, k: [20, 0] } },
+  ], 1);
+  const c = new Converter();
+  const css = c.convert(doc);
+  // One merged path node, not separate rect/ellipse nodes.
+  expect(css).toContain('type: path');
+  expect(css).not.toContain('type: rect');
+  expect(css).not.toContain('type: ellipse');
+  // Two subpaths concatenated in a single `d` (nonzero winding = visual union).
+  const ms = css.match(/M /g) || [];
+  expect(ms.length).toBe(2);
+  expect(css).toContain('fill-rule: nonzero');
+  // The group fill still applies to the merged result.
+  expect(css).toContain('fill: #ff0000');
+  expect(c.blocked.size).toBe(0);
+  // The emitted CSS is valid and builds.
+  expect(buildSceneGraph(parse(css))).toBeTruthy();
+});
+
+test('merge: a star in a merge is baked from the player polystar math', () => {
+  const doc = mergeDoc([
+    { ty: 'rc', s: { a: 0, k: [10, 10] }, p: { a: 0, k: [30, 0] } },
+    { ty: 'sr', sy: 1, pt: { a: 0, k: 5 }, or: { a: 0, k: 50 }, ir: { a: 0, k: 25 },
+      os: { a: 0, k: 0 }, is: { a: 0, k: 0 }, r: { a: 0, k: 0 }, p: { a: 0, k: [0, 0] } },
+  ], 1);
+  const css = new Converter().convert(doc);
+  expect(css).toContain('type: path');
+  expect(css).not.toContain('type: star');
+  // First polystar vertex sits straight up (-90deg): (cx, cy - outerRadius).
+  expect(css).toContain('M 0 -50');
+});
+
+test('merge: mode 3 (subtract) stays blocked', () => {
+  const doc = mergeDoc([
+    { ty: 'rc', s: { a: 0, k: [10, 10] }, p: { a: 0, k: [0, 0] } },
+    { ty: 'el', s: { a: 0, k: [8, 8] }, p: { a: 0, k: [20, 0] } },
+  ], 3);
+  const c = new Converter();
+  c.convert(doc);
+  expect([...c.blocked]).toContain('merge mode 3 (mm)');
+});
+
+test('merge: single input passes through for any mode (a no-op union)', () => {
+  // adrock-style: one shape before an intersect (mode 4) mm — still convertible.
+  const doc = mergeDoc([
+    { ty: 'sh', ks: { a: 0, k: shape([[0, 0], [10, 0], [10, 10]]) } },
+  ], 4);
+  const c = new Converter();
+  const css = c.convert(doc);
+  expect(c.blocked.size).toBe(0);
+  expect(css).toContain('type: path');
+});
+
+test('merge: animated geometry unions via a morphing d channel', () => {
+  const doc = mergeDoc([
+    { ty: 'sh', ks: { a: 1, k: [
+      { t: 0, s: [shape([[0, 0], [10, 0], [10, 10]])] },
+      { t: 30, s: [shape([[0, 0], [20, 0], [20, 20]])] },
+    ] } },
+    { ty: 'rc', s: { a: 0, k: [10, 10] }, p: { a: 0, k: [40, 0] } },
+  ], 1);
+  const css = new Converter().convert(doc);
+  expect(css).toContain('type: path');
+  expect(css).toContain('@keyframes');
+  // The merged (static rect + animated triangle) still reads as two subpaths.
+  expect((css.match(/M /g) || []).length).toBeGreaterThanOrEqual(2);
+  expect(buildSceneGraph(parse(css))).toBeTruthy();
+});

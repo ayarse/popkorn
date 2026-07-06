@@ -14,6 +14,7 @@
 import { parse } from '../packages/popcorn-parser/src/index.ts';
 import { buildSceneGraph } from '../packages/popcorn-player/src/scene/builder.ts';
 import { parsePath, computePathLength } from '../packages/popcorn-player/src/scene/path-parser.ts';
+import { polystarToCommands } from '../packages/popcorn-player/src/scene/polystar.ts';
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -219,7 +220,6 @@ interface Rule {
 const BLOCKED_MODIFIERS: Record<string, string> = {
   rp: 'repeater (rp)',
   rd: 'round-corners (rd)',
-  mm: 'merge (mm)',
   op: 'offset-path modifier (op)',
   zz: 'zig-zag (zz)',
   pb: 'pucker-bloat (pb)',
@@ -779,6 +779,8 @@ export class Converter {
           };
           break;
         }
+        case 'mm':
+          break; // merge-paths: resolved in the drawable pass below.
         default:
           if (it.ty in BLOCKED_MODIFIERS) this.blocked.add(BLOCKED_MODIFIERS[it.ty]);
       }
@@ -814,7 +816,39 @@ export class Converter {
 
     const out: Rule[] = [];
     let dcount = 0;
+
+    // Merge-paths (mm) unions the drawables preceding it into one path. Canvas2D
+    // nonzero fill of multiple subpaths in a single path IS visual union, so no
+    // player feature is needed — just concatenate subpaths. A single-input merge
+    // is a visual no-op for ANY mode (it passes straight through the loop below);
+    // multi-input merges only union (modes 1/2). Modes 3/4/5 stay blocked.
+    // Known limitation: a STROKE on a merged path shows interior seams (fills are
+    // unioned, strokes are not — Canvas draws every subpath's outline).
+    let mergeSet: Set<any> | null = null;
+    const mmIdx = items.findIndex((it) => it.ty === 'mm');
+    if (mmIdx >= 0) {
+      const mode = items[mmIdx].mm;
+      const drawables = items
+        .slice(0, mmIdx)
+        .filter((it) => it.ty === 'rc' || it.ty === 'el' || it.ty === 'sh' || it.ty === 'sr');
+      if (drawables.length > 1) {
+        if (mode === 1 || mode === 2) {
+          mergeSet = new Set(drawables);
+          const merged = this.buildMergedPath(drawables, this.uniqueId(prefix + '-merge'), fillRule);
+          if (merged) {
+            if (stroke) this.warnOnce('stroke on a merged path shows interior seams (fills are unioned, strokes are not)');
+            applyStyle(merged);
+            this.finalizeAnim(merged, 0);
+            out.push(merged);
+          }
+        } else {
+          this.blocked.add(`merge mode ${mode} (mm)`); // subtract/intersect/exclude
+        }
+      }
+    }
+
     for (const it of items) {
+      if (mergeSet && mergeSet.has(it)) continue;
       if (it.ty === 'gr') {
         const gid = this.uniqueId(prefix + '-' + (it.nm ? it.nm : `g${dcount++}`));
         const grp: Rule = { id: gid, type: 'group', decls: [], channels: [], children: [] };
@@ -921,6 +955,36 @@ export class Converter {
     const shp = it.ks ? it.ks.k : null;
     if (!shp) return null;
     rule.decls.push(`d: '${shapeToPath(shp)}'`);
+    return rule;
+  }
+
+  /**
+   * Union `drawables` into one path node (each drawable is one subpath in a
+   * single `d`, filled nonzero). Static geometry bakes to a `d` declaration;
+   * animated geometry samples every drawable on a shared keyframe grid so the
+   * player morphs the combined path (the shape set is fixed and each drawable's
+   * command sequence is count-stable, so vertices line up across frames).
+   */
+  private buildMergedPath(drawables: any[], id: string, fillRule: number | null): Rule | null {
+    const rule: Rule = { id, type: 'path', decls: [], channels: [], children: [] };
+    const dAt = (t: number) => drawables.map((it) => drawableToDAt(it, t)).filter(Boolean).join(' ');
+    const animated = drawables.filter(drawableAnimated);
+    if (animated.length === 0) {
+      const d = dAt(0);
+      if (!d) return null;
+      rule.decls.push(`d: '${d}'`);
+    } else {
+      // Drive the morph off the longest animated track (its keyframes carry the
+      // easing); other inputs are hold/morph-sampled at those same times.
+      const carrier = animated.reduce((a, b) => (drawableKfs(b).length > drawableKfs(a).length ? b : a));
+      const kfs = drawableKfs(carrier);
+      rule.decls.push(`d: '${dAt(kfs[0].t)}'`);
+      rule.channels.push({ priority: 6, kfs, sample: (t) => ({ d: dAt(t) }) });
+      if (animated.length > 1)
+        this.warnOnce('merged path has multiple animated inputs; easing follows the longest track');
+    }
+    // Nonzero winding is what makes the concatenated subpaths read as a union.
+    if (fillRule !== 2) rule.decls.push('fill-rule: nonzero');
     return rule;
   }
 
@@ -1098,6 +1162,119 @@ function shapeToPath(shp: any): string {
   }
   if (shp.c) parts.push('Z');
   return parts.join(' ');
+}
+
+// --- geometry -> `d` synthesis (for merge-paths; bakes local placement) ------
+// Each drawable in a merge becomes one closed subpath in absolute coordinates.
+// Structures are command-count-stable across frames (rc always 4 line+corner
+// pairs, el always 4 cubics, sr fixed by point count) so animated merges morph.
+
+const KAPPA = 0.5522847498307936;
+
+/** Rounded rect: center `p`, size `s`, corner radius `r`. Always 4 cubic corners. */
+function rectToD(p: number[], s: number[], r: number): string {
+  const w = s[0], h = s[1];
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  const x0 = p[0] - w / 2, y0 = p[1] - h / 2, x1 = p[0] + w / 2, y1 = p[1] + h / 2;
+  const c = rr * (1 - KAPPA);
+  return [
+    `M ${num(x0 + rr)} ${num(y0)}`,
+    `L ${num(x1 - rr)} ${num(y0)}`,
+    `C ${num(x1 - c)} ${num(y0)} ${num(x1)} ${num(y0 + c)} ${num(x1)} ${num(y0 + rr)}`,
+    `L ${num(x1)} ${num(y1 - rr)}`,
+    `C ${num(x1)} ${num(y1 - c)} ${num(x1 - c)} ${num(y1)} ${num(x1 - rr)} ${num(y1)}`,
+    `L ${num(x0 + rr)} ${num(y1)}`,
+    `C ${num(x0 + c)} ${num(y1)} ${num(x0)} ${num(y1 - c)} ${num(x0)} ${num(y1 - rr)}`,
+    `L ${num(x0)} ${num(y0 + rr)}`,
+    `C ${num(x0)} ${num(y0 + c)} ${num(x0 + c)} ${num(y0)} ${num(x0 + rr)} ${num(y0)}`,
+    'Z',
+  ].join(' ');
+}
+
+/** Ellipse as four kappa cubics, starting at the top. */
+function ellipseToD(cx: number, cy: number, rx: number, ry: number): string {
+  const ox = rx * KAPPA, oy = ry * KAPPA;
+  return [
+    `M ${num(cx)} ${num(cy - ry)}`,
+    `C ${num(cx + ox)} ${num(cy - ry)} ${num(cx + rx)} ${num(cy - oy)} ${num(cx + rx)} ${num(cy)}`,
+    `C ${num(cx + rx)} ${num(cy + oy)} ${num(cx + ox)} ${num(cy + ry)} ${num(cx)} ${num(cy + ry)}`,
+    `C ${num(cx - ox)} ${num(cy + ry)} ${num(cx - rx)} ${num(cy + oy)} ${num(cx - rx)} ${num(cy)}`,
+    `C ${num(cx - rx)} ${num(cy - oy)} ${num(cx - ox)} ${num(cy - ry)} ${num(cx)} ${num(cy - ry)}`,
+    'Z',
+  ].join(' ');
+}
+
+/** Serialize PathCommand[] (as emitted by the player's polystar) to a `d` string. */
+function commandsToD(cmds: any[]): string {
+  return cmds
+    .map((c) => {
+      switch (c.type) {
+        case 'M': case 'L': return `${c.type} ${num(c.x)} ${num(c.y)}`;
+        case 'C': return `C ${num(c.x1)} ${num(c.y1)} ${num(c.x2)} ${num(c.y2)} ${num(c.x)} ${num(c.y)}`;
+        case 'Q': return `Q ${num(c.x1)} ${num(c.y1)} ${num(c.x)} ${num(c.y)}`;
+        case 'Z': return 'Z';
+        default: return '';
+      }
+    })
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** Reuse the player's polystar math, then serialize, to `d` for a sr at frame t. */
+function polystarToD(it: any, t: number): string {
+  const p = prop(it.p), pt = prop(it.pt), or = prop(it.or), ir = prop(it.ir),
+    rot = prop(it.r), os = prop(it.os), is = prop(it.is);
+  const pv = p ? p.at(t) : [0, 0];
+  const sd: any = {
+    type: it.sy !== 2 ? 'star' : 'polygon',
+    points: pt ? pt.at(t)[0] : 5,
+    outerRadius: or ? or.at(t)[0] : 0,
+    innerRadius: ir ? ir.at(t)[0] : 0,
+    outerRoundness: os ? os.at(t)[0] : 0,
+    innerRoundness: is ? is.at(t)[0] : 0,
+    rotation: rot ? rot.at(t)[0] : 0,
+    cx: pv[0], cy: pv[1],
+  };
+  return commandsToD(polystarToCommands(sd));
+}
+
+/** A drawable (sh/rc/el/sr) as an absolute-coordinate `d` subpath at frame t. */
+function drawableToDAt(it: any, t: number): string {
+  if (it.ty === 'sh') {
+    if (it.ks && it.ks.a === 1) return shapeToPath(shapeAt(it.ks.k, t));
+    return it.ks ? shapeToPath(it.ks.k) : '';
+  }
+  if (it.ty === 'rc') {
+    const p = prop(it.p), s = prop(it.s), rnd = prop(it.r);
+    return rectToD(p!.at(t), s!.at(t), rnd ? rnd.at(t)[0] || 0 : 0);
+  }
+  if (it.ty === 'el') {
+    const p = prop(it.p), s = prop(it.s);
+    const pv = p!.at(t), sv = s!.at(t);
+    return ellipseToD(pv[0], pv[1], sv[0] / 2, sv[1] / 2);
+  }
+  if (it.ty === 'sr') return polystarToD(it, t);
+  return '';
+}
+
+/** True if a drawable's geometry animates (so a merge must sample per keyframe). */
+function drawableAnimated(it: any): boolean {
+  if (it.ty === 'sh') return !!(it.ks && it.ks.a === 1);
+  for (const key of ['p', 's', 'r', 'pt', 'or', 'ir', 'os', 'is']) {
+    const v = prop(it[key]);
+    if (v && v.animated) return true;
+  }
+  return false;
+}
+
+/** The keyframe track driving a drawable's geometry (for the union grid + easing). */
+function drawableKfs(it: any): Kf[] {
+  if (it.ty === 'sh') return it.ks && it.ks.a === 1 ? (it.ks.k as Kf[]) : [];
+  for (const key of ['p', 's', 'r', 'pt', 'or', 'ir', 'os', 'is']) {
+    const v = prop(it[key]);
+    if (v && v.animated && v.kfs) return v.kfs;
+  }
+  return [];
 }
 
 /** A group `tr` item has the same shape as a layer `ks`. */
