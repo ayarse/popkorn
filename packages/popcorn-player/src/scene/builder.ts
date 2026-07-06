@@ -630,6 +630,14 @@ export class SceneBuilder {
         }
         break;
 
+      // SVG-style paint order. Only 'stroke' (stroke behind fill) is meaningful
+      // here; any other value keeps the default fill-then-stroke.
+      case 'paint-order':
+        if (isKeywordValue(value)) {
+          node.paintOrder = value.value === 'stroke' ? 'stroke' : 'normal';
+        }
+        break;
+
       // Trim paths: percentages normalized to 0..1 (like opacity is authored as
       // a fraction) and clamped to range.
       case 'trim-start':

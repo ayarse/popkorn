@@ -1,5 +1,5 @@
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor, FillRule, MatteMode } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -44,6 +44,8 @@ export interface Renderer {
   setDash(dashArray: number[], dashOffset: number): void;
   // Fill winding rule for the next path/star/polygon fill and clip.
   setFillRule(rule: FillRule): void;
+  // Paint order for the next shape: 'stroke' draws stroke behind fill.
+  setPaintOrder(order: PaintOrder): void;
   setOpacity(opacity: number): void;
 
   // Transform stack

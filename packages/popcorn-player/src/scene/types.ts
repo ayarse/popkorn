@@ -33,6 +33,12 @@ export type TextAnchor = 'start' | 'middle' | 'end';
 // Stroke line cap, maps straight to CanvasRenderingContext2D.lineCap.
 export type StrokeLineCap = 'butt' | 'round' | 'square';
 
+// Paint order for a shape's own fill/stroke. 'normal' paints fill then stroke
+// (stroke on top); 'stroke' paints stroke then fill (stroke behind the fill),
+// matching SVG `paint-order: stroke`. Used when a Lottie group stroke sits below
+// the fills it covers, so only the exposed edge (a seam) shows.
+export type PaintOrder = 'normal' | 'stroke';
+
 // Interaction state types
 export type InteractionState = 'normal' | 'hover' | 'active';
 
@@ -109,6 +115,9 @@ export interface SceneNode {
 
   // Fill winding rule (static); applies to path/star/polygon fill, hit-test and clip.
   fillRule: FillRule;
+
+  // Paint order of this node's own fill/stroke (static). Default 'normal'.
+  paintOrder: PaintOrder;
 
   // Cached total outline length (local units). Invalidated by the registry's
   // geometry apply functions (they set outlineLengthDirty); recomputed lazily
@@ -448,6 +457,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     strokeDashArray: [],
     strokeDashOffset: 0,
     fillRule: 'nonzero',
+    paintOrder: 'normal',
     cachedOutlineLength: null,
     outlineLengthDirty: true,
     cachedTextBounds: null,

@@ -181,6 +181,15 @@ test('fill-rule: parses evenodd; defaults to nonzero', () => {
   expect(b.fillRule).toBe('nonzero');
 });
 
+// --- paint-order -------------------------------------------------------------
+
+test('paint-order: parses stroke; defaults to normal', () => {
+  const [a] = build('#a { type: path; d: "M0 0 L10 0 Z"; paint-order: stroke; }').children;
+  expect(a.paintOrder).toBe('stroke');
+  const [b] = build('#b { type: path; d: "M0 0 L10 0 Z"; }').children;
+  expect(b.paintOrder).toBe('normal');
+});
+
 // --- multi-path clip (Lottie mask add-mode) ----------------------------------
 
 test('clip-path: multiple path() values union into one command list', () => {

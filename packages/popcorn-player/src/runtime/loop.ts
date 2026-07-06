@@ -312,6 +312,7 @@ export class RenderLoop {
     this.renderer.setStrokeLineCap(node.strokeLineCap);
     this.renderer.setTrim(computeTrim(node));
     this.renderer.setDash(node.strokeDashArray, node.strokeDashOffset);
+    this.renderer.setPaintOrder(node.paintOrder);
     this.renderer.setOpacity(alpha);
 
     // Draw shape

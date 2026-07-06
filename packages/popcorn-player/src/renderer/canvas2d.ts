@@ -1,6 +1,6 @@
 import type { Renderer } from './interface';
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor, FillRule, MatteMode } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -32,6 +32,7 @@ export class Canvas2DRenderer implements Renderer {
   private dashArray: number[] = [];
   private dashOffset: number = 0;
   private fillRule: FillRule = 'nonzero';
+  private paintOrder: PaintOrder = 'normal';
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -241,6 +242,10 @@ export class Canvas2DRenderer implements Renderer {
     this.fillRule = rule;
   }
 
+  setPaintOrder(order: PaintOrder): void {
+    this.paintOrder = order;
+  }
+
   setOpacity(opacity: number): void {
     this.ctx.globalAlpha = opacity;
   }
@@ -286,6 +291,18 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   private applyFillAndStroke(bounds: Bounds): void {
+    // paint-order: stroke draws the stroke first so the fill sits on top of it
+    // (only the stroke's exposed outer edge shows) — otherwise fill then stroke.
+    if (this.paintOrder === 'stroke') {
+      this.strokePath(bounds);
+      this.fillPath(bounds);
+    } else {
+      this.fillPath(bounds);
+      this.strokePath(bounds);
+    }
+  }
+
+  private fillPath(bounds: Bounds): void {
     // Fill is always drawn untrimmed (trim affects the stroke only, like Lottie).
     // Gradient wins over solid color when present.
     if (this.fillGradient) {
@@ -295,7 +312,9 @@ export class Canvas2DRenderer implements Renderer {
       this.ctx.fillStyle = this.fillColor;
       this.ctx.fill(this.fillRule);
     }
+  }
 
+  private strokePath(bounds: Bounds): void {
     const stroke = this.strokeGradient
       ? this.realizeGradient(this.strokeGradient, bounds)
       : this.strokeColor;

@@ -27,6 +27,7 @@ function recordingRenderer(): Renderer & { drawn: string[] } {
     setTrim(_t: TrimDescriptor | null) {},
     setDash() {},
     setFillRule(_r: FillRule) {},
+    setPaintOrder() {},
     setOpacity() {},
     save() {}, restore() {},
     translate() {}, rotate() {}, scale() {}, transform() {}, setTransform(_m: Matrix3x3) {},

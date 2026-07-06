@@ -32,6 +32,7 @@ function createRecordingRenderer(): Renderer & { opacities: number[] } {
     setTrim(_t: TrimDescriptor | null) {},
     setDash() {},
     setFillRule(_r: FillRule) {},
+    setPaintOrder() {},
     setOpacity(opacity: number) {
       this.opacities.push(opacity);
     },

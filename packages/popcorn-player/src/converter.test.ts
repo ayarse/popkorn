@@ -614,11 +614,13 @@ test('parenting: a null interleaver does NOT warn (nulls paint nothing)', () => 
 });
 
 // ---------------------------------------------------------------------------
-// Stroke inheritance (defect 3): a stroke on an outer group (its width/cap too,
-// not just the colour) styles descendant paths in nested child groups.
+// Group stroke over nested filled segments: Lottie draws it as ONE stroke of the
+// combined paths, painted BENEATH the fills (only the outer edge shows). It is
+// hoisted into a single stroke-only node behind the fills — NOT stamped onto
+// every segment, which would draw a heavy seam at every interior boundary.
 // ---------------------------------------------------------------------------
 
-test('stroke: an outer-group stroke propagates width + linecap to nested paths', () => {
+test('stroke: an outer-group stroke hoists to one stroke-only node behind the fills', () => {
   const doc = {
     fr: 30, ip: 0, op: 30, w: 100, h: 100,
     layers: [
@@ -642,9 +644,16 @@ test('stroke: an outer-group stroke propagates width + linecap to nested paths',
     ],
   };
   const css = new Converter().convert(doc);
-  // BOTH segment paths carry the inherited 16px round stroke, not the default 1px.
-  const widths = css.match(/stroke-width: 16px/g) || [];
-  expect(widths.length).toBe(2);
-  expect((css.match(/stroke-linecap: round/g) || []).length).toBe(2);
+  // Exactly ONE stroke (16px round) — the hoisted stroke-only node — not one per
+  // segment. The segments themselves are fill-only.
+  expect((css.match(/stroke-width: 16px/g) || []).length).toBe(1);
+  expect((css.match(/stroke-linecap: round/g) || []).length).toBe(1);
+  // The stroke node carries no fill and unions both segment subpaths (two M cmds).
+  const strokeRule = css.match(/#[\w-]*stroke\b[^}]*\}/s)?.[0] ?? '';
+  expect(strokeRule).toContain('fill: none');
+  expect(strokeRule).toContain('stroke-width: 16px');
+  expect((strokeRule.match(/M /g) || []).length).toBeGreaterThanOrEqual(2);
+  // No segment fill leaks a stroke declaration.
+  expect(css).not.toMatch(/fill: #ff0000;[^}]*stroke:/s);
   expect(buildSceneGraph(parse(css))).toBeTruthy();
 });

@@ -803,6 +803,14 @@ export class Converter {
     let fillRule: number | null = null;
     let trim: TrimInfo | null = null;
 
+    // A stroke inherited from an ancestor group (rather than defined by an `st`
+    // at this level) sits BELOW this level's fills in Lottie's paint order — it's
+    // an outer outline the nearer fills paint over, so only its exposed edge (the
+    // seam between adjacent filled shapes) shows. Emit `paint-order: stroke` for
+    // those so the player draws the stroke behind the fill instead of on top (a
+    // 16px outline over every small segment otherwise reads as a thick ribbon).
+    const hasLocalStroke = items.some((it) => it.ty === 'st');
+
     for (const it of items) {
       switch (it.ty) {
         case 'fl': {
@@ -879,6 +887,32 @@ export class Converter {
     }
     if (fillCount > 1) this.warnOnce('group has multiple fills; last one used');
 
+    // A stroke that reaches into nested `gr` children styles their descendant
+    // fills in Lottie as ONE stroke of the combined paths, painted BELOW every
+    // fill — the fills cover its interior so only the outer edge (the silhouette
+    // seam) shows. Reproducing it per-segment (each fill carrying its own stroke
+    // on top) draws a heavy seam at every interior boundary. When the covered
+    // paths share this level's space (all intervening group transforms identity),
+    // hoist the stroke into one stroke-only node behind the fills, and leave the
+    // fills unstroked. (Otherwise fall through to per-node paint-order: stroke.)
+    let hoistStroke: Rule | null = null;
+    if (hasLocalStroke && stroke && strokeWidth != null && items.some((it) => it.ty === 'gr')) {
+      const covered = collectStrokeableDraws(items);
+      if (covered && covered.length > 1) {
+        const node = this.buildMergedPath(covered, this.uniqueId(prefix + '-stroke'), fillRule);
+        if (node) {
+          node.decls.push('fill: none', `stroke: ${stroke}`, `stroke-width: ${num(strokeWidth)}px`);
+          if (lineCap && lineCap !== 'butt') node.decls.push(`stroke-linecap: ${lineCap}`);
+          if (dashArray) node.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
+          if (dashOffset) node.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
+          this.finalizeAnim(node, 0);
+          hoistStroke = node;
+          // The fills below now paint unstroked; the hoisted node is the stroke.
+          stroke = null; strokeWidth = null; lineCap = null; dashArray = null; dashOffset = 0;
+        }
+      }
+    }
+
     const effectiveFill = gradientFill ?? fill;
     // A trim applies to preceding sibling shapes in Lottie, which may be a
     // sibling `gr` group rather than a drawable in this same items array —
@@ -893,6 +927,7 @@ export class Converter {
       if (effectiveFill) rule.decls.push(`fill: ${effectiveFill}`);
       else rule.decls.push(`fill: none`);
       if (stroke) rule.decls.push(`stroke: ${stroke}`);
+      if (stroke && !hasLocalStroke) rule.decls.push(`paint-order: stroke`);
       if (strokeWidth != null) rule.decls.push(`stroke-width: ${num(strokeWidth)}px`);
       if (lineCap && lineCap !== 'butt') rule.decls.push(`stroke-linecap: ${lineCap}`);
       if (dashArray) rule.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
@@ -980,6 +1015,9 @@ export class Converter {
         out.splice(drawIdx, 0, merged);
       }
     }
+    // A hoisted group stroke paints beneath every fill: last in Lottie (top-first)
+    // order so it lands first (behind) after the reverse below.
+    if (hoistStroke) out.push(hoistStroke);
     // Lottie paints shape items top-first; Popcorn paints first-behind -> reverse.
     return out.reverse();
   }
@@ -1394,6 +1432,46 @@ function drawableKfs(it: any): Kf[] {
 /** A group `tr` item has the same shape as a layer `ks`. */
 function trToKs(tr: any): any {
   return { o: tr.o, r: tr.r, p: tr.p, a: tr.a, s: tr.s, sk: tr.sk };
+}
+
+/** A group transform that neither moves, rotates, scales nor skews its contents. */
+function isIdentityTr(tr: any): boolean {
+  if (!tr) return true;
+  const stat = (p: any, def: number[]): boolean => {
+    if (p == null) return true;
+    if (p.a === 1) return false; // animated -> not a static identity
+    const k = Array.isArray(p.k) ? p.k : [p.k];
+    return def.every((d, i) => Math.abs((k[i] ?? d) - d) < 1e-6);
+  };
+  return stat(tr.p, [0, 0]) && stat(tr.a, [0, 0]) && stat(tr.s, [100, 100]) &&
+    stat(tr.r, [0]) && stat(tr.sk, [0]) && stat(tr.sa, [0]);
+}
+
+/**
+ * Flatten the drawable paths a group-level stroke covers (everything preceding
+ * the stroke in the item list, recursing into nested groups). Returns null if
+ * any intervening group transform is non-identity — then the paths don't share
+ * one coordinate space and can't be unioned into a single stroke node here.
+ */
+function collectStrokeableDraws(items: any[]): any[] | null {
+  const stIdx = items.map((it) => it.ty).lastIndexOf('st');
+  const scope = stIdx >= 0 ? items.slice(0, stIdx) : items;
+  const out: any[] = [];
+  let ok = true;
+  const walk = (its: any[]) => {
+    for (const it of its) {
+      if (!it || it.hd === true) continue;
+      if (it.ty === 'gr') {
+        const tr = (it.it || []).find((x: any) => x.ty === 'tr');
+        if (!isIdentityTr(tr)) { ok = false; return; }
+        walk(it.it || []);
+      } else if (it.ty === 'rc' || it.ty === 'el' || it.ty === 'sh' || it.ty === 'sr') {
+        out.push(it);
+      }
+    }
+  };
+  walk(scope);
+  return ok ? out : null;
 }
 
 /** Lottie track-matte type (tt) -> Popcorn matte mode. */
