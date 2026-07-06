@@ -1,13 +1,12 @@
 # Popcorn
 
-A CSS-like DSL for defining scene graphs and animations, powered by tree-sitter.
+A CSS-like DSL for defining scene graphs and animations.
 
 ## Packages
 
-- `@popcorn/parser` - Tree-sitter based parser for Popcorn DSL
+- `@popcorn/parser` - Parser for the Popcorn DSL (hand-rolled, zero-dependency)
 - `@popcorn/player` - Web component and rendering engine
 - `@popcorn/demo` - React demo application
-- `tree-sitter-popcorn` - Tree-sitter grammar definition
 
 ## Getting Started
 
@@ -56,7 +55,7 @@ For more control, use the lower-level APIs:
 ```ts
 import { parse, buildSceneGraph, Canvas2DRenderer, RenderLoop } from '@popcorn/player';
 
-const ast = await parse(source);
+const ast = parse(source);
 const scene = buildSceneGraph(ast);
 
 const renderer = new Canvas2DRenderer(canvas);
@@ -71,8 +70,7 @@ loop.start();
 |---------|-------------|
 | `bun run dev` | Start demo dev server |
 | `bun run build` | Build demo app |
-| `bun run build:grammar` | Rebuild tree-sitter grammar |
-| `bun run test:grammar` | Run grammar tests |
+| `bun run test` | Run parser tests |
 
 ## DSL Syntax
 
@@ -207,27 +205,20 @@ Available inputs:
 ```
 popcorn/
 ├── apps/
-│   └── demo/                 # React demo app
+│   └── demo/             # React demo app
 ├── packages/
-│   ├── popcorn-parser/       # Parser + WASM binaries
-│   ├── popcorn-player/       # Web component & renderer
-│   └── tree-sitter-popcorn/  # Grammar definition
-├── examples/                 # Example DSL files
-└── docs/                     # Documentation
+│   ├── popcorn-parser/   # DSL parser (hand-rolled) → AST
+│   └── popcorn-player/   # Web component & renderer
+├── examples/             # Example DSL files
+└── docs/                 # Documentation
 ```
 
 ## Architecture
 
 ```
 ┌─────────────────────────┐
-│  tree-sitter-popcorn    │  Grammar definition
-│  grammar.js             │
-└───────────┬─────────────┘
-            │ build
-            ▼
-┌─────────────────────────┐
-│  @popcorn/parser        │  Parser runtime
-│  parse() → AST          │
+│  @popcorn/parser        │  parse(source) → AST
+│  (hand-rolled, sync)    │
 └───────────┬─────────────┘
             │
             ▼
@@ -246,19 +237,12 @@ popcorn/
 └─────────────────────────┘
 ```
 
-### Grammar → Parser
+### Parser
 
-**tree-sitter-popcorn** defines the grammar in `grammar.js`. Running `bun run build:grammar`:
-
-1. Generates the C parser from `grammar.js`
-2. Compiles to WebAssembly (`tree-sitter-popcorn.wasm`)
-3. Copies the WASM to `popcorn-parser/wasm/`
-
-**@popcorn/parser** provides the runtime:
-
-- Loads the WASM binary via `web-tree-sitter`
-- Transforms tree-sitter's CST into a typed AST
-- Exports `parse()`, `initParser()`, and AST types
+**@popcorn/parser** is a small tokenizing recursive-descent parser (`src/parser.ts`).
+The DSL is a CSS subset, so `parse(source)` turns the source directly into a typed
+AST — synchronously, with no dependencies or build step. Tests live alongside it in
+`src/parser.test.ts` (`bun run test`).
 
 ### Parser → Player
 

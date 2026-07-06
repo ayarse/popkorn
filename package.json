@@ -9,7 +9,6 @@
   "scripts": {
     "dev": "bun --filter @popcorn/demo dev",
     "build": "bun --filter @popcorn/demo build",
-    "build:grammar": "bun --filter tree-sitter-popcorn build",
-    "test:grammar": "bun --filter tree-sitter-popcorn test"
+    "test": "bun --filter @popcorn/parser test"
   }
 }

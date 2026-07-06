@@ -190,7 +190,7 @@ export class PopcornPlayer extends HTMLElement {
 
     try {
       // Parse the DSL
-      const ast = await parse(this._source);
+      const ast = parse(this._source);
 
       // Build scene graph
       const sceneRoot = buildSceneGraph(ast);

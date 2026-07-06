@@ -1,4 +1,4 @@
-export { initParser, isParserReady, parse } from './tree-sitter-parser';
+export { parse } from './parser';
 export type {
   StyleSheet,
   Rule,

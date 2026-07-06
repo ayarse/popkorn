@@ -1,5 +1,5 @@
 // Re-export parser
-export { parse, initParser } from '@popcorn/parser';
+export { parse } from '@popcorn/parser';
 export type { StyleSheet, Rule, Declaration, Value, KeyframeRule, CanvasConfig, VariableDefinition, PseudoState, StateRule } from '@popcorn/parser';
 
 // Web Component (main export)

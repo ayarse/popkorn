@@ -115,7 +115,7 @@ import {
 } from '@popcorn/player';
 
 // Parse DSL
-const ast = await parse(source);
+const ast = parse(source);
 
 // Build scene graph
 const scene = buildSceneGraph(ast);
