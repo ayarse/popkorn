@@ -1,6 +1,9 @@
 import type { Renderer } from './interface';
-import type { Color, PathCommand, Matrix3x3 } from './types';
+import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
 import { colorToCSS } from './types';
+import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
+
+type Bounds = { x: number; y: number; width: number; height: number };
 
 /**
  * Canvas 2D implementation of the Renderer interface
@@ -11,6 +14,8 @@ export class Canvas2DRenderer implements Renderer {
   private fillColor: string | null = '#000000';
   private strokeColor: string | null = null;
   private strokeWidth: number = 1;
+  private fillGradient: GradientData | null = null;
+  private strokeGradient: GradientData | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -43,136 +48,58 @@ export class Canvas2DRenderer implements Renderer {
     } else {
       this.ctx.rect(x, y, w, h);
     }
-    this.applyFillAndStroke();
+    this.applyFillAndStroke({ x, y, width: w, height: h });
   }
 
   drawCircle(cx: number, cy: number, r: number): void {
     this.ctx.beginPath();
     this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    this.applyFillAndStroke();
+    this.applyFillAndStroke({ x: cx - r, y: cy - r, width: r * 2, height: r * 2 });
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
     this.ctx.beginPath();
     this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    this.applyFillAndStroke();
+    this.applyFillAndStroke({ x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 });
   }
 
   drawPath(commands: PathCommand[]): void {
     this.ctx.beginPath();
-    let currentX = 0;
-    let currentY = 0;
-    let lastControlX = 0;
-    let lastControlY = 0;
-    let lastCommand: string | null = null;
-
-    for (const cmd of commands) {
-      switch (cmd.type) {
-        case 'M':
-          this.ctx.moveTo(cmd.x, cmd.y);
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        case 'L':
-          this.ctx.lineTo(cmd.x, cmd.y);
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        case 'H':
-          this.ctx.lineTo(cmd.x, currentY);
-          currentX = cmd.x;
-          break;
-        case 'V':
-          this.ctx.lineTo(currentX, cmd.y);
-          currentY = cmd.y;
-          break;
-        case 'C':
-          this.ctx.bezierCurveTo(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
-          lastControlX = cmd.x2;
-          lastControlY = cmd.y2;
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        case 'S': {
-          // Smooth curve - reflect last control point
-          let cx1 = currentX;
-          let cy1 = currentY;
-          if (lastCommand === 'C' || lastCommand === 'S') {
-            cx1 = 2 * currentX - lastControlX;
-            cy1 = 2 * currentY - lastControlY;
-          }
-          this.ctx.bezierCurveTo(cx1, cy1, cmd.x2, cmd.y2, cmd.x, cmd.y);
-          lastControlX = cmd.x2;
-          lastControlY = cmd.y2;
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        }
-        case 'Q':
-          this.ctx.quadraticCurveTo(cmd.x1, cmd.y1, cmd.x, cmd.y);
-          lastControlX = cmd.x1;
-          lastControlY = cmd.y1;
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        case 'T': {
-          // Smooth quadratic - reflect last control point
-          let qx = currentX;
-          let qy = currentY;
-          if (lastCommand === 'Q' || lastCommand === 'T') {
-            qx = 2 * currentX - lastControlX;
-            qy = 2 * currentY - lastControlY;
-          }
-          this.ctx.quadraticCurveTo(qx, qy, cmd.x, cmd.y);
-          lastControlX = qx;
-          lastControlY = qy;
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        }
-        case 'A':
-          // Arc - convert to canvas arc
-          this.drawArc(
-            currentX, currentY,
-            cmd.rx, cmd.ry,
-            cmd.angle,
-            cmd.largeArc,
-            cmd.sweep,
-            cmd.x, cmd.y
-          );
-          currentX = cmd.x;
-          currentY = cmd.y;
-          break;
-        case 'Z':
-          this.ctx.closePath();
-          break;
-      }
-      lastCommand = cmd.type;
-    }
-    this.applyFillAndStroke();
+    applyCommandsToPath(this.ctx, commands);
+    this.applyFillAndStroke(computePathBounds(commands));
   }
 
-  private drawArc(
-    _x1: number, _y1: number,
-    _rx: number, _ry: number,
-    _angle: number,
-    _largeArc: boolean,
-    _sweep: boolean,
-    x2: number, y2: number
-  ): void {
-    // Simplified arc drawing - use line for now
-    // Full SVG arc implementation is complex
-    // For the PoC, we'll approximate with a line
-    this.ctx.lineTo(x2, y2);
+  clip(clip: ResolvedClip): void {
+    const path = new Path2D();
+    switch (clip.type) {
+      case 'rect':
+        path.rect(clip.x, clip.y, clip.width, clip.height);
+        break;
+      case 'circle':
+        path.arc(clip.cx, clip.cy, clip.r, 0, Math.PI * 2);
+        break;
+      case 'path':
+        applyCommandsToPath(path, clip.commands);
+        break;
+    }
+    this.ctx.clip(path);
   }
 
   setFill(color: Color | null): void {
     this.fillColor = color ? colorToCSS(color) : null;
   }
 
+  setFillGradient(gradient: GradientData | null): void {
+    this.fillGradient = gradient;
+  }
+
   setStroke(color: Color | null, width: number): void {
     this.strokeColor = color ? colorToCSS(color) : null;
     this.strokeWidth = width;
+  }
+
+  setStrokeGradient(gradient: GradientData | null): void {
+    this.strokeGradient = gradient;
   }
 
   setOpacity(opacity: number): void {
@@ -219,15 +146,53 @@ export class Canvas2DRenderer implements Renderer {
     return this.ctx.canvas.height;
   }
 
-  private applyFillAndStroke(): void {
-    if (this.fillColor) {
+  private applyFillAndStroke(bounds: Bounds): void {
+    // Gradient wins over solid color when present.
+    if (this.fillGradient) {
+      this.ctx.fillStyle = this.realizeGradient(this.fillGradient, bounds);
+      this.ctx.fill();
+    } else if (this.fillColor) {
       this.ctx.fillStyle = this.fillColor;
       this.ctx.fill();
     }
-    if (this.strokeColor) {
+    if (this.strokeGradient) {
+      this.ctx.strokeStyle = this.realizeGradient(this.strokeGradient, bounds);
+      this.ctx.lineWidth = this.strokeWidth;
+      this.ctx.stroke();
+    } else if (this.strokeColor) {
       this.ctx.strokeStyle = this.strokeColor;
       this.ctx.lineWidth = this.strokeWidth;
       this.ctx.stroke();
     }
+  }
+
+  /**
+   * Realize a gradient descriptor against a shape's local bounding box.
+   * Linear angle follows CSS: 0deg = up, 90deg = right. Radial is centered on
+   * the box with radius = half the box diagonal.
+   */
+  private realizeGradient(g: GradientData, b: Bounds): CanvasGradient {
+    const cx = b.x + b.width / 2;
+    const cy = b.y + b.height / 2;
+    let grad: CanvasGradient;
+
+    if (g.type === 'linear-gradient') {
+      const rad = (g.angle * Math.PI) / 180;
+      const dx = Math.sin(rad);
+      const dy = -Math.cos(rad);
+      const len = Math.abs(b.width * dx) + Math.abs(b.height * dy);
+      grad = this.ctx.createLinearGradient(
+        cx - (dx * len) / 2, cy - (dy * len) / 2,
+        cx + (dx * len) / 2, cy + (dy * len) / 2
+      );
+    } else {
+      const r = Math.hypot(b.width, b.height) / 2;
+      grad = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    }
+
+    for (const stop of g.stops) {
+      grad.addColorStop(Math.max(0, Math.min(1, stop.offset)), stop.color);
+    }
+    return grad;
   }
 }

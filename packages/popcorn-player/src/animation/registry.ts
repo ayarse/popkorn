@@ -70,6 +70,8 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     kind: 'color',
     readBase: (base) => base.fill,
     apply: (node, value) => {
+      // A gradient fill isn't animatable yet; keep it (last-write wins).
+      if (node.fillGradient) return;
       node.fill = value as string;
     },
   },
@@ -77,6 +79,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     kind: 'color',
     readBase: (base) => base.stroke,
     apply: (node, value) => {
+      if (node.strokeGradient) return;
       node.stroke = value as string;
     },
   },

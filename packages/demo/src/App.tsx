@@ -424,6 +424,50 @@ const examples = {
   transform-origin: 400px 190px;
   animation: ballBounce 1.2s linear infinite;
 }`,
+
+  vector: `/* Gradients + clip-path demo */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0f0f23;
+}
+
+/* Linear gradient fill (0deg = up, 90deg = right) */
+#panel {
+  type: rect;
+  x: 80px;
+  y: 180px;
+  width: 260px;
+  height: 240px;
+  rx: 24px;
+  fill: linear-gradient(120deg, #e94560 0%, #533483 100%);
+}
+
+/* Radial gradient fill + gradient stroke */
+#orb {
+  type: circle;
+  cx: 560px;
+  cy: 300px;
+  r: 120px;
+  fill: radial-gradient(#ffe66d 0%, #ff6b6b 100%);
+  stroke: linear-gradient(90deg, #4ecdc4 0%, #ffffff 100%);
+  stroke-width: 6px;
+}
+
+/* Clip a group to a circle: only the slice inside the circle shows */
+#masked {
+  type: group;
+  clip-path: circle(90px at 560px 300px);
+
+  > #stripe {
+    type: rect;
+    x: 440px;
+    y: 290px;
+    width: 240px;
+    height: 24px;
+    fill: #0f0f23;
+  }
+}`,
 };
 
 type ExampleKey = keyof typeof examples;

@@ -8,6 +8,34 @@ export interface RGBAColor {
 
 export type Color = string | RGBAColor;
 
+// Gradient fill/stroke descriptor. Structured (not a raw CSS string) so the
+// renderer can realize it against each shape's local bounding box at draw time.
+export interface GradientStop {
+  offset: number; // 0-1
+  color: string;  // any CSS color string (hex or rgb/rgba)
+}
+
+export interface LinearGradientData {
+  type: 'linear-gradient';
+  angle: number; // CSS degrees: 0 = up, 90 = right
+  stops: GradientStop[];
+}
+
+export interface RadialGradientData {
+  type: 'radial-gradient';
+  stops: GradientStop[];
+}
+
+export type GradientData = LinearGradientData | RadialGradientData;
+
+// A clip-path resolved to concrete local-space geometry (insets already applied
+// against the node's bounding box). Shared by the renderer and hit-test so both
+// clip/reject against identical geometry.
+export type ResolvedClip =
+  | { type: 'rect'; x: number; y: number; width: number; height: number }
+  | { type: 'circle'; cx: number; cy: number; r: number }
+  | { type: 'path'; commands: PathCommand[] };
+
 // Path command types (SVG-style)
 export type PathCommand =
   | { type: 'M'; x: number; y: number }

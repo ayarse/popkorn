@@ -154,7 +154,7 @@ loop.stop();
 - `SceneNode`, `Transform`, `ShapeData` (types) - Scene graph types
 - `createSceneNode`, `createDefaultTransform`, `cloneTransform` - Factory functions
 - `parsePath` - SVG path parser
-- Transform utilities: `computeLocalMatrix`, `computeWorldMatrix`, `interpolateTransform`
+- Transform utilities: `computeLocalMatrix`, `computeWorldMatrix`
 
 ### Animation
 - `AnimationScheduler` - Animation timing controller

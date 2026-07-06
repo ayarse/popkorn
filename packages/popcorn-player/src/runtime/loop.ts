@@ -2,6 +2,7 @@ import type { Renderer } from '../renderer/interface';
 import type { SceneNode, RectData, CircleData, EllipseData, PathData } from '../scene/types';
 import { resetNodeToBase } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
+import { resolveClip } from '../scene/clip';
 import { AnimationScheduler } from '../animation/scheduler';
 import { getPropHandler } from '../animation/registry';
 import { InputTracker, createInputTracker } from './inputs';
@@ -162,7 +163,9 @@ export class RenderLoop {
     // Draw background
     if (this.backgroundColor) {
       this.renderer.setFill(this.backgroundColor);
+      this.renderer.setFillGradient(null);
       this.renderer.setStroke(null, 0);
+      this.renderer.setStrokeGradient(null);
       this.renderer.drawRect(0, 0, this.renderer.getWidth(), this.renderer.getHeight());
     }
 
@@ -181,9 +184,16 @@ export class RenderLoop {
     // Multiplying onto the current (parent) transform yields the world transform.
     this.renderer.transform(computeLocalMatrix(node));
 
+    // Clip this node and its descendants (applied in local space, after the
+    // transform, before drawing — the save/restore below brackets it).
+    const clip = resolveClip(node);
+    if (clip) this.renderer.clip(clip);
+
     // Set style
     this.renderer.setFill(node.fill);
+    this.renderer.setFillGradient(node.fillGradient);
     this.renderer.setStroke(node.stroke, node.strokeWidth);
+    this.renderer.setStrokeGradient(node.strokeGradient);
     this.renderer.setOpacity(node.opacity);
 
     // Draw shape

@@ -6,7 +6,7 @@ import {
   rotationMatrix,
   scaleMatrix,
 } from '../renderer/types';
-import type { Transform, SceneNode, TransformOriginValue, RectData, CircleData, EllipseData } from './types';
+import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData } from './types';
 
 /**
  * Axis-aligned bounding box of a shape in its local coordinate space.
@@ -89,31 +89,6 @@ export function computeAllWorldTransforms(
   }
 
   return worldMatrices;
-}
-
-/**
- * Interpolate between two transforms
- * Note: Uses direct lerp for rotation to support full 360deg rotations in animations
- */
-export function interpolateTransform(a: Transform, b: Transform, t: number): Transform {
-  return {
-    translateX: lerp(a.translateX, b.translateX, t),
-    translateY: lerp(a.translateY, b.translateY, t),
-    rotate: lerp(a.rotate, b.rotate, t), // Direct lerp, not shortest path
-    scaleX: lerp(a.scaleX, b.scaleX, t),
-    scaleY: lerp(a.scaleY, b.scaleY, t),
-    transformOrigin: {
-      // Transform origin is typically not animated, but interpolate values in case
-      x: {
-        value: lerp(a.transformOrigin.x.value, b.transformOrigin.x.value, t),
-        unit: a.transformOrigin.x.unit, // Keep unit from first transform
-      },
-      y: {
-        value: lerp(a.transformOrigin.y.value, b.transformOrigin.y.value, t),
-        unit: a.transformOrigin.y.unit, // Keep unit from first transform
-      },
-    },
-  };
 }
 
 /**

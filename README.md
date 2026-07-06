@@ -145,6 +145,37 @@ loop.start();
 }
 ```
 
+### Gradient Fills
+
+`fill` and `stroke` accept CSS gradients. Color stops are hex or `rgb()`/`rgba()`.
+
+```css
+#a {
+  type: rect;
+  /* 0deg points up, 90deg right (CSS angle convention) */
+  fill: linear-gradient(90deg, #ff0000 0%, #0000ff 100%);
+}
+
+#b {
+  type: circle;
+  /* radial is centered on the shape's bbox, radius = half its diagonal */
+  fill: radial-gradient(#ffffff 0%, #000000 100%);
+}
+```
+
+### Clipping
+
+`clip-path` clips a node and all its descendants (most useful on a group).
+
+```css
+#masked {
+  type: group;
+  clip-path: circle(120px at 200px 150px);      /* circle(<r> at <x> <y>) */
+  /* clip-path: inset(20px 20px 20px 20px);      inset(<t> <r> <b> <l>) */
+  /* clip-path: path('M0 0 L200 0 L100 200 Z');  arbitrary SVG path */
+}
+```
+
 ### Animations
 
 ```css

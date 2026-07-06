@@ -14,9 +14,11 @@ import type {
   EllipseData,
   PathData,
 } from '../scene/types';
-import type { Matrix3x3, PathCommand } from '../renderer/types';
+import type { Matrix3x3, PathCommand, ResolvedClip } from '../renderer/types';
 import { IDENTITY_MATRIX, invertMatrix, transformPoint } from '../renderer/types';
 import { computeWorldMatrix } from '../scene/transform';
+import { resolveClip } from '../scene/clip';
+import { applyCommandsToPath } from '../scene/path-parser';
 
 export interface Point {
   x: number;
@@ -67,16 +69,47 @@ function hitTestNode(
 ): void {
   const world = computeWorldMatrix(node, parentWorld);
   const depth = order.value++;
+  const local = transformPoint(invertMatrix(world), point.x, point.y);
 
-  if (node.interactive) {
-    const local = transformPoint(invertMatrix(world), point.x, point.y);
-    if (isPointInShape(node, local)) {
-      results.push({ node, depth });
-    }
+  // A point outside this node's clip region can hit neither the node nor any of
+  // its descendants — the clip is applied in this node's local space, matching
+  // the renderer.
+  const clip = resolveClip(node);
+  if (clip && !isPointInClip(clip, local)) return;
+
+  if (node.interactive && isPointInShape(node, local)) {
+    results.push({ node, depth });
   }
 
   for (const child of node.children) {
     hitTestNode(child, point, world, order, results);
+  }
+}
+
+/**
+ * Test whether a local-space point lies inside a resolved clip region.
+ * circle/rect are pure math; path reuses the Path2D scratch context and, like
+ * path hit-testing, degrades to `false` (rejects) when no DOM is available.
+ */
+function isPointInClip(clip: ResolvedClip, point: Point): boolean {
+  switch (clip.type) {
+    case 'rect':
+      return (
+        point.x >= clip.x &&
+        point.x <= clip.x + clip.width &&
+        point.y >= clip.y &&
+        point.y <= clip.y + clip.height
+      );
+    case 'circle': {
+      const dx = point.x - clip.cx;
+      const dy = point.y - clip.cy;
+      return dx * dx + dy * dy <= clip.r * clip.r;
+    }
+    case 'path': {
+      const ctx = getScratchContext();
+      if (!ctx || typeof Path2D === 'undefined') return false;
+      return ctx.isPointInPath(buildPath2D(clip.commands), point.x, point.y);
+    }
   }
 }
 
@@ -153,91 +186,12 @@ function getScratchContext(): CanvasRenderingContext2D | null {
 }
 
 /**
- * Build a Path2D from parsed path commands. Mirrors Canvas2DRenderer.drawPath,
- * including smooth-curve reflection; arcs are approximated as lines to match.
+ * Build a Path2D from parsed path commands using the same emitter as the
+ * renderer (scene/path-parser), so hit geometry matches paint exactly —
+ * including real elliptical arcs.
  */
 function buildPath2D(commands: PathCommand[]): Path2D {
   const path = new Path2D();
-  let currentX = 0;
-  let currentY = 0;
-  let lastControlX = 0;
-  let lastControlY = 0;
-  let lastCommand: string | null = null;
-
-  for (const cmd of commands) {
-    switch (cmd.type) {
-      case 'M':
-        path.moveTo(cmd.x, cmd.y);
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      case 'L':
-        path.lineTo(cmd.x, cmd.y);
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      case 'H':
-        path.lineTo(cmd.x, currentY);
-        currentX = cmd.x;
-        break;
-      case 'V':
-        path.lineTo(currentX, cmd.y);
-        currentY = cmd.y;
-        break;
-      case 'C':
-        path.bezierCurveTo(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
-        lastControlX = cmd.x2;
-        lastControlY = cmd.y2;
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      case 'S': {
-        let cx1 = currentX;
-        let cy1 = currentY;
-        if (lastCommand === 'C' || lastCommand === 'S') {
-          cx1 = 2 * currentX - lastControlX;
-          cy1 = 2 * currentY - lastControlY;
-        }
-        path.bezierCurveTo(cx1, cy1, cmd.x2, cmd.y2, cmd.x, cmd.y);
-        lastControlX = cmd.x2;
-        lastControlY = cmd.y2;
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      }
-      case 'Q':
-        path.quadraticCurveTo(cmd.x1, cmd.y1, cmd.x, cmd.y);
-        lastControlX = cmd.x1;
-        lastControlY = cmd.y1;
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      case 'T': {
-        let qx = currentX;
-        let qy = currentY;
-        if (lastCommand === 'Q' || lastCommand === 'T') {
-          qx = 2 * currentX - lastControlX;
-          qy = 2 * currentY - lastControlY;
-        }
-        path.quadraticCurveTo(qx, qy, cmd.x, cmd.y);
-        lastControlX = qx;
-        lastControlY = qy;
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      }
-      case 'A':
-        // Arc approximated as a line, matching Canvas2DRenderer.
-        path.lineTo(cmd.x, cmd.y);
-        currentX = cmd.x;
-        currentY = cmd.y;
-        break;
-      case 'Z':
-        path.closePath();
-        break;
-    }
-    lastCommand = cmd.type;
-  }
-
+  applyCommandsToPath(path, commands);
   return path;
 }

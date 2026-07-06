@@ -42,7 +42,6 @@ export {
   computeLocalMatrix,
   computeWorldMatrix,
   computeAllWorldTransforms,
-  interpolateTransform,
   lerp,
   lerpAngle,
 } from './transform';

@@ -1,4 +1,4 @@
-import type { Color, PathCommand, Matrix3x3 } from './types';
+import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -16,9 +16,14 @@ export interface Renderer {
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;
   drawPath(commands: PathCommand[]): void;
 
+  // Clip the current node and its descendants to a region (in local space).
+  clip(clip: ResolvedClip): void;
+
   // Style (called before draw)
   setFill(color: Color | null): void;
+  setFillGradient(gradient: GradientData | null): void;
   setStroke(color: Color | null, width: number): void;
+  setStrokeGradient(gradient: GradientData | null): void;
   setOpacity(opacity: number): void;
 
   // Transform stack

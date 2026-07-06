@@ -25,7 +25,9 @@ import type {
   PathData,
   TransformOriginValue,
   StateStyles,
+  ClipPathData,
 } from './types';
+import type { GradientData, GradientStop } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath } from './path-parser';
 
@@ -323,7 +325,13 @@ export class SceneBuilder {
 
       // Appearance
       case 'fill':
-        if (isColorValue(value)) {
+        if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
+          const grad = this.parseGradient(value);
+          // Invalid gradient falls back to no fill (solid color path below is
+          // never reached for a function value).
+          node.fillGradient = grad;
+          node.fill = null;
+        } else if (isColorValue(value)) {
           node.fill = value.value;
         } else if (isKeywordValue(value)) {
           if (value.value === 'none') {
@@ -337,7 +345,10 @@ export class SceneBuilder {
         break;
 
       case 'stroke':
-        if (isColorValue(value)) {
+        if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
+          node.strokeGradient = this.parseGradient(value);
+          node.stroke = null;
+        } else if (isColorValue(value)) {
           node.stroke = value.value;
         } else if (isKeywordValue(value)) {
           if (value.value === 'none') {
@@ -348,6 +359,10 @@ export class SceneBuilder {
         } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
           node.stroke = this.buildColorString(value);
         }
+        break;
+
+      case 'clip-path':
+        node.clipPath = this.parseClipPath(value);
         break;
 
       case 'stroke-width':
@@ -720,6 +735,99 @@ export class SceneBuilder {
         }
       }
     }
+  }
+
+  /**
+   * Parse a linear-gradient()/radial-gradient() function value into a structured
+   * GradientData. The parser flattens the CSS syntax into a bare arg list, e.g.
+   *   linear-gradient(45deg, #f00 0%, #00f 100%)
+   *     -> [45deg, #f00, 0%, #00f, 100%]
+   * so we walk it: an optional leading angle (linear only), then color/stop
+   * pairs where the stop percentage is optional. Returns null if no usable
+   * color stops are found (caller falls back to no fill/stroke).
+   */
+  private parseGradient(func: { name: string; args: Value[] }): GradientData | null {
+    const isLinear = func.name === 'linear-gradient';
+    const args = func.args;
+    let i = 0;
+
+    // CSS default gradient direction is `to bottom` (180deg).
+    let angle = 180;
+    if (isLinear && args.length > 0 && isLengthValue(args[0]) && args[0].unit === 'deg') {
+      angle = args[0].value;
+      i = 1;
+    }
+
+    const stops: GradientStop[] = [];
+    while (i < args.length) {
+      const color = this.colorArgToString(args[i++]);
+      if (color === null) continue; // skip anything that isn't a color
+      let offset: number | null = null;
+      const next = args[i];
+      if (next && isLengthValue(next) && next.unit === '%') {
+        offset = next.value / 100;
+        i++;
+      }
+      stops.push({ color, offset: offset ?? -1 });
+    }
+
+    if (stops.length === 0) return null;
+
+    // Fill in any omitted stop offsets by even distribution.
+    const n = stops.length;
+    for (let k = 0; k < n; k++) {
+      if (stops[k].offset < 0) {
+        stops[k].offset = n === 1 ? 0 : k / (n - 1);
+      }
+    }
+
+    return isLinear
+      ? { type: 'linear-gradient', angle, stops }
+      : { type: 'radial-gradient', stops };
+  }
+
+  private colorArgToString(value: Value): string | null {
+    if (isColorValue(value)) return value.value;
+    if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
+      return this.buildColorString(value);
+    }
+    return null;
+  }
+
+  /**
+   * Parse a clip-path value:
+   *   circle(<r>px at <x>px <y>px) | inset(<t> <r> <b> <l>) | path('<d>')
+   * Returns null for anything unrecognized (node stays unclipped).
+   */
+  private parseClipPath(value: Value): ClipPathData | null {
+    if (!isFunctionValue(value)) return null;
+
+    if (value.name === 'circle') {
+      // Args: [r, keyword 'at', x, y] — collect the numeric ones in order.
+      const nums = value.args.filter(a => isLengthValue(a) || isNumberValue(a)).map(getNumericValue);
+      if (nums.length === 0) return null;
+      return { type: 'circle', r: nums[0], x: nums[1] ?? 0, y: nums[2] ?? 0 };
+    }
+
+    if (value.name === 'inset') {
+      const nums = value.args.filter(a => isLengthValue(a) || isNumberValue(a)).map(getNumericValue);
+      if (nums.length === 0) return null;
+      // CSS shorthand: 1 -> all, 2 -> (t/b, l/r), 4 -> t r b l.
+      const top = nums[0];
+      const right = nums[1] ?? top;
+      const bottom = nums[2] ?? top;
+      const left = nums[3] ?? right;
+      return { type: 'inset', top, right, bottom, left };
+    }
+
+    if (value.name === 'path') {
+      const arg = value.args[0];
+      if (arg && isStringValue(arg)) {
+        return { type: 'path', commands: parsePath(arg.value) };
+      }
+    }
+
+    return null;
   }
 
   private buildColorString(func: { name: string; args: Value[] }): string {

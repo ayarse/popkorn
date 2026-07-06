@@ -1,5 +1,12 @@
-import type { PathCommand } from '../renderer/types';
+import type { PathCommand, GradientData } from '../renderer/types';
 import type { Value } from '@popcorn/parser';
+
+// Authored clip-path. Insets are stored relative to the node's bounding box and
+// resolved to concrete geometry at render/hit-test time (see scene/clip.ts).
+export type ClipPathData =
+  | { type: 'circle'; r: number; x: number; y: number }
+  | { type: 'inset'; top: number; right: number; bottom: number; left: number }
+  | { type: 'path'; commands: PathCommand[] };
 
 // Scene node types
 export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path';
@@ -61,6 +68,13 @@ export interface SceneNode {
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
+
+  // Gradient fill/stroke (static; when set, wins over the solid color above).
+  fillGradient: GradientData | null;
+  strokeGradient: GradientData | null;
+
+  // Clip region for this node and its descendants (static).
+  clipPath: ClipPathData | null;
 
   // Shape-specific data
   shapeData: ShapeData;
@@ -261,6 +275,9 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     stroke: null,
     strokeWidth: 1,
     opacity: 1,
+    fillGradient: null,
+    strokeGradient: null,
+    clipPath: null,
     shapeData: { type: 'group' },
     animations: [],
     base: {
