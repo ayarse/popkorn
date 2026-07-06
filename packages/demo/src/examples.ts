@@ -91,61 +91,69 @@ export const examples: Example[] = [
   {
     key: 'motion',
     label: 'Motion',
-    source: `/* Motion — easing variety, step-end holds, negative-delay stagger */
+    source: `/* Motion — a domino run. A ball rolls in at constant speed and topples a colour
+   cascade; each tile falls under gravity (accelerating ease-in), rebounds, holds
+   flat for a beat, then rises to reset. One composed phrase, staggered by delay
+   so the wave reads as choreography — not a chart. */
 :canvas {
   width: 800px;
   height: 600px;
   background: #0f0f23;
 }
 
-/* Smooth slide, shared by the first three tracks (easing set per node) */
-@keyframes slide {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(560px); }
+/* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still (the
+   held beat), and stand back up. The fall sits at 45% of the timeline so each tile
+   waits upright until the ball reaches it. Every keyframe restates the transform so
+   the rotate track never drops to base. */
+@keyframes topple {
+  0%   { transform: rotate(0deg);  animation-timing-function: linear; }
+  45%  { transform: rotate(0deg);  animation-timing-function: cubic-bezier(0.5, 0, 0.85, 0.35); }
+  58%  { transform: rotate(84deg); animation-timing-function: ease-out; }
+  62%  { transform: rotate(79deg); animation-timing-function: ease-in-out; }
+  82%  { transform: rotate(79deg); animation-timing-function: ease-in-out; }
+  94%  { transform: rotate(0deg);  animation-timing-function: linear; }
+  100% { transform: rotate(0deg); }
 }
 
-/* step-end holds each value, so the puck teleports in four crisp jumps */
-@keyframes hopStep {
-  0%   { transform: translateX(0);     animation-timing-function: step-end; }
-  25%  { transform: translateX(140px); animation-timing-function: step-end; }
-  50%  { transform: translateX(280px); animation-timing-function: step-end; }
-  75%  { transform: translateX(420px); animation-timing-function: step-end; }
-  100% { transform: translateX(560px); }
+/* The ball crosses at a steady linear pace, spinning as it goes; it fades in at the
+   left and out past the right so the loop seam is invisible. */
+@keyframes roll {
+  0%   { transform: translateX(161px)  rotate(0deg);    opacity: 0; }
+  3%   { transform: translateX(190px)  rotate(76deg);   opacity: 1; }
+  68%  { transform: translateX(825px)  rotate(1731deg); opacity: 1; }
+  72%  { transform: translateX(864px)  rotate(1833deg); opacity: 0; }
+  100% { transform: translateX(1137px) rotate(2546deg); opacity: 0; }
 }
 
-/* A gentle rise, reused by every dot in the wave */
-@keyframes wave {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-56px); }
+#shelf { type: rect; x: 140px; y: 440px; width: 540px; height: 8px; rx: 4px; fill: #23233f; }
+
+/* A standing tile, pivoting about its base so it topples like a domino */
+@define domino {
+  type: rect; y: 344px; width: 20px; height: 96px; rx: 3px;
+  transform-origin: center bottom;
 }
 
-/* Four tracks, four timing functions — same distance, different feel */
-#track1 { type: rect; x: 130px; y: 128px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
-#track2 { type: rect; x: 130px; y: 188px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
-#track3 { type: rect; x: 130px; y: 248px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
-#track4 { type: rect; x: 130px; y: 308px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
+/* The stagger is expressed as negative (phase-shifted) delays so it never extends
+   the scene duration past 3.2s — every animation shares that period and the loop
+   is seam-free. Each delay is its cascade time minus one full period. */
+#d1 { use: domino; x: 200px; fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%); animation: topple 3.2s linear infinite -1.28s; }
+#d2 { use: domino; x: 255px; fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%); animation: topple 3.2s linear infinite -1.10s; }
+#d3 { use: domino; x: 310px; fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%); animation: topple 3.2s linear infinite -0.92s; }
+#d4 { use: domino; x: 365px; fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%); animation: topple 3.2s linear infinite -0.74s; }
+#d5 { use: domino; x: 420px; fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%); animation: topple 3.2s linear infinite -0.56s; }
+#d6 { use: domino; x: 475px; fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%); animation: topple 3.2s linear infinite -0.38s; }
+#d7 { use: domino; x: 530px; fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%); animation: topple 3.2s linear infinite -0.20s; }
+#d8 { use: domino; x: 585px; fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%); animation: topple 3.2s linear infinite -0.02s; }
 
-#p1 { type: circle; cx: 130px; cy: 130px; r: 16px; fill: #4ecdc4;
-      animation: slide 2.6s linear infinite alternate; }
-#p2 { type: circle; cx: 130px; cy: 190px; r: 16px; fill: #ffe66d;
-      animation: slide 2.6s ease-in-out infinite alternate; }
-#p3 { type: circle; cx: 130px; cy: 250px; r: 16px; fill: #f472b6;
-      animation: slide 2.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite alternate; }
-#p4 { type: circle; cx: 130px; cy: 310px; r: 16px; fill: #e94560;
-      animation: hopStep 2.6s linear infinite alternate; }
+/* Base translate carries the vertical rest position; roll's translateX overrides x each frame */
+#ball {
+  type: group;
+  transform: translate(0px, 418px);
+  animation: roll 3.2s linear infinite;
 
-/* A travelling wave: nine dots on one keyframe, staggered by negative delay */
-@define wdot { type: circle; cy: 460px; r: 13px; fill: #60a5fa; transform-origin: center; }
-
-#w1 { use: wdot; cx: 200px; animation: wave 1.6s ease-in-out infinite;        }
-#w2 { use: wdot; cx: 250px; animation: wave 1.6s ease-in-out infinite -0.2s;  }
-#w3 { use: wdot; cx: 300px; animation: wave 1.6s ease-in-out infinite -0.4s;  }
-#w4 { use: wdot; cx: 350px; animation: wave 1.6s ease-in-out infinite -0.6s;  }
-#w5 { use: wdot; cx: 400px; animation: wave 1.6s ease-in-out infinite -0.8s;  }
-#w6 { use: wdot; cx: 450px; animation: wave 1.6s ease-in-out infinite -1.0s;  }
-#w7 { use: wdot; cx: 500px; animation: wave 1.6s ease-in-out infinite -1.2s;  }
-#w8 { use: wdot; cx: 550px; animation: wave 1.6s ease-in-out infinite -1.4s;  }
-#w9 { use: wdot; cx: 600px; animation: wave 1.6s ease-in-out infinite -1.6s;  }`,
+  > #ballBody { type: circle; cx: 0; cy: 0; r: 22px; fill: radial-gradient(#ffffff 0%, #ff8f5e 100%); }
+  > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
+}`,
   },
 
   {
@@ -240,7 +248,9 @@ export const examples: Example[] = [
   {
     key: 'interactive',
     label: 'Interactive',
-    source: `/* Interactive — cursor-bound var()/input() plus :hover / :active states */
+    source: `/* Interactive — a giant eye that watches your cursor. One idea: the iris tracks
+   the pointer through input()/var() bindings; the same iris dilates on hover and
+   constricts when you press it (:hover / :active). Move around, then poke it. */
 :canvas {
   width: 800px;
   height: 600px;
@@ -252,52 +262,39 @@ export const examples: Example[] = [
   --cursor-y: input(cursor.y);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1);    opacity: 0.9; }
-  50%      { transform: scale(1.15); opacity: 1;   }
+/* A slow idle breath so the eye feels alive even before you touch it */
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.05); }
 }
 
-/* Hover to brighten + grow, press to darken + shrink */
-#c1 {
-  type: circle; cx: 180px; cy: 240px; r: 58px; fill: #e94560;
-  &:hover  { fill: #ff6b8a; transform: scale(1.12); }
-  &:active { fill: #c73e54; transform: scale(0.9);  }
-}
-#c2 {
-  type: circle; cx: 400px; cy: 210px; r: 58px; fill: #4ecdc4;
-  &:hover  { fill: #6ee6dd; transform: scale(1.12); }
-  &:active { fill: #3ba89f; transform: scale(0.9);  }
-}
-#c3 {
-  type: circle; cx: 620px; cy: 240px; r: 58px; fill: #ffe66d;
-  &:hover  { fill: #fff59d; transform: scale(1.12); }
-  &:active { fill: #e6cf62; transform: scale(0.9);  }
+/* Full-bleed sclera; the two dark lids carve it into an almond eye */
+#sclera    { type: ellipse; cx: 400px; cy: 300px; rx: 400px; ry: 260px;
+             fill: radial-gradient(#fdf6e9 0%, #e9d4b0 100%); }
+#lidTop    { type: ellipse; cx: 400px; cy: -80px; rx: 520px; ry: 210px; fill: #0f0f23; }
+#lidBottom { type: ellipse; cx: 400px; cy: 680px; rx: 520px; ry: 210px; fill: #0f0f23; }
+
+/* The iris follows the cursor; hover dilates it, pressing constricts it */
+#iris {
+  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 72px;
+  fill: radial-gradient(#5eead4 0%, #0f766e 100%);
+  stroke: #134e4a; stroke-width: 4px;
+  transform-origin: center;
+  animation: breathe 3.4s ease-in-out infinite;
+  &:hover  { transform: scale(1.14); }
+  &:active { fill: radial-gradient(#2dd4bf 0%, #063f39 100%); transform: scale(0.6); }
 }
 
-#button {
-  type: rect; x: 300px; y: 470px; width: 200px; height: 64px; rx: 14px;
-  fill: #3a7bd5;
-  &:hover  { fill: #4e93ee; transform: scale(1.05); }
-  &:active { fill: #2a5aa0; transform: scale(0.96); }
-}
-#buttonLabel {
-  type: text; content: "hover · press me"; x: 400px; y: 510px;
-  font-size: 20px; font-weight: bold; text-anchor: middle; fill: #ffffff;
-}
-
-/* A follower pinned to the cursor via numeric input() bindings.
-   It carries no pseudo-state, so it never intercepts hits from the shapes. */
-#follower {
-  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 20px;
-  fill: #f472b6; opacity: 0.85; transform-origin: center;
-  animation: pulse 1.2s ease-in-out infinite;
-}`,
+/* Pupil + glint carry no pseudo-state, so they never intercept the iris's hits */
+#pupil { type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 30px; fill: #0a0a12; }
+#glint { type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 9px;  fill: #ffffff; opacity: 0.9; }`,
   },
 
   {
     key: 'motionPath',
     label: 'Motion path',
-    source: `/* Motion path — travel a route by arc length; offset-rotate faces the tangent */
+    source: `/* Motion path — travel a route by arc length; offset-rotate faces the tangent.
+   The stadium circuit is centred on the 800×600 stage with generous margins. */
 :canvas {
   width: 800px;
   height: 600px;
@@ -309,10 +306,10 @@ export const examples: Example[] = [
   100% { offset-distance: 100%; }
 }
 
-/* The route itself, drawn once as a dashed guide */
+/* The route itself, drawn once as a dashed guide (x 90..710, y 170..430) */
 #route {
   type: path;
-  d: "M 110 470 C 210 120, 590 120, 690 470 S 210 700, 110 470";
+  d: "M 220 170 L 580 170 A 130 130 0 0 1 580 430 L 220 430 A 130 130 0 0 1 220 170 Z";
   fill: none;
   stroke: #2a3350;
   stroke-width: 3px;
@@ -326,7 +323,7 @@ export const examples: Example[] = [
   d: "M -14 -9 L 16 0 L -14 9 L -6 0 Z";
   stroke: #0b1021;
   stroke-width: 1px;
-  offset-path: path("M 110 470 C 210 120, 590 120, 690 470 S 210 700, 110 470");
+  offset-path: path("M 220 170 L 580 170 A 130 130 0 0 1 580 430 L 220 430 A 130 130 0 0 1 220 170 Z");
   offset-rotate: auto;
 }
 

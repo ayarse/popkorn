@@ -1,55 +1,63 @@
-/* Motion — easing variety, step-end holds, negative-delay stagger */
+/* Motion — a domino run. A ball rolls in at constant speed and topples a colour
+   cascade; each tile falls under gravity (accelerating ease-in), rebounds, holds
+   flat for a beat, then rises to reset. One composed phrase, staggered by delay
+   so the wave reads as choreography — not a chart. */
 :canvas {
   width: 800px;
   height: 600px;
   background: #0f0f23;
 }
 
-/* Smooth slide, shared by the first three tracks (easing set per node) */
-@keyframes slide {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(560px); }
+/* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still (the
+   held beat), and stand back up. The fall sits at 45% of the timeline so each tile
+   waits upright until the ball reaches it. Every keyframe restates the transform so
+   the rotate track never drops to base. */
+@keyframes topple {
+  0%   { transform: rotate(0deg);  animation-timing-function: linear; }
+  45%  { transform: rotate(0deg);  animation-timing-function: cubic-bezier(0.5, 0, 0.85, 0.35); }
+  58%  { transform: rotate(84deg); animation-timing-function: ease-out; }
+  62%  { transform: rotate(79deg); animation-timing-function: ease-in-out; }
+  82%  { transform: rotate(79deg); animation-timing-function: ease-in-out; }
+  94%  { transform: rotate(0deg);  animation-timing-function: linear; }
+  100% { transform: rotate(0deg); }
 }
 
-/* step-end holds each value, so the puck teleports in four crisp jumps */
-@keyframes hopStep {
-  0%   { transform: translateX(0);     animation-timing-function: step-end; }
-  25%  { transform: translateX(140px); animation-timing-function: step-end; }
-  50%  { transform: translateX(280px); animation-timing-function: step-end; }
-  75%  { transform: translateX(420px); animation-timing-function: step-end; }
-  100% { transform: translateX(560px); }
+/* The ball crosses at a steady linear pace, spinning as it goes; it fades in at the
+   left and out past the right so the loop seam is invisible. */
+@keyframes roll {
+  0%   { transform: translateX(161px)  rotate(0deg);    opacity: 0; }
+  3%   { transform: translateX(190px)  rotate(76deg);   opacity: 1; }
+  68%  { transform: translateX(825px)  rotate(1731deg); opacity: 1; }
+  72%  { transform: translateX(864px)  rotate(1833deg); opacity: 0; }
+  100% { transform: translateX(1137px) rotate(2546deg); opacity: 0; }
 }
 
-/* A gentle rise, reused by every dot in the wave */
-@keyframes wave {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-56px); }
+#shelf { type: rect; x: 140px; y: 440px; width: 540px; height: 8px; rx: 4px; fill: #23233f; }
+
+/* A standing tile, pivoting about its base so it topples like a domino */
+@define domino {
+  type: rect; y: 344px; width: 20px; height: 96px; rx: 3px;
+  transform-origin: center bottom;
 }
 
-/* Four tracks, four timing functions — same distance, different feel */
-#track1 { type: rect; x: 130px; y: 128px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
-#track2 { type: rect; x: 130px; y: 188px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
-#track3 { type: rect; x: 130px; y: 248px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
-#track4 { type: rect; x: 130px; y: 308px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
+/* The stagger is expressed as negative (phase-shifted) delays so it never extends
+   the scene duration past 3.2s — every animation shares that period and the loop
+   is seam-free. Each delay is its cascade time minus one full period. */
+#d1 { use: domino; x: 200px; fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%); animation: topple 3.2s linear infinite -1.28s; }
+#d2 { use: domino; x: 255px; fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%); animation: topple 3.2s linear infinite -1.10s; }
+#d3 { use: domino; x: 310px; fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%); animation: topple 3.2s linear infinite -0.92s; }
+#d4 { use: domino; x: 365px; fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%); animation: topple 3.2s linear infinite -0.74s; }
+#d5 { use: domino; x: 420px; fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%); animation: topple 3.2s linear infinite -0.56s; }
+#d6 { use: domino; x: 475px; fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%); animation: topple 3.2s linear infinite -0.38s; }
+#d7 { use: domino; x: 530px; fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%); animation: topple 3.2s linear infinite -0.20s; }
+#d8 { use: domino; x: 585px; fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%); animation: topple 3.2s linear infinite -0.02s; }
 
-#p1 { type: circle; cx: 130px; cy: 130px; r: 16px; fill: #4ecdc4;
-      animation: slide 2.6s linear infinite alternate; }
-#p2 { type: circle; cx: 130px; cy: 190px; r: 16px; fill: #ffe66d;
-      animation: slide 2.6s ease-in-out infinite alternate; }
-#p3 { type: circle; cx: 130px; cy: 250px; r: 16px; fill: #f472b6;
-      animation: slide 2.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite alternate; }
-#p4 { type: circle; cx: 130px; cy: 310px; r: 16px; fill: #e94560;
-      animation: hopStep 2.6s linear infinite alternate; }
+/* Base translate carries the vertical rest position; roll's translateX overrides x each frame */
+#ball {
+  type: group;
+  transform: translate(0px, 418px);
+  animation: roll 3.2s linear infinite;
 
-/* A travelling wave: nine dots on one keyframe, staggered by negative delay */
-@define wdot { type: circle; cy: 460px; r: 13px; fill: #60a5fa; transform-origin: center; }
-
-#w1 { use: wdot; cx: 200px; animation: wave 1.6s ease-in-out infinite;        }
-#w2 { use: wdot; cx: 250px; animation: wave 1.6s ease-in-out infinite -0.2s;  }
-#w3 { use: wdot; cx: 300px; animation: wave 1.6s ease-in-out infinite -0.4s;  }
-#w4 { use: wdot; cx: 350px; animation: wave 1.6s ease-in-out infinite -0.6s;  }
-#w5 { use: wdot; cx: 400px; animation: wave 1.6s ease-in-out infinite -0.8s;  }
-#w6 { use: wdot; cx: 450px; animation: wave 1.6s ease-in-out infinite -1.0s;  }
-#w7 { use: wdot; cx: 500px; animation: wave 1.6s ease-in-out infinite -1.2s;  }
-#w8 { use: wdot; cx: 550px; animation: wave 1.6s ease-in-out infinite -1.4s;  }
-#w9 { use: wdot; cx: 600px; animation: wave 1.6s ease-in-out infinite -1.6s;  }
+  > #ballBody { type: circle; cx: 0; cy: 0; r: 22px; fill: radial-gradient(#ffffff 0%, #ff8f5e 100%); }
+  > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
+}

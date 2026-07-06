@@ -1,4 +1,6 @@
-/* Interactive — cursor-bound var()/input() plus :hover / :active states */
+/* Interactive — a giant eye that watches your cursor. One idea: the iris tracks
+   the pointer through input()/var() bindings; the same iris dilates on hover and
+   constricts when you press it (:hover / :active). Move around, then poke it. */
 :canvas {
   width: 800px;
   height: 600px;
@@ -10,43 +12,29 @@
   --cursor-y: input(cursor.y);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1);    opacity: 0.9; }
-  50%      { transform: scale(1.15); opacity: 1;   }
+/* A slow idle breath so the eye feels alive even before you touch it */
+@keyframes breathe {
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.05); }
 }
 
-/* Hover to brighten + grow, press to darken + shrink */
-#c1 {
-  type: circle; cx: 180px; cy: 240px; r: 58px; fill: #e94560;
-  &:hover  { fill: #ff6b8a; transform: scale(1.12); }
-  &:active { fill: #c73e54; transform: scale(0.9);  }
-}
-#c2 {
-  type: circle; cx: 400px; cy: 210px; r: 58px; fill: #4ecdc4;
-  &:hover  { fill: #6ee6dd; transform: scale(1.12); }
-  &:active { fill: #3ba89f; transform: scale(0.9);  }
-}
-#c3 {
-  type: circle; cx: 620px; cy: 240px; r: 58px; fill: #ffe66d;
-  &:hover  { fill: #fff59d; transform: scale(1.12); }
-  &:active { fill: #e6cf62; transform: scale(0.9);  }
+/* Full-bleed sclera; the two dark lids carve it into an almond eye */
+#sclera    { type: ellipse; cx: 400px; cy: 300px; rx: 400px; ry: 260px;
+             fill: radial-gradient(#fdf6e9 0%, #e9d4b0 100%); }
+#lidTop    { type: ellipse; cx: 400px; cy: -80px; rx: 520px; ry: 210px; fill: #0f0f23; }
+#lidBottom { type: ellipse; cx: 400px; cy: 680px; rx: 520px; ry: 210px; fill: #0f0f23; }
+
+/* The iris follows the cursor; hover dilates it, pressing constricts it */
+#iris {
+  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 72px;
+  fill: radial-gradient(#5eead4 0%, #0f766e 100%);
+  stroke: #134e4a; stroke-width: 4px;
+  transform-origin: center;
+  animation: breathe 3.4s ease-in-out infinite;
+  &:hover  { transform: scale(1.14); }
+  &:active { fill: radial-gradient(#2dd4bf 0%, #063f39 100%); transform: scale(0.6); }
 }
 
-#button {
-  type: rect; x: 300px; y: 470px; width: 200px; height: 64px; rx: 14px;
-  fill: #3a7bd5;
-  &:hover  { fill: #4e93ee; transform: scale(1.05); }
-  &:active { fill: #2a5aa0; transform: scale(0.96); }
-}
-#buttonLabel {
-  type: text; content: "hover · press me"; x: 400px; y: 510px;
-  font-size: 20px; font-weight: bold; text-anchor: middle; fill: #ffffff;
-}
-
-/* A follower pinned to the cursor via numeric input() bindings.
-   It carries no pseudo-state, so it never intercepts hits from the shapes. */
-#follower {
-  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 20px;
-  fill: #f472b6; opacity: 0.85; transform-origin: center;
-  animation: pulse 1.2s ease-in-out infinite;
-}
+/* Pupil + glint carry no pseudo-state, so they never intercept the iris's hits */
+#pupil { type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 30px; fill: #0a0a12; }
+#glint { type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 9px;  fill: #ffffff; opacity: 0.9; }
