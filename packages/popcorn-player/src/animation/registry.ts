@@ -122,6 +122,15 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   'trim-end': trimNumber('trimEnd'),
   'trim-offset': trimNumber('trimOffset'),
 
+  // motion path: position along offset-path, 0..1 of arc length
+  'offset-distance': {
+    kind: 'number',
+    readBase: (base) => base.offsetDistance,
+    apply: (node, value) => {
+      node.offsetDistance = value as number;
+    },
+  },
+
   // text: font-size lives on shapeData under a different key than its property
   // name, and animating it invalidates the cached text metrics.
   'font-size': {

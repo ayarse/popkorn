@@ -552,6 +552,52 @@ const examples = {
 #star1 { use: star; cx: 260px; cy: 340px; }
 #star2 { use: star; cx: 400px; cy: 340px; fill: #60a5fa; }
 #star3 { use: star; cx: 540px; cy: 340px; fill: #f472b6; }`,
+
+  motion: `/* Motion paths + hold keyframes + negative delay */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0b1021;
+}
+
+/* Travel the path by arc length; offset-rotate: auto faces the tangent. */
+@keyframes fly {
+  0%   { offset-distance: 0%; }
+  100% { offset-distance: 100%; }
+}
+
+/* step-end holds each value for half the cycle -> a crisp on/off blink. */
+@keyframes blink {
+  0%   { opacity: 1;    animation-timing-function: step-end; }
+  50%  { opacity: 0.15; animation-timing-function: step-end; }
+  100% { opacity: 1; }
+}
+
+/* A little paper plane, drawn pointing along +x so the tangent aims it. */
+@define plane {
+  type: path;
+  d: "M -12 -8 L 14 0 L -12 8 L -5 0 Z";
+  stroke: #0b1021;
+  stroke-width: 1px;
+  offset-path: path("M 110 470 C 210 120, 590 120, 690 470 S 210 700, 110 470");
+  offset-rotate: auto;
+}
+
+/* Three planes on one loop, staggered by negative delay (already in flight). */
+#plane1 { use: plane; fill: #ffe66d; animation: fly 6s linear infinite; }
+#plane2 { use: plane; fill: #4ecdc4; animation: fly 6s linear infinite -2s; }
+#plane3 { use: plane; fill: #f472b6; animation: fly 6s linear infinite -4s; }
+
+/* A blinking beacon driven by the step-end keyframes above. */
+#beacon {
+  type: circle;
+  cx: 400px;
+  cy: 120px;
+  r: 14px;
+  fill: #e94560;
+  transform-origin: center;
+  animation: blink 1.2s linear infinite;
+}`,
 };
 
 type ExampleKey = keyof typeof examples;

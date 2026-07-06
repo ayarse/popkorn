@@ -7,6 +7,7 @@ import {
   scaleMatrix,
 } from '../renderer/types';
 import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData, TextData } from './types';
+import { samplePathAt } from './path-parser';
 
 /**
  * Axis-aligned bounding box of a shape in its local coordinate space.
@@ -98,8 +99,11 @@ export function resolveTransformOrigin(node: SceneNode): { x: number; y: number 
 }
 
 /**
- * Compute the local transform matrix, including transform-origin.
- * Order (CSS): translate -> (move to origin -> rotate -> scale -> move back).
+ * Compute the local transform matrix, including transform-origin and any CSS
+ * Motion Path placement.
+ * Order (CSS): translate -> motion-path (offset point -> offset rotate) ->
+ * (move to origin -> rotate -> scale -> move back). The motion-path layer is an
+ * independent placement applied after translate and before the node's own TRS.
  */
 export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
   const t = node.transform;
@@ -107,6 +111,18 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
   const hasOrigin = ox !== 0 || oy !== 0;
 
   let matrix = translationMatrix(t.translateX, t.translateY);
+
+  // Motion-path placement. At distance 0 (the default) or with no path we no-op,
+  // so nodes without a motion path render exactly at their authored position.
+  if (node.offsetPath && node.offsetDistance !== 0) {
+    const s = samplePathAt(node.offsetPath, node.offsetDistance);
+    matrix = multiplyMatrices(matrix, translationMatrix(s.x, s.y));
+    const rot = node.offsetRotate.auto
+      ? s.angle + (node.offsetRotate.angle * Math.PI) / 180
+      : (node.offsetRotate.angle * Math.PI) / 180;
+    if (rot !== 0) matrix = multiplyMatrices(matrix, rotationMatrix(rot));
+  }
+
   if (hasOrigin) matrix = multiplyMatrices(matrix, translationMatrix(ox, oy));
   if (t.rotate !== 0) matrix = multiplyMatrices(matrix, rotationMatrix(t.rotate * Math.PI / 180));
   if (t.scaleX !== 1 || t.scaleY !== 1) matrix = multiplyMatrices(matrix, scaleMatrix(t.scaleX, t.scaleY));

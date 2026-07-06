@@ -1,5 +1,13 @@
 import type { PathCommand, GradientData } from '../renderer/types';
+import type { MotionPath } from './path-parser';
 import type { Value } from '@popcorn/parser';
+
+// CSS Motion Path offset-rotate: `auto` follows the path tangent; `angle` adds a
+// fixed offset (auto + angle) or a fixed orientation (angle only, auto = false).
+export interface OffsetRotate {
+  auto: boolean;
+  angle: number; // degrees
+}
 
 // Authored clip-path. Insets are stored relative to the node's bounding box and
 // resolved to concrete geometry at render/hit-test time (see scene/clip.ts).
@@ -102,6 +110,14 @@ export interface SceneNode {
   // Clip region for this node and its descendants (static).
   clipPath: ClipPathData | null;
 
+  // CSS Motion Path. offsetPath is the (static) motion path with a cached
+  // arc-length table, in the node's local space; offsetDistance is the animated
+  // position along it (0..1); offsetRotate controls tangent-following rotation.
+  // Folded into computeLocalMatrix, so render and hit-test share it.
+  offsetPath: MotionPath | null;
+  offsetDistance: number;
+  offsetRotate: OffsetRotate;
+
   // Shape-specific data
   shapeData: ShapeData;
 
@@ -132,6 +148,7 @@ export interface NodeBase {
   trimStart: number;
   trimEnd: number;
   trimOffset: number;
+  offsetDistance: number;
   shapeData: ShapeData;
 }
 
@@ -213,6 +230,7 @@ export type TimingFunction =
   | 'ease-in'
   | 'ease-out'
   | 'ease-in-out'
+  | 'step-end'
   | CubicBezier;
 
 export interface CubicBezier {
@@ -291,6 +309,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
     trimStart: node.trimStart,
     trimEnd: node.trimEnd,
     trimOffset: node.trimOffset,
+    offsetDistance: node.offsetDistance,
     shapeData: cloneShapeData(node.shapeData),
   };
 }
@@ -306,6 +325,7 @@ export function resetNodeToBase(node: SceneNode): void {
   node.trimStart = b.trimStart;
   node.trimEnd = b.trimEnd;
   node.trimOffset = b.trimOffset;
+  node.offsetDistance = b.offsetDistance;
   Object.assign(node.shapeData, b.shapeData);
 }
 
@@ -333,6 +353,9 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     fillGradient: null,
     strokeGradient: null,
     clipPath: null,
+    offsetPath: null,
+    offsetDistance: 0,
+    offsetRotate: { auto: true, angle: 0 },
     shapeData: { type: 'group' },
     animations: [],
     base: {
@@ -344,6 +367,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       trimStart: 0,
       trimEnd: 1,
       trimOffset: 0,
+      offsetDistance: 0,
       shapeData: { type: 'group' },
     },
     bindings: [],

@@ -279,6 +279,59 @@ Animation shorthand: `name duration timing-function iteration-count direction de
 }
 ```
 
+Timing functions: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`,
+`cubic-bezier(x1, y1, x2, y2)`, and `step-end` (alias `hold`) — a hold/step
+that keeps the departing keyframe's value until the next keyframe, then jumps.
+Works as the shorthand default easing or per-keyframe via
+`animation-timing-function`:
+
+```css
+@keyframes blink {
+  0%   { opacity: 1; animation-timing-function: step-end; }
+  50%  { opacity: 0; animation-timing-function: step-end; }
+  100% { opacity: 1; }
+}
+```
+
+A **negative delay** starts an animation as if it had already been running for
+that long (the first `|delay|` of the timeline is skipped, iteration counting
+included) — handy for staggering copies of the same animation:
+
+```css
+#a { animation: drift 3s linear infinite; }
+#b { animation: drift 3s linear infinite; animation: drift 3s linear infinite -1s; }
+```
+
+### Motion Paths
+
+Move a node along an arbitrary curve with the CSS Motion Path idiom. `offset-path`
+is an SVG path in the node's local space; `offset-distance` is the position along
+it by arc length (`0%`–`100%`, animatable); `offset-rotate` orients the node.
+
+```css
+@keyframes fly {
+  0%   { offset-distance: 0%; }
+  100% { offset-distance: 100%; }
+}
+
+#plane {
+  type: path;
+  d: "M -8 -6 L 8 0 L -8 6 L -4 0 Z";
+  fill: #ffe66d;
+  offset-path: path("M 100 400 C 250 100, 550 100, 700 400");
+  offset-rotate: auto;              /* face along the path tangent */
+  animation: fly 4s ease-in-out infinite;
+}
+```
+
+- `offset-path: path("<svg d>")` — the motion path (static).
+- `offset-distance: <pct>` — arc-length position, `0%` by default; animate it to
+  travel the path. At `0%` (or with no path) placement is a no-op, so the node
+  sits at its authored position.
+- `offset-rotate: auto | <angle>deg | auto <angle>deg` — `auto` follows the
+  tangent, an angle is a fixed orientation, `auto <angle>` is tangent plus a
+  fixed offset. Default `auto`.
+
 ### Variables & Interactivity
 
 ```css

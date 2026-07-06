@@ -31,7 +31,7 @@ import type {
 } from './types';
 import type { GradientData, GradientStop } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
-import { parsePath } from './path-parser';
+import { parsePath, buildMotionPath } from './path-parser';
 
 /**
  * Build scene graph from AST
@@ -457,6 +457,24 @@ export class SceneBuilder {
         node.clipPath = this.parseClipPath(value);
         break;
 
+      // CSS Motion Path. offset-path is static (cached arc-length table built
+      // once); offset-distance is animatable (registry) so it also lands here as
+      // the authored default; offset-rotate is static.
+      case 'offset-path':
+        if (isFunctionValue(value) && value.name === 'path') {
+          const arg = value.args[0];
+          if (arg && isStringValue(arg)) {
+            node.offsetPath = buildMotionPath(parsePath(arg.value));
+          }
+        }
+        break;
+      case 'offset-distance':
+        node.offsetDistance = clamp01(normalizeFraction(value));
+        break;
+      case 'offset-rotate':
+        node.offsetRotate = this.parseOffsetRotate(value);
+        break;
+
       case 'stroke-width':
         node.strokeWidth = getNumericValue(value);
         break;
@@ -704,8 +722,10 @@ export class SceneBuilder {
         const kw = v.value;
         if (this.keyframesMap.has(kw)) {
           name = kw;
-        } else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out') {
+        } else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-end') {
           timingFunction = kw;
+        } else if (kw === 'hold') {
+          timingFunction = 'step-end';
         } else if (kw === 'infinite') {
           iterationCount = Infinity;
         } else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') {
@@ -794,6 +814,7 @@ export class SceneBuilder {
         case 'trim-start':
         case 'trim-end':
         case 'trim-offset':
+        case 'offset-distance':
           // Store normalized 0..1 so keyframe interpolation stays in range.
           props[property] = normalizeFraction(value);
           break;
@@ -952,6 +973,31 @@ export class SceneBuilder {
     return null;
   }
 
+  /**
+   * Parse offset-rotate: `auto | <angle>deg | auto <angle>deg` (CSS Motion
+   * Path). Default (and bare `auto`) follows the tangent; a lone angle is a
+   * fixed orientation; `auto <angle>` is tangent plus a fixed offset.
+   */
+  private parseOffsetRotate(value: Value): { auto: boolean; angle: number } {
+    const values = isListValue(value) ? value.values : [value];
+    let auto = false;
+    let angle = 0;
+    let sawAuto = false;
+    let sawAngle = false;
+    for (const v of values) {
+      if (isKeywordValue(v) && v.value === 'auto') {
+        auto = true;
+        sawAuto = true;
+      } else if (isLengthValue(v) || isNumberValue(v)) {
+        angle = getNumericValue(v);
+        sawAngle = true;
+      }
+    }
+    // Nothing recognized -> CSS default `auto`.
+    if (!sawAuto && !sawAngle) auto = true;
+    return { auto, angle };
+  }
+
   private buildColorString(func: { name: string; args: Value[] }): string {
     if (func.name === 'rgb') {
       const r = getNumericValue(func.args[0]);
@@ -995,8 +1041,12 @@ export class SceneBuilder {
     // Check for named timing functions
     if (easingStr === 'linear' || easingStr === 'ease' ||
         easingStr === 'ease-in' || easingStr === 'ease-out' ||
-        easingStr === 'ease-in-out') {
+        easingStr === 'ease-in-out' || easingStr === 'step-end') {
       return easingStr;
+    }
+    // `hold` is an alias for step-end (holds the departing keyframe's value).
+    if (easingStr === 'hold') {
+      return 'step-end';
     }
 
     // Check for cubic-bezier()

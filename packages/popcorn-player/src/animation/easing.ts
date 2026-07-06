@@ -22,6 +22,13 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
     return t;
   }
 
+  // step-end holds at the start value until the segment completes (CSS steps(1,
+  // jump-end)). The keyframe interpolator special-cases this before dispatch, so
+  // this is only a fallback for direct callers.
+  if (timingFunction === 'step-end') {
+    return t < 1 ? 0 : 1;
+  }
+
   if (timingFunction === 'ease') {
     return cubicBezier(t, EASE_BEZIER);
   }

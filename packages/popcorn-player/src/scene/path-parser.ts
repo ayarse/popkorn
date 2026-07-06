@@ -633,6 +633,182 @@ export function computePathLength(commands: PathCommand[]): number {
 }
 
 /**
+ * A motion path: the outline flattened to points with a cumulative arc-length
+ * table, so a distance 0..1 maps to a position + tangent by binary search.
+ * Built once (offset-path is static); see buildMotionPath / samplePathAt.
+ */
+export interface MotionPath {
+  points: { x: number; y: number }[];
+  cumulative: number[]; // arc length at each point; cumulative[0] === 0
+  length: number;
+}
+
+/**
+ * Flatten parsed path commands into an arc-length table for CSS Motion Path.
+ * Uses the same fixed-step (LENGTH_SAMPLES) flattening and control-point
+ * tracking as computePathLength, so a motion path measures the same curve the
+ * renderer draws.
+ */
+export function buildMotionPath(commands: PathCommand[]): MotionPath {
+  const points: { x: number; y: number }[] = [];
+  const cumulative: number[] = [];
+  let total = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let startX = 0;
+  let startY = 0;
+  let lastControlX = 0;
+  let lastControlY = 0;
+  let lastCommand: string | null = null;
+
+  const push = (x: number, y: number) => {
+    if (points.length > 0) total += Math.hypot(x - currentX, y - currentY);
+    points.push({ x, y });
+    cumulative.push(total);
+    currentX = x;
+    currentY = y;
+  };
+
+  const cubic = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
+    const x0 = currentX;
+    const y0 = currentY;
+    for (let k = 1; k <= LENGTH_SAMPLES; k++) {
+      const t = k / LENGTH_SAMPLES;
+      const mt = 1 - t;
+      const a = mt * mt * mt;
+      const b = 3 * mt * mt * t;
+      const c = 3 * mt * t * t;
+      const d = t * t * t;
+      push(a * x0 + b * x1 + c * x2 + d * x, a * y0 + b * y1 + c * y2 + d * y);
+    }
+  };
+
+  const quad = (x1: number, y1: number, x: number, y: number) => {
+    const x0 = currentX;
+    const y0 = currentY;
+    for (let k = 1; k <= LENGTH_SAMPLES; k++) {
+      const t = k / LENGTH_SAMPLES;
+      const mt = 1 - t;
+      push(mt * mt * x0 + 2 * mt * t * x1 + t * t * x, mt * mt * y0 + 2 * mt * t * y1 + t * t * y);
+    }
+  };
+
+  for (const cmd of commands) {
+    switch (cmd.type) {
+      case 'M':
+        push(cmd.x, cmd.y);
+        startX = cmd.x;
+        startY = cmd.y;
+        break;
+      case 'L':
+        push(cmd.x, cmd.y);
+        break;
+      case 'H':
+        push(cmd.x, currentY);
+        break;
+      case 'V':
+        push(currentX, cmd.y);
+        break;
+      case 'C':
+        cubic(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
+        lastControlX = cmd.x2;
+        lastControlY = cmd.y2;
+        break;
+      case 'S': {
+        let cx1 = currentX;
+        let cy1 = currentY;
+        if (lastCommand === 'C' || lastCommand === 'S') {
+          cx1 = 2 * currentX - lastControlX;
+          cy1 = 2 * currentY - lastControlY;
+        }
+        cubic(cx1, cy1, cmd.x2, cmd.y2, cmd.x, cmd.y);
+        lastControlX = cmd.x2;
+        lastControlY = cmd.y2;
+        break;
+      }
+      case 'Q':
+        quad(cmd.x1, cmd.y1, cmd.x, cmd.y);
+        lastControlX = cmd.x1;
+        lastControlY = cmd.y1;
+        break;
+      case 'T': {
+        let qx = currentX;
+        let qy = currentY;
+        if (lastCommand === 'Q' || lastCommand === 'T') {
+          qx = 2 * currentX - lastControlX;
+          qy = 2 * currentY - lastControlY;
+        }
+        quad(qx, qy, cmd.x, cmd.y);
+        lastControlX = qx;
+        lastControlY = qy;
+        break;
+      }
+      case 'A': {
+        const seg = arcToEllipse(
+          currentX, currentY, cmd.rx, cmd.ry, cmd.angle, cmd.largeArc, cmd.sweep, cmd.x, cmd.y
+        );
+        if (seg) {
+          const cosR = Math.cos(seg.rotation);
+          const sinR = Math.sin(seg.rotation);
+          for (let k = 1; k <= LENGTH_SAMPLES; k++) {
+            const a = seg.startAngle + ((seg.endAngle - seg.startAngle) * k) / LENGTH_SAMPLES;
+            const ex = seg.rx * Math.cos(a);
+            const ey = seg.ry * Math.sin(a);
+            push(seg.cx + ex * cosR - ey * sinR, seg.cy + ex * sinR + ey * cosR);
+          }
+        } else {
+          push(cmd.x, cmd.y);
+        }
+        break;
+      }
+      case 'Z':
+        push(startX, startY);
+        break;
+    }
+    lastCommand = cmd.type;
+  }
+
+  if (points.length === 0) points.push({ x: 0, y: 0 }), cumulative.push(0);
+  return { points, cumulative, length: total };
+}
+
+/**
+ * Position + tangent at a normalized distance (0..1) along a motion path.
+ * Binary-searches the cumulative table, lerps the bracketing points, and takes
+ * the tangent from the containing segment's direction. Angle is in radians.
+ */
+export function samplePathAt(mp: MotionPath, distance01: number): { x: number; y: number; angle: number } {
+  const pts = mp.points;
+  if (pts.length === 1 || mp.length === 0) {
+    return { x: pts[0].x, y: pts[0].y, angle: 0 };
+  }
+
+  const target = Math.max(0, Math.min(1, distance01)) * mp.length;
+  const cum = mp.cumulative;
+
+  // Binary search for the last index with cumulative <= target.
+  let lo = 0;
+  let hi = cum.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (cum[mid] <= target) lo = mid;
+    else hi = mid - 1;
+  }
+  // Segment [lo, lo+1]; clamp so a target at the very end still has a segment.
+  const i = Math.min(lo, pts.length - 2);
+  const a = pts[i];
+  const b = pts[i + 1];
+  const segLen = cum[i + 1] - cum[i];
+  const f = segLen > 0 ? (target - cum[i]) / segLen : 0;
+
+  return {
+    x: a.x + (b.x - a.x) * f,
+    y: a.y + (b.y - a.y) * f,
+    angle: Math.atan2(b.y - a.y, b.x - a.x),
+  };
+}
+
+/**
  * Ramanujan's second approximation for an ellipse's perimeter. Exact for a
  * circle (rx === ry); within ~1e-5 relative error for typical eccentricities.
  * Approximate — good enough for trim-path length.
