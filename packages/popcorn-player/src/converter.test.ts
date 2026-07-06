@@ -80,6 +80,50 @@ test('converter: animated path + gradient stops are no longer blocked and valida
   expect(() => buildSceneGraph(parse(css))).not.toThrow();
 });
 
+// A group with two closed contours (outer ring + inner hole) sharing ONE fill.
+// Lottie fills all a group's paths as a single nonzero region, so the inner,
+// opposite-wound contour cuts a hole. Emitting each contour as its own solid
+// fill would fill the hole in (the classic "outline renders as a solid blob").
+function holeDoc() {
+  const outer = shape([[-10, -10], [10, -10], [10, 10], [-10, 10]]);
+  const inner = shape([[-5, 5], [5, 5], [5, -5], [-5, -5]]); // reverse winding
+  return {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      {
+        ty: 4, ind: 1, ks: {},
+        shapes: [
+          {
+            ty: 'gr',
+            it: [
+              { ty: 'sh', ks: { a: 0, k: outer } },
+              { ty: 'sh', ks: { a: 0, k: inner } },
+              { ty: 'fl', c: { a: 0, k: [0, 0, 0, 1] }, o: { a: 0, k: 100 } },
+              { ty: 'tr' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+test('converter: sibling contours sharing one fill merge into a nonzero compound path', () => {
+  const c = new Converter();
+  const css = c.convert(holeDoc());
+
+  // Both contours land in ONE path `d` (two `M` subpaths), not two solid fills.
+  const dMatch = css.match(/d: '([^']*)'/g) ?? [];
+  expect(dMatch.length).toBe(1);
+  expect((dMatch[0].match(/M /g) ?? []).length).toBe(2);
+
+  // A single fill, filled nonzero so the inner subpath reads as a hole.
+  expect((css.match(/fill: #000000/g) ?? []).length).toBe(1);
+  expect(css).toContain('fill-rule: nonzero');
+
+  expect(() => buildSceneGraph(parse(css))).not.toThrow();
+});
+
 // A precomp (ty 0) instance of an asset holding one animated (opacity) layer.
 function precompDoc() {
   return {

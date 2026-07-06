@@ -852,6 +852,13 @@ export class Converter {
       }
     }
 
+    // Sibling drawables in a group all share this level's single fill and are
+    // painted by Lottie as ONE nonzero region — so an inner, opposite-wound
+    // contour cuts a hole (e.g. an outline drawn as outer + inner path). Emitting
+    // them as separate solid fills loses that hole (the outline fills in solid),
+    // so >1 drawable is merged into one path just like an explicit `mm` union.
+    const siblingDraws: any[] = [];
+    let drawIdx = -1;
     for (const it of items) {
       if (mergeSet && mergeSet.has(it)) continue;
       if (it.ty === 'gr') {
@@ -863,12 +870,24 @@ export class Converter {
         this.finalizeAnim(grp, 0);
         out.push(grp);
       } else if (it.ty === 'rc' || it.ty === 'el' || it.ty === 'sh' || it.ty === 'sr') {
-        const drawable = this.buildDrawable(it, prefix + '-' + (it.nm ? it.nm : `s${dcount++}`));
-        if (drawable) {
-          applyStyle(drawable);
-          this.finalizeAnim(drawable, 0);
-          out.push(drawable);
-        }
+        if (drawIdx < 0) drawIdx = out.length;
+        siblingDraws.push(it);
+      }
+    }
+    if (siblingDraws.length === 1) {
+      const it = siblingDraws[0];
+      const drawable = this.buildDrawable(it, prefix + '-' + (it.nm ? it.nm : `s${dcount++}`));
+      if (drawable) {
+        applyStyle(drawable);
+        this.finalizeAnim(drawable, 0);
+        out.splice(drawIdx, 0, drawable);
+      }
+    } else if (siblingDraws.length > 1) {
+      const merged = this.buildMergedPath(siblingDraws, this.uniqueId(prefix + '-shapes'), fillRule);
+      if (merged) {
+        applyStyle(merged);
+        this.finalizeAnim(merged, 0);
+        out.splice(drawIdx, 0, merged);
       }
     }
     // Lottie paints shape items top-first; Popcorn paints first-behind -> reverse.
