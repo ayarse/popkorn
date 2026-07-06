@@ -1,6 +1,6 @@
 import type { Renderer } from './interface';
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -19,6 +19,9 @@ export class Canvas2DRenderer implements Renderer {
   private strokeGradient: GradientData | null = null;
   private lineCap: StrokeLineCap = 'butt';
   private trim: TrimDescriptor | null = null;
+  private dashArray: number[] = [];
+  private dashOffset: number = 0;
+  private fillRule: FillRule = 'nonzero';
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -113,7 +116,7 @@ export class Canvas2DRenderer implements Renderer {
         applyCommandsToPath(path, clip.commands);
         break;
     }
-    this.ctx.clip(path);
+    this.ctx.clip(path, this.fillRule);
   }
 
   setFill(color: Color | null): void {
@@ -139,6 +142,15 @@ export class Canvas2DRenderer implements Renderer {
 
   setTrim(trim: TrimDescriptor | null): void {
     this.trim = trim;
+  }
+
+  setDash(dashArray: number[], dashOffset: number): void {
+    this.dashArray = dashArray;
+    this.dashOffset = dashOffset;
+  }
+
+  setFillRule(rule: FillRule): void {
+    this.fillRule = rule;
   }
 
   setOpacity(opacity: number): void {
@@ -190,10 +202,10 @@ export class Canvas2DRenderer implements Renderer {
     // Gradient wins over solid color when present.
     if (this.fillGradient) {
       this.ctx.fillStyle = this.realizeGradient(this.fillGradient, bounds);
-      this.ctx.fill();
+      this.ctx.fill(this.fillRule);
     } else if (this.fillColor) {
       this.ctx.fillStyle = this.fillColor;
-      this.ctx.fill();
+      this.ctx.fill(this.fillRule);
     }
 
     const stroke = this.strokeGradient
@@ -205,10 +217,16 @@ export class Canvas2DRenderer implements Renderer {
     if (this.trim && !this.trim.visible) return;
 
     // Trim maps to a dash pattern over the outline; reset it per stroke so it
-    // can't leak to the next shape.
+    // can't leak to the next shape. Trim wins over an authored stroke-dasharray
+    // when both are set (both use the single Canvas dash slot).
+    // ponytail: composing an authored dash *within* a trim window (dash-of-a-dash)
+    // is the real upgrade path; for now trim simply overrides the dash array.
     if (this.trim && this.trim.dashArray.length > 0) {
       this.ctx.setLineDash(this.trim.dashArray);
       this.ctx.lineDashOffset = this.trim.dashOffset;
+    } else if (!this.trim && this.dashArray.length > 0) {
+      this.ctx.setLineDash(this.dashArray);
+      this.ctx.lineDashOffset = this.dashOffset;
     } else {
       this.ctx.setLineDash([]);
       this.ctx.lineDashOffset = 0;

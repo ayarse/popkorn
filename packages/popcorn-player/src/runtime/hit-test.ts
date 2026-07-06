@@ -13,12 +13,14 @@ import type {
   CircleData,
   EllipseData,
   PathData,
+  FillRule,
 } from '../scene/types';
 import type { Matrix3x3, PathCommand, ResolvedClip } from '../renderer/types';
 import { IDENTITY_MATRIX, invertMatrix, transformPoint } from '../renderer/types';
 import { computeWorldMatrix, getShapeBounds } from '../scene/transform';
 import { resolveClip } from '../scene/clip';
 import { applyCommandsToPath } from '../scene/path-parser';
+import { polystarCommands } from '../scene/polystar';
 
 export interface Point {
   x: number;
@@ -75,7 +77,7 @@ function hitTestNode(
   // its descendants — the clip is applied in this node's local space, matching
   // the renderer.
   const clip = resolveClip(node);
-  if (clip && !isPointInClip(clip, local)) return;
+  if (clip && !isPointInClip(clip, local, node.fillRule)) return;
 
   if (node.interactive && isPointInShape(node, local)) {
     results.push({ node, depth });
@@ -91,7 +93,7 @@ function hitTestNode(
  * circle/rect are pure math; path reuses the Path2D scratch context and, like
  * path hit-testing, degrades to `false` (rejects) when no DOM is available.
  */
-function isPointInClip(clip: ResolvedClip, point: Point): boolean {
+function isPointInClip(clip: ResolvedClip, point: Point, fillRule: FillRule = 'nonzero'): boolean {
   switch (clip.type) {
     case 'rect':
       return (
@@ -108,7 +110,7 @@ function isPointInClip(clip: ResolvedClip, point: Point): boolean {
     case 'path': {
       const ctx = getScratchContext();
       if (!ctx || typeof Path2D === 'undefined') return false;
-      return ctx.isPointInPath(buildPath2D(clip.commands), point.x, point.y);
+      return ctx.isPointInPath(buildPath2D(clip.commands), point.x, point.y, fillRule);
     }
   }
 }
@@ -125,7 +127,10 @@ function isPointInShape(node: SceneNode, point: Point): boolean {
     case 'ellipse':
       return isPointInEllipse(node.shapeData as EllipseData, point);
     case 'path':
-      return isPointInPathShape(node.shapeData as PathData, point);
+      return isPointInCommands((node.shapeData as PathData).commands, point, node.fillRule);
+    case 'star':
+    case 'polygon':
+      return isPointInCommands(polystarCommands(node), point, node.fillRule);
     case 'text': {
       // Rect test against the measured (or estimated) text bounds.
       const b = getShapeBounds(node);
@@ -165,11 +170,11 @@ function isPointInEllipse(ellipse: EllipseData, point: Point): boolean {
  * Falls back to false when neither Path2D nor a canvas context is available
  * (e.g. a headless test runner without a DOM).
  */
-function isPointInPathShape(pathData: PathData, point: Point): boolean {
+function isPointInCommands(commands: PathCommand[], point: Point, fillRule: FillRule): boolean {
   const ctx = getScratchContext();
   if (!ctx || typeof Path2D === 'undefined') return false;
-  const path = buildPath2D(pathData.commands);
-  return ctx.isPointInPath(path, point.x, point.y);
+  const path = buildPath2D(commands);
+  return ctx.isPointInPath(path, point.x, point.y, fillRule);
 }
 
 let scratchContext: CanvasRenderingContext2D | null | undefined;

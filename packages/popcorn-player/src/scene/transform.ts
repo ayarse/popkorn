@@ -6,7 +6,7 @@ import {
   rotationMatrix,
   scaleMatrix,
 } from '../renderer/types';
-import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData, TextData } from './types';
+import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData, TextData, PolystarData } from './types';
 import { samplePathAt } from './path-parser';
 
 /**
@@ -26,6 +26,13 @@ export function getShapeBounds(node: SceneNode): { x: number; y: number; width: 
     case 'ellipse': {
       const e = node.shapeData as EllipseData;
       return { x: e.cx - e.rx, y: e.cy - e.ry, width: e.rx * 2, height: e.ry * 2 };
+    }
+    case 'star':
+    case 'polygon': {
+      // Outer-radius square around the center; exact enough for origins/clip.
+      const s = node.shapeData as PolystarData;
+      const r = s.outerRadius;
+      return { x: s.cx - r, y: s.cy - r, width: r * 2, height: r * 2 };
     }
     case 'text': {
       const t = node.shapeData as TextData;

@@ -67,6 +67,16 @@ test('animation shorthand → list', () => {
   });
 });
 
+test('stroke-dasharray → list of lengths', () => {
+  expect(parse('#p { stroke-dasharray: 5px 3px 2px; }').rules[0].declarations[0].value).toEqual({
+    type: 'list', values: [
+      { type: 'length', value: 5, unit: 'px' },
+      { type: 'length', value: 3, unit: 'px' },
+      { type: 'length', value: 2, unit: 'px' },
+    ],
+  });
+});
+
 test('keyframes from/to', () => {
   const kf = parse('@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }').keyframes[0];
   expect(kf.name).toBe('spin');

@@ -5,7 +5,7 @@ import { getShapeBounds } from './transform';
 import { getPropHandler } from '../animation/registry';
 import { AnimationScheduler } from '../animation/scheduler';
 import { resetNodeToBase } from './types';
-import type { TextData, CircleData } from './types';
+import type { TextData, CircleData, PolystarData } from './types';
 import { hitTest } from '../runtime/hit-test';
 
 const build = (src: string) => buildSceneGraph(parse(src));
@@ -103,4 +103,80 @@ test('use: unknown symbol name throws', () => {
 test('use: cyclic definitions throw', () => {
   const src = '@define a { use: b; } @define b { use: a; } #x { use: a; }';
   expect(() => build(src)).toThrow(/cyclic symbol definition/);
+});
+
+// --- animation shorthand: time-value ordering (no 1000ms sentinel) -----------
+
+test('animation shorthand: 1s duration + nonzero delay parses exactly', () => {
+  const src = `
+@keyframes spin { from { rotate: 0deg; } to { rotate: 360deg; } }
+#a { type: rect; width: 10px; animation: spin 1s linear 1 2s; }
+`;
+  const [node] = build(src).children;
+  expect(node.animations).toHaveLength(1);
+  // 1000ms is a legit author-reachable duration, not an "unset" sentinel; the
+  // second time value must land in delay, not clobber duration.
+  expect(node.animations[0].duration).toBe(1000);
+  expect(node.animations[0].delay).toBe(2000);
+});
+
+// --- polystar (star / polygon) ----------------------------------------------
+
+test('star: declarations populate PolystarData', () => {
+  const src = `#s {
+    type: star; points: 6; outer-radius: 80px; inner-radius: 40px;
+    rotation: 15deg; cx: 100px; cy: 100px; outer-roundness: 25%; fill: #f00;
+  }`;
+  const [node] = build(src).children;
+  expect(node.type).toBe('star');
+  const sd = node.shapeData as PolystarData;
+  expect(sd).toMatchObject({
+    type: 'star', points: 6, outerRadius: 80, innerRadius: 40,
+    rotation: 15, cx: 100, cy: 100, outerRoundness: 25,
+  });
+});
+
+test('polygon: inner-radius is ignored (polygon has none)', () => {
+  const [node] = build('#p { type: polygon; points: 5; outer-radius: 50px; inner-radius: 99px; }').children;
+  expect((node.shapeData as PolystarData).innerRadius).toBe(0);
+});
+
+test('star: animating outer-radius rebuilds via the registry (dirty flag)', () => {
+  const src = `
+@keyframes pulse { from { outer-radius: 10px; } to { outer-radius: 110px; } }
+#s { type: star; points: 5; outer-radius: 10px; inner-radius: 5px; animation: pulse 1s linear; }
+`;
+  const [node] = build(src).children;
+  const sched = new AnimationScheduler();
+  resetNodeToBase(node);
+  sched.sampleNode(node, 500); // halfway: outer-radius -> ~60
+  expect((node.shapeData as PolystarData).outerRadius).toBeCloseTo(60, 0);
+  expect(node.polystarDirty).toBe(true); // registry apply flagged a rebuild
+});
+
+// --- stroke dashes -----------------------------------------------------------
+
+test('stroke-dasharray + dashoffset parse; dashoffset animates', () => {
+  const src = `
+@keyframes march { from { stroke-dashoffset: 0px; } to { stroke-dashoffset: 20px; } }
+#d { type: rect; width: 50px; height: 50px; stroke: #000; stroke-width: 2px;
+     stroke-dasharray: 5px 3px 2px; stroke-dashoffset: 4px; animation: march 1s linear; }
+`;
+  const [node] = build(src).children;
+  expect(node.strokeDashArray).toEqual([5, 3, 2]);
+  expect(node.strokeDashOffset).toBe(4);
+
+  const sched = new AnimationScheduler();
+  resetNodeToBase(node);
+  sched.sampleNode(node, 500); // halfway: dashoffset 0 -> 20 => 10
+  expect(node.strokeDashOffset).toBeCloseTo(10, 5);
+});
+
+// --- fill-rule ---------------------------------------------------------------
+
+test('fill-rule: parses evenodd; defaults to nonzero', () => {
+  const [a] = build('#a { type: path; d: "M0 0 L10 0 L0 10 Z"; fill-rule: evenodd; }').children;
+  expect(a.fillRule).toBe('evenodd');
+  const [b] = build('#b { type: path; d: "M0 0 L10 0 L0 10 Z"; }').children;
+  expect(b.fillRule).toBe('nonzero');
 });

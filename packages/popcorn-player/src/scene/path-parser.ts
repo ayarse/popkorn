@@ -1,5 +1,6 @@
 import type { PathCommand } from '../renderer/types';
 import type { SceneNode, ShapeData } from './types';
+import { polystarToCommands } from './polystar';
 
 /**
  * Parse SVG path data string into PathCommand array
@@ -840,6 +841,9 @@ export function shapeOutlineLength(sd: ShapeData): number {
     }
     case 'path':
       return computePathLength(sd.commands);
+    case 'star':
+    case 'polygon':
+      return computePathLength(polystarToCommands(sd));
     default:
       return 0;
   }

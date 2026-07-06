@@ -24,6 +24,8 @@ import type {
   EllipseData,
   PathData,
   TextData,
+  PolystarData,
+  ShapeData,
   TextAnchor,
   TransformOriginValue,
   StateStyles,
@@ -32,6 +34,9 @@ import type {
 import type { GradientData, GradientStop } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath, buildMotionPath } from './path-parser';
+
+const isPolystar = (sd: ShapeData): sd is PolystarData =>
+  sd.type === 'star' || sd.type === 'polygon';
 
 /**
  * Build scene graph from AST
@@ -391,6 +396,8 @@ export class SceneBuilder {
           (node.shapeData as CircleData).cx = getNumericValue(value);
         } else if (node.shapeData.type === 'ellipse') {
           (node.shapeData as EllipseData).cx = getNumericValue(value);
+        } else if (isPolystar(node.shapeData)) {
+          (node.shapeData as PolystarData).cx = getNumericValue(value);
         }
         break;
       case 'cy':
@@ -398,11 +405,52 @@ export class SceneBuilder {
           (node.shapeData as CircleData).cy = getNumericValue(value);
         } else if (node.shapeData.type === 'ellipse') {
           (node.shapeData as EllipseData).cy = getNumericValue(value);
+        } else if (isPolystar(node.shapeData)) {
+          (node.shapeData as PolystarData).cy = getNumericValue(value);
         }
         break;
       case 'r':
         if (node.shapeData.type === 'circle') {
           (node.shapeData as CircleData).r = getNumericValue(value);
+        }
+        break;
+
+      // Star / polygon geometry. Synthesized into a path at render time; `points`
+      // is static, the rest are animatable (see the registry).
+      case 'points':
+        if (isPolystar(node.shapeData)) {
+          (node.shapeData as PolystarData).points = getNumericValue(value);
+          node.polystarDirty = true;
+        }
+        break;
+      case 'outer-radius':
+        if (isPolystar(node.shapeData)) {
+          (node.shapeData as PolystarData).outerRadius = getNumericValue(value);
+          node.polystarDirty = true;
+        }
+        break;
+      case 'inner-radius':
+        if (node.shapeData.type === 'star') {
+          (node.shapeData as PolystarData).innerRadius = getNumericValue(value);
+          node.polystarDirty = true;
+        }
+        break;
+      case 'rotation':
+        if (isPolystar(node.shapeData)) {
+          (node.shapeData as PolystarData).rotation = getNumericValue(value);
+          node.polystarDirty = true;
+        }
+        break;
+      case 'outer-roundness':
+        if (isPolystar(node.shapeData)) {
+          (node.shapeData as PolystarData).outerRoundness = getNumericValue(value);
+          node.polystarDirty = true;
+        }
+        break;
+      case 'inner-roundness':
+        if (node.shapeData.type === 'star') {
+          (node.shapeData as PolystarData).innerRoundness = getNumericValue(value);
+          node.polystarDirty = true;
         }
         break;
 
@@ -485,6 +533,22 @@ export class SceneBuilder {
         }
         break;
 
+      // Stroke dashing: a repeating length list, plus an animatable offset.
+      case 'stroke-dasharray':
+        node.strokeDashArray = isListValue(value)
+          ? value.values.map(getNumericValue)
+          : [getNumericValue(value)];
+        break;
+      case 'stroke-dashoffset':
+        node.strokeDashOffset = getNumericValue(value);
+        break;
+
+      case 'fill-rule':
+        if (isKeywordValue(value) && (value.value === 'nonzero' || value.value === 'evenodd')) {
+          node.fillRule = value.value;
+        }
+        break;
+
       // Trim paths: percentages normalized to 0..1 (like opacity is authored as
       // a fraction) and clamped to range.
       case 'trim-start':
@@ -545,6 +609,14 @@ export class SceneBuilder {
           break;
         case 'path':
           node.shapeData = { type: 'path', d: '', commands: [] };
+          break;
+        case 'star':
+        case 'polygon':
+          node.shapeData = {
+            type: node.type,
+            points: 5, outerRadius: 0, innerRadius: 0, rotation: 0,
+            cx: 0, cy: 0, outerRoundness: 0, innerRoundness: 0,
+          };
           break;
         case 'text':
           node.shapeData = {
@@ -708,6 +780,7 @@ export class SceneBuilder {
 
     let name = '';
     let duration = 1000;
+    let durationSet = false;
     let timingFunction: TimingFunction = 'ease';
     let iterationCount = 1;
     let direction: AnimationDirection = 'normal';
@@ -738,18 +811,15 @@ export class SceneBuilder {
         // Handle cubic-bezier(x1, y1, x2, y2)
         timingFunction = this.parseCubicBezierFunction(v);
       } else if (isLengthValue(v)) {
-        // Duration or delay (e.g., 2s, 500ms)
-        if (v.unit === 's') {
-          if (duration === 1000) {
-            duration = v.value * 1000;
+        // Time values are assigned by order (CSS rule): the first is duration,
+        // the second is delay — regardless of magnitude.
+        const ms = v.unit === 's' ? v.value * 1000 : v.unit === 'ms' ? v.value : null;
+        if (ms !== null) {
+          if (!durationSet) {
+            duration = ms;
+            durationSet = true;
           } else {
-            delay = v.value * 1000;
-          }
-        } else if (v.unit === 'ms') {
-          if (duration === 1000) {
-            duration = v.value;
-          } else {
-            delay = v.value;
+            delay = ms;
           }
         }
       } else if (isNumberValue(v)) {

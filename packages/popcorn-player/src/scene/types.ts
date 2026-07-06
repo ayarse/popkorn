@@ -17,7 +17,10 @@ export type ClipPathData =
   | { type: 'path'; commands: PathCommand[] };
 
 // Scene node types
-export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path' | 'text';
+export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path' | 'text' | 'star' | 'polygon';
+
+// Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
+export type FillRule = 'nonzero' | 'evenodd';
 
 // Text alignment; maps to CanvasRenderingContext2D.textAlign (left/center/right).
 export type TextAnchor = 'start' | 'middle' | 'end';
@@ -92,6 +95,16 @@ export interface SceneNode {
   trimOffset: number;
   strokeLineCap: StrokeLineCap;
 
+  // Stroke dashing (independent of trim). strokeDashArray is static (a repeating
+  // dash/gap pattern in local units); strokeDashOffset is animatable (registry).
+  // When both a trim window and a dash array are present, trim wins and the dash
+  // array is ignored (see canvas2d.applyFillAndStroke).
+  strokeDashArray: number[];
+  strokeDashOffset: number;
+
+  // Fill winding rule (static); applies to path/star/polygon fill, hit-test and clip.
+  fillRule: FillRule;
+
   // Cached total outline length (local units). Invalidated by the registry's
   // geometry apply functions (they set outlineLengthDirty); recomputed lazily
   // by outlineLength() so static shapes never pay per frame.
@@ -102,6 +115,12 @@ export interface SceneNode {
   // outline length). Invalidated when font-size animates (see the registry).
   cachedTextBounds: { width: number; height: number } | null;
   textBoundsDirty: boolean;
+
+  // Cached synthesized path commands for star/polygon nodes (same lazy pattern
+  // as the outline-length cache). Invalidated when an animatable polystar
+  // geometry prop is applied (see the registry); recomputed by polystarCommands().
+  cachedPolystarCommands: PathCommand[] | null;
+  polystarDirty: boolean;
 
   // Gradient fill/stroke (static; when set, wins over the solid color above).
   fillGradient: GradientData | null;
@@ -148,6 +167,7 @@ export interface NodeBase {
   trimStart: number;
   trimEnd: number;
   trimOffset: number;
+  strokeDashOffset: number;
   offsetDistance: number;
   shapeData: ShapeData;
 }
@@ -158,7 +178,24 @@ export type ShapeData =
   | CircleData
   | EllipseData
   | PathData
-  | TextData;
+  | TextData
+  | PolystarData;
+
+// Star (alternating outer/inner radius over 2·points vertices) or regular
+// polygon (points vertices at the outer radius). Synthesized into PathCommand[]
+// at render/hit-test time (see scene/polystar.ts), so it reuses the whole path
+// pipeline (trim, bounds, fill-rule, hit-test). Geometry matches lottie/AE.
+export interface PolystarData {
+  type: 'star' | 'polygon';
+  points: number;         // vertex count (static)
+  outerRadius: number;
+  innerRadius: number;    // star only
+  rotation: number;       // degrees; 0 points up (matches Lottie/AE)
+  cx: number;
+  cy: number;
+  outerRoundness: number; // percent (Lottie os); 0 => straight edges
+  innerRoundness: number; // percent (Lottie is); star only
+}
 
 export interface TextData {
   type: 'text';
@@ -309,6 +346,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
     trimStart: node.trimStart,
     trimEnd: node.trimEnd,
     trimOffset: node.trimOffset,
+    strokeDashOffset: node.strokeDashOffset,
     offsetDistance: node.offsetDistance,
     shapeData: cloneShapeData(node.shapeData),
   };
@@ -325,6 +363,7 @@ export function resetNodeToBase(node: SceneNode): void {
   node.trimStart = b.trimStart;
   node.trimEnd = b.trimEnd;
   node.trimOffset = b.trimOffset;
+  node.strokeDashOffset = b.strokeDashOffset;
   node.offsetDistance = b.offsetDistance;
   Object.assign(node.shapeData, b.shapeData);
 }
@@ -346,10 +385,15 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     trimEnd: 1,
     trimOffset: 0,
     strokeLineCap: 'butt',
+    strokeDashArray: [],
+    strokeDashOffset: 0,
+    fillRule: 'nonzero',
     cachedOutlineLength: null,
     outlineLengthDirty: true,
     cachedTextBounds: null,
     textBoundsDirty: true,
+    cachedPolystarCommands: null,
+    polystarDirty: true,
     fillGradient: null,
     strokeGradient: null,
     clipPath: null,
@@ -367,6 +411,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       trimStart: 0,
       trimEnd: 1,
       trimOffset: 0,
+      strokeDashOffset: 0,
       offsetDistance: 0,
       shapeData: { type: 'group' },
     },

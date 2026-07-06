@@ -4,6 +4,7 @@ import type { TrimDescriptor } from '../renderer/types';
 import { resetNodeToBase } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
 import { outlineLength } from '../scene/path-parser';
+import { polystarCommands } from '../scene/polystar';
 import { resolveClip } from '../scene/clip';
 import { AnimationScheduler } from '../animation/scheduler';
 import { getPropHandler } from '../animation/registry';
@@ -199,6 +200,8 @@ export class RenderLoop {
     this.renderer.setStrokeGradient(node.strokeGradient);
     this.renderer.setStrokeLineCap(node.strokeLineCap);
     this.renderer.setTrim(computeTrim(node));
+    this.renderer.setDash(node.strokeDashArray, node.strokeDashOffset);
+    this.renderer.setFillRule(node.fillRule);
     this.renderer.setOpacity(node.opacity);
 
     // Draw shape
@@ -223,6 +226,10 @@ export class RenderLoop {
         this.renderer.drawPath(p.commands);
         break;
       }
+      case 'star':
+      case 'polygon':
+        this.renderer.drawPath(polystarCommands(node));
+        break;
       case 'text': {
         const t = node.shapeData as TextData;
         this.renderer.drawText(t.content, t.x, t.y, t.fontSize, t.fontFamily, t.fontWeight, t.anchor);

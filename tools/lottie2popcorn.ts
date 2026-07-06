@@ -116,6 +116,7 @@ type Sample = Partial<{
   x: number; y: number; width: number; height: number;
   fill: string; stroke: string; strokeWidth: number;
   offsetDistance: number; trimStart: number; trimEnd: number; trimOffset: number;
+  outerRadius: number; innerRadius: number; starRotation: number;
 }>;
 
 interface Rule {
@@ -135,7 +136,6 @@ interface Rule {
 // ---------------------------------------------------------------------------
 
 const BLOCKED_MODIFIERS: Record<string, string> = {
-  sr: 'polystar (sr)',
   rp: 'repeater (rp)',
   rd: 'round-corners (rd)',
   mm: 'merge (mm)',
@@ -462,8 +462,11 @@ class Converter {
     let stroke: string | null = inherited.stroke;
     let strokeWidth: number | null = null;
     let lineCap: string | null = null;
+    let dashArray: number[] | null = null;
+    let dashOffset = 0;
     let gradientFill: string | null = null;
     let fillCount = 0;
+    let fillRule: number | null = null;
     let trim: { start: number; end: number; offset: number } | null = null;
 
     for (const it of items) {
@@ -481,6 +484,7 @@ class Converter {
           } else if (c) {
             fill = lottieColor(c.at(0), op);
           }
+          if (it.r === 1 || it.r === 2) fillRule = it.r;
           break;
         }
         case 'st': {
@@ -489,6 +493,19 @@ class Converter {
           if (c) stroke = c.animated ? lottieColor(c.at(c.kfs![0].t)) : lottieColor(c.at(0));
           if (w) strokeWidth = w.at(0)[0] ?? 0;
           lineCap = it.lc === 2 ? 'round' : it.lc === 3 ? 'square' : 'butt';
+          // Dash pattern: `d` is a list of { n: 'd'|'g'|'o', v } — dash/gap build
+          // the array (in order), offset is separate. Animated dashes bake to t0.
+          if (Array.isArray(it.d)) {
+            const dashes: number[] = [];
+            for (const el of it.d) {
+              const v = prop(el.v);
+              const val = v ? v.at(0)[0] ?? 0 : 0;
+              if (el.n === 'o') dashOffset = val;
+              else dashes.push(val); // 'd' (dash) and 'g' (gap)
+              if (v && v.animated) this.warnOnce('animated stroke dash baked to first value');
+            }
+            if (dashes.length) dashArray = dashes;
+          }
           break;
         }
         case 'gf':
@@ -522,6 +539,9 @@ class Converter {
       if (stroke) rule.decls.push(`stroke: ${stroke}`);
       if (strokeWidth != null) rule.decls.push(`stroke-width: ${num(strokeWidth)}px`);
       if (lineCap && lineCap !== 'butt') rule.decls.push(`stroke-linecap: ${lineCap}`);
+      if (dashArray) rule.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
+      if (dashOffset) rule.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
+      if (fillRule === 2) rule.decls.push(`fill-rule: evenodd`);
       if (trim) {
         rule.decls.push(`trim-start: ${num(trim.start)}%`, `trim-end: ${num(trim.end)}%`);
         if (trim.offset) rule.decls.push(`trim-offset: ${num(trim.offset, 3)}`);
@@ -540,7 +560,7 @@ class Converter {
         grp.children.push(...this.processItems(it.it || [], gid, style));
         this.finalizeAnim(grp, 0);
         out.push(grp);
-      } else if (it.ty === 'rc' || it.ty === 'el' || it.ty === 'sh') {
+      } else if (it.ty === 'rc' || it.ty === 'el' || it.ty === 'sh' || it.ty === 'sr') {
         const drawable = this.buildDrawable(it, prefix + '-' + (it.nm ? it.nm : `s${dcount++}`));
         if (drawable) {
           applyStyle(drawable);
@@ -595,6 +615,34 @@ class Converter {
       if (s && s.animated && s.kfs) {
         rule.channels.push({ priority: 4, kfs: s.kfs, sample: (t) => { const v = s.at(t); return { rx: v[0] / 2, ry: v[1] / 2 }; } });
       }
+      return rule;
+    }
+    if (it.ty === 'sr') {
+      // Polystar: sy 1 = star, 2 = polygon. pt=points, or/ir=radii, r=rotation
+      // (deg), os/is=roundness (%), p=center. points is static; radii/rotation/
+      // center animate. Geometry is synthesized into a path downstream.
+      const star = it.sy !== 2;
+      const rule: Rule = { id, type: star ? 'star' : 'polygon', decls: [], channels: [], children: [] };
+      const p = prop(it.p), pt = prop(it.pt), or = prop(it.or), ir = prop(it.ir),
+        rot = prop(it.r), os = prop(it.os), is = prop(it.is);
+      const pv = p ? p.at(0) : [0, 0];
+      rule.decls.push(`points: ${num(pt ? pt.at(0)[0] : 5, 0)}`);
+      rule.decls.push(`outer-radius: ${num(or ? or.at(0)[0] : 0)}px`);
+      if (star) rule.decls.push(`inner-radius: ${num(ir ? ir.at(0)[0] : 0)}px`);
+      rule.decls.push(`cx: ${num(pv[0])}px`, `cy: ${num(pv[1])}px`);
+      const rv = rot ? rot.at(0)[0] : 0;
+      if (rv) rule.decls.push(`rotation: ${num(rv)}deg`);
+      const osv = os ? os.at(0)[0] : 0, isv = is ? is.at(0)[0] : 0;
+      if (osv) rule.decls.push(`outer-roundness: ${num(osv)}%`);
+      if (star && isv) rule.decls.push(`inner-roundness: ${num(isv)}%`);
+      if (or && or.animated && or.kfs)
+        rule.channels.push({ priority: 5, kfs: or.kfs, sample: (t) => ({ outerRadius: or.at(t)[0] }) });
+      if (star && ir && ir.animated && ir.kfs)
+        rule.channels.push({ priority: 4, kfs: ir.kfs, sample: (t) => ({ innerRadius: ir.at(t)[0] }) });
+      if (rot && rot.animated && rot.kfs)
+        rule.channels.push({ priority: 3, kfs: rot.kfs, sample: (t) => ({ starRotation: rot.at(t)[0] }) });
+      if (p && p.animated && p.kfs)
+        rule.channels.push({ priority: 6, kfs: p.kfs, sample: (t) => { const v = p.at(t); return { cx: v[0], cy: v[1] }; } });
       return rule;
     }
     // sh: static bezier path
@@ -728,6 +776,9 @@ function declsFromSample(s: Sample): string[] {
   if (s.trimStart !== undefined) out.push(`trim-start: ${num(s.trimStart)}%`);
   if (s.trimEnd !== undefined) out.push(`trim-end: ${num(s.trimEnd)}%`);
   if (s.trimOffset !== undefined) out.push(`trim-offset: ${num(s.trimOffset, 3)}`);
+  if (s.outerRadius !== undefined) out.push(`outer-radius: ${num(s.outerRadius)}px`);
+  if (s.innerRadius !== undefined) out.push(`inner-radius: ${num(s.innerRadius)}px`);
+  if (s.starRotation !== undefined) out.push(`rotation: ${num(s.starRotation)}deg`);
   return out;
 }
 
@@ -783,9 +834,7 @@ function serializeRule(rule: Rule, depth: number, top: boolean): string {
   for (const d of rule.decls) lines.push(`${ip}${d};`);
   if (rule.animName) {
     const delay = rule.delaySec && Math.abs(rule.delaySec) > 1e-6;
-    let durTok = `${num(rule.durationSec!, 3)}s`;
-    // Builder quirk: 1000ms is the "unset" sentinel; nudge if a delay follows.
-    if (delay && Math.abs(rule.durationSec! * 1000 - 1000) < 1e-6) durTok = `1000.5ms`;
+    const durTok = `${num(rule.durationSec!, 3)}s`;
     const parts = [rule.animName, durTok, 'linear', '1'];
     if (delay) parts.push(`${num(rule.delaySec!, 3)}s`);
     lines.push(`${ip}animation: ${parts.join(' ')};`);

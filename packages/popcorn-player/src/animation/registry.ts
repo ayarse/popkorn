@@ -45,8 +45,10 @@ function geometryNumber(key: string): PropHandler {
       const sd = node.shapeData as unknown as Record<string, unknown>;
       if (key in sd) {
         sd[key] = value;
-        // Geometry changed -> the cached outline length is stale (trim paths).
+        // Geometry changed -> the cached outline length is stale (trim paths),
+        // and a star/polygon's synthesized path must be regenerated.
         node.outlineLengthDirty = true;
+        node.polystarDirty = true;
       }
     },
   };
@@ -116,6 +118,20 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   cx: geometryNumber('cx'),
   cy: geometryNumber('cy'),
   r: geometryNumber('r'),
+
+  // star / polygon geometry (points is static, so not registered)
+  'outer-radius': geometryNumber('outerRadius'),
+  'inner-radius': geometryNumber('innerRadius'),
+  rotation: geometryNumber('rotation'),
+
+  // stroke dashing
+  'stroke-dashoffset': {
+    kind: 'number',
+    readBase: (base) => base.strokeDashOffset,
+    apply: (node, value) => {
+      node.strokeDashOffset = value as number;
+    },
+  },
 
   // trim paths
   'trim-start': trimNumber('trimStart'),

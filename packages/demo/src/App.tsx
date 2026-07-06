@@ -598,6 +598,56 @@ const examples = {
   transform-origin: center;
   animation: blink 1.2s linear infinite;
 }`,
+  star: `/* Star & polygon shapes: pure geometry synthesized into the path pipeline */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0b1021;
+}
+
+/* Spin the star while pulsing its inner radius — both are animatable geometry. */
+@keyframes starmove {
+  0%   { rotation: 0deg;   inner-radius: 45px; }
+  50%  { rotation: 180deg; inner-radius: 95px; }
+  100% { rotation: 360deg; inner-radius: 45px; }
+}
+
+#star {
+  type: star;
+  points: 5;
+  outer-radius: 130px;
+  inner-radius: 45px;
+  cx: 400px;
+  cy: 300px;
+  fill: #ffe66d;
+  stroke: #e94560;
+  stroke-width: 4px;
+  animation: starmove 5s ease-in-out infinite;
+}
+
+/* A rounded hexagon (outer-roundness bends each edge into a bezier). */
+#hex {
+  type: polygon;
+  points: 6;
+  outer-radius: 70px;
+  outer-roundness: 60%;
+  cx: 160px;
+  cy: 150px;
+  fill: #4ecdc4;
+}
+
+/* A dashed triangle (stroke-dasharray + evenodd have their own examples too). */
+#tri {
+  type: polygon;
+  points: 3;
+  outer-radius: 70px;
+  cx: 640px;
+  cy: 150px;
+  fill: none;
+  stroke: #f472b6;
+  stroke-width: 5px;
+  stroke-dasharray: 16px 10px;
+}`,
 };
 
 type ExampleKey = keyof typeof examples;

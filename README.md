@@ -153,6 +153,41 @@ loop.start();
 Text nodes carry `fill`/`stroke`/gradients/opacity/transforms/clipping like any
 other shape. `x`, `y`, and `font-size` are animatable and bindable.
 
+### Star & Polygon
+
+`type: star` and `type: polygon` are pure-geometry shapes (radius, points,
+rotation) synthesized into the path pipeline — so they get fill, stroke, trim,
+gradients, hit-testing and `fill-rule` for free. Geometry matches Lottie/After
+Effects: with `rotation: 0` the first point faces straight up.
+
+```css
+#star {
+  type: star;
+  points: 5;             /* number of star points (static) */
+  outer-radius: 130px;   /* tip radius */
+  inner-radius: 45px;    /* valley radius (star only) */
+  rotation: 0deg;        /* default 0 = pointing up */
+  cx: 400px;             /* center */
+  cy: 300px;
+  outer-roundness: 0%;   /* 0 = sharp; >0 rounds the tips into beziers */
+  inner-roundness: 0%;   /* valley rounding (star only) */
+  fill: #ffe66d;
+}
+
+#hexagon {
+  type: polygon;         /* `points` vertices on the outer radius, no inner */
+  points: 6;
+  outer-radius: 70px;
+  cx: 160px;
+  cy: 150px;
+  fill: #4ecdc4;
+}
+```
+
+`outer-radius`, `inner-radius`, `rotation`, `cx` and `cy` are animatable and
+bindable; `points` is static. `outer-roundness`/`inner-roundness` are Lottie's
+`os`/`is` (a percentage of the edge length turned into a bezier handle).
+
 ### Symbols
 
 `@define <name> { ... }` declares a reusable symbol whose body is an ordinary
@@ -247,6 +282,45 @@ of the outline length and are animatable.
 - `stroke-linecap` sets the stroke's end caps: `butt` (default), `round`, or `square`.
 
 `trim-start >= trim-end` hides the stroke entirely.
+
+### Stroke Dashes
+
+`stroke-dasharray` sets a repeating dash/gap pattern (in local units, like SVG);
+`stroke-dashoffset` shifts the pattern along the stroke and is animatable.
+
+```css
+#dashed {
+  type: polygon;
+  points: 3;
+  outer-radius: 70px;
+  cx: 400px;
+  cy: 300px;
+  fill: none;
+  stroke: #f472b6;
+  stroke-width: 5px;
+  stroke-dasharray: 16px 10px;   /* one or more lengths: dash gap dash gap … */
+  stroke-dashoffset: 0px;        /* animate for a marching-ants effect */
+}
+```
+
+Trim paths and dashes share Canvas's single dash slot, so when both are set on
+one node **trim wins** and the dash array is ignored (compositing a dash inside a
+trim window is a future upgrade).
+
+### Fill Rule
+
+`fill-rule` chooses the winding rule for `path`, `star` and `polygon` fills (and
+their hit-testing and clipping): `nonzero` (default) or `evenodd`. With
+`evenodd`, an inner subpath punches a hole out of an outer one.
+
+```css
+#donut {
+  type: path;
+  d: 'M0 0 H100 V100 H0 Z M35 35 H65 V65 H35 Z';
+  fill: #4ecdc4;
+  fill-rule: evenodd;   /* inner square becomes a hole */
+}
+```
 
 ### Animations
 

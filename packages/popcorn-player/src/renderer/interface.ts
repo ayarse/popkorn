@@ -1,5 +1,5 @@
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -29,6 +29,11 @@ export interface Renderer {
   setStrokeLineCap(cap: StrokeLineCap): void;
   // Trim the stroke to a sub-range of the outline; null strokes the whole outline.
   setTrim(trim: TrimDescriptor | null): void;
+  // Stroke dash pattern + offset. Empty array => solid stroke. Ignored while a
+  // trim window is active (trim wins).
+  setDash(dashArray: number[], dashOffset: number): void;
+  // Fill winding rule for the next path/star/polygon fill and clip.
+  setFillRule(rule: FillRule): void;
   setOpacity(opacity: number): void;
 
   // Transform stack

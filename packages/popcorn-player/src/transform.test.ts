@@ -129,3 +129,26 @@ test.skipIf(!hasPath2D)('hitTest: path point-in-path (triangle)', () => {
   expect(hitTest(node, { x: 10, y: 10 })).toBe(node);
   expect(hitTest(node, { x: 90, y: 90 })).toBeNull();
 });
+
+test.skipIf(!hasPath2D)('hitTest: evenodd fill-rule leaves a hole (donut)', () => {
+  const node = createSceneNode('donut', 'path');
+  node.interactive = true;
+  node.fillRule = 'evenodd';
+  // Outer 100x100 square with an inner 40..60 square subpath; evenodd punches
+  // the inner square out, so a point in the hole must miss.
+  node.shapeData = {
+    type: 'path',
+    d: 'M0 0 H100 V100 H0 Z M40 40 H60 V60 H40 Z',
+    commands: [
+      { type: 'M', x: 0, y: 0 }, { type: 'H', x: 100 }, { type: 'V', y: 100 }, { type: 'H', x: 0 }, { type: 'Z' },
+      { type: 'M', x: 40, y: 40 }, { type: 'H', x: 60 }, { type: 'V', y: 60 }, { type: 'H', x: 40 }, { type: 'Z' },
+    ],
+  };
+
+  expect(hitTest(node, { x: 10, y: 10 })).toBe(node);   // in the ring -> hit
+  expect(hitTest(node, { x: 50, y: 50 })).toBeNull();   // in the hole -> miss
+
+  // With the default nonzero rule the hole is filled, so the center hits.
+  node.fillRule = 'nonzero';
+  expect(hitTest(node, { x: 50, y: 50 })).toBe(node);
+});
