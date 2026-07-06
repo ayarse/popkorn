@@ -45,6 +45,9 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Gradient/path animation | animate `fill: linear-gradient(…)` (same type + stop count) or `d: 'M…'` (same command sequence) in `@keyframes`; incompatible endpoints step |
 | Retime subtree | `time-offset: 2s; time-scale: 0.5` on a group — shifts + scales that node and all descendants (precomp-style; static) |
 | Group opacity | cascades: `opacity` on a group dims its whole subtree |
+| Paint order | siblings paint in document order; override with `z-index: <int>` (negatives allowed; also sets hit-test priority) |
+| Visibility window | `visible-from: 1s; visible-until: 3s` — show node + subtree only in that scene-local window |
+| Embed options | `<popcorn-player loop controls autoplay fit="contain">` (`fit`: contain/cover/fill/none) |
 
 ## Common mistakes
 

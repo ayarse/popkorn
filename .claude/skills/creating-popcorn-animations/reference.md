@@ -318,6 +318,32 @@ fill modes, motion-path distance) follows along.
 - `time-scale: <number>` — playback rate. Must be `> 0` (else warns, falls back to `1`). Default `1`.
 - Both are **static** (not animatable). Nested scopes compose — each applies to the local time it inherits. This is how imported compositions (Lottie precomps, with per-instance start time and stretch) keep independent clocks.
 
+### Paint order — `z-index`
+
+By default siblings paint in **document order** (later = on top). `z-index: <int>`
+overrides this: siblings paint in ascending z-index, document order breaking ties.
+
+```css
+#shadow { type: ellipse; …; z-index: -1; }   /* behind its siblings */
+#hat    { type: path;    …; z-index: 10; }    /* in front */
+```
+
+- Static integer; **negatives are valid** (the common case — push a node behind its siblings).
+- Default `0`. Only orders **within one parent's children** (not across the whole tree).
+- The same order drives **hit-testing**, so painted stacking and click priority always agree.
+
+### Visibility window — `visible-from` / `visible-until`
+
+Show a node (and its whole subtree) only during a time window, in **scene-local ms**
+(the same scoped time the scheduler samples — so it respects `time-offset`/`time-scale`).
+
+```css
+#flash { type: circle; …; visible-from: 1s; visible-until: 3s; }  /* on screen 1s–3s only */
+```
+
+- `s`/`ms` (bare number = ms). Outside `[visible-from, visible-until)` the node + subtree are skipped by **both** render and hit-testing.
+- Defaults `-Infinity` / `+Infinity` (always visible). Static (not animatable).
+
 ---
 
 ## 11. Animation
@@ -477,8 +503,12 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 
 Auto-registered custom element wrapping a shadow-DOM canvas.
 
-- **Attributes:** `src` (DSL string), `width` (400), `height` (300), `background`.
-- **JS props:** `source`, `width`, `height`, `background`, `currentTime` (ms, read-only).
+- **Attributes:** `src` (DSL string), `width` (400), `height` (300), `background`, `loop`, `controls`, `autoplay`, `fit`.
+  - `loop` (boolean attr) — timeline loops instead of holding the last frame.
+  - `controls` (boolean attr) — shows a play/pause + scrubber + time overlay.
+  - `autoplay` (boolean attr) — start playing on load.
+  - `fit` — how the scene scales into the element box: `contain` (default, letterbox), `cover` (crop to fill), `fill` (stretch per-axis), `none` (1:1, top-left, may clip).
+- **JS props:** `source`, `width`, `height`, `background`, `loop`, `currentTime` (ms, read-only).
 - **Methods:** `play()`, `stop()`, `reset()`, `pause()` (freezes timeline, keeps interaction), `resume()`, `seek(ms)`.
 - **Events:** `ready` (`detail.sceneRoot`), `error` (`detail.error`).
 
@@ -595,6 +625,8 @@ player.source = myDslCode;   // parse + build + play
 - **Gradients + path `d` ARE animatable** — but only between *compatible* endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).
 - **`time-scale`/`time-offset`** retime a node + its subtree (precomp-style); static, must be `> 0` for scale.
+- **Paint order = document order**, override with `z-index` (negatives allowed); it also sets hit-test priority.
+- **`visible-from`/`visible-until`** gate a node + subtree to a scene-local time window (skipped in render *and* hit-test outside it).
 - **Geometry props are type-gated** — `r` on a rect is ignored, etc.
 - Unrecognized enum keywords silently fall back to the default.
 - **No `//` comments, no `.5` numbers, no exponents** (`0.5`, not `.5`).
