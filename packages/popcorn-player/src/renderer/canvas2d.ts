@@ -46,9 +46,12 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   beginFrame(): void {
-    this.clear();
-    // Reset state
+    // Reset to identity/device space FIRST, then clear — clearRect is affected
+    // by the current transform, so clearing before resetting would wipe only the
+    // scene rect under the leftover viewport transform and leave stale pixels in
+    // the letterbox band (a transient ghost that self-heals on a later repaint).
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.clear();
     this.ctx.globalAlpha = 1;
   }
 
