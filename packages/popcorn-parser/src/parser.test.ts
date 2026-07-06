@@ -133,9 +133,18 @@ test('string value (path d)', () => {
     .toEqual({ type: 'string', value: 'M 10 10 L 50 50 Z' });
 });
 
-// The real example scenes must parse end-to-end.
+// The real example scenes must parse end-to-end (recursing into subdirs like
+// examples/lottie/ so converter output is exercised too).
 const examplesDir = fileURLToPath(new URL('../../../examples', import.meta.url));
-for (const file of readdirSync(examplesDir).filter((f) => f.endsWith('.css'))) {
+function collectCss(dir: string, prefix = ''): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) out.push(...collectCss(`${dir}/${entry.name}`, `${prefix}${entry.name}/`));
+    else if (entry.name.endsWith('.css')) out.push(`${prefix}${entry.name}`);
+  }
+  return out;
+}
+for (const file of collectCss(examplesDir)) {
   test(`example scene: ${file}`, () => {
     expect(parse(readFileSync(`${examplesDir}/${file}`, 'utf8')).type).toBe('stylesheet');
   });

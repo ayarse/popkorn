@@ -1,0 +1,42 @@
+/* Generated from Lottie by tools/lottie2popcorn.ts */
+/* comp 80x80 @ 60fps, duration 1.02s */
+
+:canvas {
+  width: 80px;
+  height: 80px;
+}
+
+@keyframes Shape-Layer-1-k {
+  0% { offset-distance: 0%; animation-timing-function: cubic-bezier(0.167, 0.167, 0.833, 0.833); }
+  100% { offset-distance: 100%; }
+}
+
+#Shape-Layer-2 {
+  type: group;
+  > #Shape-Layer-2-Shape-1 {
+    type: group;
+    > #Shape-Layer-2-Shape-1-Path-1 {
+      type: path;
+      d: 'M 12.25 45.5 C 42 72.5 56.25 21.75 72.5 6';
+      fill: none;
+      stroke: #e62033;
+      stroke-width: 2px;
+    }
+  }
+}
+
+#Shape-Layer-1 {
+  type: group;
+  offset-path: path('M 12.25 45.5 C 42 72.5 56.25 21.75 72.5 6');
+  offset-rotate: 0deg;
+  animation: Shape-Layer-1-k 1.017s linear 1;
+  animation-fill-mode: both;
+  > #Shape-Layer-1-Ellipse-Path-1 {
+    type: ellipse;
+    cx: 0px;
+    cy: 0px;
+    rx: 10px;
+    ry: 10px;
+    fill: #0000ff;
+  }
+}
