@@ -1,5 +1,5 @@
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap } from '../scene/types';
+import type { StrokeLineCap, TextAnchor } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -16,6 +16,7 @@ export interface Renderer {
   drawCircle(cx: number, cy: number, r: number): void;
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;
   drawPath(commands: PathCommand[]): void;
+  drawText(text: string, x: number, y: number, fontSize: number, fontFamily: string, fontWeight: string, anchor: TextAnchor): void;
 
   // Clip the current node and its descendants to a region (in local space).
   clip(clip: ResolvedClip): void;

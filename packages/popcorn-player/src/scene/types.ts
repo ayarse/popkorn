@@ -9,7 +9,10 @@ export type ClipPathData =
   | { type: 'path'; commands: PathCommand[] };
 
 // Scene node types
-export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path';
+export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path' | 'text';
+
+// Text alignment; maps to CanvasRenderingContext2D.textAlign (left/center/right).
+export type TextAnchor = 'start' | 'middle' | 'end';
 
 // Stroke line cap, maps straight to CanvasRenderingContext2D.lineCap.
 export type StrokeLineCap = 'butt' | 'round' | 'square';
@@ -87,6 +90,11 @@ export interface SceneNode {
   cachedOutlineLength: number | null;
   outlineLengthDirty: boolean;
 
+  // Cached measured text metrics (text nodes only; same lazy pattern as the
+  // outline length). Invalidated when font-size animates (see the registry).
+  cachedTextBounds: { width: number; height: number } | null;
+  textBoundsDirty: boolean;
+
   // Gradient fill/stroke (static; when set, wins over the solid color above).
   fillGradient: GradientData | null;
   strokeGradient: GradientData | null;
@@ -132,7 +140,19 @@ export type ShapeData =
   | RectData
   | CircleData
   | EllipseData
-  | PathData;
+  | PathData
+  | TextData;
+
+export interface TextData {
+  type: 'text';
+  x: number;
+  y: number;
+  content: string;
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: string;   // keyword ('bold') or numeric weight as a string ('700')
+  anchor: TextAnchor;
+}
 
 export interface GroupData {
   type: 'group';
@@ -308,6 +328,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     strokeLineCap: 'butt',
     cachedOutlineLength: null,
     outlineLengthDirty: true,
+    cachedTextBounds: null,
+    textBoundsDirty: true,
     fillGradient: null,
     strokeGradient: null,
     clipPath: null,

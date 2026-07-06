@@ -1,6 +1,6 @@
 import type { Renderer } from './interface';
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap } from '../scene/types';
+import type { StrokeLineCap, TextAnchor } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -70,6 +70,34 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.beginPath();
     applyCommandsToPath(this.ctx, commands);
     this.applyFillAndStroke(computePathBounds(commands));
+  }
+
+  drawText(text: string, x: number, y: number, fontSize: number, fontFamily: string, fontWeight: string, anchor: TextAnchor): void {
+    this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    this.ctx.textAlign = anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left';
+    this.ctx.textBaseline = 'alphabetic';
+
+    // Bounding box (for gradients) mirrors scene/transform.getShapeBounds.
+    const width = this.ctx.measureText(text).width;
+    const ax = anchor === 'middle' ? x - width / 2 : anchor === 'end' ? x - width : x;
+    const bounds: Bounds = { x: ax, y: y - fontSize, width, height: fontSize };
+
+    if (this.fillGradient) {
+      this.ctx.fillStyle = this.realizeGradient(this.fillGradient, bounds);
+      this.ctx.fillText(text, x, y);
+    } else if (this.fillColor) {
+      this.ctx.fillStyle = this.fillColor;
+      this.ctx.fillText(text, x, y);
+    }
+
+    const stroke = this.strokeGradient
+      ? this.realizeGradient(this.strokeGradient, bounds)
+      : this.strokeColor;
+    if (stroke) {
+      this.ctx.strokeStyle = stroke;
+      this.ctx.lineWidth = this.strokeWidth;
+      this.ctx.strokeText(text, x, y);
+    }
   }
 
   clip(clip: ResolvedClip): void {

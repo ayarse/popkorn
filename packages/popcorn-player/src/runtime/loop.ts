@@ -1,5 +1,5 @@
 import type { Renderer } from '../renderer/interface';
-import type { SceneNode, RectData, CircleData, EllipseData, PathData } from '../scene/types';
+import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData } from '../scene/types';
 import type { TrimDescriptor } from '../renderer/types';
 import { resetNodeToBase } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
@@ -221,6 +221,11 @@ export class RenderLoop {
       case 'path': {
         const p = node.shapeData as PathData;
         this.renderer.drawPath(p.commands);
+        break;
+      }
+      case 'text': {
+        const t = node.shapeData as TextData;
+        this.renderer.drawText(t.content, t.x, t.y, t.fontSize, t.fontFamily, t.fontWeight, t.anchor);
         break;
       }
       case 'group':

@@ -1,4 +1,4 @@
-import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock, StateRule } from '@popcorn/parser';
+import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule } from '@popcorn/parser';
 import {
   isLengthValue,
   isColorValue,
@@ -23,6 +23,8 @@ import type {
   CircleData,
   EllipseData,
   PathData,
+  TextData,
+  TextAnchor,
   TransformOriginValue,
   StateStyles,
   ClipPathData,
@@ -36,14 +38,18 @@ import { parsePath } from './path-parser';
  */
 export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
+  private definitionsMap: Map<string, DefinitionRule> = new Map();
   // Longhand animation-fill-mode for the node currently being built (it
   // overrides any value in the animation shorthand, regardless of source order).
   private pendingFillMode: AnimationFillMode | null = null;
 
   build(stylesheet: StyleSheet): SceneNode {
-    // Index keyframes by name
+    // Index keyframes and symbol definitions by name
     for (const kf of stylesheet.keyframes) {
       this.keyframesMap.set(kf.name, kf);
+    }
+    for (const def of stylesheet.definitions) {
+      this.definitionsMap.set(def.name, def);
     }
 
     // Create root node
@@ -60,6 +66,9 @@ export class SceneBuilder {
   }
 
   private buildNode(rule: Rule): SceneNode {
+    // Expand a `use: <symbol>` reference into a merged rule before building.
+    rule = this.expandUse(rule);
+
     const id = rule.selector.name;
     let shapeType: ShapeType = 'group';
 
@@ -111,6 +120,54 @@ export class SceneBuilder {
     node.base = snapshotNode(node);
 
     return node;
+  }
+
+  /**
+   * Resolve a rule's `use: <symbol>` reference into a concrete rule by merging
+   * the definition (deep-cloned) with the use-site. Use-site declarations
+   * override the definition's (last wins); the definition's children are cloned
+   * with namespaced ids and the use-site's children appended; a use-site state
+   * block replaces the definition's for the same pseudo. Returns the rule
+   * unchanged when it has no `use`. Detects cycles via the in-progress set.
+   */
+  private expandUse(rule: Rule, inProgress: Set<string> = new Set()): Rule {
+    const useDecl = rule.declarations.find((d) => d.property === 'use');
+    if (!useDecl) return rule;
+
+    const name = getStringValue(useDecl.value);
+    const def = this.definitionsMap.get(name);
+    if (!def) {
+      throw new Error(`unknown symbol '${name}' referenced by use: in rule '${rule.selector.name}'`);
+    }
+    if (inProgress.has(name)) {
+      throw new Error(`cyclic symbol definition: ${[...inProgress, name].join(' -> ')}`);
+    }
+    inProgress.add(name);
+
+    // Resolve the definition's own body first (it may `use:` another symbol).
+    const resolvedDef = this.expandUse(
+      { type: 'rule', selector: { type: 'id', name }, declarations: def.declarations, children: def.children, states: def.states },
+      inProgress
+    );
+    inProgress.delete(name);
+
+    const instanceId = rule.selector.name;
+    return {
+      type: 'rule',
+      selector: rule.selector,
+      // Def declarations first, use-site second so use-site overrides win; the
+      // `use` decl itself is dropped from both.
+      declarations: [
+        ...resolvedDef.declarations.filter((d) => d.property !== 'use'),
+        ...rule.declarations.filter((d) => d.property !== 'use'),
+      ],
+      // Cloned+namespaced def children, then the use-site's own children.
+      children: [
+        ...resolvedDef.children.map((c) => namespaceChild(c, instanceId)),
+        ...rule.children,
+      ],
+      states: mergeStates(resolvedDef.states, rule.states),
+    };
   }
 
   /**
@@ -257,15 +314,50 @@ export class SceneBuilder {
         this.applyTransformOrigin(node, value);
         break;
 
-      // Position/size for rect
+      // Position/size for rect (x/y are also the text anchor point)
       case 'x':
         if (node.shapeData.type === 'rect') {
           (node.shapeData as RectData).x = getNumericValue(value);
+        } else if (node.shapeData.type === 'text') {
+          (node.shapeData as TextData).x = getNumericValue(value);
         }
         break;
       case 'y':
         if (node.shapeData.type === 'rect') {
           (node.shapeData as RectData).y = getNumericValue(value);
+        } else if (node.shapeData.type === 'text') {
+          (node.shapeData as TextData).y = getNumericValue(value);
+        }
+        break;
+
+      // Text
+      case 'content':
+        if (node.shapeData.type === 'text') {
+          (node.shapeData as TextData).content = getStringValue(value);
+        }
+        break;
+      case 'font-size':
+        if (node.shapeData.type === 'text') {
+          (node.shapeData as TextData).fontSize = getNumericValue(value);
+        }
+        break;
+      case 'font-family':
+        if (node.shapeData.type === 'text') {
+          (node.shapeData as TextData).fontFamily = getStringValue(value);
+        }
+        break;
+      case 'font-weight':
+        if (node.shapeData.type === 'text') {
+          // Keyword ('bold') or numeric weight (700) — store as a string for ctx.font.
+          (node.shapeData as TextData).fontWeight = isNumberValue(value)
+            ? String(value.value)
+            : getStringValue(value) || 'normal';
+        }
+        break;
+      case 'text-anchor':
+        if (node.shapeData.type === 'text' && isKeywordValue(value) &&
+            (value.value === 'start' || value.value === 'middle' || value.value === 'end')) {
+          (node.shapeData as TextData).anchor = value.value as TextAnchor;
         }
         break;
       case 'width':
@@ -435,6 +527,12 @@ export class SceneBuilder {
           break;
         case 'path':
           node.shapeData = { type: 'path', d: '', commands: [] };
+          break;
+        case 'text':
+          node.shapeData = {
+            type: 'text', x: 0, y: 0, content: '',
+            fontSize: 16, fontFamily: 'sans-serif', fontWeight: 'normal', anchor: 'start',
+          };
           break;
       }
     }
@@ -937,6 +1035,28 @@ export class SceneBuilder {
 export function buildSceneGraph(stylesheet: StyleSheet): SceneNode {
   const builder = new SceneBuilder();
   return builder.build(stylesheet);
+}
+
+// Deep-clone a definition child rule, namespacing every id in the subtree under
+// the instance's id (e.g. `tail` under `spark1` -> `spark1.tail`) so multiple
+// instances of the same symbol never share scene-node ids.
+function namespaceChild(rule: Rule, prefix: string): Rule {
+  const name = `${prefix}.${rule.selector.name}`;
+  return {
+    type: 'rule',
+    selector: { ...rule.selector, name },
+    declarations: rule.declarations, // values are read-only during build
+    children: rule.children.map((c) => namespaceChild(c, name)),
+    states: rule.states,
+  };
+}
+
+// Merge state blocks: a use-site block replaces the definition's for the same pseudo.
+function mergeStates(defStates: StateRule[], useStates: StateRule[]): StateRule[] {
+  const byPseudo = new Map<string, StateRule>();
+  for (const s of defStates) byPseudo.set(s.state, s);
+  for (const s of useStates) byPseudo.set(s.state, s);
+  return [...byPseudo.values()];
 }
 
 // A percentage (50%) becomes 0.5; a bare number (0.5) is taken as-is. Used for

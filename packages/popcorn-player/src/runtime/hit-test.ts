@@ -16,7 +16,7 @@ import type {
 } from '../scene/types';
 import type { Matrix3x3, PathCommand, ResolvedClip } from '../renderer/types';
 import { IDENTITY_MATRIX, invertMatrix, transformPoint } from '../renderer/types';
-import { computeWorldMatrix } from '../scene/transform';
+import { computeWorldMatrix, getShapeBounds } from '../scene/transform';
 import { resolveClip } from '../scene/clip';
 import { applyCommandsToPath } from '../scene/path-parser';
 
@@ -126,6 +126,11 @@ function isPointInShape(node: SceneNode, point: Point): boolean {
       return isPointInEllipse(node.shapeData as EllipseData, point);
     case 'path':
       return isPointInPathShape(node.shapeData as PathData, point);
+    case 'text': {
+      // Rect test against the measured (or estimated) text bounds.
+      const b = getShapeBounds(node);
+      return point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height;
+    }
     case 'group':
       // Groups are not hit-testable themselves
       return false;

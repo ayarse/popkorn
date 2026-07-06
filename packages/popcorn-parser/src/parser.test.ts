@@ -7,7 +7,7 @@ import { parse } from './parser';
 
 test('id rule: dimension + color', () => {
   expect(parse('#box { width: 100px; fill: #ff0000; }')).toEqual({
-    type: 'stylesheet', keyframes: [], variables: [],
+    type: 'stylesheet', keyframes: [], definitions: [], variables: [],
     rules: [{
       type: 'rule', selector: { type: 'id', name: 'box' }, children: [], states: [],
       declarations: [
@@ -94,6 +94,32 @@ test('pseudo hover + active with transform', () => {
   const states = parse('#b { fill: #3498db; &:hover { fill: #2980b9; transform: scale(1.05); } &:active { fill: #1a5276; } }').rules[0].states;
   expect(states.map((s) => s.state)).toEqual(['hover', 'active']);
   expect(states[0].declarations).toHaveLength(2);
+});
+
+test('@define: declarations + nested child + state', () => {
+  const ast = parse(`@define spark {
+    type: circle; r: 5px; fill: #fbbf24;
+    &:hover { fill: #f00; }
+    > #tail { type: rect; width: 2px; }
+  }`);
+  expect(ast.rules).toHaveLength(0);
+  expect(ast.definitions).toHaveLength(1);
+  const def = ast.definitions[0];
+  expect(def.type).toBe('definition');
+  expect(def.name).toBe('spark');
+  expect(def.declarations.map((d) => d.property)).toEqual(['type', 'r', 'fill']);
+  expect(def.states.map((s) => s.state)).toEqual(['hover']);
+  expect(def.children[0].selector).toEqual({ type: 'id', name: 'tail' });
+});
+
+test('@define: multiple definitions collected in order', () => {
+  const ast = parse('@define a { r: 1px; } @define b { r: 2px; }');
+  expect(ast.definitions.map((d) => d.name)).toEqual(['a', 'b']);
+});
+
+test('use: is a normal keyword declaration', () => {
+  const decl = parse('#spark1 { use: spark; cx: 100px; }').rules[0].declarations[0];
+  expect(decl).toEqual({ type: 'declaration', property: 'use', value: { type: 'keyword', value: 'spark' } });
 });
 
 test('comment ignored', () => {

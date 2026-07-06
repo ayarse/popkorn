@@ -19,6 +19,7 @@ export type {
   CanvasConfig,
   PseudoState,
   StateRule,
+  DefinitionRule,
 } from './ast';
 export {
   isLengthValue,

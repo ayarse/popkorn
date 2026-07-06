@@ -514,6 +514,44 @@ const examples = {
   trim-end: 25%;
   animation: march 3s linear infinite;
 }`,
+
+  symbols: `/* Text nodes + reusable symbols (@define / use) */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0f0f23;
+}
+
+@keyframes twinkle {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.6); opacity: 0.5; }
+}
+
+/* A pulsing star symbol; each instance animates independently */
+@define star {
+  type: circle;
+  r: 12px;
+  fill: #fbbf24;
+  transform-origin: center;
+  animation: twinkle 2s ease-in-out infinite;
+}
+
+#title {
+  type: text;
+  content: "Symbols + Text";
+  x: 400px;
+  y: 120px;
+  font-size: 44px;
+  font-family: sans-serif;
+  font-weight: bold;
+  text-anchor: middle;
+  fill: #e2e8f0;
+}
+
+/* Three instances: positioned and recoloured at the use-site */
+#star1 { use: star; cx: 260px; cy: 340px; }
+#star2 { use: star; cx: 400px; cy: 340px; fill: #60a5fa; }
+#star3 { use: star; cx: 540px; cy: 340px; fill: #f472b6; }`,
 };
 
 type ExampleKey = keyof typeof examples;

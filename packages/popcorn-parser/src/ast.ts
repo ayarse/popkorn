@@ -4,8 +4,20 @@ export interface StyleSheet {
   type: 'stylesheet';
   rules: Rule[];
   keyframes: KeyframeRule[];
+  definitions: DefinitionRule[];  // Reusable symbols (@define)
   canvas?: CanvasConfig;
   variables: VariableDefinition[];
+}
+
+// A reusable symbol: `@define <name> { <rule body> }`. The body is the same
+// grammar as a rule body (declarations, > children, &:hover/&:active states);
+// the builder instantiates it wherever a rule declares `use: <name>`.
+export interface DefinitionRule {
+  type: 'definition';
+  name: string;
+  declarations: Declaration[];
+  children: Rule[];
+  states: StateRule[];
 }
 
 export interface VariableDefinition {

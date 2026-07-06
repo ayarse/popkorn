@@ -6,7 +6,7 @@ import {
   rotationMatrix,
   scaleMatrix,
 } from '../renderer/types';
-import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData } from './types';
+import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData, TextData } from './types';
 
 /**
  * Axis-aligned bounding box of a shape in its local coordinate space.
@@ -26,9 +26,58 @@ export function getShapeBounds(node: SceneNode): { x: number; y: number; width: 
       const e = node.shapeData as EllipseData;
       return { x: e.cx - e.rx, y: e.cy - e.ry, width: e.rx * 2, height: e.ry * 2 };
     }
+    case 'text': {
+      const t = node.shapeData as TextData;
+      const { width, height } = measureText(node, t);
+      // Anchor shifts the box like ctx.textAlign does; baseline is alphabetic,
+      // so the box sits above the y baseline.
+      const x = t.anchor === 'middle' ? t.x - width / 2 : t.anchor === 'end' ? t.x - width : t.x;
+      return { x, y: t.y - height, width, height };
+    }
     default:
       return { x: 0, y: 0, width: 0, height: 0 };
   }
+}
+
+/**
+ * Measure a text node's width/height, cached on the node (invalidated by the
+ * registry when font-size animates). Uses a lazily-created scratch 2D context —
+ * the same pattern as the Path2D scratch in runtime/hit-test.ts.
+ */
+export function measureText(node: SceneNode, t: TextData): { width: number; height: number } {
+  if (node.cachedTextBounds && !node.textBoundsDirty) return node.cachedTextBounds;
+
+  const ctx = getScratchContext();
+  let bounds: { width: number; height: number };
+  if (ctx) {
+    ctx.font = `${t.fontWeight} ${t.fontSize}px ${t.fontFamily}`;
+    bounds = { width: ctx.measureText(t.content).width, height: t.fontSize };
+  } else {
+    // ponytail: headless (no canvas) — estimate so tests/bun stay DOM-free.
+    bounds = { width: 0.6 * t.fontSize * t.content.length, height: t.fontSize };
+  }
+
+  node.cachedTextBounds = bounds;
+  node.textBoundsDirty = false;
+  return bounds;
+}
+
+let scratchContext: CanvasRenderingContext2D | null | undefined;
+
+function getScratchContext(): CanvasRenderingContext2D | null {
+  if (scratchContext !== undefined) return scratchContext;
+  try {
+    if (typeof OffscreenCanvas !== 'undefined') {
+      scratchContext = new OffscreenCanvas(1, 1).getContext('2d') as unknown as CanvasRenderingContext2D;
+    } else if (typeof document !== 'undefined') {
+      scratchContext = document.createElement('canvas').getContext('2d');
+    } else {
+      scratchContext = null;
+    }
+  } catch {
+    scratchContext = null;
+  }
+  return scratchContext;
 }
 
 function resolveOriginValue(v: TransformOriginValue, offset: number, dimension: number): number {

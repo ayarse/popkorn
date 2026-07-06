@@ -121,6 +121,20 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   'trim-start': trimNumber('trimStart'),
   'trim-end': trimNumber('trimEnd'),
   'trim-offset': trimNumber('trimOffset'),
+
+  // text: font-size lives on shapeData under a different key than its property
+  // name, and animating it invalidates the cached text metrics.
+  'font-size': {
+    kind: 'number',
+    readBase: (base) => ((base.shapeData as unknown as Record<string, unknown>).fontSize as number) ?? 16,
+    apply: (node, value) => {
+      const sd = node.shapeData as unknown as Record<string, unknown>;
+      if ('fontSize' in sd) {
+        sd.fontSize = value;
+        node.textBoundsDirty = true;
+      }
+    },
+  },
 };
 
 export function getPropHandler(property: string): PropHandler | undefined {

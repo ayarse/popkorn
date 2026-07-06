@@ -9,7 +9,7 @@
 
 import type {
   StyleSheet, Rule, Selector, Declaration, Value, KeyframeRule, KeyframeBlock,
-  CanvasConfig, VariableDefinition, PseudoState,
+  CanvasConfig, VariableDefinition, PseudoState, DefinitionRule, StateRule,
 } from './ast';
 
 const IDENT = /[a-zA-Z_][a-zA-Z0-9_\-]*/y;
@@ -74,11 +74,15 @@ class Cursor {
 /** Parse Popcorn DSL source into a {@link StyleSheet} AST. */
 export function parse(source: string): StyleSheet {
   const c = new Cursor(source);
-  const sheet: StyleSheet = { type: 'stylesheet', rules: [], keyframes: [], variables: [] };
+  const sheet: StyleSheet = { type: 'stylesheet', rules: [], keyframes: [], definitions: [], variables: [] };
 
   while (!c.eof()) {
     if (c.eat('@keyframes')) {
       sheet.keyframes.push(parseKeyframes(c));
+      continue;
+    }
+    if (c.eat('@define')) {
+      sheet.definitions.push(parseDefine(c));
       continue;
     }
     const rule = parseRule(c);
@@ -105,23 +109,36 @@ function parseSelector(c: Cursor): Selector {
 
 function parseRule(c: Cursor): Rule {
   const selector = parseSelector(c);
+  return { type: 'rule', selector, ...parseRuleBody(c) };
+}
+
+// `@define <name> { <rule body> }` — same body grammar as a rule.
+function parseDefine(c: Cursor): DefinitionRule {
+  const name = c.ident();
+  return { type: 'definition', name, ...parseRuleBody(c) };
+}
+
+/** Parse `{ decls, > children, &:state blocks }` shared by rules and @define. */
+function parseRuleBody(c: Cursor): { declarations: Declaration[]; children: Rule[]; states: StateRule[] } {
   c.expect('{');
-  const rule: Rule = { type: 'rule', selector, declarations: [], children: [], states: [] };
+  const declarations: Declaration[] = [];
+  const children: Rule[] = [];
+  const states: StateRule[] = [];
 
   while (!c.eat('}')) {
     if (c.eat('>')) {
       // Nested child rule: `> #child { ... }`
-      rule.children.push(parseRule(c));
+      children.push(parseRule(c));
     } else if (c.eat('&')) {
       // Pseudo-class state: `&:hover { ... }` / `&:active { ... }`
       c.expect(':');
       const state = c.ident() as PseudoState;
-      rule.states.push({ state, declarations: parseDeclBlock(c).declarations });
+      states.push({ state, declarations: parseDeclBlock(c).declarations });
     } else {
-      rule.declarations.push(parseDeclaration(c));
+      declarations.push(parseDeclaration(c));
     }
   }
-  return rule;
+  return { declarations, children, states };
 }
 
 function parseDeclaration(c: Cursor): Declaration {

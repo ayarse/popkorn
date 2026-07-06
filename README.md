@@ -134,6 +134,46 @@ loop.start();
 }
 ```
 
+### Text
+
+```css
+#label {
+  type: text;
+  content: "Hello";
+  x: 400px;
+  y: 300px;
+  font-size: 32px;        /* default 16px */
+  font-family: sans-serif; /* keyword or "Quoted Family"; default sans-serif */
+  font-weight: bold;       /* keyword or number (700); default normal */
+  text-anchor: middle;     /* start | middle | end; default start */
+  fill: #ffffff;
+}
+```
+
+Text nodes carry `fill`/`stroke`/gradients/opacity/transforms/clipping like any
+other shape. `x`, `y`, and `font-size` are animatable and bindable.
+
+### Symbols
+
+`@define <name> { ... }` declares a reusable symbol whose body is an ordinary
+rule body (declarations, `>` children, `&:hover`/`&:active`). Instantiate it
+with `use: <name>`; use-site declarations override the definition's.
+
+```css
+@define spark {
+  type: circle;
+  r: 5px;
+  fill: #fbbf24;
+}
+
+#spark1 { use: spark; cx: 100px; cy: 100px; }
+#spark2 { use: spark; cx: 200px; cy: 140px; fill: #60a5fa; } /* recoloured */
+```
+
+Symbols are expanded at build time by deep-cloning; each instance gets its own
+animation state, and cloned children get namespaced ids (`spark1.tail`) so
+instances never collide.
+
 ### Transforms
 
 ```css
