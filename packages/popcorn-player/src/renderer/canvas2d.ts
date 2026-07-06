@@ -199,6 +199,12 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.scale(sx, sy);
   }
 
+  transform(m: Matrix3x3): void {
+    // Matrix3x3 is [a, b, tx, c, d, ty, 0, 0, 1]
+    // Canvas transform takes (a, b, c, d, e, f) = (a, c, b, d, tx, ty)
+    this.ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
+  }
+
   setTransform(m: Matrix3x3): void {
     // Matrix3x3 is [a, b, tx, c, d, ty, 0, 0, 1]
     // Canvas setTransform takes (a, b, c, d, e, f) = (a, c, b, d, tx, ty)

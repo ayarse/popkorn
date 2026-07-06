@@ -128,3 +128,32 @@ export function scaleMatrix(sx: number, sy: number): Matrix3x3 {
     0, 0, 1
   ];
 }
+
+// Invert a 3x3 matrix (returns identity if non-invertible)
+export function invertMatrix(m: Matrix3x3): Matrix3x3 {
+  const det =
+    m[0] * (m[4] * m[8] - m[5] * m[7]) -
+    m[1] * (m[3] * m[8] - m[5] * m[6]) +
+    m[2] * (m[3] * m[7] - m[4] * m[6]);
+  if (det === 0) return IDENTITY_MATRIX;
+  const invDet = 1 / det;
+  return [
+    (m[4] * m[8] - m[5] * m[7]) * invDet,
+    (m[2] * m[7] - m[1] * m[8]) * invDet,
+    (m[1] * m[5] - m[2] * m[4]) * invDet,
+    (m[5] * m[6] - m[3] * m[8]) * invDet,
+    (m[0] * m[8] - m[2] * m[6]) * invDet,
+    (m[2] * m[3] - m[0] * m[5]) * invDet,
+    (m[3] * m[7] - m[4] * m[6]) * invDet,
+    (m[1] * m[6] - m[0] * m[7]) * invDet,
+    (m[0] * m[4] - m[1] * m[3]) * invDet,
+  ];
+}
+
+// Apply an affine matrix to a point
+export function transformPoint(m: Matrix3x3, x: number, y: number): { x: number; y: number } {
+  return {
+    x: m[0] * x + m[1] * y + m[2],
+    y: m[3] * x + m[4] * y + m[5],
+  };
+}

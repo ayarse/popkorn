@@ -57,7 +57,7 @@ export {
 } from './scene/transform';
 
 // Animation
-export { applyEasing, EasingFunctions } from './animation/easing';
+export { applyEasing } from './animation/easing';
 export { interpolateKeyframes } from './animation/keyframes';
 export {
   AnimationScheduler,

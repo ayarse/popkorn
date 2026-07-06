@@ -41,8 +41,6 @@ export interface Transform {
   rotate: number;       // degrees
   scaleX: number;
   scaleY: number;
-  anchorX: number;      // pivot point (deprecated, use transformOrigin)
-  anchorY: number;
   transformOrigin: TransformOrigin;  // CSS transform-origin
 }
 
@@ -187,8 +185,6 @@ export function createDefaultTransform(): Transform {
     rotate: 0,
     scaleX: 1,
     scaleY: 1,
-    anchorX: 0,
-    anchorY: 0,
     transformOrigin: createDefaultTransformOrigin(),
   };
 }

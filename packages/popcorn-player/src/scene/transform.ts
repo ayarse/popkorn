@@ -6,30 +6,62 @@ import {
   rotationMatrix,
   scaleMatrix,
 } from '../renderer/types';
-import type { Transform, SceneNode } from './types';
+import type { Transform, SceneNode, TransformOriginValue, RectData, CircleData, EllipseData } from './types';
 
 /**
- * Compute the local transform matrix from Transform properties
+ * Axis-aligned bounding box of a shape in its local coordinate space.
+ * Groups and paths have no intrinsic box, so percentage origins resolve to 0.
  */
-export function computeLocalMatrix(transform: Transform): Matrix3x3 {
-  // Order: translate -> rotate -> scale (around anchor)
-  let matrix = IDENTITY_MATRIX;
-
-  // Translate to position
-  if (transform.translateX !== 0 || transform.translateY !== 0) {
-    matrix = multiplyMatrices(matrix, translationMatrix(transform.translateX, transform.translateY));
+export function getShapeBounds(node: SceneNode): { x: number; y: number; width: number; height: number } {
+  switch (node.shapeData.type) {
+    case 'rect': {
+      const r = node.shapeData as RectData;
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    }
+    case 'circle': {
+      const c = node.shapeData as CircleData;
+      return { x: c.cx - c.r, y: c.cy - c.r, width: c.r * 2, height: c.r * 2 };
+    }
+    case 'ellipse': {
+      const e = node.shapeData as EllipseData;
+      return { x: e.cx - e.rx, y: e.cy - e.ry, width: e.rx * 2, height: e.ry * 2 };
+    }
+    default:
+      return { x: 0, y: 0, width: 0, height: 0 };
   }
+}
 
-  // Rotate around anchor
-  if (transform.rotate !== 0) {
-    const angleRad = transform.rotate * Math.PI / 180;
-    matrix = multiplyMatrices(matrix, rotationMatrix(angleRad));
-  }
+function resolveOriginValue(v: TransformOriginValue, offset: number, dimension: number): number {
+  // Percentages are relative to the shape's bounding box; pixels are absolute in local space.
+  return v.unit === '%' ? offset + (v.value / 100) * dimension : v.value;
+}
 
-  // Scale
-  if (transform.scaleX !== 1 || transform.scaleY !== 1) {
-    matrix = multiplyMatrices(matrix, scaleMatrix(transform.scaleX, transform.scaleY));
-  }
+/**
+ * Resolve transform-origin to pixel values in the node's local coordinate space.
+ */
+export function resolveTransformOrigin(node: SceneNode): { x: number; y: number } {
+  const origin = node.transform.transformOrigin;
+  const bounds = getShapeBounds(node);
+  return {
+    x: resolveOriginValue(origin.x, bounds.x, bounds.width),
+    y: resolveOriginValue(origin.y, bounds.y, bounds.height),
+  };
+}
+
+/**
+ * Compute the local transform matrix, including transform-origin.
+ * Order (CSS): translate -> (move to origin -> rotate -> scale -> move back).
+ */
+export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
+  const t = node.transform;
+  const { x: ox, y: oy } = resolveTransformOrigin(node);
+  const hasOrigin = ox !== 0 || oy !== 0;
+
+  let matrix = translationMatrix(t.translateX, t.translateY);
+  if (hasOrigin) matrix = multiplyMatrices(matrix, translationMatrix(ox, oy));
+  if (t.rotate !== 0) matrix = multiplyMatrices(matrix, rotationMatrix(t.rotate * Math.PI / 180));
+  if (t.scaleX !== 1 || t.scaleY !== 1) matrix = multiplyMatrices(matrix, scaleMatrix(t.scaleX, t.scaleY));
+  if (hasOrigin) matrix = multiplyMatrices(matrix, translationMatrix(-ox, -oy));
 
   return matrix;
 }
@@ -38,8 +70,7 @@ export function computeLocalMatrix(transform: Transform): Matrix3x3 {
  * Compute world transform by multiplying parent's world transform with local transform
  */
 export function computeWorldMatrix(node: SceneNode, parentWorld: Matrix3x3 = IDENTITY_MATRIX): Matrix3x3 {
-  const localMatrix = computeLocalMatrix(node.transform);
-  return multiplyMatrices(parentWorld, localMatrix);
+  return multiplyMatrices(parentWorld, computeLocalMatrix(node));
 }
 
 /**
@@ -71,8 +102,6 @@ export function interpolateTransform(a: Transform, b: Transform, t: number): Tra
     rotate: lerp(a.rotate, b.rotate, t), // Direct lerp, not shortest path
     scaleX: lerp(a.scaleX, b.scaleX, t),
     scaleY: lerp(a.scaleY, b.scaleY, t),
-    anchorX: lerp(a.anchorX, b.anchorX, t),
-    anchorY: lerp(a.anchorY, b.anchorY, t),
     transformOrigin: {
       // Transform origin is typically not animated, but interpolate values in case
       x: {

@@ -1,4 +1,4 @@
-export { applyEasing, EasingFunctions } from './easing';
+export { applyEasing } from './easing';
 export { interpolateKeyframes } from './keyframes';
 export {
   AnimationScheduler,
