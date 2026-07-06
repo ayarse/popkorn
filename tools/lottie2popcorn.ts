@@ -66,15 +66,93 @@ interface Prop {
   at: (t: number) => number[];
 }
 
-/** Wrap a Lottie animatable property { a, k } into an accessor. */
-function prop(p: any): Prop | null {
-  if (!p) return null;
-  if (p.a === 1 && Array.isArray(p.k)) {
-    const kfs = (p.k as Kf[]).slice().sort((a, b) => a.t - b.t);
-    return { animated: true, kfs, at: (t) => sampleAt(kfs, t) };
-  }
+/**
+ * Wrap a Lottie animatable property { a, k } into an accessor, absorbing the
+ * real-world encoding quirks the rest of the converter should never see:
+ *   - `k` may be a bare scalar, a value array, or a keyframe array;
+ *   - `a` may be absent (animation is inferred from k being an array of {t,…});
+ *   - split position `{ s: true, x, y }` is sampled onto a union keyframe grid;
+ *   - legacy keyframes (`e` end-values, omitted final `s`, scalar `s`) are
+ *     rewritten to the modern start-value-per-keyframe form (see normalizeKfs).
+ */
+export function prop(p: any): Prop | null {
+  if (p == null) return null;
+
+  // Split position/anchor: separately animated x/y (and rarely z) scalars.
+  if (p.s === true && (p.x !== undefined || p.y !== undefined)) return splitProp(p);
+
+  const kfs = keyframesOf(p);
+  if (kfs) return { animated: true, kfs, at: (t) => sampleAt(kfs, t) };
+
   const v = asArr(p.k);
   return { animated: false, kfs: null, at: () => v };
+}
+
+/** True keyframe array? Inferred from shape (array of {t,…}) even when `a` lies. */
+function keyframesOf(p: any): Kf[] | null {
+  const k = p.k;
+  if (Array.isArray(k) && k.length > 0 && k[0] && typeof k[0] === 'object' && 't' in k[0]) {
+    return normalizeKfs(k);
+  }
+  // `a:1` with a degenerate/empty k still means "animated"; normalize what's there.
+  if (p.a === 1 && Array.isArray(k)) return normalizeKfs(k);
+  return null;
+}
+
+/**
+ * Rewrite a raw keyframe list into the canonical form the sampler expects:
+ * sorted by t, every keyframe carrying an array `s`. Legacy exports store the
+ * segment end value as `e` on the departing keyframe and may omit the arriving
+ * keyframe's `s` (including the final one) — fill each missing `s` from the
+ * previous keyframe's `e` (else its `s`). Scalar `s`/`e` are wrapped. Null or
+ * zero spatial tangents are left for hasSpatialTangents to treat as absent.
+ */
+export function normalizeKfs(raw: any[]): Kf[] {
+  const sorted = raw.filter((k) => k && typeof k === 'object').slice().sort((a, b) => (a.t || 0) - (b.t || 0));
+  const out: Kf[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const k = sorted[i];
+    let s = k.s;
+    if (s == null) {
+      const prev = sorted[i - 1];
+      s = prev ? prev.e ?? prev.s : undefined;
+    }
+    if (s == null) s = k.e ?? [0];
+    out.push({
+      t: k.t || 0,
+      s: asArr(s),
+      i: k.i,
+      o: k.o,
+      h: k.h,
+      to: k.to ?? undefined,
+      ti: k.ti ?? undefined,
+    });
+  }
+  return out;
+}
+
+/**
+ * Split position `{ s:true, x:{…}, y:{…} }`: build a normal Prop by sampling
+ * both axis curves onto the union of their keyframe times. Reuses prop()/
+ * sampleAt so each axis's own scalar-vs-keyframe encoding is handled uniformly.
+ */
+export function splitProp(p: any): Prop {
+  const x = prop(p.x) ?? { animated: false, kfs: null, at: () => [0] };
+  const y = prop(p.y) ?? { animated: false, kfs: null, at: () => [0] };
+  const at = (t: number) => [x.at(t)[0] ?? 0, y.at(t)[0] ?? 0];
+
+  if (!x.animated && !y.animated) {
+    const v = at(0);
+    return { animated: false, kfs: null, at: () => v };
+  }
+
+  const times = [...new Set([...(x.kfs ?? []), ...(y.kfs ?? [])].map((k) => k.t))].sort((a, b) => a - b);
+  const kfs: Kf[] = times.map((t) => {
+    // Carry easing/hold from whichever axis owns a native keyframe here (x wins).
+    const src = x.kfs?.find((k) => k.t === t) ?? y.kfs?.find((k) => k.t === t);
+    return { t, s: at(t), i: src?.i, o: src?.o, h: src?.h };
+  });
+  return { animated: true, kfs, at };
 }
 
 /** Linear sample of a keyframe list at frame t (ignores easing; for cross-sampling). */
@@ -145,10 +223,33 @@ const BLOCKED_MODIFIERS: Record<string, string> = {
   pb: 'pucker-bloat (pb)',
 };
 
+/**
+ * Doc-level normalization run once before conversion: give every layer a stable
+ * `ind` (synthetic negative ids for the ones production exports omit, so parent
+ * resolution and id derivation always have something to key on). Property- and
+ * item-level quirks are absorbed at their point of use (prop(), processItems).
+ */
+export function normalizeDoc(lottie: any): void {
+  const fixInds = (layers: any[]) => {
+    const used = new Set<number>();
+    for (const l of layers) if (l && typeof l.ind === 'number') used.add(l.ind);
+    let synth = -1;
+    for (const l of layers) {
+      if (!l || typeof l.ind === 'number') continue;
+      while (used.has(synth)) synth--;
+      l.ind = synth;
+      used.add(synth);
+    }
+  };
+  if (Array.isArray(lottie.layers)) fixInds(lottie.layers);
+  if (Array.isArray(lottie.assets)) for (const a of lottie.assets) if (a && Array.isArray(a.layers)) fixInds(a.layers);
+}
+
 export class Converter {
   warnings: string[] = [];
   blocked = new Set<string>();
   private ids = new Set<string>();
+  private synthId = 1;
   private crossSampled = false;
   private assets = new Map<string, any>();
   // refIds of precomps currently being expanded, for cycle detection.
@@ -161,8 +262,12 @@ export class Converter {
   }
 
   private uniqueId(raw: string): string {
-    let base = raw.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
-    if (!base || !/^[a-zA-Z_]/.test(base)) base = 'l-' + base;
+    // Sanitize to a valid DSL ident: ascii word chars only, no leading digit,
+    // no leading/trailing dashes. Unicode/emoji names collapse away, so fall
+    // back to a synthetic base; collisions get deterministic -2/-3 suffixes.
+    let base = String(raw ?? '').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!base || !/^[a-zA-Z_]/.test(base)) base = ('l-' + base).replace(/-+$/g, '');
+    if (base === 'l-' || base === 'l') base = 'l-' + (this.synthId++);
     let id = base;
     let n = 2;
     while (this.ids.has(id)) id = `${base}-${n++}`;
@@ -171,6 +276,7 @@ export class Converter {
   }
 
   convert(lottie: any): string {
+    normalizeDoc(lottie);
     this.fr = lottie.fr || 60;
     this.ip = lottie.ip || 0;
     const op = lottie.op || 0;
@@ -179,7 +285,11 @@ export class Converter {
     const durSec = (op - this.ip) / this.fr;
 
     // Index assets by id for image (ty 2) layers.
-    if (Array.isArray(lottie.assets)) for (const a of lottie.assets) if (a && a.id) this.assets.set(a.id, a);
+    if (Array.isArray(lottie.assets)) for (const a of lottie.assets) {
+      if (!a || a.id == null) continue;
+      if (this.assets.has(a.id)) this.warnOnce(`duplicate asset id '${a.id}'; last one wins`);
+      this.assets.set(a.id, a);
+    }
 
     const layers: any[] = Array.isArray(lottie.layers) ? lottie.layers : [];
     const topRules = this.buildLayerList(layers, '');
@@ -250,6 +360,7 @@ export class Converter {
       if (typeof parent === 'number' && this.isConvertible(byInd.get(parent))) {
         (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(l);
       } else {
+        if (typeof parent === 'number') this.warnOnce(`layer ${l.ind} references missing parent ${parent}; treated as unparented`);
         roots.push(l);
       }
     }
@@ -403,7 +514,10 @@ export class Converter {
 
     // Null (ty 3) and shape (ty 4) are both groups.
     const group: Rule = { id, type: 'group', decls: [], channels: [], children: [] };
-    this.applyTransform(l.ks, group, st);
+    // A null draws nothing and Lottie parenting inherits transform only (never
+    // opacity), so a null's opacity affects nothing — dropping it stops a
+    // 0/animated control null from wrongly dimming its parented children.
+    this.applyTransform(l.ks, group, st, { skipOpacity: l.ty === 3 });
     if (maskDecl) group.decls.push(maskDecl);
 
     if (l.ty === 4 && Array.isArray(l.shapes)) {
@@ -446,9 +560,9 @@ export class Converter {
 
   // --- transform (ks / tr) -> decls + channels ----------------------------
 
-  private applyTransform(ks: any, rule: Rule, st: number) {
+  private applyTransform(ks: any, rule: Rule, st: number, opts: { skipOpacity?: boolean } = {}) {
     if (!ks) return;
-    const o = prop(ks.o);
+    const o = opts.skipOpacity ? null : prop(ks.o);
     const r = prop(ks.r);
     const p = prop(ks.p);
     const a = prop(ks.a);
@@ -578,6 +692,9 @@ export class Converter {
     prefix: string,
     inherited: { fill: string | null; stroke: string | null }
   ): Rule[] {
+    // Hidden items (hd:true) contribute neither geometry nor paint style.
+    items = items.filter((it) => !(it && it.hd === true));
+
     // Resolve this level's paint style (nearest fill/stroke wins).
     let fill: string | null = inherited.fill;
     let fillCh: ((t: number) => Sample) | null = null;
