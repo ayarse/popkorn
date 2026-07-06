@@ -34,9 +34,11 @@ export type {
   KeyframeData,
   TimingFunction,
   AnimationDirection,
+  AnimationFillMode,
   CubicBezier,
   AnimatableValue,
   PropertyBinding,
+  NodeBase,
   InteractionState,
   StateStyles,
 } from './scene/types';
@@ -44,6 +46,8 @@ export {
   createSceneNode,
   createDefaultTransform,
   cloneTransform,
+  snapshotNode,
+  resetNodeToBase,
 } from './scene/types';
 export { SceneBuilder, buildSceneGraph } from './scene/builder';
 export { parsePath } from './scene/path-parser';

@@ -1,102 +1,114 @@
 import type { SceneNode, AnimationInstance, AnimationDirection } from '../scene/types';
-import { cloneTransform } from '../scene/types';
 import { interpolateKeyframes } from './keyframes';
 
 /**
- * Animation scheduler - updates all animations in the scene graph
+ * Animation scheduler.
+ *
+ * A single global timeline: every animation instance is anchored to one
+ * timeline zero (set at play/reset), so sampling is a pure function of time.
+ * The scheduler owns nothing on the nodes — given a time `t` it writes the
+ * animation layer of the value-resolution pipeline onto nodes that have already
+ * been reset to base. This makes seek/pause/resume trivial and deterministic.
  */
 export class AnimationScheduler {
-  private startTime: number = 0;
-  private isRunning: boolean = false;
+  // performance.now() value that corresponds to timeline t = 0.
+  private timelineZero: number = 0;
+  private paused: boolean = false;
+  // Timeline time held while paused / after an explicit seek.
+  private pausedTime: number = 0;
 
-  start(): void {
-    this.startTime = performance.now();
-    this.isRunning = true;
+  /** Begin a fresh timeline at t = 0. */
+  start(now: number = performance.now()): void {
+    this.timelineZero = now;
+    this.paused = false;
+    this.pausedTime = 0;
   }
 
-  stop(): void {
-    this.isRunning = false;
+  /** Freeze the timeline (position preserved). */
+  stop(now: number = performance.now()): void {
+    if (!this.paused) {
+      this.pausedTime = now - this.timelineZero;
+      this.paused = true;
+    }
+  }
+
+  pause(now: number = performance.now()): void {
+    this.stop(now);
+  }
+
+  resume(now: number = performance.now()): void {
+    if (this.paused) {
+      this.timelineZero = now - this.pausedTime;
+      this.paused = false;
+    }
+  }
+
+  /** Jump the timeline to `ms`. Works whether playing or paused. */
+  seek(ms: number, now: number = performance.now()): void {
+    this.pausedTime = ms;
+    this.timelineZero = now - ms;
+  }
+
+  /** Current timeline time in ms. */
+  time(now: number = performance.now()): number {
+    return this.paused ? this.pausedTime : now - this.timelineZero;
+  }
+
+  isPaused(): boolean {
+    return this.paused;
+  }
+
+  /** Reset the timeline to zero. */
+  reset(now: number = performance.now()): void {
+    this.start(now);
   }
 
   /**
-   * Update all animations in the scene graph
-   * @param root Root scene node
-   * @param timestamp Current timestamp (from requestAnimationFrame)
+   * Apply the animation layer for a single node at timeline time `t`.
+   * Assumes the node has already been reset to base and had bindings applied.
    */
-  update(root: SceneNode, timestamp: number): void {
-    if (!this.isRunning) return;
-
-    const elapsed = timestamp - this.startTime;
-    this.updateNode(root, elapsed);
+  sampleNode(node: SceneNode, t: number): void {
+    for (const animation of node.animations) {
+      this.sampleAnimation(node, animation, t);
+    }
   }
 
-  private updateNode(node: SceneNode, elapsed: number): void {
-    // Update this node's animations
-    for (const animation of node.animations) {
-      if (!animation.isRunning) continue;
+  private sampleAnimation(node: SceneNode, animation: AnimationInstance, t: number): void {
+    const { keyframes, delay, duration, iterationCount, timingFunction, fillMode } = animation;
+    if (keyframes.length === 0) return;
 
-      // Initialize start time if not set
-      if (animation.startTime === 0) {
-        animation.startTime = elapsed;
+    const local = t - delay;
+    const finite = iterationCount !== Infinity;
+    const total = finite ? duration * iterationCount : Infinity;
+
+    if (local < 0) {
+      // Delay period: `backwards`/`both` hold the first-keyframe value.
+      if (fillMode === 'backwards' || fillMode === 'both') {
+        interpolateKeyframes(node, keyframes, this.startProgress(animation), timingFunction);
       }
-
-      // Calculate animation progress
-      const animationElapsed = elapsed - animation.startTime - animation.delay;
-
-      if (animationElapsed < 0) {
-        // Still in delay period
-        continue;
-      }
-
-      const progress = this.calculateProgress(animation, animationElapsed);
-
-      // Interpolate keyframes and apply to node
-      // Pass the animation's timing function as the default for keyframes without their own easing
-      // Per-keyframe easing is applied within interpolateKeyframes
-      const interpolated = interpolateKeyframes(
-        animation.keyframes,
-        progress,
-        node,
-        animation.timingFunction
-      );
-
-      if (interpolated.transform) {
-        node.transform = interpolated.transform;
-      }
-      if (interpolated.opacity !== undefined) {
-        node.opacity = interpolated.opacity;
-      }
-      if (interpolated.fill !== undefined) {
-        node.fill = interpolated.fill;
-      }
-
-      // Check if animation has completed
-      if (animation.iterationCount !== Infinity) {
-        const totalDuration = animation.duration * animation.iterationCount;
-        if (animationElapsed >= totalDuration) {
-          animation.isRunning = false;
-          // Reset to final state
-          this.applyFinalState(node, animation);
-        }
-      }
+      return;
     }
 
-    // Update children
-    for (const child of node.children) {
-      this.updateNode(child, elapsed);
+    if (finite && local >= total) {
+      // After the active interval: `forwards`/`both` hold the final value;
+      // `none`/`backwards` revert to base (leave the node untouched here).
+      if (fillMode === 'forwards' || fillMode === 'both') {
+        interpolateKeyframes(node, keyframes, this.endProgress(animation), timingFunction);
+      }
+      return;
     }
+
+    const progress = this.calculateProgress(animation, local);
+    interpolateKeyframes(node, keyframes, progress, timingFunction);
   }
 
   private calculateProgress(animation: AnimationInstance, elapsed: number): number {
     const { duration, iterationCount, direction } = animation;
 
-    // Calculate which iteration we're on
     const iteration = Math.floor(elapsed / duration);
     const iterationProgress = (elapsed % duration) / duration;
 
-    // Check if we've exceeded iteration count
     if (iterationCount !== Infinity && iteration >= iterationCount) {
-      // Return final progress
       return this.applyDirection(1, iterationCount - 1, direction);
     }
 
@@ -122,68 +134,24 @@ export class AnimationScheduler {
     }
   }
 
-  private applyFinalState(node: SceneNode, animation: AnimationInstance): void {
-    const { direction, iterationCount, keyframes } = animation;
+  // Progress shown at the very start of the timeline (for `backwards` fill).
+  private startProgress(animation: AnimationInstance): number {
+    return this.applyDirection(0, 0, animation.direction);
+  }
 
-    if (keyframes.length === 0) return;
-
-    // Determine final progress based on direction and iteration count
-    let finalProgress: number;
-
+  // Progress held after the animation finishes (for `forwards` fill).
+  private endProgress(animation: AnimationInstance): number {
+    const { direction, iterationCount } = animation;
     switch (direction) {
-      case 'normal':
-        finalProgress = 1;
-        break;
       case 'reverse':
-        finalProgress = 0;
-        break;
+        return 0;
       case 'alternate':
-        finalProgress = iterationCount % 2 === 0 ? 0 : 1;
-        break;
+        return iterationCount % 2 === 0 ? 0 : 1;
       case 'alternate-reverse':
-        finalProgress = iterationCount % 2 === 0 ? 1 : 0;
-        break;
+        return iterationCount % 2 === 0 ? 1 : 0;
+      case 'normal':
       default:
-        finalProgress = 1;
-    }
-
-    const interpolated = interpolateKeyframes(keyframes, finalProgress, node);
-
-    if (interpolated.transform) {
-      node.transform = interpolated.transform;
-    }
-    if (interpolated.opacity !== undefined) {
-      node.opacity = interpolated.opacity;
-    }
-    if (interpolated.fill !== undefined) {
-      node.fill = interpolated.fill;
-    }
-  }
-
-  /**
-   * Reset all animations to their initial state
-   */
-  reset(root: SceneNode): void {
-    this.resetNode(root);
-    this.startTime = performance.now();
-  }
-
-  private resetNode(node: SceneNode): void {
-    // Reset to base values
-    node.transform = cloneTransform(node.baseTransform);
-    node.fill = node.baseFill;
-    node.opacity = node.baseOpacity;
-
-    // Reset animation state
-    for (const animation of node.animations) {
-      animation.startTime = 0;
-      animation.currentTime = 0;
-      animation.isRunning = true;
-    }
-
-    // Reset children
-    for (const child of node.children) {
-      this.resetNode(child);
+        return 1;
     }
   }
 }

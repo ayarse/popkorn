@@ -1,21 +1,52 @@
 /**
  * Interaction Manager
- * Handles mouse hover and active states for interactive nodes
+ * Tracks mouse hover and active states for interactive nodes.
+ *
+ * State detection (hit-testing -> hovered/active) lives here; it only sets
+ * `node.interactionState`. Turning that state into style overrides is done by
+ * `applyInteractionOverrides`, called as the last layer of the per-frame
+ * value-resolution pipeline (after base reset, bindings and animation), so
+ * hover/active compose on top of a running animation instead of stomping it.
  */
 
-import type {
-  SceneNode,
-  InteractionState,
-  StateStyles,
-  Transform,
-} from '../scene/types';
-import { cloneTransform } from '../scene/types';
+import type { SceneNode, InteractionState } from '../scene/types';
 import { hitTest, type Point } from './hit-test';
 import type { InputState } from './inputs';
 
 /**
- * Manages interaction state for the scene graph
- * Tracks hovered and active nodes, applies state-specific styles
+ * Apply a node's interaction-state overrides onto its live render fields.
+ * Transform overrides are deltas: translate/rotate additive, scale
+ * multiplicative — layered on whatever the animation/binding already produced.
+ */
+export function applyInteractionOverrides(node: SceneNode): void {
+  const state = node.interactionState;
+  if (state === 'normal') return;
+
+  // active > hover, falling back to hover styles when no active styles exist.
+  const styles =
+    state === 'active'
+      ? node.activeStyles ?? node.hoverStyles
+      : node.hoverStyles;
+  if (!styles) return;
+
+  if (styles.fill !== undefined) node.fill = styles.fill;
+  if (styles.stroke !== undefined) node.stroke = styles.stroke;
+  if (styles.strokeWidth !== undefined) node.strokeWidth = styles.strokeWidth;
+  if (styles.opacity !== undefined) node.opacity = styles.opacity;
+
+  const t = styles.transform;
+  if (t) {
+    if (t.translateX !== undefined) node.transform.translateX += t.translateX;
+    if (t.translateY !== undefined) node.transform.translateY += t.translateY;
+    if (t.rotate !== undefined) node.transform.rotate += t.rotate;
+    if (t.scaleX !== undefined) node.transform.scaleX *= t.scaleX;
+    if (t.scaleY !== undefined) node.transform.scaleY *= t.scaleY;
+  }
+}
+
+/**
+ * Manages interaction state for the scene graph.
+ * Tracks the hovered and active nodes and records their state on the nodes.
  */
 export class InteractionManager {
   private hoveredNode: SceneNode | null = null;
@@ -50,13 +81,11 @@ export class InteractionManager {
 
     // Update hover state
     if (hitNode !== this.hoveredNode) {
-      // Mouse left the previous node
       if (this.hoveredNode && this.hoveredNode !== this.activeNode) {
         this.setNodeState(this.hoveredNode, 'normal');
       }
       this.hoveredNode = hitNode;
 
-      // Mouse entered a new node
       if (hitNode && hitNode !== this.activeNode) {
         this.setNodeState(hitNode, 'hover');
       }
@@ -65,7 +94,6 @@ export class InteractionManager {
     // Handle active state (mouse pressed)
     if (isPressed) {
       if (hitNode && hitNode !== this.activeNode) {
-        // Mouse pressed on a new node
         if (this.activeNode) {
           this.setNodeState(this.activeNode, 'normal');
         }
@@ -75,7 +103,6 @@ export class InteractionManager {
     } else {
       // Mouse released
       if (this.activeNode) {
-        // Check if still hovering over the active node
         if (this.activeNode === hitNode) {
           this.setNodeState(this.activeNode, 'hover');
         } else {
@@ -87,98 +114,10 @@ export class InteractionManager {
   }
 
   /**
-   * Set a node's interaction state and apply appropriate styles
+   * Record a node's interaction state. Styling happens later in the pipeline.
    */
   private setNodeState(node: SceneNode, state: InteractionState): void {
-    if (node.interactionState === state) return;
-
     node.interactionState = state;
-
-    // Apply styles based on state priority: active > hover > normal
-    switch (state) {
-      case 'active':
-        if (node.activeStyles) {
-          this.applyStateStyles(node, node.activeStyles);
-        } else if (node.hoverStyles) {
-          // Fall back to hover styles if no active styles
-          this.applyStateStyles(node, node.hoverStyles);
-        }
-        break;
-
-      case 'hover':
-        if (node.hoverStyles) {
-          this.applyStateStyles(node, node.hoverStyles);
-        }
-        break;
-
-      case 'normal':
-      default:
-        this.restoreBaseStyles(node);
-        break;
-    }
-  }
-
-  /**
-   * Apply state-specific styles to a node
-   */
-  private applyStateStyles(node: SceneNode, styles: StateStyles): void {
-    // Apply fill
-    if (styles.fill !== undefined) {
-      node.fill = styles.fill;
-    }
-
-    // Apply stroke
-    if (styles.stroke !== undefined) {
-      node.stroke = styles.stroke;
-    }
-
-    // Apply stroke width
-    if (styles.strokeWidth !== undefined) {
-      node.strokeWidth = styles.strokeWidth;
-    }
-
-    // Apply opacity
-    if (styles.opacity !== undefined) {
-      node.opacity = styles.opacity;
-    }
-
-    // Apply transform overrides
-    if (styles.transform) {
-      this.applyTransformOverrides(node, styles.transform);
-    }
-  }
-
-  /**
-   * Apply partial transform overrides to a node
-   */
-  private applyTransformOverrides(node: SceneNode, overrides: Partial<Transform>): void {
-    // Start from base transform and apply overrides
-    const baseTransform = node.baseTransform;
-
-    if (overrides.translateX !== undefined) {
-      node.transform.translateX = baseTransform.translateX + overrides.translateX;
-    }
-    if (overrides.translateY !== undefined) {
-      node.transform.translateY = baseTransform.translateY + overrides.translateY;
-    }
-    if (overrides.rotate !== undefined) {
-      node.transform.rotate = baseTransform.rotate + overrides.rotate;
-    }
-    if (overrides.scaleX !== undefined) {
-      node.transform.scaleX = baseTransform.scaleX * overrides.scaleX;
-    }
-    if (overrides.scaleY !== undefined) {
-      node.transform.scaleY = baseTransform.scaleY * overrides.scaleY;
-    }
-  }
-
-  /**
-   * Restore base styles to a node
-   */
-  private restoreBaseStyles(node: SceneNode): void {
-    node.fill = node.baseFill;
-    node.opacity = node.baseOpacity;
-    node.transform = cloneTransform(node.baseTransform);
   }
 
   /**

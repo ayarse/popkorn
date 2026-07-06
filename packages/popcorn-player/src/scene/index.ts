@@ -15,9 +15,11 @@ export type {
   KeyframeData,
   TimingFunction,
   AnimationDirection,
+  AnimationFillMode,
   CubicBezier,
   AnimatableValue,
   PropertyBinding,
+  NodeBase,
   InteractionState,
   StateStyles,
 } from './types';
@@ -27,6 +29,10 @@ export {
   createDefaultTransform,
   createDefaultTransformOrigin,
   cloneTransform,
+  copyTransform,
+  cloneShapeData,
+  snapshotNode,
+  resetNodeToBase,
 } from './types';
 
 export { SceneBuilder, buildSceneGraph } from './builder';

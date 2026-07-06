@@ -68,10 +68,9 @@ export interface SceneNode {
   // Animation state
   animations: AnimationInstance[];
 
-  // Base values (for animation reset)
-  baseTransform: Transform;
-  baseFill: string | null;
-  baseOpacity: number;
+  // Immutable authored snapshot. The value-resolution pipeline resets the live
+  // fields to this every frame before layering bindings/animation/interaction.
+  base: NodeBase;
 
   // Dynamic property bindings (variables, input() functions)
   bindings: PropertyBinding[];
@@ -81,6 +80,16 @@ export interface SceneNode {
   hoverStyles: StateStyles | null;
   activeStyles: StateStyles | null;
   interactive: boolean;  // Whether this node responds to mouse events
+}
+
+// Complete authored snapshot of a node's animatable render state.
+export interface NodeBase {
+  transform: Transform;
+  fill: string | null;
+  stroke: string | null;
+  strokeWidth: number;
+  opacity: number;
+  shapeData: ShapeData;
 }
 
 export type ShapeData =
@@ -133,17 +142,15 @@ export interface AnimationInstance {
   iterationCount: number;   // Infinity for infinite
   direction: AnimationDirection;
   delay: number;
-
-  // Runtime state
-  startTime: number;
-  currentTime: number;
-  isRunning: boolean;
+  fillMode: AnimationFillMode;
 
   // Keyframe data
   keyframes: KeyframeData[];
 }
 
 export type AnimationDirection = 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
+
+export type AnimationFillMode = 'none' | 'forwards' | 'backwards' | 'both';
 
 export type TimingFunction =
   | 'linear'
@@ -200,6 +207,47 @@ export function cloneTransform(t: Transform): Transform {
   };
 }
 
+// Copy a transform's fields into an existing target (no allocation).
+export function copyTransform(src: Transform, dst: Transform): void {
+  dst.translateX = src.translateX;
+  dst.translateY = src.translateY;
+  dst.rotate = src.rotate;
+  dst.scaleX = src.scaleX;
+  dst.scaleY = src.scaleY;
+  dst.transformOrigin.x.value = src.transformOrigin.x.value;
+  dst.transformOrigin.x.unit = src.transformOrigin.x.unit;
+  dst.transformOrigin.y.value = src.transformOrigin.y.value;
+  dst.transformOrigin.y.unit = src.transformOrigin.y.unit;
+}
+
+// Shallow clone of shape data (numeric geometry + type; path commands shared).
+export function cloneShapeData(sd: ShapeData): ShapeData {
+  return { ...sd };
+}
+
+// Capture the current authored render state of a node as its immutable base.
+export function snapshotNode(node: SceneNode): NodeBase {
+  return {
+    transform: cloneTransform(node.transform),
+    fill: node.fill,
+    stroke: node.stroke,
+    strokeWidth: node.strokeWidth,
+    opacity: node.opacity,
+    shapeData: cloneShapeData(node.shapeData),
+  };
+}
+
+// Reset a node's live render fields to its base, in place (per-frame, hot path).
+export function resetNodeToBase(node: SceneNode): void {
+  const b = node.base;
+  copyTransform(b.transform, node.transform);
+  node.fill = b.fill;
+  node.stroke = b.stroke;
+  node.strokeWidth = b.strokeWidth;
+  node.opacity = b.opacity;
+  Object.assign(node.shapeData, b.shapeData);
+}
+
 // Helper to create a default scene node
 export function createSceneNode(id: string, type: ShapeType): SceneNode {
   const transform = createDefaultTransform();
@@ -215,9 +263,14 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     opacity: 1,
     shapeData: { type: 'group' },
     animations: [],
-    baseTransform: cloneTransform(transform),
-    baseFill: null,
-    baseOpacity: 1,
+    base: {
+      transform: cloneTransform(transform),
+      fill: null,
+      stroke: null,
+      strokeWidth: 1,
+      opacity: 1,
+      shapeData: { type: 'group' },
+    },
     bindings: [],
     interactionState: 'normal',
     hoverStyles: null,

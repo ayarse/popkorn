@@ -18,6 +18,7 @@ import type {
   KeyframeData,
   TimingFunction,
   AnimationDirection,
+  AnimationFillMode,
   RectData,
   CircleData,
   EllipseData,
@@ -25,7 +26,7 @@ import type {
   TransformOriginValue,
   StateStyles,
 } from './types';
-import { createSceneNode, cloneTransform, createDefaultTransformOrigin } from './types';
+import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath } from './path-parser';
 
 /**
@@ -33,6 +34,9 @@ import { parsePath } from './path-parser';
  */
 export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
+  // Longhand animation-fill-mode for the node currently being built (it
+  // overrides any value in the animation shorthand, regardless of source order).
+  private pendingFillMode: AnimationFillMode | null = null;
 
   build(stylesheet: StyleSheet): SceneNode {
     // Index keyframes by name
@@ -71,8 +75,13 @@ export class SceneBuilder {
       node.className = id;
     }
 
+    // Pre-scan the longhand animation-fill-mode so it wins over the shorthand.
+    this.pendingFillMode = this.findFillMode(rule.declarations);
+
     // Apply declarations
     this.applyDeclarations(node, rule.declarations);
+
+    this.pendingFillMode = null;
 
     // Extract state-specific styles from pseudo rules
     if (rule.states && rule.states.length > 0) {
@@ -95,10 +104,9 @@ export class SceneBuilder {
       node.children.push(childNode);
     }
 
-    // Store base values for animation
-    node.baseTransform = cloneTransform(node.transform);
-    node.baseFill = node.fill;
-    node.baseOpacity = node.opacity;
+    // Capture the authored render state as the immutable base for the
+    // per-frame value-resolution pipeline.
+    node.base = snapshotNode(node);
 
     return node;
   }
@@ -203,6 +211,18 @@ export class SceneBuilder {
     }
 
     return transform;
+  }
+
+  private findFillMode(declarations: Declaration[]): AnimationFillMode | null {
+    for (const decl of declarations) {
+      if (decl.property === 'animation-fill-mode' && isKeywordValue(decl.value)) {
+        const kw = decl.value.value;
+        if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') {
+          return kw;
+        }
+      }
+    }
+    return null;
   }
 
   private applyDeclarations(node: SceneNode, declarations: Declaration[]): void {
@@ -355,6 +375,9 @@ export class SceneBuilder {
       case 'animation-direction':
         break;
       case 'animation-delay':
+        break;
+      case 'animation-fill-mode':
+        // Handled by the pre-scan in buildNode (see pendingFillMode).
         break;
     }
 
@@ -540,6 +563,10 @@ export class SceneBuilder {
     let iterationCount = 1;
     let direction: AnimationDirection = 'normal';
     let delay = 0;
+    // CSS default is 'none', but existing examples rely on animations holding
+    // their final frame after finishing, so we deliberately default to
+    // 'forwards'. A longhand `animation-fill-mode` (below) still overrides it.
+    let fillMode: AnimationFillMode = this.pendingFillMode ?? 'forwards';
 
     for (const v of values) {
       if (isKeywordValue(v)) {
@@ -552,6 +579,9 @@ export class SceneBuilder {
           iterationCount = Infinity;
         } else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') {
           direction = kw;
+        } else if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') {
+          // A longhand animation-fill-mode still wins over the shorthand value.
+          fillMode = this.pendingFillMode ?? kw;
         }
       } else if (isFunctionValue(v) && v.name === 'cubic-bezier') {
         // Handle cubic-bezier(x1, y1, x2, y2)
@@ -593,9 +623,7 @@ export class SceneBuilder {
         iterationCount,
         direction,
         delay,
-        startTime: 0,
-        currentTime: 0,
-        isRunning: true,
+        fillMode,
         keyframes,
       });
     }

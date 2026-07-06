@@ -1,14 +1,21 @@
 import type { Renderer } from '../renderer/interface';
 import type { SceneNode, RectData, CircleData, EllipseData, PathData } from '../scene/types';
+import { resetNodeToBase } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
 import { AnimationScheduler } from '../animation/scheduler';
+import { getPropHandler } from '../animation/registry';
 import { InputTracker, createInputTracker } from './inputs';
 import { VariableResolver, createVariableResolver } from './variables';
-import { InteractionManager, createInteractionManager } from './interaction';
+import { InteractionManager, createInteractionManager, applyInteractionOverrides } from './interaction';
 
 /**
- * Main render loop
- * Coordinates animation updates and scene rendering
+ * Main render loop.
+ *
+ * Drives requestAnimationFrame and, each frame, runs the value-resolution
+ * pipeline per node: reset live fields to the authored base, then layer
+ * bindings (var()/input()), animation (keyframe sampling at timeline time),
+ * and interaction overrides (:hover/:active) — in that fixed order. The
+ * renderer and hit-test read the resulting live fields unchanged.
  */
 export class RenderLoop {
   private renderer: Renderer;
@@ -73,9 +80,30 @@ export class RenderLoop {
   }
 
   reset(): void {
-    if (this.sceneRoot) {
-      this.scheduler.reset(this.sceneRoot);
-    }
+    this.scheduler.reset();
+    if (!this.isRunning) this.drawFrame(performance.now());
+  }
+
+  /** Freeze the timeline; the loop keeps running so interaction stays live. */
+  pause(): void {
+    this.scheduler.pause();
+  }
+
+  /** Resume the timeline from where it was paused. */
+  resume(): void {
+    this.scheduler.resume();
+  }
+
+  /** Jump to `ms` and render that instant — works while paused or stopped. */
+  seek(ms: number): void {
+    const now = performance.now();
+    this.scheduler.seek(ms, now);
+    if (!this.isRunning) this.drawFrame(now);
+  }
+
+  /** Current timeline time in milliseconds. */
+  get currentTime(): number {
+    return this.scheduler.time();
   }
 
   private loop = (timestamp: number): void => {
@@ -88,110 +116,43 @@ export class RenderLoop {
     // Update interaction state (hover, active)
     this.interactionManager.update(this.inputTracker.getState());
 
-    // Update animations
-    if (this.sceneRoot) {
-      this.scheduler.update(this.sceneRoot, timestamp);
-    }
-
-    // Resolve variable bindings before rendering
-    if (this.sceneRoot) {
-      this.resolveBindings(this.sceneRoot);
-    }
-
-    // Render frame
-    this.render();
+    // Resolve the whole scene at the current timeline time, then paint.
+    this.drawFrame(timestamp);
 
     // Schedule next frame
     this.animationFrameId = requestAnimationFrame(this.loop);
   };
 
-  private resolveBindings(node: SceneNode): void {
-    // Resolve any variable bindings on this node
-    for (const binding of node.bindings) {
-      const value = this.variableResolver.resolveNumeric(binding.value);
-      this.applyResolvedBinding(node, binding.property, value);
+  /** Resolve every node's live values at the current timeline time and render. */
+  private drawFrame(now: number): void {
+    if (this.sceneRoot) {
+      const t = this.scheduler.time(now);
+      this.resolveNode(this.sceneRoot, t);
     }
+    this.render();
+  }
 
-    // Recursively process children
+  /**
+   * Value-resolution pipeline for one node:
+   * base -> bindings -> animation -> interaction overrides.
+   */
+  private resolveNode(node: SceneNode, t: number): void {
+    resetNodeToBase(node);
+    this.applyBindings(node);
+    this.scheduler.sampleNode(node, t);
+    applyInteractionOverrides(node);
+
     for (const child of node.children) {
-      this.resolveBindings(child);
+      this.resolveNode(child, t);
     }
   }
 
-  private applyResolvedBinding(node: SceneNode, property: string, value: number): void {
-    switch (property) {
-      case 'opacity':
-        node.opacity = value;
-        break;
-      case 'x':
-        if (node.shapeData.type === 'rect') {
-          (node.shapeData as RectData).x = value;
-        }
-        break;
-      case 'y':
-        if (node.shapeData.type === 'rect') {
-          (node.shapeData as RectData).y = value;
-        }
-        break;
-      case 'width':
-        if (node.shapeData.type === 'rect') {
-          (node.shapeData as RectData).width = value;
-        }
-        break;
-      case 'height':
-        if (node.shapeData.type === 'rect') {
-          (node.shapeData as RectData).height = value;
-        }
-        break;
-      case 'cx':
-        if (node.shapeData.type === 'circle') {
-          (node.shapeData as CircleData).cx = value;
-        } else if (node.shapeData.type === 'ellipse') {
-          (node.shapeData as EllipseData).cx = value;
-        }
-        break;
-      case 'cy':
-        if (node.shapeData.type === 'circle') {
-          (node.shapeData as CircleData).cy = value;
-        } else if (node.shapeData.type === 'ellipse') {
-          (node.shapeData as EllipseData).cy = value;
-        }
-        break;
-      case 'r':
-        if (node.shapeData.type === 'circle') {
-          (node.shapeData as CircleData).r = value;
-        }
-        break;
-      case 'rx':
-        if (node.shapeData.type === 'rect') {
-          (node.shapeData as RectData).rx = value;
-        } else if (node.shapeData.type === 'ellipse') {
-          (node.shapeData as EllipseData).rx = value;
-        }
-        break;
-      case 'ry':
-        if (node.shapeData.type === 'rect') {
-          (node.shapeData as RectData).ry = value;
-        } else if (node.shapeData.type === 'ellipse') {
-          (node.shapeData as EllipseData).ry = value;
-        }
-        break;
-      // Transform properties
-      case 'translateX':
-        node.transform.translateX = value;
-        break;
-      case 'translateY':
-        node.transform.translateY = value;
-        break;
-      case 'rotate':
-        node.transform.rotate = value;
-        break;
-      case 'scaleX':
-        node.transform.scaleX = value;
-        break;
-      case 'scaleY':
-        node.transform.scaleY = value;
-        break;
+  private applyBindings(node: SceneNode): void {
+    for (const binding of node.bindings) {
+      const handler = getPropHandler(binding.property);
+      // Bindings resolve to numbers; skip anything without a numeric handler.
+      if (!handler || handler.kind !== 'number') continue;
+      handler.apply(node, this.variableResolver.resolveNumeric(binding.value));
     }
   }
 

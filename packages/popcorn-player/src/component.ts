@@ -170,6 +170,34 @@ export class PopcornPlayer extends HTMLElement {
     }
   }
 
+  /**
+   * Freeze the timeline (interaction stays live).
+   */
+  pause(): void {
+    this.renderLoop?.pause();
+  }
+
+  /**
+   * Resume the timeline from where it was paused.
+   */
+  resume(): void {
+    this.renderLoop?.resume();
+  }
+
+  /**
+   * Jump to a timeline position in milliseconds and render it, even while paused.
+   */
+  seek(ms: number): void {
+    this.renderLoop?.seek(ms);
+  }
+
+  /**
+   * Current timeline position in milliseconds.
+   */
+  get currentTime(): number {
+    return this.renderLoop?.currentTime ?? 0;
+  }
+
   private updateDimensions(): void {
     const width = parseInt(this.getAttribute('width') || '400', 10);
     const height = parseInt(this.getAttribute('height') || '300', 10);
