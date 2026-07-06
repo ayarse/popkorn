@@ -28,6 +28,23 @@ export interface RadialGradientData {
 
 export type GradientData = LinearGradientData | RadialGradientData;
 
+// Runtime type guard: a GradientData carries a `stops` array. Used by the
+// animation registry to dispatch fill/stroke interpolation by value type
+// (a solid fill is a color string, an animated gradient is this object).
+export function isGradientData(v: unknown): v is GradientData {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) && 'stops' in v;
+}
+
+// Deep-copy a gradient so a live (per-frame interpolated) value never aliases
+// the authored base's stop objects. Cheap: gradients have a handful of stops.
+export function cloneGradient(g: GradientData | null): GradientData | null {
+  if (!g) return null;
+  const stops = g.stops.map((s) => ({ offset: s.offset, color: s.color }));
+  return g.type === 'linear-gradient'
+    ? { type: 'linear-gradient', angle: g.angle, stops }
+    : { type: 'radial-gradient', stops };
+}
+
 // Resolved trim-path descriptor for the stroke, expressed in the shape's local
 // outline-length units. The scene layer computes this (window -> dash pattern);
 // the renderer just applies it to the stroke via setLineDash/lineDashOffset.

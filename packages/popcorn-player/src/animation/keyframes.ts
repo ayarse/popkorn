@@ -1,5 +1,6 @@
 import type { SceneNode, KeyframeData, TimingFunction, AnimatableValue } from '../scene/types';
 import { getPropHandler, interpolateProp } from './registry';
+import type { PropValue } from './registry';
 import { applyEasing } from './easing';
 
 /**
@@ -69,10 +70,10 @@ export function interpolateKeyframes(
     if (!handler) continue;
 
     const from = property in prev.properties
-      ? (prev.properties[property] as number | string)
+      ? (prev.properties[property] as PropValue)
       : handler.readBase(node.base);
     const to = property in next.properties
-      ? (next.properties[property] as number | string)
+      ? (next.properties[property] as PropValue)
       : handler.readBase(node.base);
 
     const value = interpolateProp(handler, from, to, localProgress);

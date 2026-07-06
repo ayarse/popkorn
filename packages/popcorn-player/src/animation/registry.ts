@@ -1,5 +1,6 @@
 import type { SceneNode, NodeBase } from '../scene/types';
-import { parseColor } from '../renderer/types';
+import type { GradientData, PathCommand } from '../renderer/types';
+import { parseColor, isGradientData } from '../renderer/types';
 import { lerp } from '../scene/transform';
 
 /**
@@ -12,14 +13,20 @@ import { lerp } from '../scene/transform';
  * fill and the individual transform components are all animatable and bindable
  * without any hardcoded per-property branching.
  */
-export type PropKind = 'number' | 'color';
+// 'gradient' and 'path' properties (fill/stroke, `d`) carry object values;
+// interpolateProp dispatches those by value type (a fill can also be a plain
+// color), so the kind is a hint — number/color drive the scalar fast path.
+export type PropKind = 'number' | 'color' | 'gradient' | 'path';
+
+// A resolved/authored value for any animatable property.
+export type PropValue = number | string | GradientData | PathCommand[];
 
 export interface PropHandler {
   kind: PropKind;
   // Base value used as the endpoint when a keyframe omits this property.
-  readBase(base: NodeBase): number | string | null;
+  readBase(base: NodeBase): PropValue | null;
   // Write a resolved value into the node's live render fields.
-  apply(node: SceneNode, value: number | string): void;
+  apply(node: SceneNode, value: PropValue): void;
 }
 
 // --- transform components (all plain-number lerp; rotate is direct, matching
@@ -82,22 +89,22 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // colors
+  // colors / gradients. A fill endpoint is either a color string (solid) or a
+  // GradientData (animated gradient stops); apply routes by value type.
   fill: {
     kind: 'color',
-    readBase: (base) => base.fill,
+    readBase: (base) => base.fillGradient ?? base.fill,
     apply: (node, value) => {
-      // A gradient fill isn't animatable yet; keep it (last-write wins).
-      if (node.fillGradient) return;
-      node.fill = value as string;
+      if (isGradientData(value)) node.fillGradient = value;
+      else node.fill = value as string;
     },
   },
   stroke: {
     kind: 'color',
-    readBase: (base) => base.stroke,
+    readBase: (base) => base.strokeGradient ?? base.stroke,
     apply: (node, value) => {
-      if (node.strokeGradient) return;
-      node.stroke = value as string;
+      if (isGradientData(value)) node.strokeGradient = value;
+      else node.stroke = value as string;
     },
   },
   'stroke-width': {
@@ -118,6 +125,21 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   cx: geometryNumber('cx'),
   cy: geometryNumber('cy'),
   r: geometryNumber('r'),
+
+  // path morphing: `d` is the command list. Interpolated pairwise when the two
+  // endpoints share a command sequence (see interpolatePath); applying it swaps
+  // in the morphed commands and invalidates the geometry-keyed caches. Bounds
+  // and hit-test read node.shapeData.commands directly, so they follow for free.
+  d: {
+    kind: 'path',
+    readBase: (base) =>
+      base.shapeData.type === 'path' ? base.shapeData.commands : null,
+    apply: (node, value) => {
+      if (node.shapeData.type !== 'path' || !Array.isArray(value)) return;
+      node.shapeData.commands = value as PathCommand[];
+      node.outlineLengthDirty = true; // trim window keys off the outline length
+    },
+  },
 
   // star / polygon geometry (points is static, so not registered)
   'outer-radius': geometryNumber('outerRadius'),
@@ -167,19 +189,92 @@ export function getPropHandler(property: string): PropHandler | undefined {
 }
 
 /**
- * Interpolate two endpoint values for a property according to its kind.
+ * Interpolate two endpoint values for a property.
+ *
+ * Object-valued properties (gradients, paths) dispatch by value type before the
+ * scalar/color fast path, because `fill` can be either a color or a gradient.
+ * Incompatible object endpoints (different gradient shape, mismatched path
+ * command sequence) step to the departing value rather than crash.
  */
 export function interpolateProp(
   handler: PropHandler,
-  from: number | string | null,
-  to: number | string | null,
+  from: PropValue | null,
+  to: PropValue | null,
   t: number
-): number | string | null {
+): PropValue | null {
+  // Gradient endpoints.
+  if (isGradientData(from) || isGradientData(to)) {
+    if (isGradientData(from) && isGradientData(to) && gradientsCompatible(from, to)) {
+      return interpolateGradient(from, to, t);
+    }
+    return from ?? to; // step: hold the departing gradient
+  }
+
+  // Path (command-list) endpoints.
+  if (Array.isArray(from) || Array.isArray(to)) {
+    if (Array.isArray(from) && Array.isArray(to) && pathsCompatible(from, to)) {
+      return interpolatePath(from, to, t);
+    }
+    return from ?? to; // step: hold the departing path
+  }
+
   if (handler.kind === 'color') {
     if (typeof from !== 'string' || typeof to !== 'string') return to ?? from;
     return interpolateColor(from, to, t);
   }
   return lerp((from as number) ?? 0, (to as number) ?? 0, t);
+}
+
+// --- gradients --------------------------------------------------------------
+
+// Two gradients interpolate only when they paint the same way: same type and
+// same stop count (so stops pair up index-for-index).
+export function gradientsCompatible(a: GradientData, b: GradientData): boolean {
+  return a.type === b.type && a.stops.length === b.stops.length;
+}
+
+// Lerp each stop's offset and color (and the linear angle). Caller guarantees
+// compatibility. Returns a fresh GradientData; never mutates the endpoints.
+export function interpolateGradient(a: GradientData, b: GradientData, t: number): GradientData {
+  const stops = a.stops.map((s, i) => ({
+    offset: lerp(s.offset, b.stops[i].offset, t),
+    color: interpolateColor(s.color, b.stops[i].color, t),
+  }));
+  if (a.type === 'linear-gradient' && b.type === 'linear-gradient') {
+    return { type: 'linear-gradient', angle: lerp(a.angle, b.angle, t), stops };
+  }
+  return { type: 'radial-gradient', stops };
+}
+
+// --- paths ------------------------------------------------------------------
+
+// Two paths morph only when their command sequences match exactly: same length
+// and same command letter at every index (so numeric args pair up).
+export function pathsCompatible(a: PathCommand[], b: PathCommand[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].type !== b[i].type) return false;
+  return true;
+}
+
+// Interpolate every numeric argument of each command pairwise. Boolean flags
+// (arc largeArc/sweep) step to the departing value. Caller guarantees the
+// sequences match. Allocates a fresh command list per call.
+// ponytail: path morph isn't a many-instance hot path, so we allocate rather
+// than thread a per-node scratch buffer through the registry's apply signature.
+export function interpolatePath(a: PathCommand[], b: PathCommand[], t: number): PathCommand[] {
+  const out: PathCommand[] = new Array(a.length);
+  for (let i = 0; i < a.length; i++) {
+    const from = a[i] as Record<string, unknown>;
+    const to = b[i] as Record<string, unknown>;
+    const cmd: Record<string, unknown> = { type: from.type };
+    for (const key of Object.keys(from)) {
+      if (key === 'type') continue;
+      const fv = from[key];
+      cmd[key] = typeof fv === 'number' ? lerp(fv, to[key] as number, t) : fv;
+    }
+    out[i] = cmd as unknown as PathCommand;
+  }
+  return out;
 }
 
 /**

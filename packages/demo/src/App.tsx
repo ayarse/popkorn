@@ -685,6 +685,34 @@ const examples = {
   fill: #ffffff;
   animation: sweep 3s ease-in-out infinite alternate;
 }`,
+
+  morph: `/* Path morphing + animated gradient stops.
+   Both @keyframes share the same command sequence (M C C C C Z) and the same
+   gradient stop count, so 'd' and 'fill' interpolate. Change either shape's
+   command letters or the stop count and it steps (holds) instead. */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0f0f1e;
+}
+
+@keyframes blob {
+  0% {
+    d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 C 317 450 250 383 250 300 C 250 217 317 150 400 150 Z';
+    fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%);
+  }
+  100% {
+    d: 'M 400 130 C 520 180 580 240 560 320 C 540 400 460 470 380 460 C 300 450 230 380 250 290 C 270 200 300 90 400 130 Z';
+    fill: linear-gradient(45deg, #ffe66d 0%, #a855f7 100%);
+  }
+}
+
+#blob {
+  type: path;
+  d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 C 317 450 250 383 250 300 C 250 217 317 150 400 150 Z';
+  fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%);
+  animation: blob 3s ease-in-out infinite alternate;
+}`,
 };
 
 type ExampleKey = keyof typeof examples;

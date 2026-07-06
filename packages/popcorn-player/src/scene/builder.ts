@@ -16,6 +16,7 @@ import type {
   ShapeType,
   Transform,
   KeyframeData,
+  AnimatableValue,
   TimingFunction,
   AnimationDirection,
   AnimationFillMode,
@@ -35,11 +36,41 @@ import type {
 } from './types';
 import type { PathCommand } from '../renderer/types';
 import type { GradientData, GradientStop } from '../renderer/types';
+import { isGradientData } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath, buildMotionPath } from './path-parser';
+import { gradientsCompatible, pathsCompatible } from '../animation/registry';
 
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
   sd.type === 'star' || sd.type === 'polygon';
+
+// One warning per animation whose object-valued keyframes (gradients/paths)
+// can't interpolate — interpolation will step to the departing value instead.
+const warnedAnimations = new Set<string>();
+function warnIncompatibleObjectKeyframes(name: string, frames: KeyframeData[]): void {
+  const sorted = [...frames].sort((a, b) => a.offset - b.offset);
+  for (const prop of ['fill', 'stroke', 'd'] as const) {
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const a = sorted[i].properties[prop];
+      const b = sorted[i + 1].properties[prop];
+      if (a === undefined || b === undefined) continue;
+      let ok: boolean;
+      if (prop === 'd') {
+        ok = Array.isArray(a) && Array.isArray(b) && pathsCompatible(a, b);
+      } else if (!isGradientData(a) && !isGradientData(b)) {
+        ok = true; // plain color-to-color fill/stroke: interpolates fine
+      } else {
+        ok = isGradientData(a) && isGradientData(b) && gradientsCompatible(a, b);
+      }
+      if (!ok && !warnedAnimations.has(name)) {
+        warnedAnimations.add(name);
+        console.warn(
+          `@keyframes ${name}: incompatible ${prop} keyframes; animation will step (hold) instead of interpolating.`
+        );
+      }
+    }
+  }
+}
 
 /**
  * Build scene graph from AST
@@ -903,7 +934,7 @@ export class SceneBuilder {
   }
 
   private buildKeyframes(rule: KeyframeRule): KeyframeData[] {
-    return rule.blocks.map(block => {
+    const frames = rule.blocks.map(block => {
       const keyframeData: KeyframeData = {
         offset: block.selectors[0] / 100, // Convert percentage to 0-1
         properties: this.buildKeyframeProperties(block),
@@ -916,10 +947,12 @@ export class SceneBuilder {
 
       return keyframeData;
     });
+    warnIncompatibleObjectKeyframes(rule.name, frames);
+    return frames;
   }
 
-  private buildKeyframeProperties(block: KeyframeBlock): Record<string, number | string | Transform> {
-    const props: Record<string, number | string | Transform> = {};
+  private buildKeyframeProperties(block: KeyframeBlock): Record<string, AnimatableValue> {
+    const props: Record<string, AnimatableValue> = {};
 
     for (const decl of block.declarations) {
       const { property, value } = decl;
@@ -941,11 +974,21 @@ export class SceneBuilder {
           props[property] = normalizeFraction(value);
           break;
         case 'fill':
-          if (isColorValue(value)) {
-            props.fill = value.value;
+        case 'stroke':
+          // A gradient endpoint parses to structured GradientData (animated
+          // stops); a plain color parses to its string. Both are animatable.
+          if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
+            const grad = this.parseGradient(value);
+            if (grad) props[property] = grad;
+          } else if (isColorValue(value)) {
+            props[property] = value.value;
           } else if (isFunctionValue(value)) {
-            props.fill = this.buildColorString(value);
+            props[property] = this.buildColorString(value);
           }
+          break;
+        case 'd':
+          // Path morphing: parse the path string to commands once at build.
+          props.d = parsePath(getStringValue(value));
           break;
         default:
           // Store raw numeric/string value
@@ -960,7 +1003,7 @@ export class SceneBuilder {
     return props;
   }
 
-  private extractTransformProperties(value: Value, props: Record<string, number | string | Transform>): void {
+  private extractTransformProperties(value: Value, props: Record<string, AnimatableValue>): void {
     // Extract individual transform functions into separate properties
     // This allows proper merging with base transform during animation
     const extractSingle = (funcValue: { name: string; args: Value[] }) => {

@@ -1,4 +1,5 @@
 import type { PathCommand, GradientData } from '../renderer/types';
+import { cloneGradient } from '../renderer/types';
 import type { MotionPath } from './path-parser';
 import type { Value } from '@popcorn/parser';
 
@@ -182,6 +183,10 @@ export interface NodeBase {
   strokeDashOffset: number;
   offsetDistance: number;
   shapeData: ShapeData;
+  // Gradient paints are animatable in @keyframes; the base holds a deep copy so
+  // per-frame interpolation never mutates authored stops (see reset/snapshot).
+  fillGradient: GradientData | null;
+  strokeGradient: GradientData | null;
 }
 
 export type ShapeData =
@@ -308,7 +313,10 @@ export interface KeyframeData {
   easing?: TimingFunction;  // Per-keyframe easing (controls transition FROM this keyframe to the next)
 }
 
-export type AnimatableValue = number | string | Transform;
+// A keyframe endpoint value. Beyond scalars/colors/transforms, gradients
+// (fill/stroke) and path command lists (`d`, morphing) are animatable; the
+// registry dispatches interpolation by value type.
+export type AnimatableValue = number | string | Transform | GradientData | PathCommand[];
 
 // Default transform origin (0 0, matching CSS behavior)
 export function createDefaultTransformOrigin(): TransformOrigin {
@@ -373,6 +381,8 @@ export function snapshotNode(node: SceneNode): NodeBase {
     strokeDashOffset: node.strokeDashOffset,
     offsetDistance: node.offsetDistance,
     shapeData: cloneShapeData(node.shapeData),
+    fillGradient: cloneGradient(node.fillGradient),
+    strokeGradient: cloneGradient(node.strokeGradient),
   };
 }
 
@@ -390,6 +400,10 @@ export function resetNodeToBase(node: SceneNode): void {
   node.strokeDashOffset = b.strokeDashOffset;
   node.offsetDistance = b.offsetDistance;
   Object.assign(node.shapeData, b.shapeData);
+  // Deep-copy gradients so a per-frame gradient interpolation writing into
+  // node.fillGradient can never corrupt the authored base stops.
+  node.fillGradient = cloneGradient(b.fillGradient);
+  node.strokeGradient = cloneGradient(b.strokeGradient);
 }
 
 // Helper to create a default scene node
@@ -440,6 +454,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       strokeDashOffset: 0,
       offsetDistance: 0,
       shapeData: { type: 'group' },
+      fillGradient: null,
+      strokeGradient: null,
     },
     bindings: [],
     interactionState: 'normal',

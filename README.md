@@ -238,6 +238,18 @@ instances never collide.
 }
 ```
 
+A gradient `fill`/`stroke` is animatable in `@keyframes`: each stop's offset and
+color are interpolated. The two endpoints must be *compatible* — same gradient
+type and same stop count — so stops pair up index-for-index. Incompatible
+gradients step (hold the departing value) instead of interpolating.
+
+```css
+@keyframes recolor {
+  0%   { fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%); }
+  100% { fill: linear-gradient(45deg, #ffe66d 0%, #a855f7 100%); }
+}
+```
+
 ### Clipping
 
 `clip-path` clips a node and all its descendants (most useful on a group).
@@ -420,6 +432,19 @@ Works as the shorthand default easing or per-keyframe via
   0%   { opacity: 1; animation-timing-function: step-end; }
   50%  { opacity: 0; animation-timing-function: step-end; }
   100% { opacity: 1; }
+}
+```
+
+A path's `d` is animatable — **path morphing**. The two keyframe paths must be
+*compatible*: the same command sequence (same letters in the same order, same
+counts) after parsing, so their numeric arguments interpolate pairwise.
+Incompatible sequences step (hold the departing path) instead of morphing.
+Trim, fill-rule and hit-testing all keep working on the morphing path.
+
+```css
+@keyframes blob {
+  0%   { d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 Z'; }
+  100% { d: 'M 400 130 C 520 180 580 240 560 320 C 540 400 460 470 380 460 Z'; }
 }
 ```
 

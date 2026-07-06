@@ -117,6 +117,7 @@ type Sample = Partial<{
   fill: string; stroke: string; strokeWidth: number;
   offsetDistance: number; trimStart: number; trimEnd: number; trimOffset: number;
   outerRadius: number; innerRadius: number; starRotation: number;
+  d: string;
 }>;
 
 interface Rule {
@@ -144,7 +145,7 @@ const BLOCKED_MODIFIERS: Record<string, string> = {
   pb: 'pucker-bloat (pb)',
 };
 
-class Converter {
+export class Converter {
   warnings: string[] = [];
   blocked = new Set<string>();
   private ids = new Set<string>();
@@ -576,6 +577,12 @@ class Converter {
         case 'gf':
         case 'gs': {
           gradientFill = this.buildGradient(it);
+          // Animated stops -> a fill channel of gradient() strings per keyframe.
+          if (it.g && it.g.k && it.g.k.a === 1) {
+            const gk = it.g.k.k as Kf[];
+            fillKfs = gk;
+            fillCh = (t) => ({ fill: this.gradientCssAt(it, t) ?? gradientFill! });
+          }
           break;
         }
         case 'tm': {
@@ -710,10 +717,17 @@ class Converter {
         rule.channels.push({ priority: 6, kfs: p.kfs, sample: (t) => { const v = p.at(t); return { cx: v[0], cy: v[1] }; } });
       return rule;
     }
-    // sh: static bezier path
-    if (it.ks && it.ks.a === 1) { this.blocked.add('animated bezier path (sh a:1)'); return null; }
+    // sh: bezier path (static or morphing). Animated shapes (a:1) become a `d`
+    // channel — one path string per keyframe; Popcorn morphs between compatible
+    // command sequences (Lottie guarantees matching vertex counts per track).
     const rule: Rule = { id, type: 'path', decls: [], channels: [], children: [] };
-    const shp = it.ks ? (it.ks.a === 1 ? it.ks.k[0].s : it.ks.k) : null;
+    if (it.ks && it.ks.a === 1) {
+      const kfs = it.ks.k as Kf[];
+      rule.decls.push(`d: '${shapeToPath(shapeKf(kfs[0]))}'`);
+      rule.channels.push({ priority: 6, kfs, sample: (t) => ({ d: shapeToPath(shapeAt(kfs, t)) }) });
+      return rule;
+    }
+    const shp = it.ks ? it.ks.k : null;
     if (!shp) return null;
     rule.decls.push(`d: '${shapeToPath(shp)}'`);
     return rule;
@@ -722,8 +736,16 @@ class Converter {
   private buildGradient(it: any): string | null {
     const g = it.g;
     if (!g || !g.k) return null;
-    if (g.k.a === 1) { this.blocked.add('animated gradient stops'); return null; }
-    const flat: number[] = g.k.k;
+    // Animated stops: emit a fill channel of full gradient() strings per keyframe
+    // (Popcorn interpolates them; see registry 'gradient'). Static: bake at t0.
+    return this.gradientCssAt(it, g.k.a === 1 ? g.k.k[0].t : 0);
+  }
+
+  /** Build the CSS gradient string for `it` at frame `t` (samples animated stops). */
+  private gradientCssAt(it: any, t: number): string | null {
+    const g = it.g;
+    if (!g || !g.k) return null;
+    const flat: number[] = g.k.a === 1 ? sampleAt(g.k.k, t) : g.k.k;
     const count = g.p || Math.floor(flat.length / 4);
     const stops: string[] = [];
     for (let i = 0; i < count; i++) {
@@ -737,8 +759,8 @@ class Converter {
       return `radial-gradient(${stops.join(', ')})`;
     }
     // Linear: CSS angle from the s->e vector (CSS 0deg = up, 90deg = right).
-    const s = prop(it.s)?.at(0) ?? [0, 0];
-    const e = prop(it.e)?.at(0) ?? [1, 0];
+    const s = prop(it.s)?.at(t) ?? [0, 0];
+    const e = prop(it.e)?.at(t) ?? [1, 0];
     const angle = (Math.atan2(e[0] - s[0], -(e[1] - s[1])) * 180) / Math.PI;
     return `linear-gradient(${num(angle)}deg, ${stops.join(', ')})`;
   }
@@ -844,12 +866,29 @@ function declsFromSample(s: Sample): string[] {
   if (s.outerRadius !== undefined) out.push(`outer-radius: ${num(s.outerRadius)}px`);
   if (s.innerRadius !== undefined) out.push(`inner-radius: ${num(s.innerRadius)}px`);
   if (s.starRotation !== undefined) out.push(`rotation: ${num(s.starRotation)}deg`);
+  if (s.d !== undefined) out.push(`d: '${s.d}'`);
   return out;
 }
 
 // ---------------------------------------------------------------------------
 // Lottie bezier -> SVG path
 // ---------------------------------------------------------------------------
+
+/** The bezier shape object carried by an animated-path keyframe (s is [shape]). */
+function shapeKf(kf: Kf): any {
+  const s = kf.s as unknown;
+  return Array.isArray(s) ? s[0] : s;
+}
+
+/** Shape at frame t: hold the departing keyframe (Popcorn morphs between them). */
+function shapeAt(kfs: Kf[], t: number): any {
+  let kf = kfs[0];
+  for (const k of kfs) {
+    if (k.t <= t) kf = k;
+    else break;
+  }
+  return shapeKf(kf);
+}
 
 function shapeToPath(shp: any): string {
   const v: number[][] = shp.v || [];
@@ -1034,4 +1073,5 @@ function main() {
   }
 }
 
-main();
+// Only run the CLI when executed directly, so tests can import the Converter.
+if (import.meta.main) main();
