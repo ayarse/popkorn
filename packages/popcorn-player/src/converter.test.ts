@@ -169,6 +169,69 @@ test('converter: precomp reference cycle is blocked cleanly (no throw)', () => {
   expect(() => buildSceneGraph(parse(css))).not.toThrow();
 });
 
+test('converter: animated trim path (tm) emits trim-end keyframes and validates', () => {
+  const doc = {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, ind: 1, nm: 'L', ks: {},
+      shapes: [{
+        ty: 'gr',
+        it: [
+          { ty: 'el', s: { a: 0, k: [8, 8] }, p: { a: 0, k: [0, 0] } },
+          { ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+          {
+            ty: 'tm',
+            s: { a: 0, k: 0 },
+            e: { a: 1, k: [{ t: 0, s: [0] }, { t: 30, s: [100] }] },
+            o: { a: 0, k: 0 },
+          },
+          { ty: 'tr' },
+        ],
+      }],
+    }],
+  };
+  const css = new Converter().convert(doc);
+
+  // The static trim-start is decl'd once; the animated trim-end is a channel.
+  expect(css).toContain('trim-start: 0%');
+  expect(css).toMatch(/@keyframes[^}]*\{[\s\S]*?0%\s*\{[^}]*trim-end: 0%/);
+  expect(css).toMatch(/100%\s*\{[^}]*trim-end: 100%/);
+
+  expect(() => buildSceneGraph(parse(css))).not.toThrow();
+});
+
+test('converter: animated trim (tm) sibling to a group propagates to descendants', () => {
+  const doc = {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, ind: 1, nm: 'L', ks: {},
+      shapes: [
+        {
+          ty: 'gr',
+          it: [
+            { ty: 'el', s: { a: 0, k: [8, 8] }, p: { a: 0, k: [0, 0] } },
+            { ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+            { ty: 'tr' },
+          ],
+        },
+        {
+          ty: 'tm',
+          s: { a: 0, k: 0 },
+          e: { a: 1, k: [{ t: 0, s: [0] }, { t: 30, s: [100] }] },
+          o: { a: 0, k: 0 },
+        },
+      ],
+    }],
+  };
+  const css = new Converter().convert(doc);
+
+  expect(css).toContain('trim-start: 0%');
+  expect(css).toMatch(/trim-end: 0%/);
+  expect(css).toMatch(/trim-end: 100%/);
+
+  expect(() => buildSceneGraph(parse(css))).not.toThrow();
+});
+
 // ---------------------------------------------------------------------------
 // Normalization layer — real-world minified/legacy encoding quirks.
 // These fragments are synthetic (corpus-independent), matching how production

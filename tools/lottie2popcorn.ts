@@ -198,6 +198,14 @@ type Sample = Partial<{
   d: string;
 }>;
 
+/** A shape-level trim (Lottie 'tm'), static or per-property animated. */
+type TrimInfo = {
+  start: number; end: number; offset: number;
+  startCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
+  endCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
+  offsetCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
+};
+
 interface Rule {
   id: string;
   type: string; // group | rect | circle | ellipse | path
@@ -521,7 +529,7 @@ export class Converter {
     if (maskDecl) group.decls.push(maskDecl);
 
     if (l.ty === 4 && Array.isArray(l.shapes)) {
-      const shapeChildren = this.processItems(l.shapes, id, { fill: null, stroke: null });
+      const shapeChildren = this.processItems(l.shapes, id, { fill: null, stroke: null, trim: null });
       group.children.push(...shapeChildren);
     }
     group.children.push(...childRules);
@@ -690,7 +698,7 @@ export class Converter {
   private processItems(
     items: any[],
     prefix: string,
-    inherited: { fill: string | null; stroke: string | null }
+    inherited: { fill: string | null; stroke: string | null; trim: TrimInfo | null }
   ): Rule[] {
     // Hidden items (hd:true) contribute neither geometry nor paint style.
     items = items.filter((it) => !(it && it.hd === true));
@@ -707,7 +715,7 @@ export class Converter {
     let gradientFill: string | null = null;
     let fillCount = 0;
     let fillRule: number | null = null;
-    let trim: { start: number; end: number; offset: number } | null = null;
+    let trim: TrimInfo | null = null;
 
     for (const it of items) {
       switch (it.ty) {
@@ -761,12 +769,19 @@ export class Converter {
         }
         case 'tm': {
           const s = prop(it.s), e = prop(it.e), o = prop(it.o);
-          if ((s && s.animated) || (e && e.animated) || (o && o.animated))
-            this.warnOnce('animated trim baked to first value');
           trim = {
             start: s ? s.at(0)[0] ?? 0 : 0,
             end: e ? e.at(0)[0] ?? 100 : 100,
             offset: o ? (o.at(0)[0] ?? 0) / 360 : 0,
+            startCh: s && s.animated && s.kfs
+              ? { kfs: s.kfs, sample: (t: number) => ({ trimStart: s.at(t)[0] ?? 0 }) }
+              : null,
+            endCh: e && e.animated && e.kfs
+              ? { kfs: e.kfs, sample: (t: number) => ({ trimEnd: e.at(t)[0] ?? 100 }) }
+              : null,
+            offsetCh: o && o.animated && o.kfs
+              ? { kfs: o.kfs, sample: (t: number) => ({ trimOffset: (o.at(t)[0] ?? 0) / 360 }) }
+              : null,
           };
           break;
         }
@@ -777,7 +792,11 @@ export class Converter {
     if (fillCount > 1) this.warnOnce('group has multiple fills; last one used');
 
     const effectiveFill = gradientFill ?? fill;
-    const style = { fill: effectiveFill, stroke };
+    // A trim applies to preceding sibling shapes in Lottie, which may be a
+    // sibling `gr` group rather than a drawable in this same items array —
+    // inherit it down so descendants of that group still pick it up.
+    const effectiveTrim = trim ?? inherited.trim;
+    const style = { fill: effectiveFill, stroke, trim: effectiveTrim };
 
     const applyStyle = (rule: Rule) => {
       if (effectiveFill) rule.decls.push(`fill: ${effectiveFill}`);
@@ -788,9 +807,13 @@ export class Converter {
       if (dashArray) rule.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
       if (dashOffset) rule.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
       if (fillRule === 2) rule.decls.push(`fill-rule: evenodd`);
-      if (trim) {
-        rule.decls.push(`trim-start: ${num(trim.start)}%`, `trim-end: ${num(trim.end)}%`);
-        if (trim.offset) rule.decls.push(`trim-offset: ${num(trim.offset, 3)}`);
+      if (effectiveTrim) {
+        if (!effectiveTrim.startCh) rule.decls.push(`trim-start: ${num(effectiveTrim.start)}%`);
+        if (!effectiveTrim.endCh) rule.decls.push(`trim-end: ${num(effectiveTrim.end)}%`);
+        if (effectiveTrim.offset && !effectiveTrim.offsetCh) rule.decls.push(`trim-offset: ${num(effectiveTrim.offset, 3)}`);
+        if (effectiveTrim.startCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.startCh.kfs, sample: effectiveTrim.startCh.sample });
+        if (effectiveTrim.endCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.endCh.kfs, sample: effectiveTrim.endCh.sample });
+        if (effectiveTrim.offsetCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.offsetCh.kfs, sample: effectiveTrim.offsetCh.sample });
       }
       if (fillCh && fillKfs) rule.channels.push({ priority: 1, kfs: fillKfs, sample: fillCh });
     };
