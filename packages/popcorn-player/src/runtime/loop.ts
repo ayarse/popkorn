@@ -1,7 +1,9 @@
 import type { Renderer } from '../renderer/interface';
 import type { SceneNode, RectData, CircleData, EllipseData, PathData } from '../scene/types';
+import type { TrimDescriptor } from '../renderer/types';
 import { resetNodeToBase } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
+import { outlineLength } from '../scene/path-parser';
 import { resolveClip } from '../scene/clip';
 import { AnimationScheduler } from '../animation/scheduler';
 import { getPropHandler } from '../animation/registry';
@@ -166,6 +168,7 @@ export class RenderLoop {
       this.renderer.setFillGradient(null);
       this.renderer.setStroke(null, 0);
       this.renderer.setStrokeGradient(null);
+      this.renderer.setTrim(null);
       this.renderer.drawRect(0, 0, this.renderer.getWidth(), this.renderer.getHeight());
     }
 
@@ -194,6 +197,8 @@ export class RenderLoop {
     this.renderer.setFillGradient(node.fillGradient);
     this.renderer.setStroke(node.stroke, node.strokeWidth);
     this.renderer.setStrokeGradient(node.strokeGradient);
+    this.renderer.setStrokeLineCap(node.strokeLineCap);
+    this.renderer.setTrim(computeTrim(node));
     this.renderer.setOpacity(node.opacity);
 
     // Draw shape
@@ -234,4 +239,38 @@ export class RenderLoop {
 
 export function createRenderLoop(renderer: Renderer, scheduler?: AnimationScheduler): RenderLoop {
   return new RenderLoop(renderer, scheduler);
+}
+
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/**
+ * Resolve a node's trim-* fractions into a stroke dash descriptor, or null when
+ * the whole outline is stroked (the common, untrimmed case). Inputs are clamped
+ * to [0,1]; start >= end yields an empty (invisible) stroke. The dash pattern
+ * [visible, hidden] plus a negative dashOffset naturally handles wrap-around for
+ * closed shapes (marching via trim-offset).
+ */
+export function computeTrim(node: SceneNode): TrimDescriptor | null {
+  const start = clamp01(node.trimStart);
+  const end = clamp01(node.trimEnd);
+  const offset = clamp01(node.trimOffset);
+
+  // Untrimmed: stroke the whole outline, no dashing needed.
+  if (start <= 0 && end >= 1 && offset === 0) return null;
+
+  const total = outlineLength(node);
+  if (total <= 0) return null;
+
+  // Empty window -> nothing to stroke.
+  if (end <= start) return { visible: false, dashArray: [], dashOffset: 0 };
+
+  // Full window (offset has no visible effect when everything is drawn).
+  if (start <= 0 && end >= 1) return { visible: true, dashArray: [], dashOffset: 0 };
+
+  const visible = (end - start) * total;
+  return {
+    visible: true,
+    dashArray: [visible, total - visible],
+    dashOffset: -(start + offset) * total,
+  };
 }

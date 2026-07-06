@@ -369,6 +369,24 @@ export class SceneBuilder {
         node.strokeWidth = getNumericValue(value);
         break;
 
+      case 'stroke-linecap':
+        if (isKeywordValue(value) && (value.value === 'butt' || value.value === 'round' || value.value === 'square')) {
+          node.strokeLineCap = value.value;
+        }
+        break;
+
+      // Trim paths: percentages normalized to 0..1 (like opacity is authored as
+      // a fraction) and clamped to range.
+      case 'trim-start':
+        node.trimStart = clamp01(normalizeFraction(value));
+        break;
+      case 'trim-end':
+        node.trimEnd = clamp01(normalizeFraction(value));
+        break;
+      case 'trim-offset':
+        node.trimOffset = clamp01(normalizeFraction(value));
+        break;
+
       case 'opacity':
         node.opacity = getNumericValue(value);
         break;
@@ -675,6 +693,12 @@ export class SceneBuilder {
         case 'opacity':
           props.opacity = getNumericValue(value);
           break;
+        case 'trim-start':
+        case 'trim-end':
+        case 'trim-offset':
+          // Store normalized 0..1 so keyframe interpolation stays in range.
+          props[property] = normalizeFraction(value);
+          break;
         case 'fill':
           if (isColorValue(value)) {
             props.fill = value.value;
@@ -913,4 +937,15 @@ export class SceneBuilder {
 export function buildSceneGraph(stylesheet: StyleSheet): SceneNode {
   const builder = new SceneBuilder();
   return builder.build(stylesheet);
+}
+
+// A percentage (50%) becomes 0.5; a bare number (0.5) is taken as-is. Used for
+// trim-* props, which are fractions of the outline length.
+function normalizeFraction(value: Value): number {
+  if (isLengthValue(value) && value.unit === '%') return value.value / 100;
+  return getNumericValue(value);
+}
+
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }

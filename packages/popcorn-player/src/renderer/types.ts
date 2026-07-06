@@ -28,6 +28,15 @@ export interface RadialGradientData {
 
 export type GradientData = LinearGradientData | RadialGradientData;
 
+// Resolved trim-path descriptor for the stroke, expressed in the shape's local
+// outline-length units. The scene layer computes this (window -> dash pattern);
+// the renderer just applies it to the stroke via setLineDash/lineDashOffset.
+export interface TrimDescriptor {
+  visible: boolean;     // false => the trim window is empty, stroke nothing
+  dashArray: number[];  // [] => stroke the whole outline (no dashing)
+  dashOffset: number;   // maps to ctx.lineDashOffset
+}
+
 // A clip-path resolved to concrete local-space geometry (insets already applied
 // against the node's bounding box). Shared by the renderer and hit-test so both
 // clip/reject against identical geometry.

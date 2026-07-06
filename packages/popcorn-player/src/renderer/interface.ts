@@ -1,4 +1,5 @@
-import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
+import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
+import type { StrokeLineCap } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -24,6 +25,9 @@ export interface Renderer {
   setFillGradient(gradient: GradientData | null): void;
   setStroke(color: Color | null, width: number): void;
   setStrokeGradient(gradient: GradientData | null): void;
+  setStrokeLineCap(cap: StrokeLineCap): void;
+  // Trim the stroke to a sub-range of the outline; null strokes the whole outline.
+  setTrim(trim: TrimDescriptor | null): void;
   setOpacity(opacity: number): void;
 
   // Transform stack

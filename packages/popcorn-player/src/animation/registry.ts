@@ -43,7 +43,22 @@ function geometryNumber(key: string): PropHandler {
       // Geometry keys only exist on the shapes that declare them; the renderer
       // reads type-specific fields, so a stray assignment is inert.
       const sd = node.shapeData as unknown as Record<string, unknown>;
-      if (key in sd) sd[key] = value;
+      if (key in sd) {
+        sd[key] = value;
+        // Geometry changed -> the cached outline length is stale (trim paths).
+        node.outlineLengthDirty = true;
+      }
+    },
+  };
+}
+
+// --- trim paths (fractions 0..1 of the outline; render clamps to range) ------
+function trimNumber(key: 'trimStart' | 'trimEnd' | 'trimOffset'): PropHandler {
+  return {
+    kind: 'number',
+    readBase: (base) => base[key],
+    apply: (node, value) => {
+      node[key] = value as number;
     },
   };
 }
@@ -101,6 +116,11 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   cx: geometryNumber('cx'),
   cy: geometryNumber('cy'),
   r: geometryNumber('r'),
+
+  // trim paths
+  'trim-start': trimNumber('trimStart'),
+  'trim-end': trimNumber('trimEnd'),
+  'trim-offset': trimNumber('trimOffset'),
 };
 
 export function getPropHandler(property: string): PropHandler | undefined {

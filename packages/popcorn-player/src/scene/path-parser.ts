@@ -1,4 +1,5 @@
 import type { PathCommand } from '../renderer/types';
+import type { SceneNode, ShapeData } from './types';
 
 /**
  * Parse SVG path data string into PathCommand array
@@ -479,6 +480,207 @@ export function computePathBounds(commands: PathCommand[]): { x: number; y: numb
 
   if (minX === Infinity) return { x: 0, y: 0, width: 0, height: 0 };
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+// Samples per curved segment when flattening for length. Fixed-step keeps this
+// allocation-free and deterministic; it is plenty for trim-path visuals.
+// ponytail: adaptive subdivision (error-bounded) would be tighter for extreme curves.
+const LENGTH_SAMPLES = 32;
+
+/**
+ * Total length of a parsed path's outline. Straight segments are exact;
+ * quadratic/cubic beziers and elliptical arcs are flattened by fixed-step
+ * sampling and summed. Matches applyCommandsToPath's control-point tracking so
+ * smooth (S/T) segments measure the same curve that gets drawn.
+ */
+export function computePathLength(commands: PathCommand[]): number {
+  let total = 0;
+  let currentX = 0;
+  let currentY = 0;
+  let startX = 0;
+  let startY = 0;
+  let lastControlX = 0;
+  let lastControlY = 0;
+  let lastCommand: string | null = null;
+
+  const line = (x2: number, y2: number) => {
+    total += Math.hypot(x2 - currentX, y2 - currentY);
+    currentX = x2;
+    currentY = y2;
+  };
+
+  const cubic = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
+    let px = currentX;
+    let py = currentY;
+    for (let k = 1; k <= LENGTH_SAMPLES; k++) {
+      const t = k / LENGTH_SAMPLES;
+      const mt = 1 - t;
+      const a = mt * mt * mt;
+      const b = 3 * mt * mt * t;
+      const c = 3 * mt * t * t;
+      const d = t * t * t;
+      const sx = a * currentX + b * x1 + c * x2 + d * x;
+      const sy = a * currentY + b * y1 + c * y2 + d * y;
+      total += Math.hypot(sx - px, sy - py);
+      px = sx;
+      py = sy;
+    }
+    currentX = x;
+    currentY = y;
+  };
+
+  const quad = (x1: number, y1: number, x: number, y: number) => {
+    let px = currentX;
+    let py = currentY;
+    for (let k = 1; k <= LENGTH_SAMPLES; k++) {
+      const t = k / LENGTH_SAMPLES;
+      const mt = 1 - t;
+      const sx = mt * mt * currentX + 2 * mt * t * x1 + t * t * x;
+      const sy = mt * mt * currentY + 2 * mt * t * y1 + t * t * y;
+      total += Math.hypot(sx - px, sy - py);
+      px = sx;
+      py = sy;
+    }
+    currentX = x;
+    currentY = y;
+  };
+
+  for (const cmd of commands) {
+    switch (cmd.type) {
+      case 'M':
+        currentX = cmd.x;
+        currentY = cmd.y;
+        startX = cmd.x;
+        startY = cmd.y;
+        break;
+      case 'L':
+        line(cmd.x, cmd.y);
+        break;
+      case 'H':
+        line(cmd.x, currentY);
+        break;
+      case 'V':
+        line(currentX, cmd.y);
+        break;
+      case 'C':
+        cubic(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
+        lastControlX = cmd.x2;
+        lastControlY = cmd.y2;
+        break;
+      case 'S': {
+        let cx1 = currentX;
+        let cy1 = currentY;
+        if (lastCommand === 'C' || lastCommand === 'S') {
+          cx1 = 2 * currentX - lastControlX;
+          cy1 = 2 * currentY - lastControlY;
+        }
+        cubic(cx1, cy1, cmd.x2, cmd.y2, cmd.x, cmd.y);
+        lastControlX = cmd.x2;
+        lastControlY = cmd.y2;
+        break;
+      }
+      case 'Q':
+        quad(cmd.x1, cmd.y1, cmd.x, cmd.y);
+        lastControlX = cmd.x1;
+        lastControlY = cmd.y1;
+        break;
+      case 'T': {
+        let qx = currentX;
+        let qy = currentY;
+        if (lastCommand === 'Q' || lastCommand === 'T') {
+          qx = 2 * currentX - lastControlX;
+          qy = 2 * currentY - lastControlY;
+        }
+        quad(qx, qy, cmd.x, cmd.y);
+        lastControlX = qx;
+        lastControlY = qy;
+        break;
+      }
+      case 'A': {
+        const seg = arcToEllipse(
+          currentX, currentY, cmd.rx, cmd.ry, cmd.angle, cmd.largeArc, cmd.sweep, cmd.x, cmd.y
+        );
+        if (seg) {
+          const cosR = Math.cos(seg.rotation);
+          const sinR = Math.sin(seg.rotation);
+          let px = currentX;
+          let py = currentY;
+          for (let k = 1; k <= LENGTH_SAMPLES; k++) {
+            const a = seg.startAngle + ((seg.endAngle - seg.startAngle) * k) / LENGTH_SAMPLES;
+            const ex = seg.rx * Math.cos(a);
+            const ey = seg.ry * Math.sin(a);
+            const sx = seg.cx + ex * cosR - ey * sinR;
+            const sy = seg.cy + ex * sinR + ey * cosR;
+            total += Math.hypot(sx - px, sy - py);
+            px = sx;
+            py = sy;
+          }
+        } else {
+          line(cmd.x, cmd.y);
+        }
+        currentX = cmd.x;
+        currentY = cmd.y;
+        break;
+      }
+      case 'Z':
+        line(startX, startY);
+        break;
+    }
+    lastCommand = cmd.type;
+  }
+
+  return total;
+}
+
+/**
+ * Ramanujan's second approximation for an ellipse's perimeter. Exact for a
+ * circle (rx === ry); within ~1e-5 relative error for typical eccentricities.
+ * Approximate — good enough for trim-path length.
+ */
+export function ellipsePerimeter(rx: number, ry: number): number {
+  const a = Math.abs(rx);
+  const b = Math.abs(ry);
+  if (a === 0 && b === 0) return 0;
+  const h = ((a - b) * (a - b)) / ((a + b) * (a + b));
+  return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+}
+
+/**
+ * Total outline length of a shape's geometry. Analytic for circle/ellipse/rect
+ * (rounded corners = 4 quarter-ellipse arcs = one full ellipse perimeter);
+ * paths are flattened. Groups have no outline.
+ */
+export function shapeOutlineLength(sd: ShapeData): number {
+  switch (sd.type) {
+    case 'circle':
+      return 2 * Math.PI * Math.abs(sd.r);
+    case 'ellipse':
+      return ellipsePerimeter(sd.rx, sd.ry);
+    case 'rect': {
+      const rx = Math.min(Math.abs(sd.rx), sd.width / 2);
+      const ry = Math.min(Math.abs(sd.ry), sd.height / 2);
+      const straight = 2 * (sd.width - 2 * rx) + 2 * (sd.height - 2 * ry);
+      return straight + ellipsePerimeter(rx, ry);
+    }
+    case 'path':
+      return computePathLength(sd.commands);
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Cached outline length for a node. Recomputed only when a geometry apply has
+ * flagged outlineLengthDirty (see the registry), so static shapes measure once.
+ */
+export function outlineLength(node: SceneNode): number {
+  if (!node.outlineLengthDirty && node.cachedOutlineLength !== null) {
+    return node.cachedOutlineLength;
+  }
+  const len = shapeOutlineLength(node.shapeData);
+  node.cachedOutlineLength = len;
+  node.outlineLengthDirty = false;
+  return len;
 }
 
 function tokenizePath(d: string): string[] {

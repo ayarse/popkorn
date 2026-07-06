@@ -1,5 +1,6 @@
 import type { Renderer } from './interface';
-import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
+import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
+import type { StrokeLineCap } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -16,6 +17,8 @@ export class Canvas2DRenderer implements Renderer {
   private strokeWidth: number = 1;
   private fillGradient: GradientData | null = null;
   private strokeGradient: GradientData | null = null;
+  private lineCap: StrokeLineCap = 'butt';
+  private trim: TrimDescriptor | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -102,6 +105,14 @@ export class Canvas2DRenderer implements Renderer {
     this.strokeGradient = gradient;
   }
 
+  setStrokeLineCap(cap: StrokeLineCap): void {
+    this.lineCap = cap;
+  }
+
+  setTrim(trim: TrimDescriptor | null): void {
+    this.trim = trim;
+  }
+
   setOpacity(opacity: number): void {
     this.ctx.globalAlpha = opacity;
   }
@@ -147,6 +158,7 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   private applyFillAndStroke(bounds: Bounds): void {
+    // Fill is always drawn untrimmed (trim affects the stroke only, like Lottie).
     // Gradient wins over solid color when present.
     if (this.fillGradient) {
       this.ctx.fillStyle = this.realizeGradient(this.fillGradient, bounds);
@@ -155,15 +167,30 @@ export class Canvas2DRenderer implements Renderer {
       this.ctx.fillStyle = this.fillColor;
       this.ctx.fill();
     }
-    if (this.strokeGradient) {
-      this.ctx.strokeStyle = this.realizeGradient(this.strokeGradient, bounds);
-      this.ctx.lineWidth = this.strokeWidth;
-      this.ctx.stroke();
-    } else if (this.strokeColor) {
-      this.ctx.strokeStyle = this.strokeColor;
-      this.ctx.lineWidth = this.strokeWidth;
-      this.ctx.stroke();
+
+    const stroke = this.strokeGradient
+      ? this.realizeGradient(this.strokeGradient, bounds)
+      : this.strokeColor;
+    if (!stroke) return;
+
+    // An empty trim window strokes nothing.
+    if (this.trim && !this.trim.visible) return;
+
+    // Trim maps to a dash pattern over the outline; reset it per stroke so it
+    // can't leak to the next shape.
+    if (this.trim && this.trim.dashArray.length > 0) {
+      this.ctx.setLineDash(this.trim.dashArray);
+      this.ctx.lineDashOffset = this.trim.dashOffset;
+    } else {
+      this.ctx.setLineDash([]);
+      this.ctx.lineDashOffset = 0;
     }
+
+    this.ctx.lineCap = this.lineCap;
+    this.ctx.strokeStyle = stroke;
+    this.ctx.lineWidth = this.strokeWidth;
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
   }
 
   /**

@@ -176,6 +176,38 @@ loop.start();
 }
 ```
 
+### Trim Paths
+
+Trim paths reveal only part of a node's **stroke** (the fill is always drawn in
+full) — the effect behind Lottie-style progressive line drawing. Valid on any
+strokeable node (`path`, `circle`, `ellipse`, `rect`). The trims are percentages
+of the outline length and are animatable.
+
+```css
+@keyframes draw {
+  0% { trim-end: 0%; }
+  100% { trim-end: 100%; }
+}
+
+#signature {
+  type: path;
+  d: 'M100 300 C200 120 300 480 400 300';
+  fill: none;
+  stroke: #4ecdc4;
+  stroke-width: 8px;
+  stroke-linecap: round;          /* butt | round | square */
+  animation: draw 2s ease-in-out infinite;
+}
+```
+
+- `trim-start` (default `0%`) and `trim-end` (default `100%`) select the visible
+  window of the outline.
+- `trim-offset` (default `0%`) rotates the start point around the outline —
+  animate it for a "marching" dash on a closed shape (circle/ellipse/rect).
+- `stroke-linecap` sets the stroke's end caps: `butt` (default), `round`, or `square`.
+
+`trim-start >= trim-end` hides the stroke entirely.
+
 ### Animations
 
 ```css

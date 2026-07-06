@@ -11,6 +11,9 @@ export type ClipPathData =
 // Scene node types
 export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path';
 
+// Stroke line cap, maps straight to CanvasRenderingContext2D.lineCap.
+export type StrokeLineCap = 'butt' | 'round' | 'square';
+
 // Interaction state types
 export type InteractionState = 'normal' | 'hover' | 'active';
 
@@ -69,6 +72,21 @@ export interface SceneNode {
   strokeWidth: number;
   opacity: number;
 
+  // Trim paths (Lottie-style): stroke-only, expressed as fractions 0..1 of the
+  // outline length. start/end select the visible window; offset rotates the
+  // start point around the outline (marching effect on closed shapes). All
+  // three are animatable (see the registry's trim-* handlers).
+  trimStart: number;
+  trimEnd: number;
+  trimOffset: number;
+  strokeLineCap: StrokeLineCap;
+
+  // Cached total outline length (local units). Invalidated by the registry's
+  // geometry apply functions (they set outlineLengthDirty); recomputed lazily
+  // by outlineLength() so static shapes never pay per frame.
+  cachedOutlineLength: number | null;
+  outlineLengthDirty: boolean;
+
   // Gradient fill/stroke (static; when set, wins over the solid color above).
   fillGradient: GradientData | null;
   strokeGradient: GradientData | null;
@@ -103,6 +121,9 @@ export interface NodeBase {
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
+  trimStart: number;
+  trimEnd: number;
+  trimOffset: number;
   shapeData: ShapeData;
 }
 
@@ -247,6 +268,9 @@ export function snapshotNode(node: SceneNode): NodeBase {
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
     opacity: node.opacity,
+    trimStart: node.trimStart,
+    trimEnd: node.trimEnd,
+    trimOffset: node.trimOffset,
     shapeData: cloneShapeData(node.shapeData),
   };
 }
@@ -259,6 +283,9 @@ export function resetNodeToBase(node: SceneNode): void {
   node.stroke = b.stroke;
   node.strokeWidth = b.strokeWidth;
   node.opacity = b.opacity;
+  node.trimStart = b.trimStart;
+  node.trimEnd = b.trimEnd;
+  node.trimOffset = b.trimOffset;
   Object.assign(node.shapeData, b.shapeData);
 }
 
@@ -275,6 +302,12 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     stroke: null,
     strokeWidth: 1,
     opacity: 1,
+    trimStart: 0,
+    trimEnd: 1,
+    trimOffset: 0,
+    strokeLineCap: 'butt',
+    cachedOutlineLength: null,
+    outlineLengthDirty: true,
     fillGradient: null,
     strokeGradient: null,
     clipPath: null,
@@ -286,6 +319,9 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       stroke: null,
       strokeWidth: 1,
       opacity: 1,
+      trimStart: 0,
+      trimEnd: 1,
+      trimOffset: 0,
       shapeData: { type: 'group' },
     },
     bindings: [],

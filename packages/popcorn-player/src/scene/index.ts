@@ -1,6 +1,7 @@
 export type {
   SceneNode,
   ShapeType,
+  StrokeLineCap,
   Transform,
   TransformOrigin,
   TransformOriginUnit,
@@ -36,7 +37,7 @@ export {
 } from './types';
 
 export { SceneBuilder, buildSceneGraph } from './builder';
-export { parsePath } from './path-parser';
+export { parsePath, computePathLength, outlineLength } from './path-parser';
 
 export {
   computeLocalMatrix,
