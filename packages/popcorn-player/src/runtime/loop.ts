@@ -442,9 +442,21 @@ export function computeTrim(node: SceneNode): TrimDescriptor | null {
   if (start <= 0 && end >= 1) return { visible: true, dashArray: [], dashOffset: 0 };
 
   const visible = (end - start) * total;
+  const startPos = start + offset;
+
+  // A window anchored at the path start (offset 0, start 0) never wraps the seam,
+  // so pad its trailing gap out to a full `total`. This keeps Canvas's dash
+  // traversal — which measures a marginally *longer* arc than our sampled
+  // outlineLength — from repeating the pattern and painting a round-cap sliver
+  // (a stray dot) at the path's end. The marching case below keeps the exact
+  // [visible, hidden] period so its window can still wrap a closed shape's seam.
+  if (startPos <= 0) {
+    return { visible: true, dashArray: [visible, total], dashOffset: 0 };
+  }
+
   return {
     visible: true,
     dashArray: [visible, total - visible],
-    dashOffset: -(start + offset) * total,
+    dashOffset: -startPos * total,
   };
 }

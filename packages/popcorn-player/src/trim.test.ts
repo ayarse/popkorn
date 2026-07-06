@@ -143,6 +143,51 @@ test('computeTrim: partial window becomes a dash pattern plus offset', () => {
   expect(trim.dashOffset).toBeCloseTo(-(0.35) * total, 6);    // -(start + offset)
 });
 
+test('computeTrim: a start-anchored reveal pads the gap so the dash cannot wrap', () => {
+  // Regression: outlineLength under-measures a curved path, so a period == total
+  // let Canvas wrap a round-cap sliver (a stray dot) onto the path's end. A
+  // start-anchored window (start 0, offset 0) must use a full-length trailing gap.
+  const n = circle(50);
+  const total = 2 * Math.PI * 50;
+  n.trimStart = 0;
+  n.trimEnd = 0.6;
+  n.trimOffset = 0;
+  const trim = computeTrim(n)!;
+  expect(trim.visible).toBe(true);
+  expect(trim.dashArray[0]).toBeCloseTo(0.6 * total, 6); // visible arc
+  expect(trim.dashArray[1]).toBeCloseTo(total, 6);       // gap == full length -> no wrap
+  expect(trim.dashOffset).toBe(0);
+});
+
+test('computeTrim: a near-full reveal never emits a degenerate sub-pixel gap', () => {
+  const n = circle(50);
+  const total = 2 * Math.PI * 50;
+  n.trimStart = 0;
+  n.trimEnd = 0.999; // gap would be ~0.001*total; must be padded to a full total
+  const trim = computeTrim(n)!;
+  expect(trim.dashArray[1]).toBeCloseTo(total, 6);
+});
+
+test('computeTrim: full window with a nonzero offset still strokes solid', () => {
+  const n = circle(50);
+  n.trimStart = 0;
+  n.trimEnd = 1;
+  n.trimOffset = 0.5;
+  expect(computeTrim(n)).toEqual({ visible: true, dashArray: [], dashOffset: 0 });
+});
+
+test('computeTrim: a marching window keeps the exact period so it can wrap the seam', () => {
+  const n = circle(50);
+  const total = 2 * Math.PI * 50;
+  n.trimStart = 0;
+  n.trimEnd = 0.3;
+  n.trimOffset = 0.8; // window [0.8, 1.1] straddles the closed-shape seam
+  const trim = computeTrim(n)!;
+  expect(trim.dashArray[0]).toBeCloseTo(0.3 * total, 6);
+  expect(trim.dashArray[1]).toBeCloseTo(0.7 * total, 6);
+  expect(trim.dashOffset).toBeCloseTo(-0.8 * total, 6);
+});
+
 test('outlineLength: cache recomputes after a geometry apply', () => {
   const node = createSceneNode('c', 'circle');
   node.shapeData = { type: 'circle', cx: 0, cy: 0, r: 10 };
