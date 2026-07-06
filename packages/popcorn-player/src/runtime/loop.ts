@@ -188,7 +188,7 @@ export class RenderLoop {
     this.renderer.endFrame();
   }
 
-  private renderNode(node: SceneNode, isolated: boolean = false): void {
+  private renderNode(node: SceneNode, isolated: boolean = false, inheritedAlpha: number = 1): void {
     // In the normal walk, a matte source is painted only via its dependent's
     // composite (below), and a node with a matte is composited offscreen. The
     // isolated passes that feed those composites bypass both (isolated = true).
@@ -198,6 +198,15 @@ export class RenderLoop {
     }
 
     this.renderer.save();
+
+    // Cascade opacity: a group's opacity should dim its children too, so we
+    // carry the accumulated product down the walk rather than setting each
+    // node's opacity in isolation.
+    // ponytail: this multiplies alpha per-node rather than compositing the
+    // group offscreen and fading it as one, so overlapping children in a
+    // translucent group show through each other (wrong per CSS/Lottie
+    // semantics) — upgrade path is an offscreen group composite.
+    const alpha = inheritedAlpha * node.opacity;
 
     // Apply the node's local transform (translate/rotate/scale around transform-origin).
     // Multiplying onto the current (parent) transform yields the world transform.
@@ -220,7 +229,7 @@ export class RenderLoop {
     this.renderer.setStrokeLineCap(node.strokeLineCap);
     this.renderer.setTrim(computeTrim(node));
     this.renderer.setDash(node.strokeDashArray, node.strokeDashOffset);
-    this.renderer.setOpacity(node.opacity);
+    this.renderer.setOpacity(alpha);
 
     // Draw shape
     switch (node.shapeData.type) {
@@ -265,7 +274,7 @@ export class RenderLoop {
 
     // Render children
     for (const child of node.children) {
-      this.renderNode(child);
+      this.renderNode(child, false, alpha);
     }
 
     this.renderer.restore();
@@ -280,10 +289,12 @@ export class RenderLoop {
     const source = node.matte!.source;
     const contentParent = worldMatrix(node.parent);
     const matteParent = worldMatrix(source.parent);
+    const contentAlpha = worldAlpha(node.parent);
+    const matteAlpha = worldAlpha(source.parent);
     this.renderer.compositeMatte(
       node.matte!.mode,
-      () => { this.renderer.setTransform(contentParent); this.renderNode(node, true); },
-      () => { this.renderer.setTransform(matteParent); this.renderNode(source, true); }
+      () => { this.renderer.setTransform(contentParent); this.renderNode(node, true, contentAlpha); },
+      () => { this.renderer.setTransform(matteParent); this.renderNode(source, true, matteAlpha); }
     );
   }
 }
@@ -296,6 +307,13 @@ function worldMatrix(node: SceneNode | null): Matrix3x3 {
   let m = IDENTITY_MATRIX;
   for (let i = chain.length - 1; i >= 0; i--) m = multiplyMatrices(m, computeLocalMatrix(chain[i]));
   return m;
+}
+
+/** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */
+function worldAlpha(node: SceneNode | null): number {
+  let alpha = 1;
+  for (let n: SceneNode | null = node; n; n = n.parent) alpha *= n.opacity;
+  return alpha;
 }
 
 export function createRenderLoop(renderer: Renderer, scheduler?: AnimationScheduler): RenderLoop {
