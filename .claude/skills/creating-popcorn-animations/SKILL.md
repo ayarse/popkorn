@@ -42,6 +42,9 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |
 | Motion path | `offset-path: path('…'); offset-distance: 50%; offset-rotate: auto` (animate `offset-distance`) |
 | Mask / matte | `clip-path: circle(80 at 200 200)` · `matte: #layer alpha` |
+| Gradient/path animation | animate `fill: linear-gradient(…)` (same type + stop count) or `d: 'M…'` (same command sequence) in `@keyframes`; incompatible endpoints step |
+| Retime subtree | `time-offset: 2s; time-scale: 0.5` on a group — shifts + scales that node and all descendants (precomp-style; static) |
+| Group opacity | cascades: `opacity` on a group dims its whole subtree |
 
 ## Common mistakes
 
@@ -50,7 +53,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 - **Property does nothing** → it's likely unsupported (`skew`, `mix-blend-mode`, `steps()`, `object-fit`, `text-align`, `href`, `sides`, `line-height`). Parses silently, no effect. Check reference.md §17.
 - **Wrong geometry prop for the type** → silently ignored (`r` on a rect, `x` on a circle).
 - **`.5` or `//` comments** → invalid. Write `0.5`; use `/* */` only.
-- **Animating a gradient or a color via `var()`** → not supported; only solid `fill`/`stroke` interpolate, and `var()`/`input()` bind numeric props only.
+- **Animating a color via `var()`** → not supported; `var()`/`input()` bind numeric props only. (Solid colors, gradient stops, and path `d` *do* animate in `@keyframes` — gradients/paths only between compatible endpoints; see reference.md §12.)
 - **fill-mode surprise** → Popcorn defaults to `forwards` (holds final frame), unlike CSS's `none`.
 
 ## Verify a scene parses

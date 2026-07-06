@@ -154,6 +154,7 @@ Gotchas:
 - **A stroke only paints if a stroke color is set** — default `stroke-width: 1` alone paints nothing.
 - Gradient overrides solid color if both set; a gradient with no stops → no paint.
 - Trim affects only the **stroke** (fill always draws full). When a trim window is active, `stroke-dasharray` is ignored. Empty trim window → nothing strokes.
+- **`opacity` cascades**: a group's opacity multiplies down onto every descendant (child effective alpha = ancestors' opacities × own). So `opacity` on a group dims the whole subtree. (Caveat: it multiplies per-node, not an offscreen group composite — overlapping children in a translucent group show through each other.)
 - Unrecognized enum keywords drop to the default.
 
 ### Gradients
@@ -165,7 +166,7 @@ fill: radial-gradient(#fff, #000 100%);
 
 - Linear: optional leading angle (**default 180 = to-bottom**; render convention `0deg = up, 90deg = right`). Stops `color [offset%]`; omitted offsets evenly distributed.
 - Radial: centered on bounding box, radius = half box diagonal.
-- **Gradient fills/strokes are NOT animatable.**
+- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are *compatible* — same gradient type and same stop count (stops pair index-for-index, offsets + colors interpolate). Incompatible endpoints step (hold departing value).
 
 ### Blend modes
 
@@ -297,6 +298,26 @@ offset-rotate: auto;    /* auto | <deg> | auto <deg> */
 
 Animate `offset-distance` to move along the path (positioned by arc length). `offset-rotate: auto` follows the tangent; a fixed angle orients rigidly; `auto <deg>` = tangent + offset.
 
+### Time scoping (precomps)
+
+`time-offset` and `time-scale` retime a node **and its whole subtree** — its own
+animations plus every descendant's. The local timeline is rewritten to
+`(t − time-offset) · time-scale`, so all downstream timing (delays, iterations,
+fill modes, motion-path distance) follows along.
+
+```css
+#slow-mo {
+  type: group;
+  time-offset: 2s;    /* subtree starts 2s later on the parent timeline */
+  time-scale: 0.5;    /* ...and runs at half speed (2 = double, must be > 0) */
+  > #a { type: circle; r: 10px; fill: #e94560; animation: pulse 1s ease-in-out infinite; }
+}
+```
+
+- `time-offset: <time>` — `s`/`ms` (bare number = ms). Default `0`.
+- `time-scale: <number>` — playback rate. Must be `> 0` (else warns, falls back to `1`). Default `1`.
+- Both are **static** (not animatable). Nested scopes compose — each applies to the local time it inherits. This is how imported compositions (Lottie precomps, with per-instance start time and stretch) keep independent clocks.
+
 ---
 
 ## 11. Animation
@@ -366,8 +387,21 @@ Supported (standard CSS seek-forward). `animation: slide 1s linear -0.5s` starts
 ### Animatable properties
 
 Numeric (lerp): `translateX`, `translateY`, `rotate`, `scaleX`, `scaleY`, `opacity`, `stroke-width`, `x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `outer-radius`, `inner-radius`, `rotation`, `stroke-dashoffset`, `trim-start`, `trim-end`, `trim-offset`, `offset-distance`, `font-size`.
-Color (rgb/rgba lerp): `fill`, `stroke` (solid only).
-**Not animatable:** `points`, gradient paint.
+Color (rgb/rgba lerp): `fill`, `stroke` (solid colors).
+Gradient paint: `fill`, `stroke` — interpolated when endpoints are **compatible** (same gradient type + stop count); otherwise step.
+Path shape: **`d` morphs** — interpolated when both keyframe paths have the **same command sequence** (same letters, same order/counts); otherwise step. Trim, fill-rule, hit-testing keep working on the morphing path.
+**Not animatable:** `points` (star/polygon vertex count), `time-offset`, `time-scale`.
+
+```css
+@keyframes recolor {          /* gradient stop animation (compatible endpoints) */
+  0%   { fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%); }
+  100% { fill: linear-gradient(45deg, #ffe66d 0%, #a855f7 100%); }
+}
+@keyframes blob {             /* path morph — identical command sequence */
+  0%   { d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 Z'; }
+  100% { d: 'M 400 130 C 520 180 580 240 560 320 C 540 400 460 470 380 460 Z'; }
+}
+```
 
 ### Per-keyframe easing & hold keyframes
 
@@ -558,7 +592,9 @@ player.source = myDslCode;   // parse + build + play
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
 - **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href` (use `src`), `sides` (use `points`).
 - **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
-- **Gradients aren't animatable**; only solid `fill`/`stroke` interpolate.
+- **Gradients + path `d` ARE animatable** — but only between *compatible* endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
+- **`opacity` cascades** to descendants (group opacity dims its whole subtree).
+- **`time-scale`/`time-offset`** retime a node + its subtree (precomp-style); static, must be `> 0` for scale.
 - **Geometry props are type-gated** — `r` on a rect is ignored, etc.
 - Unrecognized enum keywords silently fall back to the default.
 - **No `//` comments, no `.5` numbers, no exponents** (`0.5`, not `.5`).
