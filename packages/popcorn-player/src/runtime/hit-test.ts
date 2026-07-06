@@ -15,6 +15,7 @@ import type {
   PathData,
   FillRule,
 } from '../scene/types';
+import { childrenInPaintOrder } from '../scene/types';
 import type { Matrix3x3, PathCommand, ResolvedClip } from '../renderer/types';
 import { IDENTITY_MATRIX, invertMatrix, transformPoint } from '../renderer/types';
 import { computeWorldMatrix, getShapeBounds } from '../scene/transform';
@@ -69,6 +70,10 @@ function hitTestNode(
   order: { value: number },
   results: HitTestResult[]
 ): void {
+  // A node hidden by its visibility window paints nothing, so it (and its
+  // subtree) can't be hit either. `hidden` is set by the per-frame resolve walk.
+  if (node.hidden) return;
+
   // Matte sources are never painted on their own, so they can't be hit; skip
   // the whole subtree. (Matted content is hit-tested normally on its shape.)
   if (node.isMatteSource) return;
@@ -87,7 +92,9 @@ function hitTestNode(
     results.push({ node, depth });
   }
 
-  for (const child of node.children) {
+  // Same paint order as the render walk, so hit depth (= paint order) and
+  // stacking agree: later-painted siblings get higher depth (topmost).
+  for (const child of childrenInPaintOrder(node)) {
     hitTestNode(child, point, world, order, results);
   }
 }

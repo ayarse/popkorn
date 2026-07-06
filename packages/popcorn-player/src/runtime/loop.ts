@@ -2,7 +2,7 @@ import type { Renderer } from '../renderer/interface';
 import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData } from '../scene/types';
 import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
 import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
-import { resetNodeToBase } from '../scene/types';
+import { resetNodeToBase, childrenInPaintOrder } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
 import { outlineLength } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
@@ -207,6 +207,13 @@ export class RenderLoop {
    * base -> bindings -> animation -> interaction overrides.
    */
   private resolveNode(node: SceneNode, t: number): void {
+    // Visibility window: a node outside [from, until) is hidden this frame, and
+    // the render walk / hit-testing skip it and its subtree. Evaluated against
+    // the INCOMING time `t` (this node's containing scope) — not the local time
+    // below — because a layer's visibility lives in its parent comp's timeline,
+    // while time-offset/time-scale only remap time for the node's own content.
+    node.hidden = t < node.visibleFrom || t >= node.visibleUntil;
+
     // Per-subtree time scoping: shift then scale the inherited time into this
     // node's local timeline, which applies to the node and all descendants.
     // Nested scopes compose because the scoped time is what recurses down.
@@ -262,6 +269,9 @@ export class RenderLoop {
   }
 
   private renderNode(node: SceneNode, isolated: boolean = false, inheritedAlpha: number = 1): void {
+    // Outside its visibility window the node (and subtree) paints nothing.
+    if (node.hidden) return;
+
     // In the normal walk, a matte source is painted only via its dependent's
     // composite (below), and a node with a matte is composited offscreen. The
     // isolated passes that feed those composites bypass both (isolated = true).
@@ -345,8 +355,8 @@ export class RenderLoop {
         break;
     }
 
-    // Render children
-    for (const child of node.children) {
+    // Render children in paint order (z-index ascending, document order ties).
+    for (const child of childrenInPaintOrder(node)) {
       this.renderNode(child, false, alpha);
     }
 

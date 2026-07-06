@@ -158,6 +158,20 @@ export interface SceneNode {
   timeOffset: number;
   timeScale: number;
 
+  // Sibling paint order (static). Siblings paint in ascending z-index (document
+  // order breaks ties); the same order drives hit-testing. Default 0. Negative
+  // values are valid and are the main use — painting a node behind its siblings.
+  zIndex: number;
+
+  // Visibility window in scene-local milliseconds (compared against the same
+  // scoped time the scheduler samples this node at). Outside [visibleFrom,
+  // visibleUntil) the node and its subtree are skipped by both the render walk
+  // and hit-testing. Defaults (-Infinity, +Infinity) => always visible. `hidden`
+  // is the per-frame evaluation, set during the resolve walk.
+  visibleFrom: number;
+  visibleUntil: number;
+  hidden: boolean;
+
   // Shape-specific data
   shapeData: ShapeData;
 
@@ -450,6 +464,10 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     offsetRotate: { auto: true, angle: 0 },
     timeOffset: 0,
     timeScale: 1,
+    zIndex: 0,
+    visibleFrom: -Infinity,
+    visibleUntil: Infinity,
+    hidden: false,
     shapeData: { type: 'group' },
     animations: [],
     base: {
@@ -473,4 +491,21 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     activeStyles: null,
     interactive: false,
   };
+}
+
+/**
+ * Children in paint order: ascending z-index, document order breaking ties.
+ * Both the render walk and hit-testing use this so painted stacking and hit
+ * priority always agree. Returns the original array untouched (no allocation)
+ * in the common case where every child sits at the default z-index 0.
+ */
+export function childrenInPaintOrder(node: SceneNode): SceneNode[] {
+  const children = node.children;
+  for (let i = 0; i < children.length; i++) {
+    if (children[i].zIndex !== 0) {
+      // Array.prototype.sort is stable, so equal z-indexes keep document order.
+      return [...children].sort((a, b) => a.zIndex - b.zIndex);
+    }
+  }
+  return children;
 }

@@ -532,6 +532,31 @@ Both are static (not animatable). Nested scopes compose — each applies to the
 local time it inherits — which is how imported compositions (Lottie precomps,
 with per-instance start time and stretch) keep independent clocks.
 
+### Layering & Visibility
+
+By default siblings paint in document order (first child behind, last in front).
+`z-index` overrides that: siblings paint in **ascending** z-index, with document
+order breaking ties, and hit-testing uses the same order. Negative values are
+valid — and the main use — for painting a nested child *behind* its parent's
+other children. Groups have no geometry of their own, so parent-vs-child
+layering reduces to sibling ordering. Static, integer, default `0`.
+
+`visible-from` / `visible-until` window a node (and its subtree) to a time range,
+in the node's own timeline (`s` / `ms`). Outside `[from, until)` the node is
+skipped by both the render walk and hit-testing — nothing to paint, nothing to
+hover. This is how imported layers with a shorter life than the composition
+(sticker exports that swap a layer in per time slice) appear and disappear
+without an opacity hack. Static; defaults are "always visible".
+
+```css
+#torso {
+  type: group;
+  > #chest { type: path; d: '...'; }
+  > #back-arm { type: path; d: '...'; z-index: -1; }   /* behind the chest */
+  > #spark  { type: circle; r: 4px; visible-from: 2s; visible-until: 4s; }
+}
+```
+
 ### Variables & Interactivity
 
 ```css

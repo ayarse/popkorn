@@ -664,6 +664,24 @@ export class SceneBuilder {
         break;
       }
 
+      // Sibling paint order (static integer). See childrenInPaintOrder.
+      case 'z-index':
+        node.zIndex = getNumericValue(value);
+        break;
+
+      // Visibility window (static). Times are stored in ms to match the scoped
+      // timeline the resolve walk compares them against (like time-offset).
+      case 'visible-from':
+        node.visibleFrom = isLengthValue(value) && value.unit === 's'
+          ? value.value * 1000
+          : getNumericValue(value); // ms (bare number or 'ms')
+        break;
+      case 'visible-until':
+        node.visibleUntil = isLengthValue(value) && value.unit === 's'
+          ? value.value * 1000
+          : getNumericValue(value); // ms (bare number or 'ms')
+        break;
+
       // Animation (shorthand)
       case 'animation':
         this.applyAnimation(node, value);
