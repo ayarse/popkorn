@@ -645,6 +645,25 @@ export class SceneBuilder {
         node.opacity = getNumericValue(value);
         break;
 
+      // Per-subtree time scoping (static). time-offset shifts the local
+      // timeline later; time-scale compresses/stretches it. Applied to this
+      // node and its descendants during the render walk.
+      case 'time-offset':
+        node.timeOffset = isLengthValue(value) && value.unit === 's'
+          ? value.value * 1000
+          : getNumericValue(value); // ms (bare number or 'ms')
+        break;
+      case 'time-scale': {
+        const scale = getNumericValue(value);
+        if (scale > 0) {
+          node.timeScale = scale;
+        } else {
+          console.warn(`time-scale must be > 0, got ${scale}; using 1`);
+          node.timeScale = 1;
+        }
+        break;
+      }
+
       // Animation (shorthand)
       case 'animation':
         this.applyAnimation(node, value);

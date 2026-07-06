@@ -487,6 +487,30 @@ it by arc length (`0%`–`100%`, animatable); `offset-rotate` orients the node.
   tangent, an angle is a fixed orientation, `auto <angle>` is tangent plus a
   fixed offset. Default `auto`.
 
+### Time Scoping
+
+`time-offset` and `time-scale` retime a node **and its whole subtree** — the
+node's own animations plus every descendant's. They rewrite the local timeline
+to `(t - time-offset) * time-scale`, so all timing downstream (delays,
+iterations, fill modes, motion-path distance) just follows along.
+
+```css
+#slow-mo {
+  type: group;
+  time-scale: 0.5;        /* this subtree runs at half speed */
+  time-offset: 2s;        /* ...and starts 2s later on the parent timeline */
+  > #a { type: circle; r: 10px; animation: pulse 1s ease-in-out infinite; }
+}
+```
+
+- `time-offset: <time>` — delay the subtree's timeline (`s` / `ms`), default `0`.
+- `time-scale: <number>` — playback rate; `0.5` is half speed, `2` is double.
+  Must be `> 0` (invalid values warn and fall back to `1`), default `1`.
+
+Both are static (not animatable). Nested scopes compose — each applies to the
+local time it inherits — which is how imported compositions (Lottie precomps,
+with per-instance start time and stretch) keep independent clocks.
+
 ### Variables & Interactivity
 
 ```css

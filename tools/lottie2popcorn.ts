@@ -151,7 +151,8 @@ export class Converter {
   private ids = new Set<string>();
   private crossSampled = false;
   private assets = new Map<string, any>();
-  private ruleByInd = new Map<number, Rule>();
+  // refIds of precomps currently being expanded, for cycle detection.
+  private compStack = new Set<string>();
   fr = 60;
   ip = 0;
 
@@ -181,64 +182,7 @@ export class Converter {
     if (Array.isArray(lottie.assets)) for (const a of lottie.assets) if (a && a.id) this.assets.set(a.id, a);
 
     const layers: any[] = Array.isArray(lottie.layers) ? lottie.layers : [];
-    const byInd = new Map<number, any>();
-    for (const l of layers) if (typeof l.ind === 'number') byInd.set(l.ind, l);
-
-    const convertible = (l: any) => l && (l.ty === 1 || l.ty === 2 || l.ty === 3 || l.ty === 4);
-
-    // Record blocked non-convertible layer types.
-    for (const l of layers) {
-      if (convertible(l)) continue;
-      const feat =
-        l.ty === 0 ? 'precomp layer (ty 0)' :
-        l.ty === 5 ? 'text layer (ty 5)' :
-        `layer type ${l.ty}`;
-      this.blocked.add(feat);
-    }
-
-    // children[parentInd] = convertible child layers, array order preserved.
-    const childrenOf = new Map<number, any[]>();
-    const roots: any[] = [];
-    for (const l of layers) {
-      if (!convertible(l)) continue;
-      const parent = l.parent;
-      if (typeof parent === 'number' && convertible(byInd.get(parent))) {
-        (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(l);
-      } else {
-        roots.push(l);
-      }
-    }
-
-    const buildLayer = (l: any): Rule | null => {
-      try {
-        return this.buildLayerRule(l, childrenOf);
-      } catch (e: any) {
-        this.warnOnce(`layer ${l.ind} skipped: ${e.message}`);
-        return null;
-      }
-    };
-
-    // Lottie paints last-to-first; Popcorn paints first-behind -> reverse.
-    const topRules: Rule[] = [];
-    for (const l of [...roots].reverse()) {
-      const r = buildLayer(l);
-      if (r) topRules.push(r);
-    }
-
-    // Track mattes: a layer with `tt` is masked by its matte source (the layer
-    // referenced by `tp`, else the one directly above). Emit `matte: #id <mode>`
-    // on the content rule; the source rule is marked matteSource at build time.
-    for (let i = 0; i < layers.length; i++) {
-      const l = layers[i];
-      if (l.tt === undefined) continue;
-      const mode = MATTE_MODE[l.tt];
-      if (!mode) { this.blocked.add(`track matte mode tt:${l.tt}`); continue; }
-      const content = this.ruleByInd.get(l.ind);
-      const srcInd = typeof l.tp === 'number' ? l.tp : layers[i - 1]?.ind;
-      const source = srcInd !== undefined ? this.ruleByInd.get(srcInd) : undefined;
-      if (!content || !source) { this.blocked.add('track matte (unresolved source)'); continue; }
-      content.decls.push(`matte: #${source.id} ${mode}`);
-    }
+    const topRules = this.buildLayerList(layers, '');
 
     if (this.crossSampled) {
       this.warnOnce('some nodes animate multiple properties with differing keyframe times; secondary props linear-sampled');
@@ -274,16 +218,92 @@ export class Converter {
     return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
   }
 
+  // --- layer list -> rules ------------------------------------------------
+
+  private isConvertible(l: any): boolean {
+    return l && (l.ty === 0 || l.ty === 1 || l.ty === 2 || l.ty === 3 || l.ty === 4);
+  }
+
+  /**
+   * Convert one composition's layer list (the root comp, or a precomp asset's
+   * layers) into top-level rules. Parenting, reverse paint order, and track
+   * mattes are all resolved locally within the list. `prefix` namespaces ids so
+   * multiple instances of the same precomp never collide.
+   */
+  private buildLayerList(layers: any[], prefix: string): Rule[] {
+    const byInd = new Map<number, any>();
+    for (const l of layers) if (typeof l.ind === 'number') byInd.set(l.ind, l);
+
+    // Record blocked non-convertible layer types.
+    for (const l of layers) {
+      if (this.isConvertible(l)) continue;
+      const feat = l.ty === 5 ? 'text layer (ty 5)' : `layer type ${l.ty}`;
+      this.blocked.add(feat);
+    }
+
+    // children[parentInd] = convertible child layers, array order preserved.
+    const childrenOf = new Map<number, any[]>();
+    const roots: any[] = [];
+    for (const l of layers) {
+      if (!this.isConvertible(l)) continue;
+      const parent = l.parent;
+      if (typeof parent === 'number' && this.isConvertible(byInd.get(parent))) {
+        (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(l);
+      } else {
+        roots.push(l);
+      }
+    }
+
+    const ruleByInd = new Map<number, Rule>();
+    const buildLayer = (l: any): Rule | null => {
+      try {
+        return this.buildLayerRule(l, childrenOf, prefix, ruleByInd);
+      } catch (e: any) {
+        this.warnOnce(`layer ${l.ind} skipped: ${e.message}`);
+        return null;
+      }
+    };
+
+    // Lottie paints last-to-first; Popcorn paints first-behind -> reverse.
+    const topRules: Rule[] = [];
+    for (const l of [...roots].reverse()) {
+      const r = buildLayer(l);
+      if (r) topRules.push(r);
+    }
+
+    // Track mattes: a layer with `tt` is masked by its matte source (the layer
+    // referenced by `tp`, else the one directly above). Emit `matte: #id <mode>`
+    // on the content rule; the source rule is marked matteSource at build time.
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (l.tt === undefined) continue;
+      const mode = MATTE_MODE[l.tt];
+      if (!mode) { this.blocked.add(`track matte mode tt:${l.tt}`); continue; }
+      const content = ruleByInd.get(l.ind);
+      const srcInd = typeof l.tp === 'number' ? l.tp : layers[i - 1]?.ind;
+      const source = srcInd !== undefined ? ruleByInd.get(srcInd) : undefined;
+      if (!content || !source) { this.blocked.add('track matte (unresolved source)'); continue; }
+      content.decls.push(`matte: #${source.id} ${mode}`);
+    }
+
+    return topRules;
+  }
+
   // --- layer -> rule ------------------------------------------------------
 
-  private buildLayerRule(l: any, childrenOf: Map<number, any[]>): Rule {
-    const id = this.uniqueId(l.nm || `layer-${l.ind}`);
+  private buildLayerRule(
+    l: any,
+    childrenOf: Map<number, any[]>,
+    prefix: string,
+    ruleByInd: Map<number, Rule>
+  ): Rule {
+    const id = this.uniqueId(prefix ? `${prefix}-${l.nm || `layer-${l.ind}`}` : (l.nm || `layer-${l.ind}`));
     const st = l.st || 0;
 
     this.scanBlocked(l);
     const maskDecl = this.maskClipPath(l);
     const record = (rule: Rule): Rule => {
-      if (typeof l.ind === 'number') this.ruleByInd.set(l.ind, rule);
+      if (typeof l.ind === 'number') ruleByInd.set(l.ind, rule);
       return rule;
     };
 
@@ -299,10 +319,47 @@ export class Converter {
     const childRules: Rule[] = [];
     for (const cl of childLayers) {
       try {
-        childRules.push(this.buildLayerRule(cl, childrenOf));
+        childRules.push(this.buildLayerRule(cl, childrenOf, prefix, ruleByInd));
       } catch (e: any) {
         this.warnOnce(`child layer ${cl.ind} skipped: ${e.message}`);
       }
+    }
+
+    if (l.ty === 0) {
+      // Precomp layer: a group carrying the layer transform, with the referenced
+      // comp's layers expanded as nested children (mirrors symbol expansion).
+      const asset = this.assets.get(l.refId);
+      if (!asset || !Array.isArray(asset.layers)) {
+        this.blocked.add('precomp layer missing asset');
+        throw new Error(`missing precomp asset '${l.refId}'`);
+      }
+      if (this.compStack.has(l.refId)) {
+        this.blocked.add('precomp cycle');
+        throw new Error(`precomp cycle at '${l.refId}'`);
+      }
+      const group: Rule = { id, type: 'group', decls: [], channels: [], children: [] };
+      // st is applied as time-offset (below), which scopes the whole subtree, so
+      // pass 0 here to avoid also folding it into the group's own delay.
+      this.applyTransform(l.ks, group, 0);
+      if (maskDecl) group.decls.push(maskDecl);
+
+      // Precomps clip to their comp box (per spec; harmless when content fits).
+      const cw = l.w ?? asset.w, ch = l.h ?? asset.h;
+      if (cw && ch) group.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
+
+      // Time scoping: st -> local start offset; sr stretch -> time-scale (1/sr,
+      // since Lottie sr=2 plays at half speed).
+      if (st) group.decls.push(`time-offset: ${num(st / this.fr, 3)}s`);
+      if (typeof l.sr === 'number' && l.sr !== 1 && l.sr > 0) {
+        group.decls.push(`time-scale: ${num(1 / l.sr, 4)}`);
+      }
+
+      this.compStack.add(l.refId);
+      const assetRules = this.buildLayerList(asset.layers, id);
+      this.compStack.delete(l.refId);
+      group.children.push(...assetRules, ...childRules);
+      this.finalizeAnim(group, 0);
+      return record(group);
     }
 
     if (l.ty === 2) {

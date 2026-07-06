@@ -150,6 +150,14 @@ export interface SceneNode {
   offsetDistance: number;
   offsetRotate: OffsetRotate;
 
+  // Per-subtree time scoping (static). During the per-frame walk this node's
+  // inherited timeline time t is transformed to a local time
+  // (t - timeOffset) * timeScale, applied to this node AND its descendants.
+  // Defaults (0, 1) are the identity, so untouched nodes are unaffected.
+  // timeOffset is in milliseconds; timeScale must be > 0.
+  timeOffset: number;
+  timeScale: number;
+
   // Shape-specific data
   shapeData: ShapeData;
 
@@ -440,6 +448,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     offsetPath: null,
     offsetDistance: 0,
     offsetRotate: { auto: true, angle: 0 },
+    timeOffset: 0,
+    timeScale: 1,
     shapeData: { type: 'group' },
     animations: [],
     base: {

@@ -142,13 +142,19 @@ export class RenderLoop {
    * base -> bindings -> animation -> interaction overrides.
    */
   private resolveNode(node: SceneNode, t: number): void {
+    // Per-subtree time scoping: shift then scale the inherited time into this
+    // node's local timeline, which applies to the node and all descendants.
+    // Nested scopes compose because the scoped time is what recurses down.
+    // Defaults (0, 1) leave `t` unchanged.
+    const local = (t - node.timeOffset) * node.timeScale;
+
     resetNodeToBase(node);
     this.applyBindings(node);
-    this.scheduler.sampleNode(node, t);
+    this.scheduler.sampleNode(node, local);
     applyInteractionOverrides(node);
 
     for (const child of node.children) {
-      this.resolveNode(child, t);
+      this.resolveNode(child, local);
     }
   }
 
