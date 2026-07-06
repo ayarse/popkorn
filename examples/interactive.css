@@ -1,7 +1,4 @@
-/* Interactive Example (Phase 3 - Stretch Goal)
- * Note: var() and input() functions are not yet implemented in the PoC
- * This file shows the target syntax for future implementation
- */
+/* Interactive Example - cursor tracking + hover/active states */
 
 :canvas {
   width: 800px;
@@ -9,36 +6,34 @@
   background: #0f0f23;
 }
 
-/* CSS variables would be defined like this:
 :root {
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
-}
-*/
-
-/* Future: Circle follows cursor
-#follower {
-  type: circle;
-  cx: var(--cursor-x);
-  cy: var(--cursor-y);
-  r: 30px;
-  fill: #e94560;
-}
-*/
-
-/* For now, static version */
-#follower {
-  type: circle;
-  cx: 400px;
-  cy: 300px;
-  r: 30px;
-  fill: #e94560;
 }
 
 @keyframes glow {
   0% { opacity: 0.5; }
   50% { opacity: 1; }
   100% { opacity: 0.5; }
+}
+
+/* Circle follows the cursor via var() bound to input() */
+#follower {
+  type: circle;
+  cx: var(--cursor-x);
+  cy: var(--cursor-y);
+  r: 30px;
+  fill: #e94560;
+
+  &:hover {
+    fill: #ff6b8a;
+    transform: scale(1.2);
+  }
+
+  &:active {
+    fill: #c73e54;
+    transform: scale(0.9);
+  }
 }
 
 #trail1 {
