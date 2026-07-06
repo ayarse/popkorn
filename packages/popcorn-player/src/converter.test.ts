@@ -445,3 +445,35 @@ test('merge: animated geometry unions via a morphing d channel', () => {
   expect((css.match(/M /g) || []).length).toBeGreaterThanOrEqual(2);
   expect(buildSceneGraph(parse(css))).toBeTruthy();
 });
+
+// ---------------------------------------------------------------------------
+// Color normalization — some production exports use 0-255 integer color
+// components instead of the standard 0-1 floats.
+// ---------------------------------------------------------------------------
+
+function fillDoc(c: number[]) {
+  return {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, ind: 1, nm: 'L', ks: {},
+      shapes: [{
+        ty: 'gr',
+        it: [
+          { ty: 'el', s: { a: 0, k: [8, 8] }, p: { a: 0, k: [0, 0] } },
+          { ty: 'fl', c: { a: 0, k: c }, o: { a: 0, k: 100 } },
+          { ty: 'tr' },
+        ],
+      }],
+    }],
+  };
+}
+
+test('normalize: 0-255 integer color components are rescaled to 0-1', () => {
+  const css = new Converter().convert(fillDoc([255, 0, 0]));
+  expect(css).toContain('fill: #ff0000');
+});
+
+test('normalize: a legitimate 0-1 color with a component exactly at 1.0 is not rescaled', () => {
+  const css = new Converter().convert(fillDoc([1, 1, 0]));
+  expect(css).toContain('fill: #ffff00');
+});

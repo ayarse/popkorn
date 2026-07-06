@@ -38,11 +38,16 @@ function first(v: unknown): number {
   return Array.isArray(v) ? (v as number[])[0] : (v as number);
 }
 
-/** [r,g,b,a] in 0..1 (a optional) times an extra opacity 0..1 -> #rrggbb / rgba(). */
+/**
+ * [r,g,b,a] in 0..1 (a optional) times an extra opacity 0..1 -> #rrggbb / rgba().
+ * Some Lottie exports use 0..255 integer components instead of the standard
+ * 0..1 floats; if any component exceeds 1, treat the whole array as 0..255.
+ */
 function lottieColor(c: number[], opacity = 1): string {
-  const to255 = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
+  const scale = c.some((v) => v > 1) ? 1 / 255 : 1;
+  const to255 = (v: number) => Math.max(0, Math.min(255, Math.round(v * scale * 255)));
   const r = to255(c[0]), g = to255(c[1]), b = to255(c[2]);
-  const a = (c.length > 3 ? c[3] : 1) * opacity;
+  const a = (c.length > 3 ? c[3] * scale : 1) * opacity;
   if (a >= 0.999) {
     const hex = (n: number) => n.toString(16).padStart(2, '0');
     return `#${hex(r)}${hex(g)}${hex(b)}`;
