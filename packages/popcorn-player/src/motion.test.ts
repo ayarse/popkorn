@@ -135,11 +135,22 @@ test('offset-rotate auto applies the path tangent to the local matrix', () => {
   expect(m[5]).toBeCloseTo(50, 6);
 });
 
-test('offset-distance 0 (default) is a no-op: node stays at its authored position', () => {
+test('offset-distance 0 places the node at the path START, not identity', () => {
   const node = createSceneNode('n', 'rect');
   node.shapeData = { type: 'rect', x: 0, y: 0, width: 10, height: 10, rx: 0, ry: 0 };
   node.offsetPath = buildMotionPath(parsePath('M 40 40 L 100 40'));
-  // offsetDistance defaults to 0 -> identity placement.
+  // Per CSS, offset-distance:0 sits the node at the path's first point (40,40) —
+  // not at the identity offset. (A node holding its first keyframe before its
+  // offset-distance animation begins must show there, not collapse to origin.)
+  const p = transformPoint(computeLocalMatrix(node), 0, 0);
+  expect(p.x).toBeCloseTo(40, 6);
+  expect(p.y).toBeCloseTo(40, 6);
+});
+
+test('no offset-path leaves the node at its authored position', () => {
+  const node = createSceneNode('n', 'rect');
+  node.shapeData = { type: 'rect', x: 0, y: 0, width: 10, height: 10, rx: 0, ry: 0 };
+  // No motion path -> the sampled placement is skipped entirely (identity).
   const p = transformPoint(computeLocalMatrix(node), 0, 0);
   expect(p.x).toBeCloseTo(0, 6);
   expect(p.y).toBeCloseTo(0, 6);
