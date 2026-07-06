@@ -1,4 +1,6 @@
-export { RenderLoop, createRenderLoop } from './loop';
+export { RenderLoop, createRenderLoop, wrapTime } from './loop';
+export { computeViewport, viewportMatrix, deviceToScene, IDENTITY_VIEWPORT } from './viewport';
+export type { Viewport, FitMode } from './viewport';
 export { InputTracker, getInputTracker, createInputTracker } from './inputs';
 export type { InputState } from './inputs';
 export { VariableResolver, getVariableResolver, createVariableResolver } from './variables';

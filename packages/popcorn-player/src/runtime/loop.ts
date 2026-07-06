@@ -7,7 +7,7 @@ import { computeLocalMatrix } from '../scene/transform';
 import { outlineLength } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
 import { resolveClip } from '../scene/clip';
-import { AnimationScheduler } from '../animation/scheduler';
+import { AnimationScheduler, computeSceneDuration } from '../animation/scheduler';
 import { getPropHandler } from '../animation/registry';
 import { InputTracker, createInputTracker } from './inputs';
 import { VariableResolver, createVariableResolver } from './variables';
@@ -32,6 +32,17 @@ export class RenderLoop {
   private inputTracker: InputTracker;
   private variableResolver: VariableResolver;
   private interactionManager: InteractionManager;
+  // Fit-to-container: root transform (scene -> device px) applied each frame, plus
+  // the scene box size the background fills. Default identity = 1:1, no fit.
+  private viewport: Matrix3x3 = IDENTITY_MATRIX;
+  private sceneWidth: number = 0;
+  private sceneHeight: number = 0;
+  // Looping: when on, the timeline wraps once it passes `sceneDuration`.
+  private looping: boolean = false;
+  private sceneDuration: number = 0;
+  // Fires once per rendered frame with the current timeline time (drives the
+  // controls scrubber off the existing loop tick — no extra rAF).
+  private frameCallback: ((time: number) => void) | null = null;
 
   constructor(
     renderer: Renderer,
@@ -62,10 +73,52 @@ export class RenderLoop {
   setScene(root: SceneNode): void {
     this.sceneRoot = root;
     this.interactionManager.setScene(root);
+    this.sceneDuration = computeSceneDuration(root);
   }
 
   setBackgroundColor(color: string | null): void {
     this.backgroundColor = color;
+  }
+
+  /** Intrinsic scene size (the `:canvas` box) the background fills and fit maps. */
+  setSceneSize(width: number, height: number): void {
+    this.sceneWidth = width;
+    this.sceneHeight = height;
+  }
+
+  /** Root transform (scene -> device px) applied at the start of each frame. */
+  setViewport(matrix: Matrix3x3): void {
+    this.viewport = matrix;
+  }
+
+  /** Enable/disable timeline looping (wraps at `duration`). */
+  setLoop(enabled: boolean): void {
+    this.looping = enabled;
+  }
+
+  /** Register a per-frame callback (current timeline time in ms). */
+  setFrameCallback(cb: ((time: number) => void) | null): void {
+    this.frameCallback = cb;
+  }
+
+  /** Scene duration in ms (max animation end time; infinite counts as one iteration). */
+  get duration(): number {
+    return this.sceneDuration;
+  }
+
+  /** Whether the rAF loop is currently running. */
+  get running(): boolean {
+    return this.isRunning;
+  }
+
+  /** Whether the timeline is frozen (paused). */
+  get paused(): boolean {
+    return this.scheduler.isPaused();
+  }
+
+  /** Repaint one frame at the current timeline time (for resize while paused/stopped). */
+  redraw(): void {
+    this.drawFrame(performance.now());
   }
 
   start(): void {
@@ -131,10 +184,22 @@ export class RenderLoop {
   /** Resolve every node's live values at the current timeline time and render. */
   private drawFrame(now: number): void {
     if (this.sceneRoot) {
-      const t = this.scheduler.time(now);
+      let t = this.scheduler.time(now);
+      // Looping: once the timeline runs past the scene's duration, fold it back
+      // into [0, duration) and re-anchor the scheduler. Re-anchoring (rather than
+      // just sampling the wrapped t) resets fill-forward states cleanly and keeps
+      // currentTime bounded. Skipped while paused so scrubbing to the end holds.
+      if (this.looping && !this.scheduler.isPaused()) {
+        const wrapped = wrapTime(t, this.sceneDuration, true);
+        if (wrapped !== t) {
+          this.scheduler.seek(wrapped, now);
+          t = wrapped;
+        }
+      }
       this.resolveNode(this.sceneRoot, t);
     }
     this.render();
+    this.frameCallback?.(this.currentTime);
   }
 
   /**
@@ -170,14 +235,22 @@ export class RenderLoop {
   private render(): void {
     this.renderer.beginFrame();
 
-    // Draw background
+    // beginFrame clears the whole device buffer at identity, so letterbox
+    // margins stay clear; the viewport (fit + DPR) then becomes the root
+    // transform for the background and scene, which draw in scene space.
+    this.renderer.setTransform(this.viewport);
+
+    // Draw background — fills the scene box (not the device buffer) so it
+    // letterboxes with the scene under contain/none.
     if (this.backgroundColor) {
       this.renderer.setFill(this.backgroundColor);
       this.renderer.setFillGradient(null);
       this.renderer.setStroke(null, 0);
       this.renderer.setStrokeGradient(null);
       this.renderer.setTrim(null);
-      this.renderer.drawRect(0, 0, this.renderer.getWidth(), this.renderer.getHeight());
+      const w = this.sceneWidth || this.renderer.getWidth();
+      const h = this.sceneHeight || this.renderer.getHeight();
+      this.renderer.drawRect(0, 0, w, h);
     }
 
     // Render scene graph
@@ -287,8 +360,11 @@ export class RenderLoop {
    */
   private renderMatte(node: SceneNode): void {
     const source = node.matte!.source;
-    const contentParent = worldMatrix(node.parent);
-    const matteParent = worldMatrix(source.parent);
+    // Fold the viewport into each subtree's world transform: the matte closures
+    // call setTransform (bypassing the render-root viewport), so without this the
+    // matte would render at 1:1 while the rest of the scene is fit-scaled.
+    const contentParent = multiplyMatrices(this.viewport, worldMatrix(node.parent));
+    const matteParent = multiplyMatrices(this.viewport, worldMatrix(source.parent));
     const contentAlpha = worldAlpha(node.parent);
     const matteAlpha = worldAlpha(source.parent);
     this.renderer.compositeMatte(
@@ -318,6 +394,15 @@ function worldAlpha(node: SceneNode | null): number {
 
 export function createRenderLoop(renderer: Renderer, scheduler?: AnimationScheduler): RenderLoop {
   return new RenderLoop(renderer, scheduler);
+}
+
+/**
+ * Fold a timeline time into [0, duration) for looping. A no-op when looping is
+ * off, the scene has no duration, or `t` is still within the first pass.
+ */
+export function wrapTime(t: number, duration: number, loop: boolean): number {
+  if (loop && duration > 0 && t >= duration) return t % duration;
+  return t;
 }
 
 const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);

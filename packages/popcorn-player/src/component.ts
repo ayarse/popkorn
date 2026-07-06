@@ -3,6 +3,7 @@ import { Canvas2DRenderer } from './renderer/canvas2d';
 import { buildSceneGraph } from './scene/builder';
 import { RenderLoop } from './runtime/loop';
 import { AnimationScheduler } from './animation/scheduler';
+import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewport';
 
 /**
  * PopcornPlayer Web Component
@@ -11,8 +12,9 @@ import { AnimationScheduler } from './animation/scheduler';
  * ```html
  * <popcorn-player
  *   src="..."
- *   width="400"
- *   height="300"
+ *   loop
+ *   controls
+ *   fit="contain"
  *   background="#1a1a2e"
  * ></popcorn-player>
  * ```
@@ -22,6 +24,9 @@ import { AnimationScheduler } from './animation/scheduler';
  * const player = document.querySelector('popcorn-player');
  * player.source = myDslCode;
  * ```
+ *
+ * The player is responsive: the canvas fills the host, whose default size comes
+ * from the scene's `:canvas` aspect ratio but can be constrained by the parent.
  */
 export class PopcornPlayer extends HTMLElement {
   private canvas: HTMLCanvasElement;
@@ -30,46 +35,128 @@ export class PopcornPlayer extends HTMLElement {
   private scheduler: AnimationScheduler | null = null;
   private _source: string = '';
 
+  // Intrinsic scene size (from `:canvas`, falling back to width/height attrs).
+  private sceneWidth: number = 400;
+  private sceneHeight: number = 300;
+
+  private resizeObserver: ResizeObserver | null = null;
+
+  // Controls UI (shadow DOM).
+  private controlsEl: HTMLDivElement;
+  private playBtn: HTMLButtonElement;
+  private scrub: HTMLInputElement;
+  private timeEl: HTMLSpanElement;
+  private scrubbing = false;
+  private wasPlaying = false;
+
   static get observedAttributes() {
-    return ['src', 'width', 'height', 'background'];
+    return ['src', 'width', 'height', 'background', 'loop', 'controls', 'fit', 'autoplay'];
   }
 
   constructor() {
     super();
 
-    // Create shadow DOM
     const shadow = this.attachShadow({ mode: 'open' });
 
-    // Create canvas
+    // Canvas fills the host; the ResizeObserver drives its backing store.
     this.canvas = document.createElement('canvas');
-    this.canvas.style.display = 'block';
 
-    // Add styles
     const style = document.createElement('style');
     style.textContent = `
       :host {
-        display: inline-block;
+        display: block;
+        position: relative;
+        width: var(--pc-width, 400px);
+        aspect-ratio: var(--pc-aspect, 4 / 3);
+        max-width: 100%;
       }
       canvas {
         display: block;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .pc-controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 32px;
+        box-sizing: border-box;
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+        background: rgba(0, 0, 0, 0.55);
+        font: 12px system-ui, -apple-system, sans-serif;
+        color: #fff;
+        user-select: none;
+      }
+      .pc-controls button {
+        background: none;
+        border: none;
+        color: #fff;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 0;
+        width: 18px;
+      }
+      .pc-controls input[type="range"] {
+        flex: 1;
+        min-width: 40px;
+        accent-color: #4ecdc4;
+        cursor: pointer;
+      }
+      .pc-time {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
     `;
 
-    shadow.appendChild(style);
-    shadow.appendChild(this.canvas);
+    // Build the controls overlay (hidden unless the `controls` attr is set).
+    this.controlsEl = document.createElement('div');
+    this.controlsEl.className = 'pc-controls';
+
+    this.playBtn = document.createElement('button');
+    this.playBtn.type = 'button';
+    this.playBtn.textContent = '❚❚';
+    this.playBtn.addEventListener('click', () => this.togglePlay());
+
+    this.scrub = document.createElement('input');
+    this.scrub.type = 'range';
+    this.scrub.min = '0';
+    this.scrub.max = '0';
+    this.scrub.step = '1';
+    this.scrub.value = '0';
+    this.scrub.addEventListener('input', () => this.onScrubInput());
+    this.scrub.addEventListener('change', () => this.onScrubChange());
+
+    this.timeEl = document.createElement('span');
+    this.timeEl.className = 'pc-time';
+    this.timeEl.textContent = '0:00.0 / 0:00.0';
+
+    this.controlsEl.append(this.playBtn, this.scrub, this.timeEl);
+
+    shadow.append(style, this.canvas, this.controlsEl);
   }
 
   connectedCallback() {
-    // Set initial dimensions
-    this.updateDimensions();
+    // Responsive: repaint + resize the backing store whenever the host resizes.
+    if (typeof ResizeObserver !== 'undefined') {
+      this.resizeObserver = new ResizeObserver(() => this.syncSize());
+      this.resizeObserver.observe(this);
+    }
 
-    // Initialize if we have source
     if (this._source) {
       this.initializePlayer();
     }
   }
 
   disconnectedCallback() {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
     this.stop();
   }
 
@@ -82,13 +169,24 @@ export class PopcornPlayer extends HTMLElement {
         break;
       case 'width':
       case 'height':
-        this.updateDimensions();
+        // Only a fallback scene size (used when there's no `:canvas`); re-fit.
+        this.syncSize();
         break;
       case 'background':
         if (this.renderLoop) {
           this.renderLoop.setBackgroundColor(newValue);
         }
         break;
+      case 'loop':
+        this.renderLoop?.setLoop(this.boolAttr('loop'));
+        break;
+      case 'controls':
+        this.refreshControls();
+        break;
+      case 'fit':
+        this.syncSize();
+        break;
+      // `autoplay` only affects the initial start, handled in initializePlayer.
     }
   }
 
@@ -141,6 +239,48 @@ export class PopcornPlayer extends HTMLElement {
     } else {
       this.removeAttribute('background');
     }
+  }
+
+  /** Whether the timeline loops. */
+  get loop(): boolean {
+    return this.boolAttr('loop');
+  }
+
+  set loop(value: boolean) {
+    if (value) this.setAttribute('loop', ''); else this.removeAttribute('loop');
+  }
+
+  /** Whether the controls overlay is shown. */
+  get controls(): boolean {
+    return this.boolAttr('controls');
+  }
+
+  set controls(value: boolean) {
+    if (value) this.setAttribute('controls', ''); else this.removeAttribute('controls');
+  }
+
+  /**
+   * Whether playback auto-starts. DEVIATION from the HTML-media convention:
+   * default is TRUE — an absent `autoplay` attribute means autoplay unless it is
+   * explicitly `autoplay="false"`. This preserves the historical auto-start
+   * behavior (back-compat wins over the HTML boolean-attribute norm).
+   */
+  get autoplay(): boolean {
+    return this.getAttribute('autoplay') !== 'false';
+  }
+
+  set autoplay(value: boolean) {
+    this.setAttribute('autoplay', value ? 'true' : 'false');
+  }
+
+  /** How the scene is fitted into the host (contain | cover | fill | none). */
+  get fit(): FitMode {
+    const v = this.getAttribute('fit');
+    return v === 'cover' || v === 'fill' || v === 'none' ? v : 'contain';
+  }
+
+  set fit(value: FitMode) {
+    this.setAttribute('fit', value);
   }
 
   /**
@@ -198,14 +338,19 @@ export class PopcornPlayer extends HTMLElement {
     return this.renderLoop?.currentTime ?? 0;
   }
 
-  private updateDimensions(): void {
-    const width = parseInt(this.getAttribute('width') || '400', 10);
-    const height = parseInt(this.getAttribute('height') || '300', 10);
+  /** Scene duration in milliseconds (0 when the scene has no animations). */
+  get duration(): number {
+    return this.renderLoop?.duration ?? 0;
+  }
 
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.canvas.style.width = `${width}px`;
-    this.canvas.style.height = `${height}px`;
+  /** Whether the timeline is currently frozen. */
+  get paused(): boolean {
+    return this.renderLoop?.paused ?? true;
+  }
+
+  private boolAttr(name: string): boolean {
+    const v = this.getAttribute(name);
+    return v !== null && v !== 'false';
   }
 
   private async initializePlayer(): Promise<void> {
@@ -217,46 +362,143 @@ export class PopcornPlayer extends HTMLElement {
     }
 
     try {
-      // Parse the DSL
       const ast = parse(this._source);
 
-      // Build scene graph
+      // Intrinsic scene size: `:canvas` wins, else the width/height attrs.
+      this.sceneWidth = ast.canvas?.width ?? parseInt(this.getAttribute('width') || '400', 10);
+      this.sceneHeight = ast.canvas?.height ?? parseInt(this.getAttribute('height') || '300', 10);
+
+      // Default host size = scene aspect (overridable by the parent's CSS).
+      this.style.setProperty('--pc-width', `${this.sceneWidth}px`);
+      this.style.setProperty('--pc-aspect', `${this.sceneWidth} / ${this.sceneHeight}`);
+
       const sceneRoot = buildSceneGraph(ast);
 
-      // Initialize renderer
       this.renderer = new Canvas2DRenderer(this.canvas);
-
-      // Create scheduler
       this.scheduler = new AnimationScheduler();
 
-      // Create render loop
       this.renderLoop = new RenderLoop(this.renderer, this.scheduler);
       this.renderLoop.setScene(sceneRoot);
+      this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
+      this.renderLoop.setLoop(this.boolAttr('loop'));
+      this.renderLoop.setFrameCallback((t) => this.onFrame(t));
 
-      // Set background color if specified
-      const bg = this.getAttribute('background');
+      // Background: explicit attr wins, else the authored `:canvas` background.
+      const bg = this.getAttribute('background') ?? ast.canvas?.background ?? null;
       if (bg) {
         this.renderLoop.setBackgroundColor(bg);
       }
 
-      // Set up variable resolver with AST variables
       const variableResolver = this.renderLoop.getVariableResolver();
       variableResolver.setVariables(ast.variables);
 
-      // Attach input tracker
       const inputTracker = this.renderLoop.getInputTracker();
       inputTracker.attach(this.canvas);
 
-      // Start playback
-      this.renderLoop.start();
+      // Size the backing store and compute the fit viewport before first paint.
+      this.syncSize();
 
-      // Dispatch ready event
-      this.dispatchEvent(new CustomEvent('ready', { detail: { sceneRoot } }));
+      // Autoplay default TRUE (see the `autoplay` getter). When off, keep the
+      // loop running so interaction stays live but freeze the timeline at 0.
+      this.renderLoop.start();
+      if (!this.autoplay) {
+        this.renderLoop.pause();
+      }
+
+      this.refreshControls();
+
+      this.dispatchEvent(new CustomEvent('ready', { detail: { sceneRoot, duration: this.duration } }));
     } catch (error) {
       console.error('PopcornPlayer: Failed to initialize', error);
       this.dispatchEvent(new CustomEvent('error', { detail: { error } }));
     }
   }
+
+  /**
+   * Match the canvas backing store to the host element × devicePixelRatio and
+   * recompute the fit viewport (shared with the render root and input mapping).
+   */
+  private syncSize(): void {
+    if (!this.renderLoop) return;
+
+    const rect = this.getBoundingClientRect();
+    const elemW = rect.width || this.sceneWidth;
+    const elemH = rect.height || this.sceneHeight;
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+
+    const bw = Math.max(1, Math.round(elemW * dpr));
+    const bh = Math.max(1, Math.round(elemH * dpr));
+    if (this.canvas.width !== bw) this.canvas.width = bw;
+    if (this.canvas.height !== bh) this.canvas.height = bh;
+
+    const vp = computeViewport(this.sceneWidth, this.sceneHeight, elemW, elemH, dpr, this.fit);
+    this.renderLoop.setViewport(viewportMatrix(vp));
+    this.renderLoop.getInputTracker().setViewport(vp, dpr);
+
+    // While running, the next rAF frame repaints; when paused/stopped, force one.
+    if (!this.renderLoop.running) this.renderLoop.redraw();
+  }
+
+  // --- Controls --------------------------------------------------------------
+
+  private togglePlay(): void {
+    if (!this.renderLoop) return;
+    if (this.renderLoop.paused) this.resume(); else this.pause();
+    this.playBtn.textContent = this.paused ? '▶' : '❚❚';
+  }
+
+  private onScrubInput(): void {
+    if (!this.scrubbing) {
+      this.wasPlaying = !this.paused;
+      this.scrubbing = true;
+    }
+    this.pause();
+    const t = Number(this.scrub.value);
+    this.seek(t);
+    this.timeEl.textContent = `${formatTime(t)} / ${formatTime(this.duration)}`;
+  }
+
+  private onScrubChange(): void {
+    this.scrubbing = false;
+    if (this.wasPlaying) this.resume();
+    this.playBtn.textContent = this.paused ? '▶' : '❚❚';
+  }
+
+  /** Per-frame tick from the loop: advance the scrubber + readout (unless dragging). */
+  private onFrame(t: number): void {
+    if (!this.boolAttr('controls')) return;
+    if (!this.scrubbing) {
+      const d = this.duration;
+      // Without looping the timeline runs past duration (fill-forward hold), and
+      // a scene with no animations (d = 0) free-runs; clamp the readout/scrubber
+      // so they never exceed the total.
+      const shown = d > 0 ? Math.min(t, d) : 0;
+      this.scrub.value = String(shown);
+      this.timeEl.textContent = `${formatTime(shown)} / ${formatTime(d)}`;
+    }
+  }
+
+  /** Sync the controls overlay to the current attr + scene state. */
+  private refreshControls(): void {
+    const show = this.boolAttr('controls');
+    this.controlsEl.style.display = show ? 'flex' : 'none';
+    if (!show) return;
+    const d = this.duration;
+    this.scrub.max = String(d);
+    this.scrub.disabled = d <= 0;
+    this.scrub.value = String(this.currentTime);
+    this.playBtn.textContent = this.paused ? '▶' : '❚❚';
+    this.timeEl.textContent = `${formatTime(this.currentTime)} / ${formatTime(d)}`;
+  }
+}
+
+/** Format milliseconds as m:ss.t (minutes:seconds.tenths). */
+function formatTime(ms: number): string {
+  const totalSeconds = Math.max(0, ms) / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const tenths = Math.floor((totalSeconds * 10) % 10);
+  return `${minutes}:${String(seconds).padStart(2, '0')}.${tenths}`;
 }
 
 /**

@@ -156,6 +156,26 @@ export class AnimationScheduler {
   }
 }
 
+/**
+ * Total scene duration in ms: the latest end time across every animation in the
+ * tree, where an animation ends at `delay + duration * iterations`. An infinite
+ * (`infinite`) animation counts as ONE iteration, so a looping scene still has a
+ * finite period to wrap on. Returns 0 when the scene has no animations.
+ */
+export function computeSceneDuration(root: SceneNode): number {
+  let max = 0;
+  const visit = (node: SceneNode): void => {
+    for (const a of node.animations) {
+      const iterations = a.iterationCount === Infinity ? 1 : a.iterationCount;
+      const end = a.delay + a.duration * iterations;
+      if (end > max) max = end;
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(root);
+  return max;
+}
+
 // Singleton instance
 let scheduler: AnimationScheduler | null = null;
 

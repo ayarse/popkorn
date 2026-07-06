@@ -3,6 +3,8 @@
  * This is for Phase 3 (stretch goal) but we set up the structure now.
  */
 
+import { IDENTITY_VIEWPORT, type Viewport } from './viewport';
+
 export interface InputState {
   cursor: {
     x: number;
@@ -24,6 +26,11 @@ export class InputTracker {
   };
 
   private canvas: HTMLCanvasElement | null = null;
+  // Maps pointer coords (CSS px, ×dpr -> device px) back to scene coords, so
+  // hit-testing and input(cursor.*) keep working under any fit / DPR. Default is
+  // identity at dpr 1 (canvas px == scene px).
+  private viewport: Viewport = IDENTITY_VIEWPORT;
+  private dpr: number = 1;
   private boundHandlers: {
     mouseMove: (e: MouseEvent) => void;
     mouseDown: (e: MouseEvent) => void;
@@ -62,6 +69,12 @@ export class InputTracker {
     return this.state;
   }
 
+  /** Set the scene<-device mapping so cursor coords resolve to scene space. */
+  setViewport(viewport: Viewport, dpr: number): void {
+    this.viewport = viewport;
+    this.dpr = dpr;
+  }
+
   update(time: number): void {
     this.state.time = time;
   }
@@ -69,8 +82,12 @@ export class InputTracker {
   private handleMouseMove(e: MouseEvent): void {
     if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
-    this.state.cursor.x = e.clientX - rect.left;
-    this.state.cursor.y = e.clientY - rect.top;
+    // CSS px within the canvas -> device px (×dpr) -> scene coords (inverse
+    // viewport). getBoundingClientRect is CSS px regardless of backing-store size.
+    const deviceX = (e.clientX - rect.left) * this.dpr;
+    const deviceY = (e.clientY - rect.top) * this.dpr;
+    this.state.cursor.x = (deviceX - this.viewport.offsetX) / this.viewport.scaleX;
+    this.state.cursor.y = (deviceY - this.viewport.offsetY) / this.viewport.scaleY;
   }
 
   private handleMouseDown(_e: MouseEvent): void {

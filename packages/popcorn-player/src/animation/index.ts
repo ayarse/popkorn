@@ -11,4 +11,5 @@ export {
   AnimationScheduler,
   getAnimationScheduler,
   createAnimationScheduler,
+  computeSceneDuration,
 } from './scheduler';

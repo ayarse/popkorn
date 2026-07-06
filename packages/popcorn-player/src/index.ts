@@ -66,10 +66,13 @@ export {
   AnimationScheduler,
   getAnimationScheduler,
   createAnimationScheduler,
+  computeSceneDuration,
 } from './animation/scheduler';
 
 // Runtime
-export { RenderLoop, createRenderLoop } from './runtime/loop';
+export { RenderLoop, createRenderLoop, wrapTime } from './runtime/loop';
+export { computeViewport, viewportMatrix, deviceToScene, IDENTITY_VIEWPORT } from './runtime/viewport';
+export type { Viewport, FitMode } from './runtime/viewport';
 export { InputTracker, getInputTracker, createInputTracker } from './runtime/inputs';
 export type { InputState } from './runtime/inputs';
 export { VariableResolver, getVariableResolver, createVariableResolver } from './runtime/variables';

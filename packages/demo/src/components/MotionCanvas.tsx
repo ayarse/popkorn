@@ -5,12 +5,14 @@ import type { PopcornPlayer } from '@popcorn/player';
 export interface MotionCanvasProps {
   /** CSS-like scene definition */
   source: string;
-  /** Canvas width */
-  width?: number;
-  /** Canvas height */
-  height?: number;
   /** Background color */
   backgroundColor?: string;
+  /** Show the playback controls bar */
+  controls?: boolean;
+  /** Loop the timeline */
+  loop?: boolean;
+  /** How the scene fits the container */
+  fit?: 'contain' | 'cover' | 'fill' | 'none';
   /** Called when scene is ready */
   onSceneReady?: () => void;
   /** Called on error */
@@ -26,9 +28,10 @@ export interface MotionCanvasProps {
  */
 export function MotionCanvas({
   source,
-  width = 800,
-  height = 600,
   backgroundColor,
+  controls = true,
+  loop = true,
+  fit = 'contain',
   onSceneReady,
   onError,
   className,
@@ -43,6 +46,16 @@ export function MotionCanvas({
       player.source = source;
     }
   }, [source]);
+
+  // Reflect playback options as attributes (robust across React's custom-element
+  // prop handling).
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player) return;
+    if (controls) player.setAttribute('controls', ''); else player.removeAttribute('controls');
+    if (loop) player.setAttribute('loop', ''); else player.removeAttribute('loop');
+    player.setAttribute('fit', fit);
+  }, [controls, loop, fit]);
 
   // Handle events
   useEffect(() => {
@@ -70,11 +83,9 @@ export function MotionCanvas({
   return (
     <popcorn-player
       ref={playerRef}
-      width={width}
-      height={height}
       background={backgroundColor}
       className={className}
-      style={style}
+      style={{ width: '100%', ...style }}
     />
   );
 }
