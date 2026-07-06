@@ -1,22 +1,16 @@
-#!/usr/bin/env bun
 /**
- * Lottie JSON -> Popcorn DSL converter.
+ * Lottie JSON -> Popcorn DSL converter core.
  *
- *   bun tools/lottie2popcorn.ts <in.json> [-o out.css] [--validate]
- *   bun tools/lottie2popcorn.ts --batch <dir> [--validate]
- *
- * Zero dependencies beyond the workspace. --validate re-parses and builds the
- * generated CSS through @popcorn/parser + @popcorn/player to prove it round-trips.
- *
- * The mapping is documented inline where it earns comment; the high-level model:
- * a Lottie comp becomes a :canvas plus one top-level rule per layer (emitted in
- * REVERSE layer order because Lottie paints last-to-first and Popcorn paints
- * first-behind). Layer transforms bake into transform/transform-origin/opacity;
- * animated properties become one @keyframes per node on the union of keyframe
- * times; spatial position keyframes become a CSS motion path.
+ * Pure conversion logic — no Node builtins (fs/path/process), so this module
+ * is importable from both the `lottie2popcorn-cli.ts` CLI wrapper and browser
+ * code (e.g. the demo's "Import Lottie" tool). The mapping is documented
+ * inline where it earns comment; the high-level model: a Lottie comp becomes
+ * a :canvas plus one top-level rule per layer (emitted in REVERSE layer order
+ * because Lottie paints last-to-first and Popcorn paints first-behind). Layer
+ * transforms bake into transform/transform-origin/opacity; animated
+ * properties become one @keyframes per node on the union of keyframe times;
+ * spatial position keyframes become a CSS motion path.
  */
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
-import { join, basename } from 'node:path';
 import { parse } from '../packages/popcorn-parser/src/index.ts';
 import { buildSceneGraph } from '../packages/popcorn-player/src/scene/builder.ts';
 import { parsePath, computePathLength } from '../packages/popcorn-player/src/scene/path-parser.ts';
@@ -568,7 +562,7 @@ export class Converter {
 
   // --- transform (ks / tr) -> decls + channels ----------------------------
 
-  private applyTransform(ks: any, rule: Rule, st: number, opts: { skipOpacity?: boolean } = {}) {
+  private applyTransform(ks: any, rule: Rule, _st: number, opts: { skipOpacity?: boolean } = {}) {
     if (!ks) return;
     const o = opts.skipOpacity ? null : prop(ks.o);
     const r = prop(ks.r);
@@ -1160,7 +1154,7 @@ function serializeRule(rule: Rule, depth: number, top: boolean): string {
 // Validation
 // ---------------------------------------------------------------------------
 
-function validate(css: string): string[] {
+export function validate(css: string): string[] {
   const errors: string[] = [];
   try {
     const sheet = parse(css);
@@ -1171,104 +1165,9 @@ function validate(css: string): string[] {
   return errors;
 }
 
-// ---------------------------------------------------------------------------
-// CLI
-// ---------------------------------------------------------------------------
-
-function convertFile(path: string): { css: string; warnings: string[]; blocked: Set<string> } {
-  const lottie = JSON.parse(readFileSync(path, 'utf8'));
+/** Convert an already-parsed Lottie JSON object to Popcorn CSS. No file I/O — safe for browser use. */
+export function convertLottie(lottie: any): { css: string; warnings: string[]; blocked: string[] } {
   const c = new Converter();
   const css = c.convert(lottie);
-  return { css, warnings: c.warnings, blocked: c.blocked };
+  return { css, warnings: c.warnings, blocked: [...c.blocked] };
 }
-
-function walkJson(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    const st = statSync(p);
-    if (st.isDirectory()) walkJson(p, out);
-    else if (name.endsWith('.json') && !name.endsWith('-meta.json')) out.push(p);
-  }
-  return out;
-}
-
-function runBatch(dir: string) {
-  const files = walkJson(dir).sort();
-  let clean = 0, warn = 0, blockedCount = 0, failed = 0;
-  const blockerTally = new Map<string, number>();
-  const rows: string[] = [];
-
-  for (const f of files) {
-    const rel = f.slice(dir.length + 1);
-    let res;
-    try {
-      res = convertFile(f);
-    } catch (e: any) {
-      failed++;
-      rows.push(`  FAIL      ${rel}  (${e.message})`);
-      continue;
-    }
-    const errors = validate(res.css);
-    const blocked = [...res.blocked];
-    for (const b of blocked) blockerTally.set(b, (blockerTally.get(b) || 0) + 1);
-
-    if (errors.length) {
-      failed++;
-      rows.push(`  FAIL      ${rel}  validate: ${errors[0]}`);
-    } else if (blocked.length) {
-      blockedCount++;
-      rows.push(`  BLOCKED   ${rel}  [${blocked.join('; ')}]`);
-    } else if (res.warnings.length) {
-      warn++;
-      rows.push(`  WARN      ${rel}  (${res.warnings.join('; ')})`);
-    } else {
-      clean++;
-      rows.push(`  CLEAN     ${rel}`);
-    }
-  }
-
-  console.log(rows.join('\n'));
-  console.log('\n' + '-'.repeat(60));
-  console.log(`total ${files.length}: clean ${clean}, warn ${warn}, blocked ${blockedCount}, failed ${failed}`);
-  if (blockerTally.size) {
-    console.log('\ntop blockers:');
-    [...blockerTally.entries()].sort((a, b) => b[1] - a[1]).forEach(([k, v]) => console.log(`  ${v}x  ${k}`));
-  }
-}
-
-function main() {
-  const argv = process.argv.slice(2);
-  const doValidate = argv.includes('--validate');
-  const batchIdx = argv.indexOf('--batch');
-  if (batchIdx >= 0) {
-    const dir = argv[batchIdx + 1];
-    if (!dir) { console.error('--batch requires a directory'); process.exit(1); }
-    runBatch(dir);
-    return;
-  }
-
-  const positional = argv.filter((a, i) => !a.startsWith('-') && argv[i - 1] !== '-o');
-  const input = positional[0];
-  if (!input) {
-    console.error('usage: bun tools/lottie2popcorn.ts <in.json> [-o out.css] [--validate]');
-    console.error('       bun tools/lottie2popcorn.ts --batch <dir> [--validate]');
-    process.exit(1);
-  }
-  const oIdx = argv.indexOf('-o');
-  const outPath = oIdx >= 0 ? argv[oIdx + 1] : null;
-
-  const { css, warnings, blocked } = convertFile(input);
-  if (outPath) { writeFileSync(outPath, css); console.error(`wrote ${outPath}`); }
-  else process.stdout.write(css);
-
-  for (const w of warnings) console.error(`warning: ${w}`);
-  for (const b of blocked) console.error(`blocked: ${b}`);
-  if (doValidate) {
-    const errors = validate(css);
-    if (errors.length) { for (const e of errors) console.error(`validate error: ${e}`); process.exit(1); }
-    console.error('validate: ok');
-  }
-}
-
-// Only run the CLI when executed directly, so tests can import the Converter.
-if (import.meta.main) main();

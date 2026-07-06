@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Editor from 'react-simple-code-editor';
 import Prism from 'prismjs';
 import 'prismjs/components/prism-css';
 import 'prismjs/themes/prism-tomorrow.css';
 import { MotionCanvas } from './components/MotionCanvas';
+import { convertLottie } from '../../../tools/lottie2popcorn';
 
 // Example scene definitions
 const examples = {
@@ -718,13 +719,43 @@ const examples = {
 type ExampleKey = keyof typeof examples;
 
 function App() {
-  const [currentExample, setCurrentExample] = useState<ExampleKey>('animation');
+  const [currentExample, setCurrentExample] = useState<ExampleKey | null>('animation');
   const [source, setSource] = useState(examples.animation);
   const [error, setError] = useState<string | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setSource(examples[currentExample]);
+    if (currentExample) setSource(examples[currentExample]);
   }, [currentExample]);
+
+  function handleLottieFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setError(null);
+      setImportStatus(null);
+      let lottie: any;
+      try {
+        lottie = JSON.parse(reader.result as string);
+      } catch (e: any) {
+        setError(`Invalid JSON: ${e.message}`);
+        return;
+      }
+      try {
+        const { css, warnings, blocked } = convertLottie(lottie);
+        setCurrentExample(null);
+        setSource(css);
+        const parts: string[] = [];
+        if (warnings.length) parts.push(`${warnings.length} warning${warnings.length === 1 ? '' : 's'}: ${warnings.join('; ')}`);
+        if (blocked.length) parts.push(`blocked: ${blocked.join('; ')}`);
+        setImportStatus(parts.length ? `Imported "${file.name}" — ${parts.join(' | ')}` : `Imported "${file.name}"`);
+      } catch (e: any) {
+        setError(`Lottie conversion failed: ${e.message}`);
+      }
+    };
+    reader.onerror = () => setError(`Could not read file: ${file.name}`);
+    reader.readAsText(file);
+  }
 
   return (
     <div style={{
@@ -755,7 +786,7 @@ function App() {
           {(Object.keys(examples) as ExampleKey[]).map((key) => (
             <button
               key={key}
-              onClick={() => setCurrentExample(key)}
+              onClick={() => { setCurrentExample(key); setImportStatus(null); setError(null); }}
               style={{
                 padding: '6px 14px',
                 backgroundColor: currentExample === key ? '#4ecdc4' : '#252530',
@@ -770,6 +801,32 @@ function App() {
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </button>
           ))}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              padding: '6px 14px',
+              backgroundColor: '#252530',
+              color: '#888',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 400,
+            }}
+          >
+            Import Lottie
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleLottieFile(file);
+              e.target.value = '';
+            }}
+          />
         </div>
 
         {error && (
@@ -786,6 +843,23 @@ function App() {
             whiteSpace: 'nowrap',
           }}>
             {error}
+          </div>
+        )}
+
+        {!error && importStatus && (
+          <div style={{
+            backgroundColor: '#4ecdc4',
+            color: '#000',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontFamily: 'monospace',
+            maxWidth: '400px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {importStatus}
           </div>
         )}
       </header>

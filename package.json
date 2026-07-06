@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "bun --filter @popcorn/demo dev",
     "build": "bun --filter @popcorn/demo build",
-    "test": "bun --filter @popcorn/parser --filter @popcorn/player test"
+    "test": "bun --filter @popcorn/parser --filter @popcorn/player test",
+    "lottie": "./tools/lottie2popcorn-cli.ts"
   }
 }
