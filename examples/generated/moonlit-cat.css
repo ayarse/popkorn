@@ -1,0 +1,326 @@
+/* Moonlit cat — a silhouette cat walks the top of a wall under a pulsing
+   moon and a sky full of twinkling stars. Canvas 1000x600, night. */
+
+:canvas {
+  width: 1000px;
+  height: 600px;
+  background: #0b1026;
+}
+
+/* ---------- keyframes ---------- */
+
+/* stars: opacity-dominant twinkle with a touch of scale */
+@keyframes twinkle {
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%      { opacity: 0.2; transform: scale(0.6); }
+}
+
+/* moon glow breathes slowly */
+@keyframes moonBreathe {
+  0%, 100% { opacity: 0.45; transform: scale(1);    }
+  50%      { opacity: 0.75; transform: scale(1.14); }
+}
+
+/* moon disc very subtle brightness pulse */
+@keyframes discPulse {
+  0%, 100% { opacity: 1;    }
+  50%      { opacity: 0.92; }
+}
+
+/* the whole cat travels left -> right, then loops (jump is off-canvas) */
+@keyframes walkAcross {
+  0%   { transform: translateX(0);      }
+  100% { transform: translateX(1250px); }
+}
+
+/* body bob synced to the steps (one rise+fall per half-stride) */
+@keyframes bob {
+  0%, 100% { transform: translateY(0);    }
+  50%      { transform: translateY(-4px); }
+}
+
+/* upper leg swings back and forth about its hip; alternate = walk cycle */
+@keyframes legSwing {
+  0%   { transform: rotate(-22deg); }
+  100% { transform: rotate(24deg);  }
+}
+
+/* lower leg (paw) bends: tucks under on the forward lift, straightens to land */
+@keyframes kneeBend {
+  0%   { transform: rotate(2deg);  }
+  100% { transform: rotate(22deg); }
+}
+
+/* tail base sways gently... */
+@keyframes tailSway {
+  0%   { transform: rotate(-9deg); }
+  100% { transform: rotate(11deg); }
+}
+/* ...and the tip counter-sways (offset timing) for a loose S-curve whip */
+@keyframes tailSwayTip {
+  0%   { transform: rotate(13deg);  }
+  100% { transform: rotate(-15deg); }
+}
+
+/* head lifts a touch with the gait (pure translate: pivot-free) */
+@keyframes headBob {
+  0%, 100% { transform: translateY(0);    }
+  50%      { transform: translateY(-3px); }
+}
+
+/* slow occasional blink — squash the eye about its own center */
+@keyframes blink {
+  0%, 90% { transform: scaleY(1);    }
+  94%     { transform: scaleY(0.12); }
+  98%,100%{ transform: scaleY(1);    }
+}
+
+/* an even rarer ear twitch */
+@keyframes earTwitch {
+  0%, 82% { transform: rotate(0deg);   }
+  87%     { transform: rotate(-11deg); }
+  92%     { transform: rotate(3deg);   }
+  96%,100%{ transform: rotate(0deg);   }
+}
+
+/* ---------- star symbol (required @define, reused many times) ---------- */
+
+@define star {
+  type: star;
+  points: 4;
+  outer-radius: 8px;
+  inner-radius: 2px;
+  fill: #f4f6ff;
+  transform-origin: center;
+  animation: twinkle 2.4s ease-in-out infinite alternate;
+}
+
+/* ---------- sky (gradient rect for depth) ---------- */
+
+#sky {
+  type: rect;
+  x: 0px; y: 0px; width: 1000px; height: 600px;
+  fill: linear-gradient(180deg, #0b1026, #24304f);
+}
+
+/* ---------- moon ---------- */
+
+#moon {
+  type: group;
+  > #moonGlow {
+    type: circle; cx: 820px; cy: 120px; r: 92px;
+    fill: #f7f4dc;
+    transform-origin: center;
+    animation: moonBreathe 7s ease-in-out infinite;
+  }
+  > #moonDisc {
+    type: circle; cx: 820px; cy: 120px; r: 55px;
+    fill: #f5f2df;
+    animation: discPulse 7s ease-in-out infinite;
+  }
+  > #crater1 { type: circle; cx: 800px; cy: 104px; r: 9px;  fill: #e4dfc4; opacity: 0.6; }
+  > #crater2 { type: circle; cx: 838px; cy: 132px; r: 12px; fill: #e4dfc4; opacity: 0.5; }
+  > #crater3 { type: circle; cx: 812px; cy: 142px; r: 6px;  fill: #e4dfc4; opacity: 0.5; }
+}
+
+/* ---------- stars (upper 2/3, staggered via negative delays) ---------- */
+
+#s01  { use: star; cx: 70px;  cy: 70px;  animation: twinkle 2.2s ease-in-out infinite alternate -0.2s; }
+#s02  { use: star; cx: 150px; cy: 140px; animation: twinkle 2.8s ease-in-out infinite alternate -1.1s; }
+#s03  { use: star; cx: 240px; cy: 60px;  fill: #cfe0ff; animation: twinkle 2.5s ease-in-out infinite alternate -0.6s; }
+#s04  { use: star; cx: 320px; cy: 190px; animation: twinkle 3.1s ease-in-out infinite alternate -1.7s; }
+#s05  { use: star; cx: 410px; cy: 100px; animation: twinkle 2.0s ease-in-out infinite alternate -0.9s; }
+#s06  { use: star; cx: 480px; cy: 240px; fill: #ffe9c2; animation: twinkle 2.7s ease-in-out infinite alternate -0.3s; }
+#s07  { use: star; cx: 560px; cy: 70px;  animation: twinkle 2.4s ease-in-out infinite alternate -2.0s; }
+#s08  { use: star; cx: 640px; cy: 180px; animation: twinkle 3.0s ease-in-out infinite alternate -1.3s; }
+#s09  { use: star; cx: 700px; cy: 300px; fill: #cfe0ff; animation: twinkle 2.3s ease-in-out infinite alternate -0.5s; }
+#s10  { use: star; cx: 120px; cy: 300px; animation: twinkle 2.9s ease-in-out infinite alternate -1.5s; }
+#s11  { use: star; cx: 300px; cy: 330px; animation: twinkle 2.6s ease-in-out infinite alternate -0.8s; }
+#s12  { use: star; cx: 500px; cy: 350px; animation: twinkle 2.1s ease-in-out infinite alternate -1.9s; }
+#s13  { use: star; cx: 910px; cy: 260px; animation: twinkle 2.5s ease-in-out infinite alternate -0.7s; }
+#s14  { use: star; cx: 950px; cy: 90px;  fill: #ffe9c2; animation: twinkle 2.8s ease-in-out infinite alternate -1.2s; }
+#s15  { use: star; cx: 890px; cy: 380px; animation: twinkle 3.2s ease-in-out infinite alternate -2.1s; }
+#s16  { use: star; cx: 210px; cy: 240px; animation: twinkle 2.3s ease-in-out infinite alternate -1.0s; }
+
+/* ---------- wall ---------- */
+
+#wallBody {
+  type: rect;
+  x: 0px; y: 428px; width: 1000px; height: 172px;
+  fill: #3a3550;
+}
+/* the ledge the cat walks on (top surface ~ y 412..428) */
+#wallCap {
+  type: rect;
+  x: 0px; y: 412px; width: 1000px; height: 16px;
+  fill: #4a4568;
+}
+/* faint mortar lines suggesting bricks */
+#mortarH1 { type: rect; x: 0px; y: 470px; width: 1000px; height: 3px; fill: #2b2740; opacity: 0.6; }
+#mortarH2 { type: rect; x: 0px; y: 520px; width: 1000px; height: 3px; fill: #2b2740; opacity: 0.6; }
+#mortarH3 { type: rect; x: 0px; y: 570px; width: 1000px; height: 3px; fill: #2b2740; opacity: 0.6; }
+#mortarV1 { type: rect; x: 140px; y: 428px; width: 3px; height: 42px; fill: #2b2740; opacity: 0.5; }
+#mortarV2 { type: rect; x: 360px; y: 428px; width: 3px; height: 42px; fill: #2b2740; opacity: 0.5; }
+#mortarV3 { type: rect; x: 600px; y: 428px; width: 3px; height: 42px; fill: #2b2740; opacity: 0.5; }
+#mortarV4 { type: rect; x: 820px; y: 428px; width: 3px; height: 42px; fill: #2b2740; opacity: 0.5; }
+#mortarV5 { type: rect; x: 250px; y: 473px; width: 3px; height: 44px; fill: #2b2740; opacity: 0.5; }
+#mortarV6 { type: rect; x: 490px; y: 473px; width: 3px; height: 44px; fill: #2b2740; opacity: 0.5; }
+#mortarV7 { type: rect; x: 720px; y: 473px; width: 3px; height: 44px; fill: #2b2740; opacity: 0.5; }
+
+/* ---------- the cat ---------- */
+/* Outer group: position at the ledge + travel across.
+   Local origin (0,0) sits on the ledge surface; the cat is drawn upward
+   (-y). The cat faces RIGHT: haunch/tail at -x, chest/head at +x.
+   Layers by document order: tail, far legs, body, near legs, head. */
+#cat {
+  type: group;
+  transform: translate(-150px, 420px);
+  animation: walkAcross 13s linear infinite;
+
+  /* inner group: the body bob (keeps travel + bob independent) */
+  > #catBob {
+    type: group;
+    animation: bob 0.6s ease-in-out infinite alternate;
+
+    /* ---- tail: two segments for a loose S-curve. Base group pivots at
+       the rump; the tip group pivots at the mid-tail with opposite phase. */
+    > #tail {
+      type: group;
+      transform: translate(-56px, -50px);
+      animation: tailSway 1.9s ease-in-out infinite alternate;
+      > #tailSeg1 {
+        type: path;
+        d: 'M 0 0 C -16 -4 -28 -22 -28 -44';
+        stroke: #16132c;
+        stroke-width: 12px;
+        stroke-linecap: round;
+        fill: none;
+      }
+      > #tailTip {
+        type: group;
+        transform: translate(-28px, -44px);
+        animation: tailSwayTip 1.5s ease-in-out infinite alternate -0.4s;
+        > #tailSeg2 {
+          type: path;
+          d: 'M 0 0 C -2 -18 -10 -30 -22 -36';
+          stroke: #16132c;
+          stroke-width: 8px;
+          stroke-linecap: round;
+          fill: none;
+        }
+      }
+    }
+
+    /* ---- far legs (drawn before body -> read as the off-side pair).
+       Each leg: hip group swings; a nested knee group bends the paw.
+       Diagonal gait: far-back pairs with near-front (phase A);
+       far-front pairs with near-back (phase B, half-cycle offset). */
+    > #legBackFar {
+      type: group;
+      transform: translate(-46px, -32px);
+      animation: legSwing 0.6s ease-in-out infinite alternate;
+      > #lbfUpper { type: rect; x: -4px; y: 0px; width: 8px; height: 18px; rx: 4px; ry: 4px; fill: #100d20; }
+      > #lbfKnee {
+        type: group;
+        transform: translate(0px, 18px);
+        animation: kneeBend 0.6s ease-in-out infinite alternate;
+        > #lbfShin { type: rect; x: -3.5px; y: 0px; width: 7px; height: 12px; rx: 3.5px; ry: 3.5px; fill: #100d20; }
+        > #lbfPaw  { type: ellipse; cx: 1px; cy: 13px; rx: 6px; ry: 3.5px; fill: #100d20; }
+      }
+    }
+    > #legFrontFar {
+      type: group;
+      transform: translate(36px, -32px);
+      animation: legSwing 0.6s ease-in-out infinite alternate -0.3s;
+      > #lffUpper { type: rect; x: -4px; y: 0px; width: 8px; height: 18px; rx: 4px; ry: 4px; fill: #100d20; }
+      > #lffKnee {
+        type: group;
+        transform: translate(0px, 18px);
+        animation: kneeBend 0.6s ease-in-out infinite alternate -0.3s;
+        > #lffShin { type: rect; x: -3.5px; y: 0px; width: 7px; height: 12px; rx: 3.5px; ry: 3.5px; fill: #100d20; }
+        > #lffPaw  { type: ellipse; cx: 1px; cy: 13px; rx: 6px; ry: 3.5px; fill: #100d20; }
+      }
+    }
+
+    /* ---- body: a flowing side-profile silhouette (rounded rump, gently
+       arched back into the nape, convex chest, tucked belly). */
+    > #body {
+      type: path;
+      d: 'M -62 -44 C -78 -50 -78 -76 -60 -82 C -34 -92 18 -90 44 -82 C 54 -78 60 -74 68 -80 C 66 -66 66 -54 60 -46 C 52 -38 34 -34 6 -34 C -22 -34 -46 -36 -58 -42 Z';
+      fill: #16132c;
+      stroke: #3d4270;
+      stroke-width: 1.5px;
+    }
+
+    /* ---- near legs (in front of the body -> the on-side pair) */
+    > #legBackNear {
+      type: group;
+      transform: translate(-26px, -32px);
+      animation: legSwing 0.6s ease-in-out infinite alternate -0.3s;
+      > #lbnUpper { type: rect; x: -4px; y: 0px; width: 8px; height: 18px; rx: 4px; ry: 4px; fill: #191531; }
+      > #lbnKnee {
+        type: group;
+        transform: translate(0px, 18px);
+        animation: kneeBend 0.6s ease-in-out infinite alternate -0.3s;
+        > #lbnShin { type: rect; x: -3.5px; y: 0px; width: 7px; height: 12px; rx: 3.5px; ry: 3.5px; fill: #191531; }
+        > #lbnPaw  { type: ellipse; cx: 1px; cy: 13px; rx: 6px; ry: 3.5px; fill: #191531; }
+      }
+    }
+    > #legFrontNear {
+      type: group;
+      transform: translate(54px, -32px);
+      animation: legSwing 0.6s ease-in-out infinite alternate;
+      > #lfnUpper { type: rect; x: -4px; y: 0px; width: 8px; height: 18px; rx: 4px; ry: 4px; fill: #191531; }
+      > #lfnKnee {
+        type: group;
+        transform: translate(0px, 18px);
+        animation: kneeBend 0.6s ease-in-out infinite alternate;
+        > #lfnShin { type: rect; x: -3.5px; y: 0px; width: 7px; height: 12px; rx: 3.5px; ry: 3.5px; fill: #191531; }
+        > #lfnPaw  { type: ellipse; cx: 1px; cy: 13px; rx: 6px; ry: 3.5px; fill: #191531; }
+      }
+    }
+
+    /* ---- head assembly (bobs with the gait via a pure translateY) */
+    > #headGroup {
+      type: group;
+      animation: headBob 0.6s ease-in-out infinite alternate -0.15s;
+
+      /* skull + slight muzzle, side profile facing right */
+      > #head {
+        type: path;
+        d: 'M 60 -86 C 54 -102 62 -116 78 -120 C 92 -123 104 -116 106 -104 C 107 -100 108 -98 108 -95 C 106 -91 100 -90 96 -90 C 90 -89 84 -88 78 -87 C 70 -86 64 -84 60 -86 Z';
+        fill: #16132c;
+        stroke: #3d4270;
+        stroke-width: 1.5px;
+      }
+
+      /* back ear (far, static) with a faint inner */
+      > #earBack     { type: path; d: 'M 62 -114 L 64 -142 L 84 -119 Z'; fill: #16132c; }
+      > #earBackIn   { type: path; d: 'M 66 -118 L 67 -134 L 78 -121 Z'; fill: #2b2848; }
+
+      /* front ear pivots at its base for the twitch (drawn around local 0,0) */
+      > #earFront {
+        type: group;
+        transform: translate(94px, -118px);
+        animation: earTwitch 6s ease-in-out infinite;
+        > #earFrontShape { type: path; d: 'M -6 -1 L 4 -24 L 12 0 Z'; fill: #16132c; }
+        > #earFrontIn    { type: path; d: 'M -2 -3 L 4 -18 L 8 -2 Z';  fill: #2b2848; }
+      }
+
+      /* whiskers — thin moonlit strokes off the muzzle */
+      > #whisker1 { type: path; d: 'M 100 -99 C 112 -101 122 -102 132 -102'; stroke: #7f85b8; stroke-width: 1px; fill: none; opacity: 0.4; }
+      > #whisker2 { type: path; d: 'M 100 -96 C 112 -96 122 -95 132 -94';    stroke: #7f85b8; stroke-width: 1px; fill: none; opacity: 0.4; }
+      > #whisker3 { type: path; d: 'M 100 -93 C 111 -91 120 -89 129 -87';    stroke: #7f85b8; stroke-width: 1px; fill: none; opacity: 0.3; }
+
+      /* nose */
+      > #nose { type: circle; cx: 106px; cy: -95px; r: 2.5px; fill: #2b2545; }
+
+      /* glowing night eye — soft halo + iris, both blink together.
+         scaleY squashes each shape about its own center (transform-origin). */
+      > #eyeGlow { type: ellipse; cx: 92px; cy: -102px; rx: 7px; ry: 6px; fill: #c8f07a; opacity: 0.28;
+                   transform-origin: center; animation: blink 4.5s ease-in-out infinite; }
+      > #eye     { type: ellipse; cx: 92px; cy: -102px; rx: 3.5px; ry: 3px; fill: #eaff9c;
+                   transform-origin: center; animation: blink 4.5s ease-in-out infinite; }
+    }
+  }
+}
