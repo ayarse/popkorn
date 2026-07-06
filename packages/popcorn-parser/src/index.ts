@@ -1,4 +1,6 @@
 export { parse } from './parser';
+export { serialize } from './serializer';
+export type { SerializeOptions } from './serializer';
 export type {
   StyleSheet,
   Rule,

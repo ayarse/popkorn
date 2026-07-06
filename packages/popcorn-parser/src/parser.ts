@@ -14,7 +14,9 @@ import type {
 
 const IDENT = /[a-zA-Z_][a-zA-Z0-9_\-]*/y;
 const CUSTOM = /--[a-zA-Z_][a-zA-Z0-9_\-]*/y;
-const NUMBER = /-?[0-9]+(\.[0-9]+)?/y;
+// Accept a leading-dot fraction (`.5`) as well as `10` / `10.5` — CSS allows it
+// and minifiers (esbuild) emit it by stripping the leading zero.
+const NUMBER = /-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)/y;
 const COLOR = /#[0-9a-fA-F]{3,8}/y;
 // Longest-first so 'ms' beats 's' and 'rem' beats 'em'.
 const UNITS = ['deg', 'rem', 'px', 'em', 'ms', 's'] as const;
@@ -213,7 +215,12 @@ function readString(c: Cursor, quote: string): Value {
 
 function isNumberStart(c: Cursor, ch: string): boolean {
   if (ch >= '0' && ch <= '9') return true;
-  if (ch === '-') { const n = c.src[c.pos + 1]; return n >= '0' && n <= '9'; }
+  // A leading-dot (`.5`) or signed number (`-5`, `-.5`); look one char ahead.
+  if (ch === '-' || ch === '.') {
+    let n = c.src[c.pos + 1];
+    if (ch === '-' && n === '.') n = c.src[c.pos + 2];
+    return n >= '0' && n <= '9';
+  }
   return false;
 }
 

@@ -72,6 +72,21 @@ loop.start();
 | `bun run build` | Build demo app |
 | `bun run test` | Run parser tests |
 
+## Minification
+
+`serialize(sheet, { minify })` in **@popcorn/parser** turns an AST back into DSL
+source — pretty by default, or minified (no comments or optional whitespace,
+shortest value-preserving number forms). Minification is done by round-tripping
+through the parser, so the output is **guaranteed to parse to the same AST as the
+input** (a data-driven test asserts this for every scene in `examples/`).
+
+```
+bun tools/popcorn-minify.ts <in.css> [-o out.css] [--pretty]
+```
+
+Default minifies; `--pretty` reformats. Byte counts are printed to stderr. Across
+the example scenes, minification is ~40% smaller.
+
 ## DSL Syntax
 
 ### Canvas Configuration

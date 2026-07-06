@@ -31,6 +31,15 @@ test('number / negative / percentage values', () => {
   ]);
 });
 
+test('leading-dot number (.5 / -.5) parses like 0.5 (minifier output)', () => {
+  const decls = parse('#s { opacity: .5; y: -.25; d: .167s; }').rules[0].declarations;
+  expect(decls.map((d) => d.value)).toEqual([
+    { type: 'number', value: 0.5 },
+    { type: 'number', value: -0.25 },
+    { type: 'length', value: 0.167, unit: 's' },
+  ]);
+});
+
 test('canvas config hoisted', () => {
   const ast = parse(':canvas { width: 800px; height: 600px; background: #1a1a2e; }');
   expect(ast.canvas).toEqual({ width: 800, height: 600, background: '#1a1a2e' });
@@ -167,5 +176,69 @@ function collectCss(dir: string, prefix = ''): string[] {
 for (const file of collectCss(examplesDir)) {
   test(`example scene: ${file}`, () => {
     expect(parse(readFileSync(`${examplesDir}/${file}`, 'utf8')).type).toBe('stylesheet');
+  });
+}
+
+// Parser robustness on minified input: strip every *optional* whitespace and
+// assert the AST is unchanged. `stripWs` mirrors a conservative minifier —
+// remove whitespace adjacent to `{ } ; : , > ( )`, collapse the rest to a
+// single space (the space that separates list values is syntactically
+// required, so it must survive) — while leaving string literals untouched.
+const PUNCT = '{};:,>()';
+function stripWs(src: string): string {
+  let out = '';
+  for (let i = 0; i < src.length; ) {
+    const ch = src[i];
+    if (ch === '/' && src[i + 1] === '*') { // comment
+      i += 2;
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++;
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { // string literal — copy verbatim
+      let j = i + 1;
+      while (j < src.length && src[j] !== ch) j++;
+      out += src.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      let j = i;
+      while (j < src.length && /\s/.test(src[j])) j++;
+      out += ' ';
+      i = j;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  let res = '';
+  for (let i = 0; i < out.length; ) {
+    const ch = out[i];
+    if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      while (j < out.length && out[j] !== ch) j++;
+      res += out.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    if (ch === ' ') {
+      const prev = res[res.length - 1];
+      const next = out[i + 1];
+      if (prev === undefined || next === undefined || PUNCT.includes(prev) || PUNCT.includes(next)) { i++; continue; }
+      res += ' ';
+      i++;
+      continue;
+    }
+    res += ch;
+    i++;
+  }
+  return res.trim();
+}
+
+for (const file of collectCss(examplesDir)) {
+  test(`minified (whitespace-stripped) parses identically: ${file}`, () => {
+    const src = readFileSync(`${examplesDir}/${file}`, 'utf8');
+    expect(parse(stripWs(src))).toEqual(parse(src));
   });
 }
