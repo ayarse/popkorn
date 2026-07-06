@@ -1,0 +1,55 @@
+/* Motion — easing variety, step-end holds, negative-delay stagger */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0f0f23;
+}
+
+/* Smooth slide, shared by the first three tracks (easing set per node) */
+@keyframes slide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(560px); }
+}
+
+/* step-end holds each value, so the puck teleports in four crisp jumps */
+@keyframes hopStep {
+  0%   { transform: translateX(0);     animation-timing-function: step-end; }
+  25%  { transform: translateX(140px); animation-timing-function: step-end; }
+  50%  { transform: translateX(280px); animation-timing-function: step-end; }
+  75%  { transform: translateX(420px); animation-timing-function: step-end; }
+  100% { transform: translateX(560px); }
+}
+
+/* A gentle rise, reused by every dot in the wave */
+@keyframes wave {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-56px); }
+}
+
+/* Four tracks, four timing functions — same distance, different feel */
+#track1 { type: rect; x: 130px; y: 128px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
+#track2 { type: rect; x: 130px; y: 188px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
+#track3 { type: rect; x: 130px; y: 248px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
+#track4 { type: rect; x: 130px; y: 308px; width: 560px; height: 4px; rx: 2px; fill: #1e1e3a; }
+
+#p1 { type: circle; cx: 130px; cy: 130px; r: 16px; fill: #4ecdc4;
+      animation: slide 2.6s linear infinite alternate; }
+#p2 { type: circle; cx: 130px; cy: 190px; r: 16px; fill: #ffe66d;
+      animation: slide 2.6s ease-in-out infinite alternate; }
+#p3 { type: circle; cx: 130px; cy: 250px; r: 16px; fill: #f472b6;
+      animation: slide 2.6s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite alternate; }
+#p4 { type: circle; cx: 130px; cy: 310px; r: 16px; fill: #e94560;
+      animation: hopStep 2.6s linear infinite alternate; }
+
+/* A travelling wave: nine dots on one keyframe, staggered by negative delay */
+@define wdot { type: circle; cy: 460px; r: 13px; fill: #60a5fa; transform-origin: center; }
+
+#w1 { use: wdot; cx: 200px; animation: wave 1.6s ease-in-out infinite;        }
+#w2 { use: wdot; cx: 250px; animation: wave 1.6s ease-in-out infinite -0.2s;  }
+#w3 { use: wdot; cx: 300px; animation: wave 1.6s ease-in-out infinite -0.4s;  }
+#w4 { use: wdot; cx: 350px; animation: wave 1.6s ease-in-out infinite -0.6s;  }
+#w5 { use: wdot; cx: 400px; animation: wave 1.6s ease-in-out infinite -0.8s;  }
+#w6 { use: wdot; cx: 450px; animation: wave 1.6s ease-in-out infinite -1.0s;  }
+#w7 { use: wdot; cx: 500px; animation: wave 1.6s ease-in-out infinite -1.2s;  }
+#w8 { use: wdot; cx: 550px; animation: wave 1.6s ease-in-out infinite -1.4s;  }
+#w9 { use: wdot; cx: 600px; animation: wave 1.6s ease-in-out infinite -1.6s;  }

@@ -1,5 +1,4 @@
-/* Interactive Example - cursor tracking + hover/active states */
-
+/* Interactive — cursor-bound var()/input() plus :hover / :active states */
 :canvas {
   width: 800px;
   height: 600px;
@@ -11,57 +10,43 @@
   --cursor-y: input(cursor.y);
 }
 
-@keyframes glow {
-  0% { opacity: 0.5; }
-  50% { opacity: 1; }
-  100% { opacity: 0.5; }
+@keyframes pulse {
+  0%, 100% { transform: scale(1);    opacity: 0.9; }
+  50%      { transform: scale(1.15); opacity: 1;   }
 }
 
-/* Circle follows the cursor via var() bound to input() */
+/* Hover to brighten + grow, press to darken + shrink */
+#c1 {
+  type: circle; cx: 180px; cy: 240px; r: 58px; fill: #e94560;
+  &:hover  { fill: #ff6b8a; transform: scale(1.12); }
+  &:active { fill: #c73e54; transform: scale(0.9);  }
+}
+#c2 {
+  type: circle; cx: 400px; cy: 210px; r: 58px; fill: #4ecdc4;
+  &:hover  { fill: #6ee6dd; transform: scale(1.12); }
+  &:active { fill: #3ba89f; transform: scale(0.9);  }
+}
+#c3 {
+  type: circle; cx: 620px; cy: 240px; r: 58px; fill: #ffe66d;
+  &:hover  { fill: #fff59d; transform: scale(1.12); }
+  &:active { fill: #e6cf62; transform: scale(0.9);  }
+}
+
+#button {
+  type: rect; x: 300px; y: 470px; width: 200px; height: 64px; rx: 14px;
+  fill: #3a7bd5;
+  &:hover  { fill: #4e93ee; transform: scale(1.05); }
+  &:active { fill: #2a5aa0; transform: scale(0.96); }
+}
+#buttonLabel {
+  type: text; content: "hover · press me"; x: 400px; y: 510px;
+  font-size: 20px; font-weight: bold; text-anchor: middle; fill: #ffffff;
+}
+
+/* A follower pinned to the cursor via numeric input() bindings.
+   It carries no pseudo-state, so it never intercepts hits from the shapes. */
 #follower {
-  type: circle;
-  cx: var(--cursor-x);
-  cy: var(--cursor-y);
-  r: 30px;
-  fill: #e94560;
-
-  &:hover {
-    fill: #ff6b8a;
-    transform: scale(1.2);
-  }
-
-  &:active {
-    fill: #c73e54;
-    transform: scale(0.9);
-  }
-}
-
-#trail1 {
-  type: circle;
-  cx: 350px;
-  cy: 280px;
-  r: 20px;
-  fill: #e94560;
-  opacity: 0.3;
-  animation: glow 2s ease-in-out infinite;
-}
-
-#trail2 {
-  type: circle;
-  cx: 300px;
-  cy: 260px;
-  r: 15px;
-  fill: #e94560;
-  opacity: 0.2;
-  animation: glow 2s ease-in-out infinite;
-}
-
-#trail3 {
-  type: circle;
-  cx: 250px;
-  cy: 250px;
-  r: 10px;
-  fill: #e94560;
-  opacity: 0.1;
-  animation: glow 2s ease-in-out infinite;
+  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 20px;
+  fill: #f472b6; opacity: 0.85; transform-origin: center;
+  animation: pulse 1.2s ease-in-out infinite;
 }
