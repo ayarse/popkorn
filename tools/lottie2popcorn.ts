@@ -206,6 +206,32 @@ type TrimInfo = {
   offsetCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
 };
 
+/** Per-comp context threaded through layer conversion. */
+interface LayerCtx {
+  childrenOf: Map<number, any[]>;
+  prefix: string;
+  ruleByInd: Map<number, Rule>;
+  compIp: number; // containing comp's in-point (frames)
+  compOp: number; // containing comp's out-point (frames)
+  byInd: Map<number, any>;
+  indexByInd: Map<number, number>; // ind -> global stack index (array order)
+}
+
+/** Paint style inherited from an enclosing group down to descendant shapes. */
+interface InheritedStyle {
+  fill: string | null;
+  stroke: string | null;
+  strokeWidth: number | null;
+  lineCap: string | null;
+  dashArray: number[] | null;
+  dashOffset: number;
+  trim: TrimInfo | null;
+}
+const EMPTY_STYLE: InheritedStyle = {
+  fill: null, stroke: null, strokeWidth: null, lineCap: null,
+  dashArray: null, dashOffset: 0, trim: null,
+};
+
 interface Rule {
   id: string;
   type: string; // group | rect | circle | ellipse | path
@@ -299,7 +325,7 @@ export class Converter {
     }
 
     const layers: any[] = Array.isArray(lottie.layers) ? lottie.layers : [];
-    const topRules = this.buildLayerList(layers, '');
+    const topRules = this.buildLayerList(layers, '', this.ip, op);
 
     if (this.crossSampled) {
       this.warnOnce('some nodes animate multiple properties with differing keyframe times; secondary props linear-sampled');
@@ -347,9 +373,16 @@ export class Converter {
    * mattes are all resolved locally within the list. `prefix` namespaces ids so
    * multiple instances of the same precomp never collide.
    */
-  private buildLayerList(layers: any[], prefix: string): Rule[] {
+  private buildLayerList(layers: any[], prefix: string, compIp: number, compOp: number): Rule[] {
     const byInd = new Map<number, any>();
-    for (const l of layers) if (typeof l.ind === 'number') byInd.set(l.ind, l);
+    // Global paint-stack index of each layer (array order; earlier = on top).
+    // Used to assign z-index so nested parented layers reproduce Lottie's stack
+    // order within the parent's slot (Lottie parenting is transform-only).
+    const indexByInd = new Map<number, number>();
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (typeof l.ind === 'number') { byInd.set(l.ind, l); indexByInd.set(l.ind, i); }
+    }
 
     // Record blocked non-convertible layer types.
     for (const l of layers) {
@@ -373,9 +406,10 @@ export class Converter {
     }
 
     const ruleByInd = new Map<number, Rule>();
+    const ctx: LayerCtx = { childrenOf, prefix, ruleByInd, compIp, compOp, byInd, indexByInd };
     const buildLayer = (l: any): Rule | null => {
       try {
-        return this.buildLayerRule(l, childrenOf, prefix, ruleByInd);
+        return this.buildLayerRule(l, ctx);
       } catch (e: any) {
         this.warnOnce(`layer ${l.ind} skipped: ${e.message}`);
         return null;
@@ -409,39 +443,46 @@ export class Converter {
 
   // --- layer -> rule ------------------------------------------------------
 
-  private buildLayerRule(
-    l: any,
-    childrenOf: Map<number, any[]>,
-    prefix: string,
-    ruleByInd: Map<number, Rule>
-  ): Rule {
+  private buildLayerRule(l: any, ctx: LayerCtx): Rule {
+    const { childrenOf, prefix, ruleByInd, compIp, compOp, indexByInd } = ctx;
     const id = this.uniqueId(prefix ? `${prefix}-${l.nm || `layer-${l.ind}`}` : (l.nm || `layer-${l.ind}`));
     const st = l.st || 0;
 
     this.scanBlocked(l);
     const maskDecl = this.maskClipPath(l);
+
+    // Layer visibility window narrower than the comp -> emit visible-from/until
+    // (scene-local seconds) so the player skips the node outside it. Sticker
+    // exports swap a different layer in per time slice; rendering them all
+    // full-time is what left frozen duplicate copies on screen.
+    const visFrom = typeof l.ip === 'number' && l.ip > compIp ? l.ip : null;
+    const visUntil = typeof l.op === 'number' && l.op < compOp ? l.op : null;
     const record = (rule: Rule): Rule => {
+      if (visFrom != null) rule.decls.push(`visible-from: ${num(visFrom / this.fr, 3)}s`);
+      if (visUntil != null) rule.decls.push(`visible-until: ${num(visUntil / this.fr, 3)}s`);
       if (typeof l.ind === 'number') ruleByInd.set(l.ind, rule);
       return rule;
     };
 
-    // Layer visibility window narrower than the comp -> we don't animate pop in/out.
-    if ((l.ip ?? this.ip) > this.ip || (l.op ?? 0) < 0) { /* handled below */ }
-    // (compare to comp window supplied via convert())
-    // Note: comp op captured at call site; approximate check on layer ip.
-    if (typeof l.ip === 'number' && l.ip > this.ip) {
-      this.warnOnce(`layer '${id}' pops in at frame ${l.ip} (visibility not animated)`);
-    }
-
     const childLayers = (childrenOf.get(l.ind) ?? []).slice().reverse();
     const childRules: Rule[] = [];
+    const parentIdx = indexByInd.get(l.ind) ?? 0;
     for (const cl of childLayers) {
       try {
-        childRules.push(this.buildLayerRule(cl, childrenOf, prefix, ruleByInd));
+        const cr = this.buildLayerRule(cl, ctx);
+        // Lottie parenting is transform-only: the child keeps its own global
+        // stack slot. Nesting it under the parent would force it above the
+        // parent's siblings, so restore the original order with a z-index
+        // relative to the parent's own slot (0). Higher stack index = further
+        // back => negative z (paints behind the parent's own shapes).
+        const z = parentIdx - (indexByInd.get(cl.ind) ?? 0);
+        if (z !== 0) cr.decls.push(`z-index: ${z}`);
+        childRules.push(cr);
       } catch (e: any) {
         this.warnOnce(`child layer ${cl.ind} skipped: ${e.message}`);
       }
     }
+    if (childLayers.length) this.checkStackRepresentable(l, ctx);
 
     if (l.ty === 0) {
       // Precomp layer: a group carrying the layer transform, with the referenced
@@ -472,8 +513,14 @@ export class Converter {
         group.decls.push(`time-scale: ${num(1 / l.sr, 4)}`);
       }
 
+      // Asset layers time in the asset's own frame space; map the precomp's
+      // visible window [ip, op] (parent frames) through st/sr into that space so
+      // inner visibility windows are measured against the right comp bounds.
+      const sr = typeof l.sr === 'number' && l.sr > 0 ? l.sr : 1;
+      const aip = ((typeof l.ip === 'number' ? l.ip : compIp) - st) / sr;
+      const aop = ((typeof l.op === 'number' ? l.op : compOp) - st) / sr;
       this.compStack.add(l.refId);
-      const assetRules = this.buildLayerList(asset.layers, id);
+      const assetRules = this.buildLayerList(asset.layers, id, aip, aop);
       this.compStack.delete(l.refId);
       group.children.push(...assetRules, ...childRules);
       this.finalizeAnim(group, 0);
@@ -528,12 +575,47 @@ export class Converter {
     if (maskDecl) group.decls.push(maskDecl);
 
     if (l.ty === 4 && Array.isArray(l.shapes)) {
-      const shapeChildren = this.processItems(l.shapes, id, { fill: null, stroke: null, trim: null });
+      const shapeChildren = this.processItems(l.shapes, id, EMPTY_STYLE);
       group.children.push(...shapeChildren);
     }
     group.children.push(...childRules);
     this.finalizeAnim(group, st);
     return record(group);
+  }
+
+  /**
+   * We reproduce a parent's stack order by nesting its parented children and
+   * z-indexing them, which can order everything WITHIN the parent's subtree
+   * exactly. It fails only when the subtree isn't contiguous in the global paint
+   * stack: a real, non-descendant drawable falling inside the subtree's index
+   * span paints outside the subtree block, so exact order is unrepresentable.
+   * Warn once (naming the parent + interleaver) and keep the nearest z order.
+   */
+  private checkStackRepresentable(parent: any, ctx: LayerCtx) {
+    const { childrenOf, byInd, indexByInd } = ctx;
+    const subtree = new Set<number>();
+    const collect = (ind: number) => {
+      subtree.add(ind);
+      for (const c of childrenOf.get(ind) ?? []) collect(c.ind);
+    };
+    collect(parent.ind);
+    let lo = Infinity, hi = -Infinity;
+    for (const ind of subtree) {
+      const i = indexByInd.get(ind);
+      if (i !== undefined) { lo = Math.min(lo, i); hi = Math.max(hi, i); }
+    }
+    for (const m of byInd.values()) {
+      const mi = indexByInd.get(m.ind);
+      if (mi === undefined || mi <= lo || mi >= hi) continue;
+      if (subtree.has(m.ind)) continue;
+      // Nulls (ty 3) paint nothing, so they can't visually interleave.
+      if (m.ty === 3) continue;
+      this.warnOnce(
+        `layer '${parent.nm || parent.ind}' subtree stack order is approximate ` +
+        `(unrelated layer '${m.nm || m.ind}' interleaves it; nearest z-index used)`
+      );
+      return;
+    }
   }
 
   private scanBlocked(l: any) {
@@ -697,20 +779,25 @@ export class Converter {
   private processItems(
     items: any[],
     prefix: string,
-    inherited: { fill: string | null; stroke: string | null; trim: TrimInfo | null }
+    inherited: InheritedStyle
   ): Rule[] {
     // Hidden items (hd:true) contribute neither geometry nor paint style.
     items = items.filter((it) => !(it && it.hd === true));
 
-    // Resolve this level's paint style (nearest fill/stroke wins).
+    // Resolve this level's paint style (nearest fill/stroke wins). Stroke color
+    // AND its width/cap/dash all inherit together — a stroke defined on an outer
+    // group (a Lottie `st` sibling of nested shape groups, e.g. one 16px outline
+    // over every tail segment) styles the descendants' paths; inheriting only
+    // the color left them at the default 1px, so segment outlines read as thin
+    // light seams instead of the intended thick divider.
     let fill: string | null = inherited.fill;
     let fillCh: ((t: number) => Sample) | null = null;
     let fillKfs: Kf[] | null = null;
     let stroke: string | null = inherited.stroke;
-    let strokeWidth: number | null = null;
-    let lineCap: string | null = null;
-    let dashArray: number[] | null = null;
-    let dashOffset = 0;
+    let strokeWidth: number | null = inherited.strokeWidth;
+    let lineCap: string | null = inherited.lineCap;
+    let dashArray: number[] | null = inherited.dashArray;
+    let dashOffset = inherited.dashOffset;
     let gradientFill: string | null = null;
     let fillCount = 0;
     let fillRule: number | null = null;
@@ -797,7 +884,10 @@ export class Converter {
     // sibling `gr` group rather than a drawable in this same items array —
     // inherit it down so descendants of that group still pick it up.
     const effectiveTrim = trim ?? inherited.trim;
-    const style = { fill: effectiveFill, stroke, trim: effectiveTrim };
+    const style: InheritedStyle = {
+      fill: effectiveFill, stroke, trim: effectiveTrim,
+      strokeWidth, lineCap, dashArray, dashOffset,
+    };
 
     const applyStyle = (rule: Rule) => {
       if (effectiveFill) rule.decls.push(`fill: ${effectiveFill}`);

@@ -521,3 +521,130 @@ test('normalize: a legitimate 0-1 color with a component exactly at 1.0 is not r
   const css = new Converter().convert(fillDoc([1, 1, 0]));
   expect(css).toContain('fill: #ffff00');
 });
+
+// ---------------------------------------------------------------------------
+// Visibility windows (layer ip/op narrower than the comp) — Lottie sticker
+// exports swap a different layer in per time slice.
+// ---------------------------------------------------------------------------
+
+const rectShape = () => ({
+  ty: 'gr',
+  it: [
+    { ty: 'rc', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [10, 10] }, r: { a: 0, k: 0 } },
+    { ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+    { ty: 'tr' },
+  ],
+});
+
+test('visibility: a layer windowed narrower than the comp emits visible-from/until', () => {
+  const doc = {
+    fr: 30, ip: 0, op: 90, w: 100, h: 100,
+    layers: [
+      { ty: 4, ind: 1, nm: 'mid', ip: 30, op: 60, ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 2, nm: 'full', ip: 0, op: 90, ks: {}, shapes: [rectShape()] },
+    ],
+  };
+  const c = new Converter();
+  const css = c.convert(doc);
+  // Windowed layer (frames 30..60 -> 1s..2s) carries both props; the full-span
+  // layer carries neither. Compare within each layer's own block.
+  const block = (id: string) => css.slice(css.indexOf(`#${id} {`), css.indexOf('}', css.indexOf(`#${id} {`)));
+  expect(block('mid')).toContain('visible-from: 1s');
+  expect(block('mid')).toContain('visible-until: 2s');
+  expect(block('full')).not.toContain('visible-');
+  // The old "pops in" warning is gone.
+  expect(c.warnings.join()).not.toContain('pops in');
+  expect(buildSceneGraph(parse(css))).toBeTruthy();
+});
+
+// ---------------------------------------------------------------------------
+// Parenting -> z-index (Lottie parent is transform-only; the child keeps its
+// own global paint-stack slot). Boxer-style: a parent with its own shapes plus
+// a parented child that sits BELOW it in the stack -> nested with negative z.
+// ---------------------------------------------------------------------------
+
+test('parenting: a child stacked below its parent nests with a negative z-index', () => {
+  const doc = {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      // array order 0 = frontmost. torso (ind 2) is above backArm (ind 3).
+      { ty: 4, ind: 1, nm: 'frontArm', parent: 2, ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 2, nm: 'torso', parent: 4, ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 3, nm: 'backArm', parent: 2, ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 4, nm: 'body', ks: {}, shapes: [rectShape()] },
+    ],
+  };
+  const css = new Converter().convert(doc);
+  // backArm nested under torso, stacked one slot behind torso -> z-index -1.
+  expect(css).toMatch(/#torso-[\s\S]*#backArm[\s\S]*z-index: -1/);
+  // frontArm is one slot in front of torso -> z-index +1.
+  expect(css).toMatch(/#frontArm[\s\S]*z-index: 1/);
+  expect(buildSceneGraph(parse(css))).toBeTruthy();
+});
+
+test('parenting: an unrelated drawable interleaving the subtree warns (unrepresentable)', () => {
+  // Shape 2 is parented to Shape 4, but Shape 3 (unrelated) sits between them
+  // in the global stack -> exact order cannot be reproduced while nested.
+  const doc = {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      { ty: 4, ind: 1, nm: 'child', parent: 4, ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 2, nm: 'unrelated', ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 3, nm: 'other', ks: {}, shapes: [rectShape()] },
+      { ty: 4, ind: 4, nm: 'parent', ks: {}, shapes: [rectShape()] },
+    ],
+  };
+  const c = new Converter();
+  c.convert(doc);
+  expect(c.warnings.some((w) => /subtree stack order is approximate/.test(w))).toBe(true);
+});
+
+test('parenting: a null interleaver does NOT warn (nulls paint nothing)', () => {
+  const doc = {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      { ty: 4, ind: 1, nm: 'child', parent: 4, ks: {}, shapes: [rectShape()] },
+      { ty: 3, ind: 2, nm: 'ctrlNull', ks: {} },
+      { ty: 4, ind: 4, nm: 'parent', ks: {}, shapes: [rectShape()] },
+    ],
+  };
+  const c = new Converter();
+  c.convert(doc);
+  expect(c.warnings.some((w) => /subtree stack order is approximate/.test(w))).toBe(false);
+});
+
+// ---------------------------------------------------------------------------
+// Stroke inheritance (defect 3): a stroke on an outer group (its width/cap too,
+// not just the colour) styles descendant paths in nested child groups.
+// ---------------------------------------------------------------------------
+
+test('stroke: an outer-group stroke propagates width + linecap to nested paths', () => {
+  const doc = {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      {
+        ty: 4, ind: 1, nm: 'tail', ks: {},
+        shapes: [
+          // Two filled segment groups, then one layer-level stroke (16px, round).
+          { ty: 'gr', it: [
+            { ty: 'sh', ks: { a: 0, k: { v: [[0, 0], [10, 0], [10, 10]], i: [[0,0],[0,0],[0,0]], o: [[0,0],[0,0],[0,0]], c: true } } },
+            { ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+            { ty: 'tr' },
+          ] },
+          { ty: 'gr', it: [
+            { ty: 'sh', ks: { a: 0, k: { v: [[10, 0], [20, 0], [20, 10]], i: [[0,0],[0,0],[0,0]], o: [[0,0],[0,0],[0,0]], c: true } } },
+            { ty: 'fl', c: { a: 0, k: [0, 1, 0, 1] }, o: { a: 0, k: 100 } },
+            { ty: 'tr' },
+          ] },
+          { ty: 'st', c: { a: 0, k: [0, 0, 0, 1] }, w: { a: 0, k: 16 }, lc: 2, o: { a: 0, k: 100 } },
+        ],
+      },
+    ],
+  };
+  const css = new Converter().convert(doc);
+  // BOTH segment paths carry the inherited 16px round stroke, not the default 1px.
+  const widths = css.match(/stroke-width: 16px/g) || [];
+  expect(widths.length).toBe(2);
+  expect((css.match(/stroke-linecap: round/g) || []).length).toBe(2);
+  expect(buildSceneGraph(parse(css))).toBeTruthy();
+});
