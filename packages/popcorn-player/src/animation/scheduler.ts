@@ -175,17 +175,3 @@ export function computeSceneDuration(root: SceneNode): number {
   visit(root);
   return max;
 }
-
-// Singleton instance
-let scheduler: AnimationScheduler | null = null;
-
-export function getAnimationScheduler(): AnimationScheduler {
-  if (!scheduler) {
-    scheduler = new AnimationScheduler();
-  }
-  return scheduler;
-}
-
-export function createAnimationScheduler(): AnimationScheduler {
-  return new AnimationScheduler();
-}

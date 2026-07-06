@@ -64,18 +64,16 @@ export { applyEasing } from './animation/easing';
 export { interpolateKeyframes } from './animation/keyframes';
 export {
   AnimationScheduler,
-  getAnimationScheduler,
-  createAnimationScheduler,
   computeSceneDuration,
 } from './animation/scheduler';
 
 // Runtime
-export { RenderLoop, createRenderLoop, wrapTime } from './runtime/loop';
+export { RenderLoop, wrapTime } from './runtime/loop';
 export { computeViewport, viewportMatrix, deviceToScene, IDENTITY_VIEWPORT } from './runtime/viewport';
 export type { Viewport, FitMode } from './runtime/viewport';
-export { InputTracker, getInputTracker, createInputTracker } from './runtime/inputs';
+export { InputTracker, createInputTracker } from './runtime/inputs';
 export type { InputState } from './runtime/inputs';
-export { VariableResolver, getVariableResolver, createVariableResolver } from './runtime/variables';
+export { VariableResolver, createVariableResolver } from './runtime/variables';
 export { InteractionManager, createInteractionManager } from './runtime/interaction';
 export { hitTest, hitTestAll } from './runtime/hit-test';
 export type { Point, HitTestResult } from './runtime/hit-test';

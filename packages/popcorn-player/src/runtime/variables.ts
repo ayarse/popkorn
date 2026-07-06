@@ -154,16 +154,6 @@ export class VariableResolver {
   }
 }
 
-// Singleton instance
-let resolver: VariableResolver | null = null;
-
-export function getVariableResolver(): VariableResolver {
-  if (!resolver) {
-    resolver = new VariableResolver();
-  }
-  return resolver;
-}
-
 export function createVariableResolver(): VariableResolver {
   return new VariableResolver();
 }

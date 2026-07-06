@@ -3,7 +3,7 @@ import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, 
 import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
 import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
 import { resetNodeToBase, childrenInPaintOrder } from '../scene/types';
-import { computeLocalMatrix } from '../scene/transform';
+import { computeLocalMatrix, clamp01 } from '../scene/transform';
 import { outlineLength } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
 import { resolveClip } from '../scene/clip';
@@ -402,10 +402,6 @@ function worldAlpha(node: SceneNode | null): number {
   return alpha;
 }
 
-export function createRenderLoop(renderer: Renderer, scheduler?: AnimationScheduler): RenderLoop {
-  return new RenderLoop(renderer, scheduler);
-}
-
 /**
  * Fold a timeline time into [0, duration) for looping. A no-op when looping is
  * off, the scene has no duration, or `t` is still within the first pass.
@@ -414,8 +410,6 @@ export function wrapTime(t: number, duration: number, loop: boolean): number {
   if (loop && duration > 0 && t >= duration) return t % duration;
   return t;
 }
-
-const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
  * Resolve a node's trim-* fractions into a stroke dash descriptor, or null when

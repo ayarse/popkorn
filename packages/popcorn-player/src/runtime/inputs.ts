@@ -104,15 +104,6 @@ export class InputTracker {
   }
 }
 
-let tracker: InputTracker | null = null;
-
-export function getInputTracker(): InputTracker {
-  if (!tracker) {
-    tracker = new InputTracker();
-  }
-  return tracker;
-}
-
 export function createInputTracker(): InputTracker {
   return new InputTracker();
 }

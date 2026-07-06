@@ -123,9 +123,12 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
 
   let matrix = translationMatrix(t.translateX, t.translateY);
 
-  // Motion-path placement. At distance 0 (the default) or with no path we no-op,
-  // so nodes without a motion path render exactly at their authored position.
-  if (node.offsetPath && node.offsetDistance !== 0) {
+  // Motion-path placement. With a path, the node is placed at the sampled point
+  // even at distance 0 — per CSS, `offset-distance: 0` sits the node at the path
+  // START, not at the identity offset. (Skipping distance 0 stranded a node at
+  // its bare anchor whenever the offset-distance animation hadn't started yet,
+  // e.g. a Lottie layer holding its first keyframe before its in-window delay.)
+  if (node.offsetPath) {
     const s = samplePathAt(node.offsetPath, node.offsetDistance);
     matrix = multiplyMatrices(matrix, translationMatrix(s.x, s.y));
     const rot = node.offsetRotate.auto
@@ -165,6 +168,11 @@ export function computeAllWorldTransforms(
   }
 
   return worldMatrices;
+}
+
+/** Clamp to the [0,1] range. */
+export function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
 /**

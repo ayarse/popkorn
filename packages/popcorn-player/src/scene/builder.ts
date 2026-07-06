@@ -39,6 +39,7 @@ import type { GradientData, GradientStop } from '../renderer/types';
 import { isGradientData } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath, buildMotionPath } from './path-parser';
+import { clamp01 } from './transform';
 import { gradientsCompatible, pathsCompatible } from '../animation/registry';
 
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
@@ -1351,8 +1352,4 @@ function mergeStates(defStates: StateRule[], useStates: StateRule[]): StateRule[
 function normalizeFraction(value: Value): number {
   if (isLengthValue(value) && value.unit === '%') return value.value / 100;
   return getNumericValue(value);
-}
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v;
 }
