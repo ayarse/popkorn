@@ -1,0 +1,138 @@
+/* Solar System — Popcorn DSL
+ *
+ * Canvas is 900x900; the Sun sits at the center (450,450).
+ * Each planet lives inside a GROUP that is translate()d to the center and
+ * given a `spin` rotate animation. Groups have no intrinsic bounding box, so a
+ * `%`/center transform-origin would resolve to 0,0 anyway — which is exactly
+ * what we want here: the group rotates about its own local origin, and because
+ * that origin is translated onto the Sun, the whole group revolves around the
+ * Sun. The planet is offset to (orbitRadius, 0) inside the group, so it traces
+ * a circle of that radius. Inner planets get shorter durations (faster orbits).
+ * Rotation lerps linearly in Popcorn, so 0deg -> 360deg is a clean full turn. */
+
+:canvas { width: 900px; height: 900px; background: #05060f; }
+
+/* One reusable spin used by every orbit; each orbit sets its own duration. */
+@keyframes spin {
+  0%   { transform: rotate(0deg);   }
+  100% { transform: rotate(360deg); }
+}
+
+/* Sun glow breathes gently. */
+@keyframes sunPulse {
+  0%,  100% { transform: scale(1);    opacity: 0.55; }
+  50%       { transform: scale(1.12); opacity: 0.8;  }
+}
+
+/* A faint stroked ring marking an orbit path. Centered on the Sun; each use
+ * site just overrides `r`. Idiomatic reuse via @define. */
+@define orbit-ring {
+  type: circle;
+  cx: 450px; cy: 450px;
+  fill: none;
+  stroke: #2a3050;
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+/* ---- Orbit rings (drawn first, behind the planets) ---- */
+#ringMercury { use: orbit-ring; r: 70px;  }
+#ringVenus   { use: orbit-ring; r: 105px; }
+#ringEarth   { use: orbit-ring; r: 145px; }
+#ringMars    { use: orbit-ring; r: 185px; }
+#ringJupiter { use: orbit-ring; r: 255px; }
+#ringSaturn  { use: orbit-ring; r: 315px; }
+#ringUranus  { use: orbit-ring; r: 375px; }
+#ringNeptune { use: orbit-ring; r: 425px; }
+
+/* ---- The Sun (center) ---- */
+#sunGlowOuter {
+  type: circle; cx: 450px; cy: 450px; r: 90px;
+  fill: #ffb038; opacity: 0.25;
+  transform-origin: center;
+  animation: sunPulse 4s ease-in-out infinite;
+}
+#sunGlowInner {
+  type: circle; cx: 450px; cy: 450px; r: 60px;
+  fill: #ffcf4d; opacity: 0.5;
+  transform-origin: center;
+  animation: sunPulse 3s ease-in-out infinite;
+}
+#sunCore {
+  type: circle; cx: 450px; cy: 450px; r: 42px;
+  fill: #fff2b0; stroke: #ffd94a; stroke-width: 3;
+}
+
+/* ---- Planets ----
+ * Each group: translate to center, spin; planet offset to (orbit, 0). */
+
+#orbitMercury {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 6s linear infinite;
+  > #mercury { type: circle; cx: 70px; cy: 0px; r: 5px; fill: #9a8f86; }
+}
+
+#orbitVenus {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 9s linear infinite;
+  > #venus { type: circle; cx: 105px; cy: 0px; r: 8px; fill: #e6c88c; }
+}
+
+#orbitEarth {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 12s linear infinite;
+  > #earth { type: circle; cx: 145px; cy: 0px; r: 9px; fill: #4a90d9; }
+  /* Moon: nested group at Earth's offset, spinning faster around it. */
+  > #moonOrbit {
+    type: group;
+    transform: translate(145px, 0px);
+    animation: spin 3s linear infinite;
+    > #moon { type: circle; cx: 20px; cy: 0px; r: 3px; fill: #cfd2d6; }
+  }
+}
+
+#orbitMars {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 16s linear infinite;
+  > #mars { type: circle; cx: 185px; cy: 0px; r: 7px; fill: #c1440e; }
+}
+
+#orbitJupiter {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 26s linear infinite;
+  > #jupiter { type: circle; cx: 255px; cy: 0px; r: 22px; fill: #d9a066; }
+}
+
+/* Saturn: an ellipse ring sits behind/around the planet inside the same group,
+ * so it revolves with Saturn. The ring is declared before the planet so the
+ * planet paints on top of it. */
+#orbitSaturn {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 34s linear infinite;
+  > #saturnRing {
+    type: ellipse; cx: 315px; cy: 0px; rx: 34px; ry: 12px;
+    fill: none; stroke: #cdb06a; stroke-width: 5;
+    transform: rotate(-18deg); transform-origin: center;
+  }
+  > #saturn { type: circle; cx: 315px; cy: 0px; r: 18px; fill: #e0c17a; }
+}
+
+#orbitUranus {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 44s linear infinite;
+  > #uranus { type: circle; cx: 375px; cy: 0px; r: 14px; fill: #86dfe0; }
+}
+
+#orbitNeptune {
+  type: group;
+  transform: translate(450px, 450px);
+  animation: spin 54s linear infinite;
+  > #neptune { type: circle; cx: 425px; cy: 0px; r: 13px; fill: #3f66c9; }
+}

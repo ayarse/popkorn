@@ -1,0 +1,162 @@
+/* A cute front-facing sitting orange-tabby cat.
+   Reusable @define symbols: `eye` (blinks) and `ear` (one twitches).
+   Animations: swishing tail, blinking eyes, gentle breathing bob, ear twitch. */
+
+:canvas {
+  width: 800px;
+  height: 800px;
+  background: #cfe4dd;
+}
+
+/* ----------------------------- keyframes ----------------------------- */
+
+/* Whole-cat idle breathing / bob. */
+@keyframes breathe {
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+/* Chest rise/fall — subtle scale about the body's own centre. */
+@keyframes breatheBody {
+  0%   { transform: scale(1, 1); }
+  50%  { transform: scale(1.03, 1.04); }
+  100% { transform: scale(1, 1); }
+}
+
+/* Eyes: open most of the loop, quick squash to blink. */
+@keyframes blink {
+  0%   { transform: scale(1, 1); }
+  90%  { transform: scale(1, 1); }
+  94%  { transform: scale(1, 0.08); }
+  98%  { transform: scale(1, 1); }
+  100% { transform: scale(1, 1); }
+}
+
+/* Tail swish — used with `alternate` so it rocks back and forth. */
+@keyframes swish {
+  0%   { transform: rotate(-20deg); }
+  100% { transform: rotate(20deg); }
+}
+
+/* Left ear twitch — holds the outward tilt (-16deg) then flicks. */
+@keyframes earTwitch {
+  0%   { transform: rotate(-16deg); }
+  86%  { transform: rotate(-16deg); }
+  90%  { transform: rotate(-30deg); }
+  94%  { transform: rotate(-16deg); }
+  100% { transform: rotate(-16deg); }
+}
+
+/* ------------------------------ symbols ------------------------------ */
+
+/* A cat eye, drawn centred on its local origin so `scale(1, 0.08)` blinks
+   about its middle. Positioned per-instance via a use-site transform. */
+@define eye {
+  type: group;
+  transform-origin: center;
+  animation: blink 4.5s ease-in-out infinite;
+  > #white { type: ellipse; cx: 0px; cy: 0px; rx: 30px; ry: 34px; fill: #fffaf0; }
+  > #iris  { type: ellipse; cx: 0px; cy: 0px; rx: 20px; ry: 28px; fill: #86c541; }
+  > #pupil { type: ellipse; cx: 0px; cy: 0px; rx: 7px;  ry: 24px; fill: #202020; }
+  > #glint { type: circle;  cx: -7px; cy: -10px; r: 6px; fill: #ffffff; }
+}
+
+/* A triangular ear with a pink inner. Base sits on the local origin so the
+   ear pivots about its base for the twitch. */
+@define ear {
+  type: group;
+  transform-origin: center;
+  > #outer { type: path; d: 'M -46 0 L 0 -82 L 46 0 Z'; fill: #e88a2a; }
+  > #inner { type: path; d: 'M -26 -8 L 0 -56 L 26 -8 Z'; fill: #f6c0ad; }
+}
+
+/* ------------------------------- scene ------------------------------- */
+
+/* Ground shadow (static, does not bob with the cat). */
+#shadow {
+  type: ellipse; cx: 400px; cy: 726px; rx: 205px; ry: 34px;
+  fill: #3a5a52; opacity: 0.22;
+}
+
+#cat {
+  type: group;
+  transform-origin: center;
+  animation: breathe 3.6s ease-in-out infinite;
+
+  /* Tail — behind the body, pivots at its base and swishes. */
+  > #tail {
+    type: group;
+    transform: translate(548px, 656px) rotate(0deg);
+    transform-origin: center;
+    animation: swish 1.9s ease-in-out infinite alternate;
+    > #tailShape {
+      type: path;
+      d: 'M -18 0 C -42 -62 -8 -142 42 -172 C 84 -196 124 -150 110 -118 C 100 -140 70 -150 50 -128 C 26 -104 20 -50 24 -6 Z';
+      fill: #eb9740;
+      stroke: #d9822b; stroke-width: 3px;
+    }
+    > #tailStripe1 { type: ellipse; cx: 30px; cy: -70px; rx: 26px; ry: 10px; fill: #d9822b; }
+    > #tailStripe2 { type: ellipse; cx: 64px; cy: -128px; rx: 22px; ry: 9px; fill: #d9822b; }
+  }
+
+  /* Body. */
+  > #body {
+    type: ellipse; cx: 400px; cy: 600px; rx: 162px; ry: 172px;
+    fill: #eb9740;
+    transform-origin: center;
+    animation: breatheBody 3.6s ease-in-out infinite;
+  }
+  > #belly { type: ellipse; cx: 400px; cy: 622px; rx: 96px; ry: 124px; fill: #f6d9b8; }
+
+  /* Body tabby stripes. */
+  > #bodyStripe1 { type: path; d: 'M 268 560 Q 296 600 268 648'; fill: none; stroke: #d9822b; stroke-width: 12px; stroke-linecap: round; }
+  > #bodyStripe2 { type: path; d: 'M 300 520 Q 330 568 300 620'; fill: none; stroke: #d9822b; stroke-width: 12px; stroke-linecap: round; }
+  > #bodyStripe3 { type: path; d: 'M 532 560 Q 504 600 532 648'; fill: none; stroke: #d9822b; stroke-width: 12px; stroke-linecap: round; }
+  > #bodyStripe4 { type: path; d: 'M 500 520 Q 470 568 500 620'; fill: none; stroke: #d9822b; stroke-width: 12px; stroke-linecap: round; }
+
+  /* Front paws. */
+  > #pawL { type: ellipse; cx: 336px; cy: 748px; rx: 48px; ry: 30px; fill: #f0a04b; }
+  > #pawR { type: ellipse; cx: 464px; cy: 748px; rx: 48px; ry: 30px; fill: #f0a04b; }
+
+  /* Ears (behind the head). Left ear twitches; both reuse the `ear` symbol. */
+  > #earLeft {
+    use: ear;
+    transform: translate(322px, 272px);
+    animation: earTwitch 5s ease-in-out infinite;
+  }
+  > #earRight {
+    use: ear;
+    transform: translate(478px, 272px) rotate(16deg);
+  }
+
+  /* Head. */
+  > #head { type: circle; cx: 400px; cy: 362px; r: 146px; fill: #f0a04b; }
+
+  /* Forehead tabby stripes. */
+  > #foreMid   { type: path; d: 'M 400 306 L 393 240 L 407 240 Z'; fill: #d9822b; }
+  > #foreLeft  { type: path; d: 'M 372 314 L 358 258 L 376 256 Z'; fill: #d9822b; }
+  > #foreRight { type: path; d: 'M 428 314 L 442 258 L 424 256 Z'; fill: #d9822b; }
+
+  /* Light muzzle patch. */
+  > #muzzle { type: ellipse; cx: 400px; cy: 414px; rx: 82px; ry: 56px; fill: #f8e3c4; }
+
+  /* Eyes — two instances of the `eye` symbol. */
+  > #eyeLeft  { use: eye; transform: translate(346px, 352px); }
+  > #eyeRight { use: eye; transform: translate(454px, 352px); }
+
+  /* Nose. */
+  > #nose { type: path; d: 'M 385 398 L 415 398 L 400 414 Z'; fill: #e8788c; }
+
+  /* Mouth. */
+  > #mouthL { type: path; d: 'M 400 414 Q 400 436 379 438'; fill: none; stroke: #a86a3c; stroke-width: 4px; stroke-linecap: round; }
+  > #mouthR { type: path; d: 'M 400 414 Q 400 436 421 438'; fill: none; stroke: #a86a3c; stroke-width: 4px; stroke-linecap: round; }
+
+  /* Whiskers. */
+  > #whiskerL1 { type: path; d: 'M 358 402 Q 296 388 246 380'; fill: none; stroke: #fff5e6; stroke-width: 3px; stroke-linecap: round; }
+  > #whiskerL2 { type: path; d: 'M 358 412 Q 296 412 242 412'; fill: none; stroke: #fff5e6; stroke-width: 3px; stroke-linecap: round; }
+  > #whiskerL3 { type: path; d: 'M 358 422 Q 296 434 248 444'; fill: none; stroke: #fff5e6; stroke-width: 3px; stroke-linecap: round; }
+  > #whiskerR1 { type: path; d: 'M 442 402 Q 504 388 554 380'; fill: none; stroke: #fff5e6; stroke-width: 3px; stroke-linecap: round; }
+  > #whiskerR2 { type: path; d: 'M 442 412 Q 504 412 558 412'; fill: none; stroke: #fff5e6; stroke-width: 3px; stroke-linecap: round; }
+  > #whiskerR3 { type: path; d: 'M 442 422 Q 504 434 552 444'; fill: none; stroke: #fff5e6; stroke-width: 3px; stroke-linecap: round; }
+}

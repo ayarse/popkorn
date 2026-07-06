@@ -1,0 +1,197 @@
+/* Two cute lovey-dovey lovebirds nuzzling on a branch.
+   LEFT bird is mint green, RIGHT bird is lavender/pink; they lean their heads
+   together, wear floppy striped nightcaps with pom-poms, and little hearts
+   float up between them. Reusable `@define`s: `leaf` and `heart`.
+
+   Coordinate convention: each bird is a GROUP whose local origin sits at its
+   FEET on the branch (translate to that point). All the bird's parts are drawn
+   ABOVE the origin (negative y), so a keyframe `rotate` pivots the whole bird
+   about its feet — that's what makes the two lean into each other. */
+
+:canvas {
+  width: 1000px;
+  height: 750px;
+  background: #fffdfa;
+}
+
+/* ------------------------------ keyframes ------------------------------ */
+
+/* Nuzzle sway: each bird leans in and out about its feet. The rotate range
+   stays on the "leaning-toward-center" side (never straightens fully) so the
+   two always look cuddled. `alternate` rocks it back and forth. */
+@keyframes swayLeft  { 0% { transform: rotate(4deg);  } 100% { transform: rotate(10deg);  } }
+@keyframes swayRight { 0% { transform: rotate(-4deg); } 100% { transform: rotate(-10deg); } }
+
+/* Floppy cap jiggle — small wobble about the cap's base. */
+@keyframes capWobble { 0% { transform: rotate(-6deg); } 100% { transform: rotate(6deg); } }
+
+/* A little heart drifting up and fading between the birds. */
+@keyframes floatHeart {
+  0%   { transform: translateY(0px)    scale(0.7); opacity: 0;    }
+  20%  { opacity: 0.95; }
+  100% { transform: translateY(-180px) scale(1.15); opacity: 0;   }
+}
+
+/* Sleepy "z" drifting up off a cap. */
+@keyframes zDrift {
+  0%   { transform: translateY(0px);   opacity: 0.85; }
+  100% { transform: translateY(-48px); opacity: 0;    }
+}
+
+/* ------------------------------- symbols ------------------------------- */
+
+/* A pointed-oval leaf with a faint centre vein, drawn pointing +x from its
+   local origin so instances just translate/rotate/scale it into place. */
+@define leaf {
+  type: group;
+  > #blade { type: path; d: 'M 0 0 Q 22 -15 46 0 Q 22 15 0 0 Z'; fill: #6ec9bd; }
+  > #vein  { type: path; d: 'M 6 0 L 40 0'; fill: none; stroke: #4aa89b; stroke-width: 2px; }
+}
+
+/* A small heart centred on its origin, coral fill. */
+@define heart {
+  type: path;
+  d: 'M 0 6 C -3 0 -12 0 -12 8 C -12 15 0 22 0 22 C 0 22 12 15 12 8 C 12 0 3 0 0 6 Z';
+  fill: #f0806a;
+  transform-origin: center;
+}
+
+/* ------------------------- branch, twigs, leaves ------------------------- */
+
+#branch {
+  type: path;
+  d: 'M 30 566 C 250 512 430 548 560 536 C 720 520 880 536 972 566';
+  fill: none; stroke: #8f7fb8; stroke-width: 24px; stroke-linecap: round;
+}
+#branchShade {
+  type: path;
+  d: 'M 30 574 C 250 520 430 556 560 544 C 720 528 880 544 972 574';
+  fill: none; stroke: #7b6ba6; stroke-width: 8px; stroke-linecap: round; opacity: 0.5;
+}
+#twigLeft  { type: path; d: 'M 300 540 C 282 512 270 500 250 494'; fill: none; stroke: #8f7fb8; stroke-width: 10px; stroke-linecap: round; }
+#twigRight { type: path; d: 'M 700 528 C 726 508 742 500 762 494'; fill: none; stroke: #8f7fb8; stroke-width: 10px; stroke-linecap: round; }
+
+#leafA { use: leaf; transform: translate(250px, 492px) rotate(-125deg); }
+#leafB { use: leaf; transform: translate(762px, 492px) rotate(-45deg); }
+#leafC { use: leaf; transform: translate(150px, 558px) rotate(150deg) scale(0.9); }
+#leafD { use: leaf; transform: translate(870px, 552px) rotate(28deg) scale(0.9); }
+#leafE { use: leaf; transform: translate(232px, 500px) rotate(-95deg) scale(0.8); }
+#leafF { use: leaf; transform: translate(742px, 500px) rotate(-15deg) scale(0.8); }
+
+/* ============================== LEFT BIRD (mint) ============================== */
+/* origin at feet (415, 525); body centred at (0, -95) in local space. */
+#birdLeft {
+  type: group;
+  transform: translate(415px, 525px);
+  animation: swayLeft 2.8s ease-in-out infinite alternate;
+
+  /* pointed tail poking out the outer (left) back — drawn first, body overlaps */
+  > #tailL { type: path; d: 'M -60 -128 L -122 -150 L -58 -92 Z'; fill: #93cbac; }
+
+  /* feet gripping the branch */
+  > #feetL {
+    type: path;
+    d: 'M -18 -8 L -20 8 M -20 8 L -28 13 M -20 8 L -20 17 M -20 8 L -12 14 M 6 -8 L 6 8 M 6 8 L -2 14 M 6 8 L 8 17 M 6 8 L 14 13';
+    fill: none; stroke: #e8896f; stroke-width: 3px; stroke-linecap: round;
+  }
+
+  /* plump pear body */
+  > #bodyL { type: ellipse; cx: 0px; cy: -95px; rx: 76px; ry: 88px; fill: #a8d5ba; }
+
+  /* darker wing patch on the belly/inner side, with a few chevron feathers */
+  > #wingPatchL { type: ellipse; cx: 24px; cy: -70px; rx: 32px; ry: 46px; fill: #7fc0a0; transform: rotate(-12deg); }
+  > #chevL1 { type: path; d: 'M 8 -86 L 18 -80 L 28 -86'; fill: none; stroke: #5fa683; stroke-width: 2px; stroke-linecap: round; }
+  > #chevL2 { type: path; d: 'M 8 -70 L 18 -64 L 28 -70'; fill: none; stroke: #5fa683; stroke-width: 2px; stroke-linecap: round; }
+  > #chevL3 { type: path; d: 'M 8 -54 L 18 -48 L 28 -54'; fill: none; stroke: #5fa683; stroke-width: 2px; stroke-linecap: round; }
+
+  /* tiny raised wing/arm on the outer side */
+  > #wingL { type: path; d: 'M -66 -110 Q -98 -94 -78 -68 Q -70 -84 -58 -92 Z'; fill: #93cbac; stroke: #5fa683; stroke-width: 2px; }
+
+  /* closed content eye — a sleepy downward arc */
+  > #eyeL { type: path; d: 'M 4 -150 Q 18 -140 32 -150'; fill: none; stroke: #2b2b3a; stroke-width: 3px; stroke-linecap: round; }
+
+  /* blush cheek */
+  > #cheekL { type: ellipse; cx: 28px; cy: -122px; rx: 15px; ry: 10px; fill: #f7a8ac; opacity: 0.6; }
+
+  /* little open singing beak pointing toward the center (right) */
+  > #beakUpperL { type: path; d: 'M 40 -132 L 68 -137 L 42 -126 Z'; fill: #2b2b3a; }
+  > #beakLowerL { type: path; d: 'M 42 -126 L 68 -120 L 40 -122 Z'; fill: #2b2b3a; }
+
+  /* nightcap: static outward tilt on the outer group, wobble on the inner group.
+     cap-local origin is the cap base; the cone points up-outward. */
+  > #capL {
+    type: group;
+    transform: translate(-6px, -176px) rotate(-20deg);
+    > #capLWobble {
+      type: group;
+      transform-origin: center;
+      animation: capWobble 2.2s ease-in-out infinite alternate;
+      > #capLCone { type: path; d: 'M -32 0 C -30 -30 -6 -70 12 -80 C 22 -60 30 -20 32 0 Z'; fill: #fff4ee; stroke: #f0806a; stroke-width: 2px; }
+      > #capLBrim { type: rect; x: -34px; y: -9px; width: 68px; height: 11px; rx: 5px; ry: 5px; fill: #f0806a; }
+      > #capLStripe1 { type: path; d: 'M -26 -12 L 27 -14 L 24 -24 L -22 -22 Z'; fill: #f0806a; }
+      > #capLStripe2 { type: path; d: 'M -18 -36 L 22 -40 L 18 -50 L -14 -46 Z'; fill: #f0806a; }
+      > #capLPom { type: circle; cx: 12px; cy: -80px; r: 11px; fill: #fff4ee; stroke: #f0806a; stroke-width: 3px; }
+    }
+  }
+}
+
+/* ============================== RIGHT BIRD (lavender) ============================== */
+/* Mirror of the left bird: every x negated, colours swapped, leans the other way. */
+#birdRight {
+  type: group;
+  transform: translate(585px, 525px);
+  animation: swayRight 2.8s ease-in-out infinite alternate;
+
+  > #tailR { type: path; d: 'M 60 -128 L 122 -150 L 58 -92 Z'; fill: #cba7d1; }
+
+  > #feetR {
+    type: path;
+    d: 'M 18 -8 L 20 8 M 20 8 L 28 13 M 20 8 L 20 17 M 20 8 L 12 14 M -6 -8 L -6 8 M -6 8 L 2 14 M -6 8 L -8 17 M -6 8 L -14 13';
+    fill: none; stroke: #e8896f; stroke-width: 3px; stroke-linecap: round;
+  }
+
+  > #bodyR { type: ellipse; cx: 0px; cy: -95px; rx: 76px; ry: 88px; fill: #dcb8e0; }
+
+  > #wingPatchR { type: ellipse; cx: -24px; cy: -70px; rx: 32px; ry: 46px; fill: #c99fd4; transform: rotate(12deg); }
+  > #chevR1 { type: path; d: 'M -8 -86 L -18 -80 L -28 -86'; fill: none; stroke: #a97fb8; stroke-width: 2px; stroke-linecap: round; }
+  > #chevR2 { type: path; d: 'M -8 -70 L -18 -64 L -28 -70'; fill: none; stroke: #a97fb8; stroke-width: 2px; stroke-linecap: round; }
+  > #chevR3 { type: path; d: 'M -8 -54 L -18 -48 L -28 -54'; fill: none; stroke: #a97fb8; stroke-width: 2px; stroke-linecap: round; }
+
+  > #wingR { type: path; d: 'M 66 -110 Q 98 -94 78 -68 Q 70 -84 58 -92 Z'; fill: #cba7d1; stroke: #a97fb8; stroke-width: 2px; }
+
+  > #eyeR { type: path; d: 'M -4 -150 Q -18 -140 -32 -150'; fill: none; stroke: #2b2b3a; stroke-width: 3px; stroke-linecap: round; }
+
+  > #cheekR { type: ellipse; cx: -28px; cy: -122px; rx: 15px; ry: 10px; fill: #f7a8ac; opacity: 0.6; }
+
+  > #beakUpperR { type: path; d: 'M -40 -132 L -68 -137 L -42 -126 Z'; fill: #2b2b3a; }
+  > #beakLowerR { type: path; d: 'M -42 -126 L -68 -120 L -40 -122 Z'; fill: #2b2b3a; }
+
+  > #capR {
+    type: group;
+    transform: translate(6px, -176px) rotate(20deg);
+    > #capRWobble {
+      type: group;
+      transform-origin: center;
+      animation: capWobble 2.2s ease-in-out infinite alternate 0.6s;
+      > #capRCone { type: path; d: 'M 32 0 C 30 -30 6 -70 -12 -80 C -22 -60 -30 -20 -32 0 Z'; fill: #fff4ee; stroke: #f0806a; stroke-width: 2px; }
+      > #capRBrim { type: rect; x: -34px; y: -9px; width: 68px; height: 11px; rx: 5px; ry: 5px; fill: #f0806a; }
+      > #capRStripe1 { type: path; d: 'M 26 -12 L -27 -14 L -24 -24 L 22 -22 Z'; fill: #f0806a; }
+      > #capRStripe2 { type: path; d: 'M 18 -36 L -22 -40 L -18 -50 L 14 -46 Z'; fill: #f0806a; }
+      > #capRPom { type: circle; cx: -12px; cy: -80px; r: 11px; fill: #fff4ee; stroke: #f0806a; stroke-width: 3px; }
+    }
+  }
+}
+
+/* ------------------------- floating hearts + z ------------------------- */
+/* Wrapped in groups so the base translate positions them and the keyframe
+   translateY/opacity does the float. Staggered delays. */
+#heart1 { type: group; transform: translate(500px, 360px); > #h { use: heart; transform-origin: center; animation: floatHeart 3.4s ease-in-out infinite; } }
+#heart2 { type: group; transform: translate(476px, 380px); > #h { use: heart; transform-origin: center; transform: scale(0.75); animation: floatHeart 3.9s ease-in-out infinite 1.1s; } }
+#heart3 { type: group; transform: translate(522px, 372px); > #h { use: heart; transform-origin: center; transform: scale(0.85); animation: floatHeart 4.3s ease-in-out infinite 2.2s; } }
+
+#zmark {
+  type: group;
+  transform: translate(352px, 300px);
+  animation: zDrift 3.2s ease-in-out infinite;
+  > #z { type: text; content: 'z'; x: 0px; y: 0px; font-size: 26px; font-family: sans-serif; font-weight: bold; fill: #9b8bc4; }
+}

@@ -1,0 +1,151 @@
+/* Pendulum clock — grandfather-style clock, 600x900
+   - Wooden case with rounded corners
+   - Round cream clock face with 12 tick marks (reused @define symbol)
+   - Hour + minute hands rotating about the face center
+   - Long pendulum swinging about a top pivot (ease-in-out alternate) */
+
+:canvas { width: 600px; height: 900px; background: #e3d5bd; }
+
+/* ------------------------------------------------------------------ */
+/* Keyframes                                                          */
+/* ------------------------------------------------------------------ */
+
+/* Pendulum: rock between the extremes; alternate + ease-in-out gives
+   the natural slow-down at each end. 1s each way -> ~2s period. */
+@keyframes swing {
+  0%   { transform: rotate(-15deg); }
+  100% { transform: rotate(15deg);  }
+}
+
+/* Clock hands: full turn, linear, infinite. */
+@keyframes turn {
+  0%   { transform: rotate(0deg);   }
+  100% { transform: rotate(360deg); }
+}
+
+/* ------------------------------------------------------------------ */
+/* Reusable tick mark: a group pinned at the face center; the child   */
+/* rect is drawn near the outer edge (up), and each instance rotates  */
+/* the group about the center to a clock position.                    */
+/* ------------------------------------------------------------------ */
+@define tick {
+  type: group;
+  > #mark {
+    type: rect;
+    x: -3px; y: -102px; width: 6px; height: 20px;
+    rx: 3px; ry: 3px;
+    fill: #3d2614;
+  }
+}
+
+/* ================================================================== */
+/* Scene                                                              */
+/* ================================================================== */
+
+/* Floor band for a bit of depth */
+#floor { type: rect; x: 0px; y: 760px; width: 600px; height: 140px; fill: #c9b596; }
+
+/* Soft contact shadow under the case */
+#shadow { type: ellipse; cx: 300px; cy: 815px; rx: 210px; ry: 26px; fill: #b09a78; opacity: 0.6; }
+
+/* ---- Wooden case ---- */
+#case {
+  type: rect;
+  x: 110px; y: 55px; width: 380px; height: 775px;
+  rx: 46px; ry: 46px;
+  fill: #6e4526; stroke: #3d2614; stroke-width: 6px;
+}
+
+/* Crown / pediment on top of the case */
+#crown {
+  type: rect;
+  x: 150px; y: 35px; width: 300px; height: 46px;
+  rx: 20px; ry: 20px;
+  fill: #7d5230; stroke: #3d2614; stroke-width: 5px;
+}
+#finial { type: circle; cx: 300px; cy: 34px; r: 13px; fill: #d4af37; stroke: #3d2614; stroke-width: 3px; }
+
+/* ---- Clock face ---- */
+#faceRing  { type: circle; cx: 300px; cy: 195px; r: 128px; fill: #c99a2e; stroke: #3d2614; stroke-width: 5px; }
+#faceRing2 { type: circle; cx: 300px; cy: 195px; r: 118px; fill: #8a6a1e; }
+#faceDisc  { type: circle; cx: 300px; cy: 195px; r: 108px; fill: #f6edd8; }
+
+/* 12 tick marks around the face (reused symbol, per-instance rotation).
+   Each instance overrides transform: translate to the face center,
+   then rotate to its clock hour. */
+#t12 { use: tick; transform: translate(300px, 195px) rotate(0deg);   }
+#t1  { use: tick; transform: translate(300px, 195px) rotate(30deg);  }
+#t2  { use: tick; transform: translate(300px, 195px) rotate(60deg);  }
+#t3  { use: tick; transform: translate(300px, 195px) rotate(90deg);  }
+#t4  { use: tick; transform: translate(300px, 195px) rotate(120deg); }
+#t5  { use: tick; transform: translate(300px, 195px) rotate(150deg); }
+#t6  { use: tick; transform: translate(300px, 195px) rotate(180deg); }
+#t7  { use: tick; transform: translate(300px, 195px) rotate(210deg); }
+#t8  { use: tick; transform: translate(300px, 195px) rotate(240deg); }
+#t9  { use: tick; transform: translate(300px, 195px) rotate(270deg); }
+#t10 { use: tick; transform: translate(300px, 195px) rotate(300deg); }
+#t11 { use: tick; transform: translate(300px, 195px) rotate(330deg); }
+
+/* ---- Hands ---- (groups pinned at face center, hand drawn upward,
+   group rotates about its local origin = the center) */
+#hourHand {
+  type: group;
+  transform: translate(300px, 195px);
+  animation: turn 72s linear infinite;
+  > #hourBar {
+    type: rect;
+    x: -5px; y: -62px; width: 10px; height: 78px;
+    rx: 5px; ry: 5px;
+    fill: #3d2614;
+  }
+}
+#minuteHand {
+  type: group;
+  transform: translate(300px, 195px);
+  animation: turn 6s linear infinite;
+  > #minuteBar {
+    type: rect;
+    x: -3px; y: -94px; width: 6px; height: 108px;
+    rx: 3px; ry: 3px;
+    fill: #b8860b;
+  }
+}
+#hub { type: circle; cx: 300px; cy: 195px; r: 9px; fill: #d4af37; stroke: #3d2614; stroke-width: 2px; }
+
+/* ---- Pendulum window (recessed panel behind the pendulum) ---- */
+#window {
+  type: rect;
+  x: 165px; y: 345px; width: 270px; height: 445px;
+  rx: 26px; ry: 26px;
+  fill: #3a2415; stroke: #2a1a0e; stroke-width: 4px;
+}
+
+/* Pivot cap where the pendulum hangs from */
+#pivot { type: circle; cx: 300px; cy: 360px; r: 8px; fill: #d4af37; stroke: #3d2614; stroke-width: 2px; }
+
+/* ---- Pendulum ---- swings about the pivot at (300, 360).
+   The rod + bob hang DOWNWARD from the group's local origin, so
+   rotating the group about origin (default 0 0) pivots at the top. */
+#pendulum {
+  type: group;
+  transform: translate(300px, 360px);
+  transform-origin: center;
+  animation: swing 1s ease-in-out infinite alternate;
+  > #rod {
+    type: rect;
+    x: -4px; y: 0px; width: 8px; height: 375px;
+    rx: 4px; ry: 4px;
+    fill: #b8860b;
+  }
+  > #bobRing {
+    type: circle; cx: 0px; cy: 388px; r: 46px;
+    fill: #b8860b; stroke: #3d2614; stroke-width: 3px;
+  }
+  > #bob {
+    type: circle; cx: 0px; cy: 388px; r: 38px;
+    fill: radial-gradient(#f6df8f, #c99a2e 100%);
+  }
+  > #bobShine {
+    type: circle; cx: -12px; cy: 376px; r: 10px; fill: #fbf0c4; opacity: 0.7;
+  }
+}
