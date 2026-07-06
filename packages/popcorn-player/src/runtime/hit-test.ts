@@ -69,6 +69,10 @@ function hitTestNode(
   order: { value: number },
   results: HitTestResult[]
 ): void {
+  // Matte sources are never painted on their own, so they can't be hit; skip
+  // the whole subtree. (Matted content is hit-tested normally on its shape.)
+  if (node.isMatteSource) return;
+
   const world = computeWorldMatrix(node, parentWorld);
   const depth = order.value++;
   const local = transformPoint(invertMatrix(world), point.x, point.y);
@@ -131,8 +135,9 @@ function isPointInShape(node: SceneNode, point: Point): boolean {
     case 'star':
     case 'polygon':
       return isPointInCommands(polystarCommands(node), point, node.fillRule);
-    case 'text': {
-      // Rect test against the measured (or estimated) text bounds.
+    case 'text':
+    case 'image': {
+      // Rect test against the node's bounding box.
       const b = getShapeBounds(node);
       return point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height;
     }

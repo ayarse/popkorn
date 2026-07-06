@@ -5,7 +5,7 @@ import { getShapeBounds } from './transform';
 import { getPropHandler } from '../animation/registry';
 import { AnimationScheduler } from '../animation/scheduler';
 import { resetNodeToBase } from './types';
-import type { TextData, CircleData, PolystarData } from './types';
+import type { TextData, CircleData, PolystarData, ImageData } from './types';
 import { hitTest } from '../runtime/hit-test';
 
 const build = (src: string) => buildSceneGraph(parse(src));
@@ -179,4 +179,60 @@ test('fill-rule: parses evenodd; defaults to nonzero', () => {
   expect(a.fillRule).toBe('evenodd');
   const [b] = build('#b { type: path; d: "M0 0 L10 0 L0 10 Z"; }').children;
   expect(b.fillRule).toBe('nonzero');
+});
+
+// --- multi-path clip (Lottie mask add-mode) ----------------------------------
+
+test('clip-path: multiple path() values union into one command list', () => {
+  const [g] = build(
+    "#g { type: group; clip-path: path('M0 0 L10 0 L10 10 Z') path('M20 20 L30 20 L30 30 Z'); }"
+  ).children;
+  expect(g.clipPath?.type).toBe('path');
+  if (g.clipPath?.type === 'path') {
+    // Two triangles -> two M commands in the concatenated list.
+    expect(g.clipPath.commands.filter((c) => c.type === 'M')).toHaveLength(2);
+  }
+});
+
+// --- track mattes ------------------------------------------------------------
+
+const MATTE_SRC = `
+#content { type: rect; x: 0px; y: 0px; width: 50px; height: 50px; fill: #f00; matte: #mask alpha; }
+#mask { type: circle; cx: 25px; cy: 25px; r: 25px; fill: #fff; }
+`;
+
+test('matte: resolves the source by id, flags it, and links the mode', () => {
+  const root = build(MATTE_SRC);
+  const [content, mask] = root.children;
+  expect(content.matte?.source).toBe(mask);
+  expect(content.matte?.mode).toBe('alpha');
+  // The source is painted only as a matte, never on its own.
+  expect(mask.isMatteSource).toBe(true);
+  expect(content.isMatteSource).toBe(false);
+});
+
+test('matte: an unknown source id throws', () => {
+  expect(() => build('#c { type: rect; width: 10px; matte: #nope alpha; }'))
+    .toThrow(/matte on 'c' references unknown node '#nope'/);
+});
+
+test('matte: mode variants parse (luma-invert)', () => {
+  const root = build(`
+    #c { type: rect; width: 10px; matte: #m luma-invert; }
+    #m { type: rect; width: 10px; }
+  `);
+  expect(root.children[0].matte?.mode).toBe('luma-invert');
+});
+
+// --- image nodes -------------------------------------------------------------
+
+test('image: props map with a default-0 box until natural size is known', () => {
+  const [n] = build("#i { type: image; src: 'x.png'; }").children;
+  expect(n.type).toBe('image');
+  expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 0, y: 0, width: 0, height: 0, src: 'x.png' });
+});
+
+test('image: x/y/width/height populate the box', () => {
+  const [n] = build("#i { type: image; src: 'a.png'; x: 10px; y: 20px; width: 40px; height: 30px; }").children;
+  expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 10, y: 20, width: 40, height: 30, src: 'a.png' });
 });

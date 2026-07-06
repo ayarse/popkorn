@@ -648,6 +648,43 @@ const examples = {
   stroke-width: 5px;
   stroke-dasharray: 16px 10px;
 }`,
+
+  matte: `/* Track matte: big text revealed through a sweeping bar (luma matte) */
+:canvas {
+  width: 800px;
+  height: 600px;
+  background: #0b1021;
+}
+
+/* The matte source: a white bar that sweeps left-to-right and back. Because it
+   drives a luma matte it is never drawn itself — only its brightness shows the
+   content through. */
+@keyframes sweep {
+  0%   { transform: translateX(-700px); }
+  100% { transform: translateX(700px); }
+}
+
+#reveal {
+  type: text;
+  content: "POPCORN";
+  x: 400px;
+  y: 360px;
+  font-size: 150px;
+  font-weight: 700;
+  text-anchor: middle;
+  fill: #ffe66d;
+  matte: #wipe luma;
+}
+
+#wipe {
+  type: rect;
+  x: 100px;
+  y: 180px;
+  width: 240px;
+  height: 260px;
+  fill: #ffffff;
+  animation: sweep 3s ease-in-out infinite alternate;
+}`,
 };
 
 type ExampleKey = keyof typeof examples;

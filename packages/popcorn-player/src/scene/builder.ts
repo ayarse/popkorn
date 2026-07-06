@@ -30,7 +30,10 @@ import type {
   TransformOriginValue,
   StateStyles,
   ClipPathData,
+  ImageData,
+  MatteMode,
 } from './types';
+import type { PathCommand } from '../renderer/types';
 import type { GradientData, GradientStop } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath, buildMotionPath } from './path-parser';
@@ -44,6 +47,9 @@ const isPolystar = (sd: ShapeData): sd is PolystarData =>
 export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
   private definitionsMap: Map<string, DefinitionRule> = new Map();
+  // Nodes that authored a `matte:` reference, resolved to source nodes once the
+  // whole tree is built (the source can live anywhere in the scene).
+  private pendingMattes: { node: SceneNode; sourceId: string; mode: MatteMode }[] = [];
   // Longhand animation-fill-mode for the node currently being built (it
   // overrides any value in the animation shorthand, regardless of source order).
   private pendingFillMode: AnimationFillMode | null = null;
@@ -67,7 +73,31 @@ export class SceneBuilder {
       root.children.push(node);
     }
 
+    this.resolveMattes(root);
+
     return root;
+  }
+
+  /**
+   * Wire up authored `matte:` references now that every node exists. The matte
+   * source is looked up by id anywhere in the scene; the referenced node is
+   * flagged so the renderer paints it only as a matte, never on its own.
+   */
+  private resolveMattes(root: SceneNode): void {
+    if (this.pendingMattes.length === 0) return;
+    const byId = new Map<string, SceneNode>();
+    const index = (n: SceneNode) => { byId.set(n.id, n); n.children.forEach(index); };
+    index(root);
+
+    for (const { node, sourceId, mode } of this.pendingMattes) {
+      const source = byId.get(sourceId);
+      if (!source) {
+        throw new Error(`matte on '${node.id}' references unknown node '#${sourceId}'`);
+      }
+      node.matte = { source, mode };
+      source.isMatteSource = true;
+    }
+    this.pendingMattes = [];
   }
 
   private buildNode(rule: Rule): SceneNode {
@@ -325,6 +355,8 @@ export class SceneBuilder {
           (node.shapeData as RectData).x = getNumericValue(value);
         } else if (node.shapeData.type === 'text') {
           (node.shapeData as TextData).x = getNumericValue(value);
+        } else if (node.shapeData.type === 'image') {
+          (node.shapeData as ImageData).x = getNumericValue(value);
         }
         break;
       case 'y':
@@ -332,6 +364,8 @@ export class SceneBuilder {
           (node.shapeData as RectData).y = getNumericValue(value);
         } else if (node.shapeData.type === 'text') {
           (node.shapeData as TextData).y = getNumericValue(value);
+        } else if (node.shapeData.type === 'image') {
+          (node.shapeData as ImageData).y = getNumericValue(value);
         }
         break;
 
@@ -368,11 +402,22 @@ export class SceneBuilder {
       case 'width':
         if (node.shapeData.type === 'rect') {
           (node.shapeData as RectData).width = getNumericValue(value);
+        } else if (node.shapeData.type === 'image') {
+          (node.shapeData as ImageData).width = getNumericValue(value);
         }
         break;
       case 'height':
         if (node.shapeData.type === 'rect') {
           (node.shapeData as RectData).height = getNumericValue(value);
+        } else if (node.shapeData.type === 'image') {
+          (node.shapeData as ImageData).height = getNumericValue(value);
+        }
+        break;
+
+      // Image source (url or data: URI).
+      case 'src':
+        if (node.shapeData.type === 'image') {
+          (node.shapeData as ImageData).src = getStringValue(value);
         }
         break;
       case 'rx':
@@ -505,6 +550,10 @@ export class SceneBuilder {
         node.clipPath = this.parseClipPath(value);
         break;
 
+      case 'matte':
+        this.parseMatte(node, value);
+        break;
+
       // CSS Motion Path. offset-path is static (cached arc-length table built
       // once); offset-distance is animatable (registry) so it also lands here as
       // the authored default; offset-rotate is static.
@@ -623,6 +672,9 @@ export class SceneBuilder {
             type: 'text', x: 0, y: 0, content: '',
             fontSize: 16, fontFamily: 'sans-serif', fontWeight: 'normal', anchor: 'start',
           };
+          break;
+        case 'image':
+          node.shapeData = { type: 'image', x: 0, y: 0, width: 0, height: 0, src: '' };
           break;
       }
     }
@@ -1013,6 +1065,21 @@ export class SceneBuilder {
    * Returns null for anything unrecognized (node stays unclipped).
    */
   private parseClipPath(value: Value): ClipPathData | null {
+    // Multiple space-separated path() values union into one clip region (Lottie
+    // mask add-mode). Concatenating the subpaths into a single command list is
+    // enough: Path2D + a nonzero fill treats them as one shape, so we clip once
+    // and hit-testing passes for a point inside any of them.
+    if (isListValue(value)) {
+      const commands: PathCommand[] = [];
+      for (const v of value.values) {
+        if (isFunctionValue(v) && v.name === 'path') {
+          const arg = v.args[0];
+          if (arg && isStringValue(arg)) commands.push(...parsePath(arg.value));
+        }
+      }
+      return commands.length > 0 ? { type: 'path', commands } : null;
+    }
+
     if (!isFunctionValue(value)) return null;
 
     if (value.name === 'circle') {
@@ -1041,6 +1108,26 @@ export class SceneBuilder {
     }
 
     return null;
+  }
+
+  /**
+   * Parse `matte: #<id> alpha | alpha-invert | luma | luma-invert`. The id is
+   * carried as a `#`-prefixed keyword by the parser; the mode defaults to alpha.
+   * Resolution to the source node happens once the whole tree exists.
+   */
+  private parseMatte(node: SceneNode, value: Value): void {
+    const values = isListValue(value) ? value.values : [value];
+    let sourceId: string | null = null;
+    let mode: MatteMode = 'alpha';
+    for (const v of values) {
+      if (!isKeywordValue(v)) continue;
+      if (v.value.startsWith('#')) {
+        sourceId = v.value.slice(1);
+      } else if (v.value === 'alpha' || v.value === 'alpha-invert' || v.value === 'luma' || v.value === 'luma-invert') {
+        mode = v.value;
+      }
+    }
+    if (sourceId) this.pendingMattes.push({ node, sourceId, mode });
   }
 
   /**

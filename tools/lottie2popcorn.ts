@@ -149,6 +149,8 @@ class Converter {
   blocked = new Set<string>();
   private ids = new Set<string>();
   private crossSampled = false;
+  private assets = new Map<string, any>();
+  private ruleByInd = new Map<number, Rule>();
   fr = 60;
   ip = 0;
 
@@ -174,18 +176,20 @@ class Converter {
     const h = lottie.h || 600;
     const durSec = (op - this.ip) / this.fr;
 
+    // Index assets by id for image (ty 2) layers.
+    if (Array.isArray(lottie.assets)) for (const a of lottie.assets) if (a && a.id) this.assets.set(a.id, a);
+
     const layers: any[] = Array.isArray(lottie.layers) ? lottie.layers : [];
     const byInd = new Map<number, any>();
     for (const l of layers) if (typeof l.ind === 'number') byInd.set(l.ind, l);
 
-    const convertible = (l: any) => l && (l.ty === 1 || l.ty === 3 || l.ty === 4);
+    const convertible = (l: any) => l && (l.ty === 1 || l.ty === 2 || l.ty === 3 || l.ty === 4);
 
     // Record blocked non-convertible layer types.
     for (const l of layers) {
       if (convertible(l)) continue;
       const feat =
         l.ty === 0 ? 'precomp layer (ty 0)' :
-        l.ty === 2 ? 'image layer (ty 2)' :
         l.ty === 5 ? 'text layer (ty 5)' :
         `layer type ${l.ty}`;
       this.blocked.add(feat);
@@ -218,6 +222,21 @@ class Converter {
     for (const l of [...roots].reverse()) {
       const r = buildLayer(l);
       if (r) topRules.push(r);
+    }
+
+    // Track mattes: a layer with `tt` is masked by its matte source (the layer
+    // referenced by `tp`, else the one directly above). Emit `matte: #id <mode>`
+    // on the content rule; the source rule is marked matteSource at build time.
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (l.tt === undefined) continue;
+      const mode = MATTE_MODE[l.tt];
+      if (!mode) { this.blocked.add(`track matte mode tt:${l.tt}`); continue; }
+      const content = this.ruleByInd.get(l.ind);
+      const srcInd = typeof l.tp === 'number' ? l.tp : layers[i - 1]?.ind;
+      const source = srcInd !== undefined ? this.ruleByInd.get(srcInd) : undefined;
+      if (!content || !source) { this.blocked.add('track matte (unresolved source)'); continue; }
+      content.decls.push(`matte: #${source.id} ${mode}`);
     }
 
     if (this.crossSampled) {
@@ -261,6 +280,11 @@ class Converter {
     const st = l.st || 0;
 
     this.scanBlocked(l);
+    const maskDecl = this.maskClipPath(l);
+    const record = (rule: Rule): Rule => {
+      if (typeof l.ind === 'number') this.ruleByInd.set(l.ind, rule);
+      return rule;
+    };
 
     // Layer visibility window narrower than the comp -> we don't animate pop in/out.
     if ((l.ip ?? this.ip) > this.ip || (l.op ?? 0) < 0) { /* handled below */ }
@@ -280,6 +304,22 @@ class Converter {
       }
     }
 
+    if (l.ty === 2) {
+      // Image layer: draw the referenced asset in its natural-size box; the
+      // layer transform (with the anchor as transform-origin) positions it.
+      const asset = this.assets.get(l.refId);
+      if (!asset) { this.blocked.add('image layer missing asset'); throw new Error(`missing asset '${l.refId}'`); }
+      const img: Rule = { id, type: 'image', decls: [], channels: [], children: [] };
+      img.decls.push(`src: '${assetSrc(asset)}'`, `x: 0`, `y: 0`);
+      if (asset.w) img.decls.push(`width: ${num(asset.w)}px`);
+      if (asset.h) img.decls.push(`height: ${num(asset.h)}px`);
+      this.applyTransform(l.ks, img, st);
+      if (maskDecl) img.decls.push(maskDecl);
+      img.children.push(...childRules);
+      this.finalizeAnim(img, st);
+      return record(img);
+    }
+
     if (l.ty === 1) {
       // Solid: a rect of sw x sh filled with sc, plus the layer transform.
       const rect: Rule = { id, type: 'rect', decls: [], channels: [], children: [] };
@@ -287,23 +327,26 @@ class Converter {
       if (l.sc) rect.decls.push(`fill: ${l.sc}`);
       this.applyTransform(l.ks, rect, st);
       if (childRules.length === 0) {
+        if (maskDecl) rect.decls.push(maskDecl);
         this.finalizeAnim(rect, st);
-        return rect;
+        return record(rect);
       }
       // Solid used as a parent: wrap the rect in a group carrying the transform.
       const group: Rule = { id, type: 'group', decls: [], channels: [], children: [] };
       this.applyTransform(l.ks, group, st);
+      if (maskDecl) group.decls.push(maskDecl);
       rect.id = this.uniqueId(id + '-rect');
       rect.decls = rect.decls.filter((d) => !d.startsWith('transform') && !d.startsWith('opacity'));
       rect.channels = [];
       group.children.push(rect, ...childRules);
       this.finalizeAnim(group, st);
-      return group;
+      return record(group);
     }
 
     // Null (ty 3) and shape (ty 4) are both groups.
     const group: Rule = { id, type: 'group', decls: [], channels: [], children: [] };
     this.applyTransform(l.ks, group, st);
+    if (maskDecl) group.decls.push(maskDecl);
 
     if (l.ty === 4 && Array.isArray(l.shapes)) {
       const shapeChildren = this.processItems(l.shapes, id, { fill: null, stroke: null });
@@ -311,14 +354,36 @@ class Converter {
     }
     group.children.push(...childRules);
     this.finalizeAnim(group, st);
-    return group;
+    return record(group);
   }
 
   private scanBlocked(l: any) {
-    if (Array.isArray(l.masksProperties) && l.masksProperties.length > 0) this.blocked.add('layer mask (masksProperties)');
-    if (l.tt !== undefined) this.blocked.add('track matte (tt)');
     if (l.tm !== undefined) this.blocked.add('time remap (tm)');
-    if (l.hasMask) this.blocked.add('layer mask');
+  }
+
+  /**
+   * Layer masks (masksProperties) -> a `clip-path` with one path() per mask,
+   * unioned. Only static add-mode masks at full opacity convert; other modes,
+   * inverted/animated masks or reduced opacity block the layer. Mask expansion
+   * (x != 0) converts anyway (expansion is ignored) with a warning.
+   */
+  private maskClipPath(l: any): string | null {
+    const masks = l.masksProperties;
+    if (!Array.isArray(masks) || masks.length === 0) return null;
+    const paths: string[] = [];
+    for (const m of masks) {
+      if (m.mode && m.mode !== 'a') { this.blocked.add(`mask mode '${m.mode}'`); return null; }
+      if (m.inv) { this.blocked.add('inverted mask (inv)'); return null; }
+      const o = prop(m.o);
+      if (o && (o.animated || (o.at(0)[0] ?? 100) < 100)) { this.blocked.add('mask opacity < 100'); return null; }
+      const pt = m.pt;
+      if (!pt || pt.a === 1 || !pt.k) { this.blocked.add('animated mask shape'); return null; }
+      const x = prop(m.x);
+      if (x && Math.abs(x.at(0)[0] ?? 0) > 1e-6) this.warnOnce(`mask expansion on '${l.nm || l.ind}' ignored`);
+      const d = shapeToPath(pt.k);
+      if (d) paths.push(`path('${d}')`);
+    }
+    return paths.length ? `clip-path: ${paths.join(' ')}` : null;
   }
 
   // --- transform (ks / tr) -> decls + channels ----------------------------
@@ -808,6 +873,16 @@ function shapeToPath(shp: any): string {
 /** A group `tr` item has the same shape as a layer `ks`. */
 function trToKs(tr: any): any {
   return { o: tr.o, r: tr.r, p: tr.p, a: tr.a, s: tr.s, sk: tr.sk };
+}
+
+/** Lottie track-matte type (tt) -> Popcorn matte mode. */
+const MATTE_MODE: Record<number, string> = { 1: 'alpha', 2: 'alpha-invert', 3: 'luma', 4: 'luma-invert' };
+
+/** Resolve an image asset to a src: embedded data URI if present, else u + p. */
+function assetSrc(asset: any): string {
+  const p = asset.p || '';
+  if (typeof p === 'string' && p.startsWith('data:')) return p;
+  return `${asset.u || ''}${p}`;
 }
 
 // ---------------------------------------------------------------------------

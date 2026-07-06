@@ -1,6 +1,7 @@
 import type { Renderer } from '../renderer/interface';
-import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData } from '../scene/types';
-import type { TrimDescriptor } from '../renderer/types';
+import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData } from '../scene/types';
+import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
+import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
 import { resetNodeToBase } from '../scene/types';
 import { computeLocalMatrix } from '../scene/transform';
 import { outlineLength } from '../scene/path-parser';
@@ -181,12 +182,24 @@ export class RenderLoop {
     this.renderer.endFrame();
   }
 
-  private renderNode(node: SceneNode): void {
+  private renderNode(node: SceneNode, isolated: boolean = false): void {
+    // In the normal walk, a matte source is painted only via its dependent's
+    // composite (below), and a node with a matte is composited offscreen. The
+    // isolated passes that feed those composites bypass both (isolated = true).
+    if (!isolated) {
+      if (node.isMatteSource) return;
+      if (node.matte) { this.renderMatte(node); return; }
+    }
+
     this.renderer.save();
 
     // Apply the node's local transform (translate/rotate/scale around transform-origin).
     // Multiplying onto the current (parent) transform yields the world transform.
     this.renderer.transform(computeLocalMatrix(node));
+
+    // Fill rule is set before the clip so a multi-path (union) mask clips with
+    // the intended winding, then reused by the shape fill below.
+    this.renderer.setFillRule(node.fillRule);
 
     // Clip this node and its descendants (applied in local space, after the
     // transform, before drawing — the save/restore below brackets it).
@@ -201,7 +214,6 @@ export class RenderLoop {
     this.renderer.setStrokeLineCap(node.strokeLineCap);
     this.renderer.setTrim(computeTrim(node));
     this.renderer.setDash(node.strokeDashArray, node.strokeDashOffset);
-    this.renderer.setFillRule(node.fillRule);
     this.renderer.setOpacity(node.opacity);
 
     // Draw shape
@@ -235,6 +247,11 @@ export class RenderLoop {
         this.renderer.drawText(t.content, t.x, t.y, t.fontSize, t.fontFamily, t.fontWeight, t.anchor);
         break;
       }
+      case 'image': {
+        const im = node.shapeData as ImageData;
+        this.renderer.drawImage(im.src, im.x, im.y, im.width, im.height);
+        break;
+      }
       case 'group':
         // Groups don't render themselves, just their children
         break;
@@ -247,6 +264,32 @@ export class RenderLoop {
 
     this.renderer.restore();
   }
+
+  /**
+   * Composite a node against its track-matte source. Both subtrees are rendered
+   * in the canvas-root frame (each closure re-establishes its own world
+   * transform), so alignment is exact regardless of where the source lives.
+   */
+  private renderMatte(node: SceneNode): void {
+    const source = node.matte!.source;
+    const contentParent = worldMatrix(node.parent);
+    const matteParent = worldMatrix(source.parent);
+    this.renderer.compositeMatte(
+      node.matte!.mode,
+      () => { this.renderer.setTransform(contentParent); this.renderNode(node, true); },
+      () => { this.renderer.setTransform(matteParent); this.renderNode(source, true); }
+    );
+  }
+}
+
+/** World matrix of a node by folding local matrices down from the root. */
+function worldMatrix(node: SceneNode | null): Matrix3x3 {
+  if (!node) return IDENTITY_MATRIX;
+  const chain: SceneNode[] = [];
+  for (let n: SceneNode | null = node; n; n = n.parent) chain.push(n);
+  let m = IDENTITY_MATRIX;
+  for (let i = chain.length - 1; i >= 0; i--) m = multiplyMatrices(m, computeLocalMatrix(chain[i]));
+  return m;
 }
 
 export function createRenderLoop(renderer: Renderer, scheduler?: AnimationScheduler): RenderLoop {

@@ -171,3 +171,18 @@ test.skipIf(!hasPath2D)('hitTest: path clip rejects points outside the path', ()
   expect(hitTest(group, { x: 10, y: 10 })).toBe(child);
   expect(hitTest(group, { x: 90, y: 90 })).toBeNull();
 });
+
+test.skipIf(!hasPath2D)('hitTest: multi-path (unioned) clip passes inside any subpath', () => {
+  // Two disjoint boxes concatenated into one command list (mask add-mode).
+  const group = firstNode(
+    "#g { type: group; clip-path: path('M0 0 L20 0 L20 20 L0 20 Z') path('M80 80 L100 80 L100 100 L80 100 Z'); }"
+  );
+  const child = rect('c', 0, 0, 200, 200);
+  child.interactive = true;
+  child.parent = group;
+  group.children.push(child);
+
+  expect(hitTest(group, { x: 10, y: 10 })).toBe(child);   // inside first box
+  expect(hitTest(group, { x: 90, y: 90 })).toBe(child);   // inside second box
+  expect(hitTest(group, { x: 50, y: 50 })).toBeNull();    // between them -> rejected
+});

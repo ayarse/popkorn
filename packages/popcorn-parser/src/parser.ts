@@ -166,7 +166,15 @@ function parseValueList(c: Cursor): Value[] {
 function parseValue(c: Cursor): Value {
   const ch = c.peek();
 
-  if (ch === '#') return { type: 'color', value: c.match(COLOR)! };
+  if (ch === '#') {
+    // A hex color, or — when the hash isn't hex (e.g. `#myLayer`) — a reference
+    // to a node id (used by `matte: #id ...`). Kept as a keyword so no new AST
+    // node kind is needed; the builder strips the leading '#'.
+    const col = c.match(COLOR);
+    if (col) return { type: 'color', value: col };
+    c.expect('#');
+    return { type: 'keyword', value: '#' + c.ident() };
+  }
   if (ch === '"' || ch === "'") return readString(c, ch);
   if (isNumberStart(c, ch)) return readNumber(c);
 

@@ -1,6 +1,6 @@
 import type { Renderer } from './interface';
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor, FillRule } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule, MatteMode } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -10,8 +10,18 @@ type Bounds = { x: number; y: number; width: number; height: number };
  * Canvas 2D implementation of the Renderer interface
  * Used for the PoC - can be swapped for ThorVG later
  */
+// Cache entry for a loaded (or loading) image, keyed by src.
+interface ImageEntry {
+  img: HTMLImageElement;
+  loaded: boolean;
+  errored: boolean;
+}
+
 export class Canvas2DRenderer implements Renderer {
   private ctx: CanvasRenderingContext2D;
+  // Image cache and lazily-created offscreen buffers for track mattes.
+  private images = new Map<string, ImageEntry>();
+  private offscreen: (CanvasRenderingContext2D | null)[] = [];
   private fillColor: string | null = '#000000';
   private strokeColor: string | null = null;
   private strokeWidth: number = 1;
@@ -101,6 +111,81 @@ export class Canvas2DRenderer implements Renderer {
       this.ctx.lineWidth = this.strokeWidth;
       this.ctx.strokeText(text, x, y);
     }
+  }
+
+  drawImage(src: string, x: number, y: number, w: number, h: number): void {
+    if (!src || typeof Image === 'undefined') return; // headless: node is inert
+    let entry = this.images.get(src);
+    if (!entry) {
+      const img = new Image();
+      entry = { img, loaded: false, errored: false };
+      this.images.set(src, entry);
+      img.onload = () => { entry!.loaded = true; };
+      img.onerror = () => {
+        entry!.errored = true;
+        console.warn(`Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`);
+      };
+      img.src = src;
+    }
+    if (!entry.loaded) return; // repaints in once the running loop sees it decoded
+    const dw = w > 0 ? w : entry.img.naturalWidth;
+    const dh = h > 0 ? h : entry.img.naturalHeight;
+    this.ctx.drawImage(entry.img, x, y, dw, dh);
+  }
+
+  compositeMatte(mode: MatteMode, drawContent: () => void, drawMatte: () => void): void {
+    const a = this.ensureOffscreen(0);
+    const b = this.ensureOffscreen(1);
+    if (!a || !b) { drawContent(); return; } // headless / no offscreen: content only
+
+    const main = this.ctx;
+
+    // Content -> A, matte source -> B; each closure sets its own world transform.
+    this.ctx = a;
+    this.beginFrame();
+    drawContent();
+
+    this.ctx = b;
+    this.beginFrame();
+    drawMatte();
+
+    // Turn a luma matte into an alpha matte in place, so a single
+    // destination-in/out handles every mode.
+    if (mode === 'luma' || mode === 'luma-invert') lumaToAlpha(b);
+
+    // destination-in keeps content where the matte is opaque; destination-out
+    // keeps it where the matte is transparent (the *-invert variants).
+    const invert = mode === 'alpha-invert' || mode === 'luma-invert';
+    a.save();
+    a.setTransform(1, 0, 0, 1, 0, 0);
+    a.globalCompositeOperation = invert ? 'destination-out' : 'destination-in';
+    a.drawImage(b.canvas, 0, 0);
+    a.globalCompositeOperation = 'source-over';
+    a.restore();
+
+    // Blit the matted result onto the main canvas at identity (A already holds
+    // world-positioned pixels).
+    this.ctx = main;
+    main.save();
+    main.setTransform(1, 0, 0, 1, 0, 0);
+    main.globalAlpha = 1;
+    main.drawImage(a.canvas, 0, 0);
+    main.restore();
+  }
+
+  /** Lazily create/resize an offscreen 2D context sized to the main canvas. */
+  private ensureOffscreen(index: number): CanvasRenderingContext2D | null {
+    const w = this.ctx.canvas.width, h = this.ctx.canvas.height;
+    let ctx = this.offscreen[index];
+    if (ctx === undefined) {
+      ctx = createOffscreen(w, h);
+      this.offscreen[index] = ctx;
+    }
+    if (ctx && (ctx.canvas.width !== w || ctx.canvas.height !== h)) {
+      ctx.canvas.width = w;
+      ctx.canvas.height = h;
+    }
+    return ctx;
   }
 
   clip(clip: ResolvedClip): void {
@@ -268,4 +353,47 @@ export class Canvas2DRenderer implements Renderer {
     }
     return grad;
   }
+}
+
+/** A blank offscreen 2D context sized w×h, or null when no canvas API exists. */
+function createOffscreen(w: number, h: number): CanvasRenderingContext2D | null {
+  try {
+    if (typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      return canvas.getContext('2d');
+    }
+    if (typeof OffscreenCanvas !== 'undefined') {
+      return new OffscreenCanvas(w, h).getContext('2d') as unknown as CanvasRenderingContext2D;
+    }
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
+/**
+ * Rewrite a buffer's alpha to its per-pixel luminance (×existing alpha), so a
+ * luma matte can be applied with the same destination-in/out path as an alpha
+ * matte. One getImageData/putImageData pass.
+ *
+ * ponytail: a filter-only fast path (`ctx.filter = 'grayscale(1)'` + a luminance
+ * blend) would avoid the CPU round-trip; the pixel loop is the simple version.
+ */
+function lumaToAlpha(ctx: CanvasRenderingContext2D): void {
+  const { width, height } = ctx.canvas;
+  if (width === 0 || height === 0) return;
+  let data: ImageData;
+  try {
+    data = ctx.getImageData(0, 0, width, height);
+  } catch {
+    return; // tainted canvas — leave as-is (treated as an alpha matte)
+  }
+  const px = data.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const lum = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+    px[i + 3] = (px[i + 3] * lum) / 255;
+  }
+  ctx.putImageData(data, 0, 0);
 }

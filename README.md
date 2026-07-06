@@ -251,6 +251,62 @@ instances never collide.
 }
 ```
 
+Multiple `path()` values are unioned into one clip region (a point inside **any**
+of them is kept) — this maps Lottie's additive multi-mask:
+
+```css
+#masked {
+  type: group;
+  clip-path: path('M0 0 L60 0 L60 60 Z') path('M80 80 L140 80 L140 140 Z');
+}
+```
+
+### Track Mattes
+
+`matte` masks a node by another node's **alpha** or **luminance**. The matte
+source is referenced by id (it can live anywhere in the scene) and is *not*
+painted on its own — only sampled as the matte:
+
+```css
+#reveal {
+  type: text;
+  content: "POPCORN";
+  matte: #wipe luma;       /* alpha | alpha-invert | luma | luma-invert */
+}
+
+#wipe {                    /* an animated white bar sweeping across = a wipe */
+  type: rect;
+  x: 0px; y: 0px; width: 100px; height: 120px;
+  fill: #ffffff;
+  animation: sweep 2s ease-in-out infinite;
+}
+```
+
+- `alpha` keeps the node where the source is opaque; `alpha-invert` where it's
+  transparent.
+- `luma` keeps it where the source is bright; `luma-invert` where it's dark.
+
+Compositing is done offscreen, so both subtrees line up exactly regardless of
+their transforms. (Headless/no-canvas environments skip the matte and draw the
+content directly.)
+
+### Images
+
+`type: image` draws a bitmap from a URL or `data:` URI into an x/y/width/height
+box. Omit width/height to use the image's natural size once it loads.
+
+```css
+#logo {
+  type: image;
+  src: 'data:image/png;base64,iVBORw0…';   /* or 'https://…/logo.png' */
+  x: 0px; y: 0px; width: 120px; height: 120px;
+}
+```
+
+Images load asynchronously; the node is transparent until the bitmap decodes,
+then the running loop paints it in. A decode failure logs a warning and the node
+renders nothing.
+
 ### Trim Paths
 
 Trim paths reveal only part of a node's **stroke** (the fill is always drawn in

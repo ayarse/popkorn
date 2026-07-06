@@ -1,5 +1,5 @@
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor, FillRule } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule, MatteMode } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -17,9 +17,19 @@ export interface Renderer {
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;
   drawPath(commands: PathCommand[]): void;
   drawText(text: string, x: number, y: number, fontSize: number, fontFamily: string, fontWeight: string, anchor: TextAnchor): void;
+  // Draw a cached image (by src) into the x/y/w/h box. w/h <= 0 means natural
+  // size. Loading/caching is the renderer's concern; nothing paints until the
+  // image decodes (the running loop repaints it in naturally).
+  drawImage(src: string, x: number, y: number, w: number, h: number): void;
 
   // Clip the current node and its descendants to a region (in local space).
   clip(clip: ResolvedClip): void;
+
+  // Track-matte composite. Paints `drawContent` and `drawMatte` into offscreen
+  // buffers (each closure sets its own world transform and draws a subtree),
+  // masks the content by the matte per `mode`, and blits the result to the main
+  // canvas. Degrades to drawing the content alone when offscreen isn't available.
+  compositeMatte(mode: MatteMode, drawContent: () => void, drawMatte: () => void): void;
 
   // Style (called before draw)
   setFill(color: Color | null): void;

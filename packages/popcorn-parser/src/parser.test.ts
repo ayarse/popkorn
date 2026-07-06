@@ -132,6 +132,16 @@ test('use: is a normal keyword declaration', () => {
   expect(decl).toEqual({ type: 'declaration', property: 'use', value: { type: 'keyword', value: 'spark' } });
 });
 
+test('hex value is a color; non-hex #ident is a node-id keyword (matte reference)', () => {
+  const decls = parse('#n { fill: #abc; matte: #myLayer alpha; }').rules[0].declarations;
+  expect(decls[0].value).toEqual({ type: 'color', value: '#abc' });
+  // `matte: #myLayer alpha` -> list of a #-prefixed id keyword + a mode keyword.
+  expect(decls[1].value).toEqual({
+    type: 'list',
+    values: [{ type: 'keyword', value: '#myLayer' }, { type: 'keyword', value: 'alpha' }],
+  });
+});
+
 test('comment ignored', () => {
   const ast = parse('/* hi */ #box { fill: #fff; }');
   expect(ast.rules).toHaveLength(1);
