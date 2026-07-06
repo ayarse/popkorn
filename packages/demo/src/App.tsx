@@ -329,14 +329,13 @@ function ImportModal({ onFile, onText, onClose }: {
 
         <button
           onClick={() => onText(text)}
-          disabled={!text.trim()}
           style={{
             alignSelf: 'flex-end',
             padding: '8px 18px',
-            backgroundColor: text.trim() ? '#4ecdc4' : '#252530',
-            color: text.trim() ? '#000' : '#555',
+            backgroundColor: '#4ecdc4',
+            color: '#000',
             border: 'none', borderRadius: '4px',
-            cursor: text.trim() ? 'pointer' : 'not-allowed',
+            cursor: 'pointer',
             fontSize: '13px', fontWeight: 600,
           }}
         >
