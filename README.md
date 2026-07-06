@@ -204,9 +204,8 @@ Available inputs:
 
 ```
 popcorn/
-├── apps/
-│   └── demo/             # React demo app
 ├── packages/
+│   ├── demo/             # React demo app
 │   ├── popcorn-parser/   # DSL parser (hand-rolled) → AST
 │   └── popcorn-player/   # Web component & renderer
 ├── examples/             # Example DSL files
