@@ -31,7 +31,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 |---|---|
 | Stage | `:canvas { width: 800px; height: 600px; background: #0f0f23; }` |
 | Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(points,outer-radius,inner-radius) · `text` · `image` · `group` |
-| Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-dasharray`, `fill-rule`, `opacity` |
+| Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-dasharray`, `fill-rule`, `opacity` |
 | Transform | `transform: translate(x,y) rotate(45deg) scale(1.2)` · `transform-origin: center` (**no skew**) |
 | Animate | `animation: <name> <dur> <easing> <count> <dir> <delay>` e.g. `pulse 1.5s ease-in-out infinite` |
 | Keyframes | `@keyframes n { 0% {…} 50% {…} 100% {…} }` (`transform:` decomposes & merges) |

@@ -144,6 +144,8 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 | `stroke` | same as fill | `none` |
 | `stroke-width` | number | `1` |
 | `stroke-linecap` | `butt` \| `round` \| `square` | `butt` |
+| `stroke-linejoin` | `miter` \| `round` \| `bevel` | `miter` |
+| `stroke-miterlimit` | number (only used when join is `miter`) | `4` (SVG/Lottie default, not Canvas's 10) |
 | `stroke-dasharray` | space-separated lengths | `[]` (solid) |
 | `stroke-dashoffset` | number | `0` |
 | `fill-rule` | `nonzero` \| `evenodd` | `nonzero` |
@@ -296,7 +298,7 @@ offset-distance: 50%;   /* animatable; normalized 0..1 */
 offset-rotate: auto;    /* auto | <deg> | auto <deg> */
 ```
 
-Animate `offset-distance` to move along the path (positioned by arc length). `offset-rotate: auto` follows the tangent; a fixed angle orients rigidly; `auto <deg>` = tangent + offset.
+Animate `offset-distance` to move along the path (positioned by arc length). At `offset-distance: 0` the node sits at the path's **first point** (per CSS), not at its bare anchor — so a node whose `offset-distance` animation hasn't started yet still rides the path start. `offset-rotate: auto` follows the tangent; a fixed angle orients rigidly; `auto <deg>` = tangent + offset.
 
 ### Time scoping (precomps)
 
