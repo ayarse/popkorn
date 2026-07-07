@@ -111,6 +111,10 @@ export interface FunctionValue {
 export interface ListValue {
   type: 'list';
   values: Value[];
+  // How the items were written. Absent/'space' is the default (e.g. a multi-part
+  // `transform`); 'comma' marks a CSS comma-separated list (e.g. a multi-value
+  // `animation` shorthand), whose items are themselves usually space-lists.
+  separator?: 'space' | 'comma';
 }
 
 export interface KeyframeRule {

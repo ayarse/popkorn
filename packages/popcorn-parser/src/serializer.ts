@@ -60,9 +60,12 @@ function fmtValue(v: Value, min: boolean): string {
       const sep = min ? ',' : ', ';
       return `${v.name}(${v.args.map((a) => fmtValue(a, min)).join(sep)})`;
     }
-    case 'list':
-      // List items are separated by the syntactically-required single space.
-      return v.values.map((a) => fmtValue(a, min)).join(' ');
+    case 'list': {
+      // Space-separated by default; a 'comma' list (e.g. multi-value `animation`)
+      // rejoins with commas so it round-trips back to distinct groups.
+      const sep = v.separator === 'comma' ? (min ? ',' : ', ') : ' ';
+      return v.values.map((a) => fmtValue(a, min)).join(sep);
+    }
   }
 }
 

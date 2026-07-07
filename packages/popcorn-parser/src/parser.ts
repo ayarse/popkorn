@@ -146,12 +146,20 @@ function parseRuleBody(c: Cursor): { declarations: Declaration[]; children: Rule
 function parseDeclaration(c: Cursor): Declaration {
   const property = c.match(CUSTOM) ?? c.ident();
   c.expect(':');
-  const values = parseValueList(c);
+  // A value is one or more comma-separated groups, each a space-separated list
+  // (CSS `animation: a 1s, b 2s`). Comma-free values keep the old shape exactly:
+  // a lone value, or a plain space `list` with no separator.
+  const groups: Value[] = [];
+  for (;;) {
+    const values = parseValueList(c);
+    groups.push(values.length === 1 ? values[0] : { type: 'list', values });
+    if (!c.eat(',')) break;
+  }
   c.eat(';'); // optional trailing semicolon
   return {
     type: 'declaration',
     property,
-    value: values.length === 1 ? values[0] : { type: 'list', values },
+    value: groups.length === 1 ? groups[0] : { type: 'list', values: groups, separator: 'comma' },
   };
 }
 

@@ -926,6 +926,16 @@ export class SceneBuilder {
   }
 
   private applyAnimation(node: SceneNode, value: Value): void {
+    // A comma-separated `animation` shorthand is a list of independent
+    // animations; each group is one AnimationInstance. They layer on the node
+    // in order (invariant 2's animation-sampling step), so channels that touch
+    // distinct properties (translate vs rotate vs opacity) compose without
+    // clobbering. Recurse per group.
+    if (isListValue(value) && value.separator === 'comma') {
+      for (const item of value.values) this.applyAnimation(node, item);
+      return;
+    }
+
     // Parse animation shorthand: name duration timing-function iteration-count direction
     let values: Value[] = [];
     if (isListValue(value)) {

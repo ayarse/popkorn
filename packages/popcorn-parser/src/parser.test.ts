@@ -76,6 +76,26 @@ test('animation shorthand → list', () => {
   });
 });
 
+test('comma-separated animation shorthand → comma list of space lists', () => {
+  expect(parse('#box { animation: slide 1s linear 1, spin 2s ease-in-out 1 0.5s; }').rules[0].declarations[0].value).toEqual({
+    type: 'list', separator: 'comma', values: [
+      { type: 'list', values: [
+        { type: 'keyword', value: 'slide' },
+        { type: 'length', value: 1, unit: 's' },
+        { type: 'keyword', value: 'linear' },
+        { type: 'number', value: 1 },
+      ] },
+      { type: 'list', values: [
+        { type: 'keyword', value: 'spin' },
+        { type: 'length', value: 2, unit: 's' },
+        { type: 'keyword', value: 'ease-in-out' },
+        { type: 'number', value: 1 },
+        { type: 'length', value: 0.5, unit: 's' },
+      ] },
+    ],
+  });
+});
+
 test('stroke-dasharray → list of lengths', () => {
   expect(parse('#p { stroke-dasharray: 5px 3px 2px; }').rules[0].declarations[0].value).toEqual({
     type: 'list', values: [
