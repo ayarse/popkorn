@@ -20,7 +20,7 @@ function findNode(root: SceneNode, id: string): SceneNode {
 }
 
 const SRC = `
-:canvas { width: 100px; height: 100px; }
+:root { width: 100px; height: 100px; }
 
 /* translate holds at its start value until 100% (step-end) */
 @keyframes slide {

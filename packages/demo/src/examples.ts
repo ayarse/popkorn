@@ -12,7 +12,7 @@ export const examples: Example[] = [
     key: 'shapes',
     label: 'Shapes',
     source: `/* Shapes — gradients, polystar, rounded rects, text, clip-path */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
 }
@@ -94,7 +94,7 @@ export const examples: Example[] = [
    cascade; each tile falls under gravity (accelerating ease-in), rebounds, holds
    flat for a beat, then rises to reset. One composed phrase, staggered by delay
    so the wave reads as choreography — not a chart. */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
 }
@@ -158,7 +158,7 @@ export const examples: Example[] = [
     key: 'hierarchy',
     label: 'Hierarchy',
     source: `/* Hierarchy — nested orbits, trim trails, a moon on its own clock */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #05060f;
@@ -249,12 +249,9 @@ export const examples: Example[] = [
     source: `/* Interactive — a giant eye that watches your cursor. One idea: the iris tracks
    the pointer through input()/var() bindings; the same iris dilates on hover and
    constricts when you press it (:hover / :active). Move around, then poke it. */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
-}
-
-:root {
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
 }
@@ -292,7 +289,7 @@ export const examples: Example[] = [
     label: 'Motion path',
     source: `/* Motion path — travel a route by arc length; offset-rotate faces the tangent.
    The stadium circuit is centred on the 800×600 stage with generous margins. */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0b1021;
@@ -334,7 +331,7 @@ export const examples: Example[] = [
     key: 'bouncyBall',
     label: 'Bounce',
     source: `/* Bounce — per-keyframe easing with squash & stretch */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #1a1a2e;
@@ -386,7 +383,7 @@ export const examples: Example[] = [
     key: 'trimPaths',
     label: 'Trim',
     source: `/* Trim paths — progressive stroke reveal and a marching dash window */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
 }
@@ -436,7 +433,7 @@ export const examples: Example[] = [
     source: `/* Morph — path 'd' interpolation with animated gradient stops.
    Both keyframes share the same command sequence (M C C C C Z) and stop count,
    so 'd' and 'fill' interpolate. Break either and it holds instead. */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0f0f1e;
@@ -465,7 +462,7 @@ export const examples: Example[] = [
     key: 'symbols',
     label: 'Symbols',
     source: `/* Symbols — one @define reused as many instances, plus a text node */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
 }
@@ -506,7 +503,7 @@ export const examples: Example[] = [
     key: 'mask',
     label: 'Mask',
     source: `/* Mask — big text revealed through a sweeping bar (luminance mask) */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0b1021;

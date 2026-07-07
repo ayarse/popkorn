@@ -88,9 +88,14 @@ export function parse(source: string): StyleSheet {
       continue;
     }
     const rule = parseRule(c);
-    if (rule.selector.type === 'canvas') sheet.canvas = extractCanvas(rule);
-    else if (rule.selector.type === 'root') sheet.variables = extractVariables(rule);
-    else sheet.rules.push(rule);
+    if (rule.selector.type === 'root') {
+      // `:root` holds both stage config (width/height/background) and custom
+      // properties. `canvas` stays undefined when only variables are declared,
+      // so the component keeps falling back to its width/height attributes.
+      const cfg = extractCanvas(rule);
+      if (cfg) sheet.canvas = cfg;
+      sheet.variables = extractVariables(rule);
+    } else sheet.rules.push(rule);
   }
   return sheet;
 }
@@ -102,7 +107,6 @@ function parseSelector(c: Cursor): Selector {
   if (ch === ':') {
     c.expect(':');
     const kw = c.ident();
-    if (kw === 'canvas') return { type: 'canvas', name: 'canvas' };
     if (kw === 'root') return { type: 'root', name: 'root' };
     throw new Error(`unknown selector ':${kw}'`);
   }
@@ -287,13 +291,18 @@ function extractEasing(value: Value): string {
   return 'ease';
 }
 
-/** Hoist a `:canvas { ... }` rule into the sheet's canvas config. */
-function extractCanvas(rule: Rule): CanvasConfig {
-  const config: CanvasConfig = { width: 800, height: 600 };
+/**
+ * Extract stage config (width/height/background) from a `:root { ... }` rule.
+ * Returns undefined when the rule declares none, so a `:root` that carries only
+ * custom properties leaves `sheet.canvas` unset (component sizes from attrs).
+ */
+function extractCanvas(rule: Rule): CanvasConfig | undefined {
+  let config: CanvasConfig | undefined;
+  const cfg = () => (config ??= { width: 800, height: 600 });
   for (const decl of rule.declarations) {
-    if (decl.property === 'width' && decl.value.type === 'length') config.width = decl.value.value;
-    else if (decl.property === 'height' && decl.value.type === 'length') config.height = decl.value.value;
-    else if (decl.property === 'background' && decl.value.type === 'color') config.background = decl.value.value;
+    if (decl.property === 'width' && decl.value.type === 'length') cfg().width = decl.value.value;
+    else if (decl.property === 'height' && decl.value.type === 'length') cfg().height = decl.value.value;
+    else if (decl.property === 'background' && decl.value.type === 'color') cfg().background = decl.value.value;
   }
   return config;
 }

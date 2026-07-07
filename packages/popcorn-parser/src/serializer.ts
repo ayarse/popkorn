@@ -26,8 +26,7 @@ export function serialize(sheet: StyleSheet, opts: SerializeOptions = {}): strin
   const min = opts.minify ?? false;
   const blocks: string[] = [];
 
-  if (sheet.canvas) blocks.push(canvasBlock(sheet.canvas, min));
-  if (sheet.variables.length) blocks.push(rootBlock(sheet.variables, min));
+  if (sheet.canvas || sheet.variables.length) blocks.push(rootBlock(sheet.canvas, sheet.variables, min));
   for (const kf of sheet.keyframes) blocks.push(keyframesBlock(kf, min));
   for (const def of sheet.definitions) blocks.push(defineBlock(def, min));
   for (const rule of sheet.rules) blocks.push(ruleBlock(rule, min, 0));
@@ -79,7 +78,6 @@ function fmtSelector(sel: Selector): string {
   switch (sel.type) {
     case 'id': return '#' + sel.name;
     case 'class': return '.' + sel.name;
-    case 'canvas': return ':canvas';
     case 'root': return ':root';
   }
 }
@@ -130,19 +128,18 @@ function defineBlock(def: DefinitionRule, min: boolean): string {
   return block(`@define ${def.name}`, def, min, 0);
 }
 
-function canvasBlock(cfg: CanvasConfig, min: boolean): string {
-  const decls: Declaration[] = [
-    { type: 'declaration', property: 'width', value: { type: 'length', value: cfg.width, unit: 'px' } },
-    { type: 'declaration', property: 'height', value: { type: 'length', value: cfg.height, unit: 'px' } },
-  ];
-  if (cfg.background !== undefined) {
-    decls.push({ type: 'declaration', property: 'background', value: { type: 'color', value: cfg.background } });
+// `:root` carries stage config (width/height/background) followed by custom
+// properties, so it round-trips back to the same StyleSheet on re-parse.
+function rootBlock(cfg: CanvasConfig | undefined, vars: VariableDefinition[], min: boolean): string {
+  const decls: Declaration[] = [];
+  if (cfg) {
+    decls.push({ type: 'declaration', property: 'width', value: { type: 'length', value: cfg.width, unit: 'px' } });
+    decls.push({ type: 'declaration', property: 'height', value: { type: 'length', value: cfg.height, unit: 'px' } });
+    if (cfg.background !== undefined) {
+      decls.push({ type: 'declaration', property: 'background', value: { type: 'color', value: cfg.background } });
+    }
   }
-  return block(':canvas', { declarations: decls, children: [], states: [] }, min, 0);
-}
-
-function rootBlock(vars: VariableDefinition[], min: boolean): string {
-  const decls: Declaration[] = vars.map((v) => ({ type: 'declaration', property: v.name, value: v.value }));
+  for (const v of vars) decls.push({ type: 'declaration', property: v.name, value: v.value });
   return block(':root', { declarations: decls, children: [], states: [] }, min, 0);
 }
 

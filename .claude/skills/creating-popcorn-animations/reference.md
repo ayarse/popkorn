@@ -16,31 +16,24 @@ A document is a flat list of three constructs, in any order:
 
 - `@keyframes name { … }` — animation timelines
 - `@define name { … }` — reusable symbol definitions
-- Rules — `selector { … }`, where two selectors are special/hoisted: `:canvas` (stage) and `:root` (globals)
+- Rules — `selector { … }`, where one selector is special/hoisted: `:root` (stage config + globals)
 
-### Stage config
-
-```css
-:canvas {
-  width: 800px;        /* default 800 — numeric value only, unit ignored */
-  height: 600px;       /* default 600 */
-  background: #0f0f23; /* only a hex/color VALUE is captured here */
-}
-```
-
-Defaults `800×600`, no background. Only a color-typed value sets `background`. If `:canvas` is
-omitted, `<popcorn-player>` falls back to its own `width`/`height` attributes (defaults 400×300).
-
-### Root variables
+### Stage config & root variables
 
 ```css
 :root {
-  --brand: #e94560;
+  width: 800px;        /* default 800 — numeric value only, unit ignored */
+  height: 600px;       /* default 600 */
+  background: #0f0f23; /* only a hex/color VALUE is captured here */
+  --brand: #e94560;    /* custom properties live here too */
   --cursor-x: input(cursor.x);
 }
 ```
 
-Only `--`-prefixed declarations inside `:root` become global variables (see §10, §14).
+`:root` holds both stage config (`width`/`height`/`background`) and global custom properties.
+Defaults `800×600`, no background. Only a color-typed value sets `background`. If `:root` declares
+no `width`/`height`, `<popcorn-player>` falls back to its own `width`/`height` attributes (defaults
+400×300). Only `--`-prefixed declarations become global variables (see §10, §14).
 
 ---
 
@@ -50,8 +43,7 @@ Only `--`-prefixed declarations inside `:root` become global variables (see §10
 |---|---|
 | `#id { }` | Node with id (`node.id`) |
 | `.class { }` | Node with class (`node.className`; id auto) |
-| `:canvas { }` | Stage config (hoisted) |
-| `:root { }` | Global variables (hoisted) |
+| `:root { }` | Stage config + global variables (hoisted) |
 
 **No element/type selectors, no combinators.** A node's shape is set by a `type:` *declaration*, not the selector.
 
@@ -538,7 +530,7 @@ player.source = myDslCode;   // parse + build + play
 ### A. Static composition
 
 ```css
-:canvas { width: 800px; height: 600px; background: #0f0f23; }
+:root { width: 800px; height: 600px; background: #0f0f23; }
 
 #redCircle     { type: circle;  cx: 200px; cy: 300px; r: 80px; fill: #e94560; }
 #blueRect      { type: rect;    x: 400px; y: 200px; width: 150px; height: 200px;
@@ -552,7 +544,7 @@ player.source = myDslCode;   // parse + build + play
 ### B. Animated group with keyframes
 
 ```css
-:canvas { width: 800px; height: 600px; background: #101020; }
+:root { width: 800px; height: 600px; background: #101020; }
 
 @keyframes pulse {
   0%   { transform: scale(1);   opacity: 1;   }
@@ -582,9 +574,8 @@ player.source = myDslCode;   // parse + build + play
 ### C. Symbols, motion path, and interactivity
 
 ```css
-:canvas { width: 800px; height: 600px; background: #0a0a1a; }
-
 :root {
+  width: 800px; height: 600px; background: #0a0a1a;
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
 }

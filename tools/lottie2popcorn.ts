@@ -5,7 +5,7 @@
  * is importable from both the `lottie2popcorn-cli.ts` CLI wrapper and browser
  * code (e.g. the demo's "Import Lottie" tool). The mapping is documented
  * inline where it earns comment; the high-level model: a Lottie comp becomes
- * a :canvas plus one top-level rule per layer (emitted in REVERSE layer order
+ * a :root stage block plus one top-level rule per layer (emitted in REVERSE layer order
  * because Lottie paints last-to-first and Popcorn paints first-behind). Layer
  * transforms bake into transform/transform-origin/opacity; animated
  * properties become one @keyframes per node on the union of keyframe times;
@@ -398,17 +398,13 @@ export class Converter {
     out.push(`/* Generated from Lottie by tools/lottie2popcorn.ts */`);
     out.push(`/* comp ${w}x${h} @ ${this.fr}fps, duration ${num(durSec)}s */`);
     out.push('');
-    out.push(`:canvas {`);
+    // Stage config and hoisted image custom properties share one `:root`.
+    out.push(`:root {`);
     out.push(`  width: ${num(w)}px;`);
     out.push(`  height: ${num(h)}px;`);
+    out.push(...rootVars);
     out.push(`}`);
     out.push('');
-    if (rootVars.length) {
-      out.push(`:root {`);
-      out.push(...rootVars);
-      out.push(`}`);
-      out.push('');
-    }
 
     const keyframeBlocks: string[] = [];
     const collectKf = (r: Rule) => {

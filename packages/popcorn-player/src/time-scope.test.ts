@@ -21,7 +21,7 @@ const cx = (root: SceneNode, id: string) => (find(root, id).shapeData as CircleD
 // A circle whose cx sweeps 0 -> 100 over one second, held at both ends.
 const anim = "r: 5px; cx: 0px; animation: move 1s linear 1; animation-fill-mode: both;";
 const scene = `
-  :canvas { width: 100px; height: 100px; }
+  :root { width: 100px; height: 100px; }
   @keyframes move { 0% { cx: 0px; } 100% { cx: 100px; } }
   #plain { type: circle; ${anim} }
   #shifted { type: group; time-offset: 0.5s;
@@ -102,7 +102,7 @@ test('time-remap subsumes time-offset (the remap defines local time)', () => {
 
 test('invalid time-scale (<= 0) warns and falls back to 1', () => {
   const src = `
-    :canvas { width: 100px; height: 100px; }
+    :root { width: 100px; height: 100px; }
     @keyframes move { 0% { cx: 0px; } 100% { cx: 100px; } }
     #bad { type: group; time-scale: 0;
       > #d { type: circle; ${anim} }

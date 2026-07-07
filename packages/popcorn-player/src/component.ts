@@ -26,7 +26,7 @@ import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewpor
  * ```
  *
  * The player is responsive: the canvas fills the host, whose default size comes
- * from the scene's `:canvas` aspect ratio but can be constrained by the parent.
+ * from the scene's `:root` aspect ratio but can be constrained by the parent.
  */
 export class PopcornPlayer extends HTMLElement {
   private canvas: HTMLCanvasElement;
@@ -35,7 +35,7 @@ export class PopcornPlayer extends HTMLElement {
   private scheduler: AnimationScheduler | null = null;
   private _source: string = '';
 
-  // Intrinsic scene size (from `:canvas`, falling back to width/height attrs).
+  // Intrinsic scene size (from `:root`, falling back to width/height attrs).
   private sceneWidth: number = 400;
   private sceneHeight: number = 300;
 
@@ -169,7 +169,7 @@ export class PopcornPlayer extends HTMLElement {
         break;
       case 'width':
       case 'height':
-        // Only a fallback scene size (used when there's no `:canvas`); re-fit.
+        // Only a fallback scene size (used when there's no :root stage config); re-fit.
         this.syncSize();
         break;
       case 'background':
@@ -364,7 +364,7 @@ export class PopcornPlayer extends HTMLElement {
     try {
       const ast = parse(this._source);
 
-      // Intrinsic scene size: `:canvas` wins, else the width/height attrs.
+      // Intrinsic scene size: `:root` wins, else the width/height attrs.
       this.sceneWidth = ast.canvas?.width ?? parseInt(this.getAttribute('width') || '400', 10);
       this.sceneHeight = ast.canvas?.height ?? parseInt(this.getAttribute('height') || '300', 10);
 
@@ -383,7 +383,7 @@ export class PopcornPlayer extends HTMLElement {
       this.renderLoop.setLoop(this.boolAttr('loop'));
       this.renderLoop.setFrameCallback((t) => this.onFrame(t));
 
-      // Background: explicit attr wins, else the authored `:canvas` background.
+      // Background: explicit attr wins, else the authored `:root` background.
       const bg = this.getAttribute('background') ?? ast.canvas?.background ?? null;
       if (bg) {
         this.renderLoop.setBackgroundColor(bg);

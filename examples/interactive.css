@@ -1,13 +1,10 @@
 /* Interactive — a giant eye that watches your cursor. One idea: the iris tracks
    the pointer through input()/var() bindings; the same iris dilates on hover and
    constricts when you press it (:hover / :active). Move around, then poke it. */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0f0f23;
-}
-
-:root {
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
 }

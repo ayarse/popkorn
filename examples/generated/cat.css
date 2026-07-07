@@ -2,7 +2,7 @@
    Reusable @define symbols: `eye` (blinks) and `ear` (one twitches).
    Animations: swishing tail, blinking eyes, gentle breathing bob, ear twitch. */
 
-:canvas {
+:root {
   width: 800px;
   height: 800px;
   background: #cfe4dd;

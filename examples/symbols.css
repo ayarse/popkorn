@@ -1,5 +1,5 @@
 /* Symbols — one @define reused as many instances, plus a text node */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0f0f23;

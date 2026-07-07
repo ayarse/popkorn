@@ -10,7 +10,7 @@
  * a circle of that radius. Inner planets get shorter durations (faster orbits).
  * Rotation lerps linearly in Popcorn, so 0deg -> 360deg is a clean full turn. */
 
-:canvas { width: 900px; height: 900px; background: #05060f; }
+:root { width: 900px; height: 900px; background: #05060f; }
 
 /* One reusable spin used by every orbit; each orbit sets its own duration. */
 @keyframes spin {

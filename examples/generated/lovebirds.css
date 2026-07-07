@@ -8,7 +8,7 @@
    ABOVE the origin (negative y), so a keyframe `rotate` pivots the whole bird
    about its feet — that's what makes the two lean into each other. */
 
-:canvas {
+:root {
   width: 1000px;
   height: 750px;
   background: #fffdfa;

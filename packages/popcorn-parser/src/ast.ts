@@ -49,7 +49,7 @@ export interface Rule {
 }
 
 export interface Selector {
-  type: 'id' | 'class' | 'canvas' | 'root';
+  type: 'id' | 'class' | 'root';
   name: string;
 }
 

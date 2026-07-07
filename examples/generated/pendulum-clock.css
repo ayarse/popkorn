@@ -4,7 +4,7 @@
    - Hour + minute hands rotating about the face center
    - Long pendulum swinging about a top pivot (ease-in-out alternate) */
 
-:canvas { width: 600px; height: 900px; background: #e3d5bd; }
+:root { width: 600px; height: 900px; background: #e3d5bd; }
 
 /* ------------------------------------------------------------------ */
 /* Keyframes                                                          */

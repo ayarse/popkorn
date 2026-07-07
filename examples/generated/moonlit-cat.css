@@ -1,7 +1,7 @@
 /* Moonlit cat — a silhouette cat walks the top of a wall under a pulsing
    moon and a sky full of twinkling stars. Canvas 1000x600, night. */
 
-:canvas {
+:root {
   width: 1000px;
   height: 600px;
   background: #0b1026;

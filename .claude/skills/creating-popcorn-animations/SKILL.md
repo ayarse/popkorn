@@ -18,7 +18,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 ## Workflow
 
-1. Start with `:canvas { width; height; background }` (only hex colors register here).
+1. Start with `:root { width; height; background }` (only hex colors register here; custom `--props` live here too).
 2. Give every node an `#id` and a `type:` declaration. **No `type:` → it's a `group`.**
 3. Set geometry (props are type-gated: `r` only on circle, `cx/cy` on circle/ellipse/star/polygon…).
 4. Set paint: `fill` and `stroke` **both default to `none`** — a shape with only `stroke-width` shows nothing.
@@ -29,7 +29,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 | Need | Syntax |
 |---|---|
-| Stage | `:canvas { width: 800px; height: 600px; background: #0f0f23; }` |
+| Stage | `:root { width: 800px; height: 600px; background: #0f0f23; }` |
 | Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(sides,outer-radius,inner-radius) · `text` · `image` · `group` |
 | Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-dasharray`, `fill-rule`, `opacity` |
 | Transform | `transform: translate(x,y) rotate(45deg) scale(1.2)` · `transform-origin: center` (**no skew**) |

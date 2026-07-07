@@ -81,7 +81,7 @@ export class RenderLoop {
     this.backgroundColor = color;
   }
 
-  /** Intrinsic scene size (the `:canvas` box) the background fills and fit maps. */
+  /** Intrinsic scene size (the :root stage box) the background fills and fit maps. */
   setSceneSize(width: number, height: number): void {
     this.sceneWidth = width;
     this.sceneHeight = height;

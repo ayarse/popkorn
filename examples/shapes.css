@@ -1,5 +1,5 @@
 /* Shapes — gradients, polystar, rounded rects, text, clip-path */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0f0f23;

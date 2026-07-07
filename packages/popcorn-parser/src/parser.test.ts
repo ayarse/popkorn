@@ -40,10 +40,22 @@ test('leading-dot number (.5 / -.5) parses like 0.5 (minifier output)', () => {
   ]);
 });
 
-test('canvas config hoisted', () => {
-  const ast = parse(':canvas { width: 800px; height: 600px; background: #1a1a2e; }');
+test('stage config hoisted from :root', () => {
+  const ast = parse(':root { width: 800px; height: 600px; background: #1a1a2e; }');
   expect(ast.canvas).toEqual({ width: 800, height: 600, background: '#1a1a2e' });
   expect(ast.rules).toHaveLength(0);
+});
+
+test(':root with only custom properties leaves canvas unset', () => {
+  const ast = parse(':root { --x: 5; }');
+  expect(ast.canvas).toBeUndefined();
+  expect(ast.variables).toHaveLength(1);
+});
+
+test(':root merges stage config and custom properties', () => {
+  const ast = parse(':root { width: 400px; height: 300px; --accent: #f00; }');
+  expect(ast.canvas).toEqual({ width: 400, height: 300 });
+  expect(ast.variables).toEqual([{ name: '--accent', value: { type: 'color', value: '#f00' } }]);
 });
 
 test('root variables + input() member expression', () => {

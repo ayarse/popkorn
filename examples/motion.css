@@ -2,7 +2,7 @@
    cascade; each tile falls under gravity (accelerating ease-in), rebounds, holds
    flat for a beat, then rises to reset. One composed phrase, staggered by delay
    so the wave reads as choreography — not a chart. */
-:canvas {
+:root {
   width: 800px;
   height: 600px;
   background: #0f0f23;
