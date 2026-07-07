@@ -1,5 +1,34 @@
 import { test, expect } from 'bun:test';
-import { Converter } from './lottie2popcorn.ts';
+import { Converter, validate } from './lottie2popcorn.ts';
+
+const IDENTITY_TR = { ty: 'tr', p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 } };
+
+/** An `rc` whose size animates between two frames with a per-segment bezier. */
+function animRect(pos: number[], t0: number, t1: number, ease: number[]) {
+  return {
+    ty: 'rc', p: { a: 0, k: pos },
+    s: { a: 1, k: [
+      { t: t0, s: [10, 10], o: { x: [ease[0]], y: [ease[1]] }, i: { x: [ease[2]], y: [ease[3]] } },
+      { t: t1, s: [20, 20] },
+    ] },
+  };
+}
+
+/** A layer whose grouped rects share one group-level stroke (hoisted union stroke). */
+function hoistedStrokeComp(st: any) {
+  return {
+    v: '5', fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, nm: 'g', ind: 1, ip: 0, op: 30, st: 0,
+      ks: { r: { a: 0, k: 0 }, p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 } },
+      shapes: [
+        { ty: 'gr', it: [animRect([0, 0], 0, 10, [0.1, 0, 0.9, 1]), { ...IDENTITY_TR }] },
+        { ty: 'gr', it: [animRect([5, 5], 5, 15, [0.3, 0, 0.7, 1]), { ...IDENTITY_TR }] },
+        st,
+      ],
+    }],
+  };
+}
 
 /** Duration of the first `animation:` shorthand in the CSS, in seconds. */
 function firstAnimDuration(css: string): number {
@@ -52,6 +81,21 @@ test('a windowed layer scheduled entirely past op holds its first keyframe (no a
   // first-keyframe pose. The clamp must collapse the animation to a static value.
   const css = new Converter().convert(comp(60, [60, 120], /*st*/ 60, /*ip*/ 0));
   expect(css).not.toContain('animation:');
+});
+
+test('Lottie lj/ml map onto stroke-linejoin / stroke-miterlimit (non-default only)', () => {
+  // lj 2 -> round, ml 3 (non-default; player defaults miter/4). On the hoisted stroke node.
+  const round = new Converter().convert(hoistedStrokeComp({ ty: 'st', c: { a: 0, k: [0, 0, 0] }, w: { a: 0, k: 4 }, lj: 2, ml: 3 }));
+  expect(validate(round)).toEqual([]);
+  expect(round).toContain('stroke-linejoin: round');
+  expect(round).toContain('stroke-miterlimit: 3');
+  // lj 3 -> bevel.
+  const bevel = new Converter().convert(hoistedStrokeComp({ ty: 'st', c: { a: 0, k: [0, 0, 0] }, w: { a: 0, k: 4 }, lj: 3 }));
+  expect(bevel).toContain('stroke-linejoin: bevel');
+  // lj 1 (miter) + ml 4 are the defaults -> nothing emitted (lean output).
+  const miter = new Converter().convert(hoistedStrokeComp({ ty: 'st', c: { a: 0, k: [0, 0, 0] }, w: { a: 0, k: 4 }, lj: 1, ml: 4 }));
+  expect(miter).not.toContain('stroke-linejoin');
+  expect(miter).not.toContain('stroke-miterlimit');
 });
 
 test("a solid parent's opacity dims only its own rect, never its parented children", () => {

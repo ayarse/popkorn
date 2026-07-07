@@ -223,13 +223,15 @@ interface InheritedStyle {
   stroke: string | null;
   strokeWidth: number | null;
   lineCap: string | null;
+  lineJoin: string | null;
+  miterLimit: number | null;
   dashArray: number[] | null;
   dashOffset: number;
   trim: TrimInfo | null;
 }
 const EMPTY_STYLE: InheritedStyle = {
   fill: null, stroke: null, strokeWidth: null, lineCap: null,
-  dashArray: null, dashOffset: 0, trim: null,
+  lineJoin: null, miterLimit: null, dashArray: null, dashOffset: 0, trim: null,
 };
 
 interface Rule {
@@ -817,6 +819,8 @@ export class Converter {
     let stroke: string | null = inherited.stroke;
     let strokeWidth: number | null = inherited.strokeWidth;
     let lineCap: string | null = inherited.lineCap;
+    let lineJoin: string | null = inherited.lineJoin;
+    let miterLimit: number | null = inherited.miterLimit;
     let dashArray: number[] | null = inherited.dashArray;
     let dashOffset = inherited.dashOffset;
     let gradientFill: string | null = null;
@@ -856,6 +860,8 @@ export class Converter {
           if (c) stroke = c.animated ? lottieColor(c.at(c.kfs![0].t)) : lottieColor(c.at(0));
           if (w) strokeWidth = w.at(0)[0] ?? 0;
           lineCap = it.lc === 2 ? 'round' : it.lc === 3 ? 'square' : 'butt';
+          lineJoin = it.lj === 2 ? 'round' : it.lj === 3 ? 'bevel' : 'miter';
+          miterLimit = typeof it.ml === 'number' ? it.ml : null;
           // Dash pattern: `d` is a list of { n: 'd'|'g'|'o', v } — dash/gap build
           // the array (in order), offset is separate. Animated dashes bake to t0.
           if (Array.isArray(it.d)) {
@@ -924,12 +930,14 @@ export class Converter {
         if (node) {
           node.decls.push('fill: none', `stroke: ${stroke}`, `stroke-width: ${num(strokeWidth)}px`);
           if (lineCap && lineCap !== 'butt') node.decls.push(`stroke-linecap: ${lineCap}`);
+          if (lineJoin && lineJoin !== 'miter') node.decls.push(`stroke-linejoin: ${lineJoin}`);
+          if (miterLimit != null && miterLimit !== 4) node.decls.push(`stroke-miterlimit: ${num(miterLimit)}`);
           if (dashArray) node.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
           if (dashOffset) node.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
           this.finalizeAnim(node, 0);
           hoistStroke = node;
           // The fills below now paint unstroked; the hoisted node is the stroke.
-          stroke = null; strokeWidth = null; lineCap = null; dashArray = null; dashOffset = 0;
+          stroke = null; strokeWidth = null; lineCap = null; lineJoin = null; miterLimit = null; dashArray = null; dashOffset = 0;
         }
       }
     }
@@ -941,7 +949,7 @@ export class Converter {
     const effectiveTrim = trim ?? inherited.trim;
     const style: InheritedStyle = {
       fill: effectiveFill, stroke, trim: effectiveTrim,
-      strokeWidth, lineCap, dashArray, dashOffset,
+      strokeWidth, lineCap, lineJoin, miterLimit, dashArray, dashOffset,
     };
 
     const applyStyle = (rule: Rule) => {
@@ -951,6 +959,8 @@ export class Converter {
       if (stroke && !hasLocalStroke) rule.decls.push(`paint-order: stroke`);
       if (strokeWidth != null) rule.decls.push(`stroke-width: ${num(strokeWidth)}px`);
       if (lineCap && lineCap !== 'butt') rule.decls.push(`stroke-linecap: ${lineCap}`);
+      if (lineJoin && lineJoin !== 'miter') rule.decls.push(`stroke-linejoin: ${lineJoin}`);
+      if (miterLimit != null && miterLimit !== 4) rule.decls.push(`stroke-miterlimit: ${num(miterLimit)}`);
       if (dashArray) rule.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
       if (dashOffset) rule.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
       if (fillRule === 2) rule.decls.push(`fill-rule: evenodd`);
