@@ -196,3 +196,53 @@ test('linear gradient emits exact from/to endpoints (not a bbox angle)', () => {
   const css = new Converter().convert(gradComp({ ...gf(1, {}, [0, 1, 0, 0, 1, 0, 0, 1], 2), s: { a: 0, k: [0, 0] }, e: { a: 0, k: [100, 50] } }));
   expect(fillOf(css)).toMatch(/^linear-gradient\(from 0px 0px to 100px 50px,/);
 });
+
+// --- legacy (v4) shape / mask quirks: absent `a` flag, non-'a' mask modes ----
+
+/** A closed triangle bezier shape (the value carried by an `sh`/mask keyframe). */
+const tri = (dx = 0) => ({ v: [[dx, 0], [10 + dx, 0], [10 + dx, 10]], i: [[0, 0], [0, 0], [0, 0]], o: [[0, 0], [0, 0], [0, 0]], c: true });
+
+/** A one-shape layer with an optional mask list, at the comp centre. */
+function shapeLayer(shapes: any[], masks?: any[]) {
+  return {
+    v: '4.0.0', fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, nm: 'm', ind: 1, ip: 0, op: 30, st: 0,
+      ks: { r: { a: 0, k: 0 }, p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 } },
+      ...(masks ? { masksProperties: masks } : {}),
+      shapes,
+    }],
+  };
+}
+
+test('legacy animated `sh` with no `a` flag still morphs (d channel, not an empty path)', () => {
+  // v4 exports omit the `a` flag on animated shape paths; detection must infer
+  // animation from the keyframe-array shape, or the path freezes to '' (invisible).
+  const sh = { ty: 'sh', ks: { k: [{ t: 0, s: [tri(0)] }, { t: 10, s: [tri(20)] }, { t: 12 }] } };
+  const c = new Converter();
+  const css = c.convert(shapeLayer([sh, { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 0, k: 100 } }]));
+  expect(css).toContain('@keyframes');
+  expect(css).toContain('animation:');
+  expect(css).toMatch(/d:\s*'M/); // a real path, never d: ''
+  expect(css).not.toMatch(/d:\s*''/);
+});
+
+test("masks: any non-'n' mode clips (canvas parity), 'n' is a no-op, none block", () => {
+  // lottie-web's canvas renderer clips to the nonzero union of every mask whose
+  // mode isn't 'none', ignoring add/subtract/intersect/difference.
+  const masks = [{ mode: 'f', pt: { a: 0, k: tri(0) } }, { mode: 'n', pt: { a: 0, k: tri(20) } }];
+  const c = new Converter();
+  const css = c.convert(shapeLayer([{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }], masks));
+  expect(c.blocked.size).toBe(0);
+  // one clip path (the 'f' mask); the 'n' mask contributes nothing.
+  expect((css.match(/clip-path:\s*path\(/g) || []).length).toBe(1);
+});
+
+test('animated mask (legacy, no `a` flag) bakes to a clip-path instead of blocking', () => {
+  const masks = [{ mode: 'a', pt: { k: [{ t: 0, s: [tri(0)] }, { t: 10, s: [tri(20)] }] } }];
+  const c = new Converter();
+  const css = c.convert(shapeLayer([{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }], masks));
+  expect(c.blocked.size).toBe(0);
+  expect(css).toContain('clip-path: path(');
+  expect(c.warnings.some((w) => w.includes('baked to first frame'))).toBe(true);
+});

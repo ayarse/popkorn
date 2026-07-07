@@ -570,11 +570,12 @@ export class Converter {
       // st is applied as time-offset (below), which scopes the whole subtree, so
       // pass 0 here to avoid also folding it into the group's own delay.
       this.applyTransform(l.ks, group, 0);
-      if (maskDecl) group.decls.push(maskDecl);
-
       // Precomps clip to their comp box (per spec; harmless when content fits).
+      // A layer mask is the tighter clip and shares the single `clip-path` slot,
+      // so prefer it — never emit both (the second would clobber the first).
       const cw = l.w ?? asset.w, ch = l.h ?? asset.h;
-      if (cw && ch) group.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
+      if (maskDecl) group.decls.push(maskDecl);
+      else if (cw && ch) group.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
 
       // Time scoping: st -> local start offset; sr stretch -> time-scale (1/sr,
       // since Lottie sr=2 plays at half speed).
@@ -705,24 +706,35 @@ export class Converter {
 
   /**
    * Layer masks (masksProperties) -> a `clip-path` with one path() per mask,
-   * unioned. Only static add-mode masks at full opacity convert; other modes,
-   * inverted/animated masks or reduced opacity block the layer. Mask expansion
-   * (x != 0) converts anyway (expansion is ignored) with a warning.
+   * unioned. Modelled on lottie-web's *canvas* renderer (Popcorn's target),
+   * whose CVMaskElement clips to the nonzero union of every mask whose mode
+   * isn't 'none' — it ignores add/subtract/intersect/difference entirely — so
+   * any non-'n' mode is treated as an additive clip. Animated mask shapes
+   * (including legacy exports that omit the `a` flag) can't yet drive an
+   * animated clip-path, so their shape is baked to the first frame rather than
+   * dropped (dropping leaves the full-comp solid these masks exist to cut down).
+   * Inverted or reduced-opacity masks still block. Mask expansion (x != 0) is
+   * ignored with a warning.
    */
   private maskClipPath(l: any): string | null {
     const masks = l.masksProperties;
     if (!Array.isArray(masks) || masks.length === 0) return null;
     const paths: string[] = [];
     for (const m of masks) {
-      if (m.mode && m.mode !== 'a') { this.blocked.add(`mask mode '${m.mode}'`); return null; }
+      if (m.mode === 'n') continue; // 'none': contributes nothing, blocks nothing
       if (m.inv) { this.blocked.add('inverted mask (inv)'); return null; }
       const o = prop(m.o);
       if (o && (o.animated || (o.at(0)[0] ?? 100) < 100)) { this.blocked.add('mask opacity < 100'); return null; }
       const pt = m.pt;
-      if (!pt || pt.a === 1 || !pt.k) { this.blocked.add('animated mask shape'); return null; }
+      if (!pt) { this.blocked.add('animated mask shape'); return null; }
       const x = prop(m.x);
       if (x && Math.abs(x.at(0)[0] ?? 0) > 1e-6) this.warnOnce(`mask expansion on '${l.nm || l.ind}' ignored`);
-      const d = shapeToPath(pt.k);
+      let shp = pt.k;
+      if (isAnimatedShape(pt)) {
+        this.warnOnce(`animated mask on '${l.nm || l.ind}' baked to first frame`);
+        shp = shapeAt(pathKfs({ ks: pt }), 0);
+      }
+      const d = shapeToPath(shp);
       if (d) paths.push(`path('${d}')`);
     }
     return paths.length ? `clip-path: ${paths.join(' ')}` : null;
@@ -1236,7 +1248,7 @@ export class Converter {
     // channel — one path string per keyframe; Popcorn morphs between compatible
     // command sequences (Lottie guarantees matching vertex counts per track).
     const rule: Rule = { id, type: 'path', decls: [], channels: [], children: [] };
-    if (it.ks && it.ks.a === 1) {
+    if (isAnimatedShape(it.ks)) {
       const kfs = pathKfs(it);
       rule.decls.push(`d: '${shapeToPath(shapeKf(kfs[0]))}'`);
       rule.channels.push({ priority: 6, kfs, sample: (t) => ({ d: shapeToPath(shapeAt(kfs, t)) }) });
@@ -1464,6 +1476,18 @@ function declsFromSample(s: Sample): string[] {
 // Lottie bezier -> SVG path
 // ---------------------------------------------------------------------------
 
+/**
+ * Animated bezier-path track? Like keyframesOf, infer animation from `k` being a
+ * keyframe array even when the `a` flag lies or is absent (legacy v4 exports omit
+ * it on `sh` items), so wiggling shapes aren't frozen to an empty static path.
+ */
+function isAnimatedShape(ks: any): boolean {
+  if (!ks) return false;
+  if (ks.a === 1) return true;
+  const k = ks.k;
+  return Array.isArray(k) && k.length > 0 && k[0] && typeof k[0] === 'object' && 't' in k[0];
+}
+
 /** The bezier shape object carried by an animated-path keyframe (s is [shape]). */
 function shapeKf(kf: Kf): any {
   const s = kf.s as unknown;
@@ -1585,7 +1609,7 @@ function polystarToD(it: any, t: number): string {
 /** A drawable (sh/rc/el/sr) as an absolute-coordinate `d` subpath at frame t. */
 function drawableToDAt(it: any, t: number): string {
   if (it.ty === 'sh') {
-    if (it.ks && it.ks.a === 1) return shapeToPath(shapeAt(pathKfs(it), t));
+    if (isAnimatedShape(it.ks)) return shapeToPath(shapeAt(pathKfs(it), t));
     return it.ks ? shapeToPath(it.ks.k) : '';
   }
   if (it.ty === 'rc') {
@@ -1603,7 +1627,7 @@ function drawableToDAt(it: any, t: number): string {
 
 /** True if a drawable's geometry animates (so a merge must sample per keyframe). */
 function drawableAnimated(it: any): boolean {
-  if (it.ty === 'sh') return !!(it.ks && it.ks.a === 1);
+  if (it.ty === 'sh') return isAnimatedShape(it.ks);
   for (const key of ['p', 's', 'r', 'pt', 'or', 'ir', 'os', 'is']) {
     const v = prop(it[key]);
     if (v && v.animated) return true;
@@ -1613,7 +1637,7 @@ function drawableAnimated(it: any): boolean {
 
 /** The keyframe track driving a drawable's geometry (for the union grid + easing). */
 function drawableKfs(it: any): Kf[] {
-  if (it.ty === 'sh') return it.ks && it.ks.a === 1 ? pathKfs(it) : [];
+  if (it.ty === 'sh') return isAnimatedShape(it.ks) ? pathKfs(it) : [];
   for (const key of ['p', 's', 'r', 'pt', 'or', 'ir', 'os', 'is']) {
     const v = prop(it[key]);
     if (v && v.animated && v.kfs) return v.kfs;
