@@ -56,7 +56,6 @@ export {
   computeWorldMatrix,
   computeAllWorldTransforms,
   lerp,
-  lerpAngle,
 } from './scene/transform';
 
 // Animation
@@ -75,5 +74,5 @@ export { InputTracker, createInputTracker } from './runtime/inputs';
 export type { InputState } from './runtime/inputs';
 export { VariableResolver, createVariableResolver } from './runtime/variables';
 export { InteractionManager, createInteractionManager } from './runtime/interaction';
-export { hitTest, hitTestAll } from './runtime/hit-test';
+export { hitTest } from './runtime/hit-test';
 export type { Point, HitTestResult } from './runtime/hit-test';

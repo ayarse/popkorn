@@ -18,7 +18,7 @@ import type {
 import { childrenInPaintOrder } from '../scene/types';
 import type { Matrix3x3, PathCommand, ResolvedClip } from '../renderer/types';
 import { IDENTITY_MATRIX, invertMatrix, transformPoint } from '../renderer/types';
-import { computeWorldMatrix, getShapeBounds } from '../scene/transform';
+import { computeWorldMatrix, getShapeBounds, getScratchContext } from '../scene/transform';
 import { resolveClip } from '../scene/clip';
 import { applyCommandsToPath } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
@@ -46,18 +46,6 @@ export function hitTest(root: SceneNode, point: Point): SceneNode | null {
   // Higher depth = painted later = on top
   results.sort((a, b) => b.depth - a.depth);
   return results[0].node;
-}
-
-/**
- * Get all interactive nodes at the given point
- * Returns nodes sorted by depth (topmost first)
- */
-export function hitTestAll(root: SceneNode, point: Point): SceneNode[] {
-  const results: HitTestResult[] = [];
-  hitTestNode(root, point, IDENTITY_MATRIX, { value: 0 }, results);
-
-  results.sort((a, b) => b.depth - a.depth);
-  return results.map((r) => r.node);
 }
 
 /**
@@ -187,24 +175,6 @@ function isPointInCommands(commands: PathCommand[], point: Point, fillRule: Fill
   if (!ctx || typeof Path2D === 'undefined') return false;
   const path = buildPath2D(commands);
   return ctx.isPointInPath(path, point.x, point.y, fillRule);
-}
-
-let scratchContext: CanvasRenderingContext2D | null | undefined;
-
-function getScratchContext(): CanvasRenderingContext2D | null {
-  if (scratchContext !== undefined) return scratchContext;
-  try {
-    if (typeof OffscreenCanvas !== 'undefined') {
-      scratchContext = new OffscreenCanvas(1, 1).getContext('2d') as unknown as CanvasRenderingContext2D;
-    } else if (typeof document !== 'undefined') {
-      scratchContext = document.createElement('canvas').getContext('2d');
-    } else {
-      scratchContext = null;
-    }
-  } catch {
-    scratchContext = null;
-  }
-  return scratchContext;
 }
 
 /**

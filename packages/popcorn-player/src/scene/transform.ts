@@ -76,7 +76,12 @@ export function measureText(node: SceneNode, t: TextData): { width: number; heig
 
 let scratchContext: CanvasRenderingContext2D | null | undefined;
 
-function getScratchContext(): CanvasRenderingContext2D | null {
+/**
+ * Lazily-created shared scratch 2D context (null when no DOM/OffscreenCanvas is
+ * available, e.g. headless tests). Used for text measurement here and Path2D
+ * hit-testing in runtime/hit-test.ts.
+ */
+export function getScratchContext(): CanvasRenderingContext2D | null {
   if (scratchContext !== undefined) return scratchContext;
   try {
     if (typeof OffscreenCanvas !== 'undefined') {
@@ -170,6 +175,20 @@ export function computeAllWorldTransforms(
   return worldMatrices;
 }
 
+/**
+ * World matrix of a node by folding local matrices down from the root along the
+ * parent chain. For callers that don't already have the parent's world matrix
+ * in hand (e.g. matte compositing).
+ */
+export function computeWorldMatrixFromRoot(node: SceneNode | null): Matrix3x3 {
+  if (!node) return IDENTITY_MATRIX;
+  const chain: SceneNode[] = [];
+  for (let n: SceneNode | null = node; n; n = n.parent) chain.push(n);
+  let m = IDENTITY_MATRIX;
+  for (let i = chain.length - 1; i >= 0; i--) m = multiplyMatrices(m, computeLocalMatrix(chain[i]));
+  return m;
+}
+
 /** Clamp to the [0,1] range. */
 export function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -180,20 +199,4 @@ export function clamp01(v: number): number {
  */
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
-}
-
-/**
- * Angle interpolation (handles wrap-around)
- */
-export function lerpAngle(a: number, b: number, t: number): number {
-  // Normalize angles to 0-360
-  a = ((a % 360) + 360) % 360;
-  b = ((b % 360) + 360) % 360;
-
-  // Find shortest path
-  let diff = b - a;
-  if (diff > 180) diff -= 360;
-  if (diff < -180) diff += 360;
-
-  return a + diff * t;
 }

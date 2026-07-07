@@ -52,6 +52,7 @@ export class InteractionManager {
   private hoveredNode: SceneNode | null = null;
   private activeNode: SceneNode | null = null;
   private sceneRoot: SceneNode | null = null;
+  private hasInteractive = false;
 
   /**
    * Set the scene root for hit-testing
@@ -60,13 +61,17 @@ export class InteractionManager {
     this.sceneRoot = root;
     this.hoveredNode = null;
     this.activeNode = null;
+    // `interactive` is only ever set at build time, so one walk here lets
+    // update() skip the per-frame full-tree hit-test for scenes with no
+    // hover/active styles (the common case for Lottie-converted scenes).
+    this.hasInteractive = subtreeHasInteractive(root);
   }
 
   /**
    * Update interaction state based on input
    */
   update(inputState: InputState): void {
-    if (!this.sceneRoot) return;
+    if (!this.sceneRoot || !this.hasInteractive) return;
 
     const mousePoint: Point = {
       x: inputState.cursor.x,
@@ -147,6 +152,11 @@ export class InteractionManager {
   getActiveNode(): SceneNode | null {
     return this.activeNode;
   }
+}
+
+function subtreeHasInteractive(node: SceneNode): boolean {
+  if (node.interactive) return true;
+  return node.children.some(subtreeHasInteractive);
 }
 
 /**

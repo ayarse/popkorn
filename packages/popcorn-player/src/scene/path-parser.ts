@@ -489,13 +489,16 @@ export function computePathBounds(commands: PathCommand[]): { x: number; y: numb
 const LENGTH_SAMPLES = 32;
 
 /**
- * Total length of a parsed path's outline. Straight segments are exact;
- * quadratic/cubic beziers and elliptical arcs are flattened by fixed-step
- * sampling and summed. Matches applyCommandsToPath's control-point tracking so
- * smooth (S/T) segments measure the same curve that gets drawn.
+ * Shared fixed-step flattening walker for parsed path commands: straight
+ * segments emit their endpoint; quadratic/cubic beziers and elliptical arcs
+ * emit LENGTH_SAMPLES points, with S/T control-point reflection matching
+ * applyCommandsToPath so measurements match the curve that gets drawn.
+ * `isMove` marks M jumps so each consumer decides whether the gap counts.
  */
-export function computePathLength(commands: PathCommand[]): number {
-  let total = 0;
+function flattenPath(
+  commands: PathCommand[],
+  emit: (x: number, y: number, isMove: boolean) => void
+): void {
   let currentX = 0;
   let currentY = 0;
   let startX = 0;
@@ -504,15 +507,15 @@ export function computePathLength(commands: PathCommand[]): number {
   let lastControlY = 0;
   let lastCommand: string | null = null;
 
-  const line = (x2: number, y2: number) => {
-    total += Math.hypot(x2 - currentX, y2 - currentY);
-    currentX = x2;
-    currentY = y2;
+  const point = (x: number, y: number) => {
+    emit(x, y, false);
+    currentX = x;
+    currentY = y;
   };
 
   const cubic = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
-    let px = currentX;
-    let py = currentY;
+    const x0 = currentX;
+    const y0 = currentY;
     for (let k = 1; k <= LENGTH_SAMPLES; k++) {
       const t = k / LENGTH_SAMPLES;
       const mt = 1 - t;
@@ -520,48 +523,37 @@ export function computePathLength(commands: PathCommand[]): number {
       const b = 3 * mt * mt * t;
       const c = 3 * mt * t * t;
       const d = t * t * t;
-      const sx = a * currentX + b * x1 + c * x2 + d * x;
-      const sy = a * currentY + b * y1 + c * y2 + d * y;
-      total += Math.hypot(sx - px, sy - py);
-      px = sx;
-      py = sy;
+      point(a * x0 + b * x1 + c * x2 + d * x, a * y0 + b * y1 + c * y2 + d * y);
     }
-    currentX = x;
-    currentY = y;
   };
 
   const quad = (x1: number, y1: number, x: number, y: number) => {
-    let px = currentX;
-    let py = currentY;
+    const x0 = currentX;
+    const y0 = currentY;
     for (let k = 1; k <= LENGTH_SAMPLES; k++) {
       const t = k / LENGTH_SAMPLES;
       const mt = 1 - t;
-      const sx = mt * mt * currentX + 2 * mt * t * x1 + t * t * x;
-      const sy = mt * mt * currentY + 2 * mt * t * y1 + t * t * y;
-      total += Math.hypot(sx - px, sy - py);
-      px = sx;
-      py = sy;
+      point(mt * mt * x0 + 2 * mt * t * x1 + t * t * x, mt * mt * y0 + 2 * mt * t * y1 + t * t * y);
     }
-    currentX = x;
-    currentY = y;
   };
 
   for (const cmd of commands) {
     switch (cmd.type) {
       case 'M':
+        emit(cmd.x, cmd.y, true);
         currentX = cmd.x;
         currentY = cmd.y;
         startX = cmd.x;
         startY = cmd.y;
         break;
       case 'L':
-        line(cmd.x, cmd.y);
+        point(cmd.x, cmd.y);
         break;
       case 'H':
-        line(cmd.x, currentY);
+        point(cmd.x, currentY);
         break;
       case 'V':
-        line(currentX, cmd.y);
+        point(currentX, cmd.y);
         break;
       case 'C':
         cubic(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
@@ -604,32 +596,41 @@ export function computePathLength(commands: PathCommand[]): number {
         if (seg) {
           const cosR = Math.cos(seg.rotation);
           const sinR = Math.sin(seg.rotation);
-          let px = currentX;
-          let py = currentY;
           for (let k = 1; k <= LENGTH_SAMPLES; k++) {
             const a = seg.startAngle + ((seg.endAngle - seg.startAngle) * k) / LENGTH_SAMPLES;
             const ex = seg.rx * Math.cos(a);
             const ey = seg.ry * Math.sin(a);
-            const sx = seg.cx + ex * cosR - ey * sinR;
-            const sy = seg.cy + ex * sinR + ey * cosR;
-            total += Math.hypot(sx - px, sy - py);
-            px = sx;
-            py = sy;
+            point(seg.cx + ex * cosR - ey * sinR, seg.cy + ex * sinR + ey * cosR);
           }
+          currentX = cmd.x;
+          currentY = cmd.y;
         } else {
-          line(cmd.x, cmd.y);
+          point(cmd.x, cmd.y);
         }
-        currentX = cmd.x;
-        currentY = cmd.y;
         break;
       }
       case 'Z':
-        line(startX, startY);
+        point(startX, startY);
         break;
     }
     lastCommand = cmd.type;
   }
+}
 
+/**
+ * Total length of a parsed path's outline. Straight segments are exact;
+ * curves/arcs are flattened via flattenPath. M jumps between subpaths add no
+ * length (SVG getTotalLength semantics).
+ */
+export function computePathLength(commands: PathCommand[]): number {
+  let total = 0;
+  let px = 0;
+  let py = 0;
+  flattenPath(commands, (x, y, isMove) => {
+    if (!isMove) total += Math.hypot(x - px, y - py);
+    px = x;
+    py = y;
+  });
   return total;
 }
 
@@ -646,129 +647,21 @@ export interface MotionPath {
 
 /**
  * Flatten parsed path commands into an arc-length table for CSS Motion Path.
- * Uses the same fixed-step (LENGTH_SAMPLES) flattening and control-point
- * tracking as computePathLength, so a motion path measures the same curve the
- * renderer draws.
+ * M jumps between subpaths count as travel here (the node glides across the
+ * gap), unlike computePathLength which skips them.
  */
 export function buildMotionPath(commands: PathCommand[]): MotionPath {
   const points: { x: number; y: number }[] = [];
   const cumulative: number[] = [];
   let total = 0;
-  let currentX = 0;
-  let currentY = 0;
-  let startX = 0;
-  let startY = 0;
-  let lastControlX = 0;
-  let lastControlY = 0;
-  let lastCommand: string | null = null;
-
-  const push = (x: number, y: number) => {
-    if (points.length > 0) total += Math.hypot(x - currentX, y - currentY);
+  flattenPath(commands, (x, y) => {
+    if (points.length > 0) {
+      const last = points[points.length - 1];
+      total += Math.hypot(x - last.x, y - last.y);
+    }
     points.push({ x, y });
     cumulative.push(total);
-    currentX = x;
-    currentY = y;
-  };
-
-  const cubic = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
-    const x0 = currentX;
-    const y0 = currentY;
-    for (let k = 1; k <= LENGTH_SAMPLES; k++) {
-      const t = k / LENGTH_SAMPLES;
-      const mt = 1 - t;
-      const a = mt * mt * mt;
-      const b = 3 * mt * mt * t;
-      const c = 3 * mt * t * t;
-      const d = t * t * t;
-      push(a * x0 + b * x1 + c * x2 + d * x, a * y0 + b * y1 + c * y2 + d * y);
-    }
-  };
-
-  const quad = (x1: number, y1: number, x: number, y: number) => {
-    const x0 = currentX;
-    const y0 = currentY;
-    for (let k = 1; k <= LENGTH_SAMPLES; k++) {
-      const t = k / LENGTH_SAMPLES;
-      const mt = 1 - t;
-      push(mt * mt * x0 + 2 * mt * t * x1 + t * t * x, mt * mt * y0 + 2 * mt * t * y1 + t * t * y);
-    }
-  };
-
-  for (const cmd of commands) {
-    switch (cmd.type) {
-      case 'M':
-        push(cmd.x, cmd.y);
-        startX = cmd.x;
-        startY = cmd.y;
-        break;
-      case 'L':
-        push(cmd.x, cmd.y);
-        break;
-      case 'H':
-        push(cmd.x, currentY);
-        break;
-      case 'V':
-        push(currentX, cmd.y);
-        break;
-      case 'C':
-        cubic(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
-        lastControlX = cmd.x2;
-        lastControlY = cmd.y2;
-        break;
-      case 'S': {
-        let cx1 = currentX;
-        let cy1 = currentY;
-        if (lastCommand === 'C' || lastCommand === 'S') {
-          cx1 = 2 * currentX - lastControlX;
-          cy1 = 2 * currentY - lastControlY;
-        }
-        cubic(cx1, cy1, cmd.x2, cmd.y2, cmd.x, cmd.y);
-        lastControlX = cmd.x2;
-        lastControlY = cmd.y2;
-        break;
-      }
-      case 'Q':
-        quad(cmd.x1, cmd.y1, cmd.x, cmd.y);
-        lastControlX = cmd.x1;
-        lastControlY = cmd.y1;
-        break;
-      case 'T': {
-        let qx = currentX;
-        let qy = currentY;
-        if (lastCommand === 'Q' || lastCommand === 'T') {
-          qx = 2 * currentX - lastControlX;
-          qy = 2 * currentY - lastControlY;
-        }
-        quad(qx, qy, cmd.x, cmd.y);
-        lastControlX = qx;
-        lastControlY = qy;
-        break;
-      }
-      case 'A': {
-        const seg = arcToEllipse(
-          currentX, currentY, cmd.rx, cmd.ry, cmd.angle, cmd.largeArc, cmd.sweep, cmd.x, cmd.y
-        );
-        if (seg) {
-          const cosR = Math.cos(seg.rotation);
-          const sinR = Math.sin(seg.rotation);
-          for (let k = 1; k <= LENGTH_SAMPLES; k++) {
-            const a = seg.startAngle + ((seg.endAngle - seg.startAngle) * k) / LENGTH_SAMPLES;
-            const ex = seg.rx * Math.cos(a);
-            const ey = seg.ry * Math.sin(a);
-            push(seg.cx + ex * cosR - ey * sinR, seg.cy + ex * sinR + ey * cosR);
-          }
-        } else {
-          push(cmd.x, cmd.y);
-        }
-        break;
-      }
-      case 'Z':
-        push(startX, startY);
-        break;
-    }
-    lastCommand = cmd.type;
-  }
-
+  });
   if (points.length === 0) points.push({ x: 0, y: 0 }), cumulative.push(0);
   return { points, cumulative, length: total };
 }

@@ -26,8 +26,10 @@ export function interpolateKeyframes(
 ): void {
   if (keyframes.length === 0) return;
 
-  // Sort keyframes by offset
-  const sorted = [...keyframes].sort((a, b) => a.offset - b.offset);
+  // Keyframes are sorted by offset once at build time (scene/builder
+  // buildKeyframes) — this runs per animation per node per frame, so no
+  // per-call clone/sort.
+  const sorted = keyframes;
 
   // Clamp progress
   progress = Math.max(0, Math.min(1, progress));

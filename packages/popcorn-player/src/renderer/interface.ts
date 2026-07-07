@@ -53,9 +53,6 @@ export interface Renderer {
   // Transform stack
   save(): void;
   restore(): void;
-  translate(x: number, y: number): void;
-  rotate(angle: number): void; // radians
-  scale(sx: number, sy: number): void;
   transform(matrix: Matrix3x3): void; // multiply current transform by matrix
   setTransform(matrix: Matrix3x3): void;
 

@@ -268,18 +268,6 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.restore();
   }
 
-  translate(x: number, y: number): void {
-    this.ctx.translate(x, y);
-  }
-
-  rotate(angle: number): void {
-    this.ctx.rotate(angle);
-  }
-
-  scale(sx: number, sy: number): void {
-    this.ctx.scale(sx, sy);
-  }
-
   transform(m: Matrix3x3): void {
     // Matrix3x3 is [a, b, tx, c, d, ty, 0, 0, 1]
     // Canvas transform takes (a, b, c, d, e, f) = (a, c, b, d, tx, ty)

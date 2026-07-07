@@ -3,7 +3,7 @@ import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, 
 import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
 import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
 import { resetNodeToBase, childrenInPaintOrder } from '../scene/types';
-import { computeLocalMatrix, clamp01 } from '../scene/transform';
+import { computeLocalMatrix, computeWorldMatrixFromRoot, clamp01 } from '../scene/transform';
 import { outlineLength } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
 import { resolveClip } from '../scene/clip';
@@ -381,8 +381,8 @@ export class RenderLoop {
     // Fold the viewport into each subtree's world transform: the matte closures
     // call setTransform (bypassing the render-root viewport), so without this the
     // matte would render at 1:1 while the rest of the scene is fit-scaled.
-    const contentParent = multiplyMatrices(this.viewport, worldMatrix(node.parent));
-    const matteParent = multiplyMatrices(this.viewport, worldMatrix(source.parent));
+    const contentParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
+    const matteParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(source.parent));
     const contentAlpha = worldAlpha(node.parent);
     const matteAlpha = worldAlpha(source.parent);
     this.renderer.compositeMatte(
@@ -391,16 +391,6 @@ export class RenderLoop {
       () => { this.renderer.setTransform(matteParent); this.renderNode(source, true, matteAlpha); }
     );
   }
-}
-
-/** World matrix of a node by folding local matrices down from the root. */
-function worldMatrix(node: SceneNode | null): Matrix3x3 {
-  if (!node) return IDENTITY_MATRIX;
-  const chain: SceneNode[] = [];
-  for (let n: SceneNode | null = node; n; n = n.parent) chain.push(n);
-  let m = IDENTITY_MATRIX;
-  for (let i = chain.length - 1; i >= 0; i--) m = multiplyMatrices(m, computeLocalMatrix(chain[i]));
-  return m;
 }
 
 /** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */

@@ -77,6 +77,53 @@ function warnIncompatibleObjectKeyframes(name: string, frames: KeyframeData[]): 
 /**
  * Build scene graph from AST
  */
+type TransformKey = 'translateX' | 'translateY' | 'rotate' | 'scaleX' | 'scaleY';
+
+/**
+ * Walk a transform value (a single function or a list of them) and report each
+ * resolved channel to `set`. Single source for the translate/rotate/scale
+ * function-name mapping — used for base transforms, state styles, and keyframes.
+ */
+function extractTransform(value: Value, set: (key: TransformKey, val: number) => void): void {
+  const single = (name: string, args: Value[]) => {
+    switch (name) {
+      case 'translate':
+        set('translateX', getNumericValue(args[0]));
+        set('translateY', args.length > 1 ? getNumericValue(args[1]) : 0);
+        break;
+      case 'translateX':
+        set('translateX', getNumericValue(args[0]));
+        break;
+      case 'translateY':
+        set('translateY', getNumericValue(args[0]));
+        break;
+      case 'rotate':
+        set('rotate', getNumericValue(args[0]));
+        break;
+      case 'scale': {
+        const sx = getNumericValue(args[0]);
+        set('scaleX', sx);
+        set('scaleY', args.length > 1 ? getNumericValue(args[1]) : sx);
+        break;
+      }
+      case 'scaleX':
+        set('scaleX', getNumericValue(args[0]));
+        break;
+      case 'scaleY':
+        set('scaleY', getNumericValue(args[0]));
+        break;
+    }
+  };
+
+  if (isFunctionValue(value)) {
+    single(value.name, value.args);
+  } else if (isListValue(value)) {
+    for (const v of value.values) {
+      if (isFunctionValue(v)) single(v.name, v.args);
+    }
+  }
+}
+
 export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
   private definitionsMap: Map<string, DefinitionRule> = new Map();
@@ -304,45 +351,9 @@ export class SceneBuilder {
    */
   private extractStateTransform(value: Value): Partial<Transform> {
     const transform: Partial<Transform> = {};
-
-    const extractSingle = (funcValue: { name: string; args: Value[] }) => {
-      switch (funcValue.name) {
-        case 'translate':
-          transform.translateX = getNumericValue(funcValue.args[0]);
-          transform.translateY = funcValue.args.length > 1 ? getNumericValue(funcValue.args[1]) : 0;
-          break;
-        case 'translateX':
-          transform.translateX = getNumericValue(funcValue.args[0]);
-          break;
-        case 'translateY':
-          transform.translateY = getNumericValue(funcValue.args[0]);
-          break;
-        case 'rotate':
-          transform.rotate = getNumericValue(funcValue.args[0]);
-          break;
-        case 'scale':
-          transform.scaleX = getNumericValue(funcValue.args[0]);
-          transform.scaleY = funcValue.args.length > 1 ? getNumericValue(funcValue.args[1]) : transform.scaleX;
-          break;
-        case 'scaleX':
-          transform.scaleX = getNumericValue(funcValue.args[0]);
-          break;
-        case 'scaleY':
-          transform.scaleY = getNumericValue(funcValue.args[0]);
-          break;
-      }
-    };
-
-    if (isFunctionValue(value)) {
-      extractSingle(value);
-    } else if (isListValue(value)) {
-      for (const v of value.values) {
-        if (isFunctionValue(v)) {
-          extractSingle(v);
-        }
-      }
-    }
-
+    extractTransform(value, (key, val) => {
+      transform[key] = val;
+    });
     return transform;
   }
 
@@ -559,42 +570,28 @@ export class SceneBuilder {
         break;
 
       // Appearance
-      case 'fill':
-        if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
-          const grad = this.parseGradient(value);
-          // Invalid gradient falls back to no fill (solid color path below is
-          // never reached for a function value).
-          node.fillGradient = grad;
+      case 'fill': {
+        const paint = this.parsePaint(value);
+        if (paint?.type === 'gradient') {
+          // Invalid gradient falls back to no fill.
+          node.fillGradient = paint.gradient;
           node.fill = null;
-        } else if (isColorValue(value)) {
-          node.fill = value.value;
-        } else if (isKeywordValue(value)) {
-          if (value.value === 'none') {
-            node.fill = null;
-          } else {
-            node.fill = value.value;
-          }
-        } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
-          node.fill = this.buildColorString(value);
+        } else if (paint) {
+          node.fill = paint.color;
         }
         break;
+      }
 
-      case 'stroke':
-        if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
-          node.strokeGradient = this.parseGradient(value);
+      case 'stroke': {
+        const paint = this.parsePaint(value);
+        if (paint?.type === 'gradient') {
+          node.strokeGradient = paint.gradient;
           node.stroke = null;
-        } else if (isColorValue(value)) {
-          node.stroke = value.value;
-        } else if (isKeywordValue(value)) {
-          if (value.value === 'none') {
-            node.stroke = null;
-          } else {
-            node.stroke = value.value;
-          }
-        } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
-          node.stroke = this.buildColorString(value);
+        } else if (paint) {
+          node.stroke = paint.color;
         }
         break;
+      }
 
       case 'clip-path':
         node.clipPath = this.parseClipPath(value);
@@ -793,43 +790,9 @@ export class SceneBuilder {
   }
 
   private applyTransform(node: SceneNode, value: Value): void {
-    if (isFunctionValue(value)) {
-      this.applySingleTransform(node.transform, value.name, value.args);
-    } else if (isListValue(value)) {
-      for (const v of value.values) {
-        if (isFunctionValue(v)) {
-          this.applySingleTransform(node.transform, v.name, v.args);
-        }
-      }
-    }
-  }
-
-  private applySingleTransform(transform: Transform, name: string, args: Value[]): void {
-    switch (name) {
-      case 'translate':
-        transform.translateX = getNumericValue(args[0]);
-        transform.translateY = args.length > 1 ? getNumericValue(args[1]) : 0;
-        break;
-      case 'translateX':
-        transform.translateX = getNumericValue(args[0]);
-        break;
-      case 'translateY':
-        transform.translateY = getNumericValue(args[0]);
-        break;
-      case 'rotate':
-        transform.rotate = getNumericValue(args[0]);
-        break;
-      case 'scale':
-        transform.scaleX = getNumericValue(args[0]);
-        transform.scaleY = args.length > 1 ? getNumericValue(args[1]) : transform.scaleX;
-        break;
-      case 'scaleX':
-        transform.scaleX = getNumericValue(args[0]);
-        break;
-      case 'scaleY':
-        transform.scaleY = getNumericValue(args[0]);
-        break;
-    }
+    extractTransform(value, (key, val) => {
+      node.transform[key] = val;
+    });
   }
 
   /**
@@ -1038,6 +1001,9 @@ export class SceneBuilder {
 
       return keyframeData;
     });
+    // Author order isn't guaranteed ascending (`100% {} 0% {}` is legal CSS);
+    // sort once here so per-frame sampling can trust the order.
+    frames.sort((a, b) => a.offset - b.offset);
     warnIncompatibleObjectKeyframes(rule.name, frames);
     return frames;
   }
@@ -1065,18 +1031,17 @@ export class SceneBuilder {
           props[property] = normalizeFraction(value);
           break;
         case 'fill':
-        case 'stroke':
+        case 'stroke': {
           // A gradient endpoint parses to structured GradientData (animated
           // stops); a plain color parses to its string. Both are animatable.
-          if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
-            const grad = this.parseGradient(value);
-            if (grad) props[property] = grad;
-          } else if (isColorValue(value)) {
-            props[property] = value.value;
-          } else if (isFunctionValue(value)) {
-            props[property] = this.buildColorString(value);
+          const paint = this.parsePaint(value);
+          if (paint?.type === 'gradient') {
+            if (paint.gradient) props[property] = paint.gradient;
+          } else if (paint?.color != null) {
+            props[property] = paint.color;
           }
           break;
+        }
         case 'd':
           // Path morphing: parse the path string to commands once at build.
           props.d = parsePath(getStringValue(value));
@@ -1103,45 +1068,11 @@ export class SceneBuilder {
   }
 
   private extractTransformProperties(value: Value, props: Record<string, AnimatableValue>): void {
-    // Extract individual transform functions into separate properties
-    // This allows proper merging with base transform during animation
-    const extractSingle = (funcValue: { name: string; args: Value[] }) => {
-      switch (funcValue.name) {
-        case 'translate':
-          props.translateX = getNumericValue(funcValue.args[0]);
-          props.translateY = funcValue.args.length > 1 ? getNumericValue(funcValue.args[1]) : 0;
-          break;
-        case 'translateX':
-          props.translateX = getNumericValue(funcValue.args[0]);
-          break;
-        case 'translateY':
-          props.translateY = getNumericValue(funcValue.args[0]);
-          break;
-        case 'rotate':
-          props.rotate = getNumericValue(funcValue.args[0]);
-          break;
-        case 'scale':
-          props.scaleX = getNumericValue(funcValue.args[0]);
-          props.scaleY = funcValue.args.length > 1 ? getNumericValue(funcValue.args[1]) : props.scaleX as number;
-          break;
-        case 'scaleX':
-          props.scaleX = getNumericValue(funcValue.args[0]);
-          break;
-        case 'scaleY':
-          props.scaleY = getNumericValue(funcValue.args[0]);
-          break;
-      }
-    };
-
-    if (isFunctionValue(value)) {
-      extractSingle(value);
-    } else if (isListValue(value)) {
-      for (const v of value.values) {
-        if (isFunctionValue(v)) {
-          extractSingle(v);
-        }
-      }
-    }
+    // Extract individual transform functions into separate properties so they
+    // merge with the base transform during animation.
+    extractTransform(value, (key, val) => {
+      props[key] = val;
+    });
   }
 
   /**
@@ -1153,6 +1084,30 @@ export class SceneBuilder {
    * pairs where the stop percentage is optional. Returns null if no usable
    * color stops are found (caller falls back to no fill/stroke).
    */
+  /**
+   * Resolve a fill/stroke paint value: gradient function -> structured
+   * GradientData (null when invalid), color/keyword/rgb() -> color string
+   * ('none' -> null). Returns null for values that aren't paints at all.
+   * Shared by declaration and keyframe paths.
+   */
+  private parsePaint(
+    value: Value
+  ): { type: 'gradient'; gradient: GradientData | null } | { type: 'color'; color: string | null } | null {
+    if (isFunctionValue(value) && (value.name === 'linear-gradient' || value.name === 'radial-gradient')) {
+      return { type: 'gradient', gradient: this.parseGradient(value) };
+    }
+    if (isColorValue(value)) {
+      return { type: 'color', color: value.value };
+    }
+    if (isKeywordValue(value)) {
+      return { type: 'color', color: value.value === 'none' ? null : value.value };
+    }
+    if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
+      return { type: 'color', color: this.buildColorString(value) };
+    }
+    return null;
+  }
+
   private parseGradient(func: { name: string; args: Value[] }): GradientData | null {
     const isLinear = func.name === 'linear-gradient';
     const args = func.args;

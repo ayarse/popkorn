@@ -134,23 +134,17 @@ export class VariableResolver {
   }
 
   private resolveInputPath(path: string): number {
-    const parts = path.split('.');
-
-    switch (parts[0]) {
-      case 'cursor':
-        if (parts[1] === 'x') return this.inputState.cursor.x;
-        if (parts[1] === 'y') return this.inputState.cursor.y;
-        if (parts[1] === 'isDown') return this.inputState.cursor.isDown ? 1 : 0;
-        break;
-      case 'scroll':
-        if (parts[1] === 'x') return this.inputState.scroll.x;
-        if (parts[1] === 'y') return this.inputState.scroll.y;
-        break;
-      case 'time':
-        return this.inputState.time;
+    // Runs per binding per frame; the path set is small and fixed, so direct
+    // comparison avoids a per-call split() allocation.
+    switch (path) {
+      case 'cursor.x': return this.inputState.cursor.x;
+      case 'cursor.y': return this.inputState.cursor.y;
+      case 'cursor.isDown': return this.inputState.cursor.isDown ? 1 : 0;
+      case 'scroll.x': return this.inputState.scroll.x;
+      case 'scroll.y': return this.inputState.scroll.y;
+      case 'time': return this.inputState.time;
+      default: return 0;
     }
-
-    return 0;
   }
 }
 
