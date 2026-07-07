@@ -1157,14 +1157,21 @@ export class Converter {
       if (!d) return null;
       rule.decls.push(`d: '${d}'`);
     } else {
-      // Drive the morph off the longest animated track (its keyframes carry the
-      // easing); other inputs are hold/morph-sampled at those same times.
-      const carrier = animated.reduce((a, b) => (drawableKfs(b).length > drawableKfs(a).length ? b : a));
-      const kfs = drawableKfs(carrier);
-      rule.decls.push(`d: '${dAt(kfs[0].t)}'`);
+      // Sample the combined `d` on the UNION of every animated input's keyframe
+      // grid, so the merged geometry matches each contributing shape at every one
+      // of its keyframes and the interpolation between them stays in tolerance.
+      // (Driving the morph off only the longest track let the other inputs drift
+      // between its keyframes — a union stroke would then poke past the fills it
+      // wraps, the cat-tail spikes.) Easing at each union time follows whichever
+      // track owns a native keyframe there; this mirrors splitProp's x/y merge.
+      const tracks = animated.map(drawableKfs).filter((k) => k.length > 0);
+      const times = [...new Set(tracks.flatMap((k) => k.map((kf) => kf.t)))].sort((a, b) => a - b);
+      const kfs: Kf[] = times.map((t) => {
+        const src = tracks.map((tk) => tk.find((kf) => kf.t === t)).find(Boolean);
+        return { t, i: src?.i, o: src?.o, h: src?.h };
+      });
+      rule.decls.push(`d: '${dAt(times[0])}'`);
       rule.channels.push({ priority: 6, kfs, sample: (t) => ({ d: dAt(t) }) });
-      if (animated.length > 1)
-        this.warnOnce('merged path has multiple animated inputs; easing follows the longest track');
     }
     // Nonzero winding is what makes the concatenated subpaths read as a union.
     if (fillRule !== 2) rule.decls.push('fill-rule: nonzero');

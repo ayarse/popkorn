@@ -83,6 +83,29 @@ test('a windowed layer scheduled entirely past op holds its first keyframe (no a
   expect(css).not.toContain('animation:');
 });
 
+test('a hoisted union stroke samples the combined d on the UNION of every input grid', () => {
+  // Two grouped rects animate on DIFFERENT keyframe grids ({0,10} and {5,15})
+  // with different per-segment easings, sharing one group stroke. The hoisted
+  // stroke must morph on the union grid {0,5,10,15} — sampling only the longest
+  // (carrier) track let the stroke drift past the fills between its keyframes
+  // (the cat-tail spikes). Union frames map to offsets 0/33.3/66.7/100%.
+  const st = { ty: 'st', c: { a: 0, k: [0, 0, 0] }, w: { a: 0, k: 4 } };
+  const css = new Converter().convert(hoistedStrokeComp(st));
+  expect(validate(css)).toEqual([]);
+  const kfHead = css.indexOf('@keyframes');
+  const kfIdx = css.indexOf('-stroke', css.indexOf('stroke:')); // stroke node exists
+  expect(kfIdx).toBeGreaterThan(-1);
+  // Grab the stroke node's @keyframes block and count its keyframe stops.
+  const block = css.slice(css.indexOf('@keyframes', kfHead), css.length);
+  const strokeKf = block.match(/@keyframes[^\n]*-stroke-[\w-]*k\s*\{[\s\S]*?\n\}/);
+  expect(strokeKf).not.toBeNull();
+  const stops = strokeKf![0].match(/^\s*[\d.]+%\s*\{/gm) || [];
+  expect(stops.length).toBe(4); // union of both grids, not just one carrier track
+  // The frames unique to each grid must both survive: 5→33.33%, 10→66.67%.
+  expect(strokeKf![0]).toContain('33.33%');
+  expect(strokeKf![0]).toContain('66.67%');
+});
+
 test('Lottie lj/ml map onto stroke-linejoin / stroke-miterlimit (non-default only)', () => {
   // lj 2 -> round, ml 3 (non-default; player defaults miter/4). On the hoisted stroke node.
   const round = new Converter().convert(hoistedStrokeComp({ ty: 'st', c: { a: 0, k: [0, 0, 0] }, w: { a: 0, k: 4 }, lj: 2, ml: 3 }));
