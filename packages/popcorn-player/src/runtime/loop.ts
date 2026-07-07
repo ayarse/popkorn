@@ -310,6 +310,8 @@ export class RenderLoop {
     this.renderer.setStroke(node.stroke, node.strokeWidth);
     this.renderer.setStrokeGradient(node.strokeGradient);
     this.renderer.setStrokeLineCap(node.strokeLineCap);
+    this.renderer.setStrokeLineJoin(node.strokeLineJoin);
+    this.renderer.setStrokeMiterLimit(node.strokeMiterLimit);
     this.renderer.setTrim(computeTrim(node));
     this.renderer.setDash(node.strokeDashArray, node.strokeDashOffset);
     this.renderer.setPaintOrder(node.paintOrder);

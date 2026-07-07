@@ -86,6 +86,19 @@ test('builder: stroke-linecap keywords', () => {
   expect(firstNode('#p { type: circle; r: 50px; }').strokeLineCap).toBe('butt');
 });
 
+test('builder: stroke-linejoin keywords and miterlimit', () => {
+  for (const join of ['miter', 'round', 'bevel'] as const) {
+    const node = firstNode(`#p { type: circle; r: 50px; stroke-linejoin: ${join}; }`);
+    expect(node.strokeLineJoin).toBe(join);
+  }
+  // SVG/Lottie defaults: miter join, miter limit 4.
+  const dflt = firstNode('#p { type: circle; r: 50px; }');
+  expect(dflt.strokeLineJoin).toBe('miter');
+  expect(dflt.strokeMiterLimit).toBe(4);
+  // Explicit miter limit is parsed as a number.
+  expect(firstNode('#p { type: circle; r: 50px; stroke-miterlimit: 2; }').strokeMiterLimit).toBe(2);
+});
+
 // --- (3) registry: trim-end animates ----------------------------------------
 
 test('registry: trim-end interpolates between keyframes', () => {

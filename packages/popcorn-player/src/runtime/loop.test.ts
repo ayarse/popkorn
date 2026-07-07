@@ -29,6 +29,8 @@ function createRecordingRenderer(): Renderer & { opacities: number[] } {
     setStroke(_c: Color | null, _w: number) {},
     setStrokeGradient(_g: GradientData | null) {},
     setStrokeLineCap(_c: StrokeLineCap) {},
+    setStrokeLineJoin() {},
+    setStrokeMiterLimit() {},
     setTrim(_t: TrimDescriptor | null) {},
     setDash() {},
     setFillRule(_r: FillRule) {},

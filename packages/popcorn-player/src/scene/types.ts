@@ -33,6 +33,9 @@ export type TextAnchor = 'start' | 'middle' | 'end';
 // Stroke line cap, maps straight to CanvasRenderingContext2D.lineCap.
 export type StrokeLineCap = 'butt' | 'round' | 'square';
 
+// Stroke line join, maps straight to CanvasRenderingContext2D.lineJoin.
+export type StrokeLineJoin = 'miter' | 'round' | 'bevel';
+
 // Paint order for a shape's own fill/stroke. 'normal' paints fill then stroke
 // (stroke on top); 'stroke' paints stroke then fill (stroke behind the fill),
 // matching SVG `paint-order: stroke`. Used when a Lottie group stroke sits below
@@ -105,6 +108,11 @@ export interface SceneNode {
   trimEnd: number;
   trimOffset: number;
   strokeLineCap: StrokeLineCap;
+  strokeLineJoin: StrokeLineJoin;
+  // Miter limit for miter joins (maps to CanvasRenderingContext2D.miterLimit).
+  // Canvas defaults to 10; SVG/Lottie default to 4, so sharp corners bevel
+  // sooner. Only meaningful when strokeLineJoin is 'miter'.
+  strokeMiterLimit: number;
 
   // Stroke dashing (independent of trim). strokeDashArray is static (a repeating
   // dash/gap pattern in local units); strokeDashOffset is animatable (registry).
@@ -454,6 +462,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     trimEnd: 1,
     trimOffset: 0,
     strokeLineCap: 'butt',
+    strokeLineJoin: 'miter',
+    strokeMiterLimit: 4,
     strokeDashArray: [],
     strokeDashOffset: 0,
     fillRule: 'nonzero',

@@ -614,6 +614,16 @@ export class SceneBuilder {
         }
         break;
 
+      case 'stroke-linejoin':
+        if (isKeywordValue(value) && (value.value === 'miter' || value.value === 'round' || value.value === 'bevel')) {
+          node.strokeLineJoin = value.value;
+        }
+        break;
+
+      case 'stroke-miterlimit':
+        node.strokeMiterLimit = getNumericValue(value);
+        break;
+
       // Stroke dashing: a repeating length list, plus an animatable offset.
       case 'stroke-dasharray':
         node.strokeDashArray = isListValue(value)

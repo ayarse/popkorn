@@ -32,3 +32,25 @@ test('beginFrame resets to identity BEFORE clearing the full backing canvas', ()
   expect(canvas.calls[setIdx].args).toEqual([1, 0, 0, 1, 0, 0]);
   expect(canvas.calls[clrIdx].args).toEqual([0, 0, 300, 200]);
 });
+
+// A stand-in 2D context that only records the stroke state it is asked to set.
+function mockStrokeCanvas() {
+  const ctx: any = {
+    canvas: { width: 100, height: 100 },
+    globalAlpha: 1,
+    beginPath() {}, arc() {}, stroke() {}, fill() {},
+    setLineDash() {},
+  };
+  return { getContext: () => ctx, ctx } as any;
+}
+
+test('strokePath applies lineJoin and miterLimit to the context', () => {
+  const canvas = mockStrokeCanvas();
+  const r = new Canvas2DRenderer(canvas);
+  r.setStroke({ r: 0, g: 0, b: 0, a: 1 }, 16);
+  r.setStrokeLineJoin('bevel');
+  r.setStrokeMiterLimit(4);
+  r.drawCircle(50, 50, 40);
+  expect(canvas.ctx.lineJoin).toBe('bevel');
+  expect(canvas.ctx.miterLimit).toBe(4);
+});

@@ -1,5 +1,5 @@
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
+import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -37,6 +37,8 @@ export interface Renderer {
   setStroke(color: Color | null, width: number): void;
   setStrokeGradient(gradient: GradientData | null): void;
   setStrokeLineCap(cap: StrokeLineCap): void;
+  setStrokeLineJoin(join: StrokeLineJoin): void;
+  setStrokeMiterLimit(limit: number): void;
   // Trim the stroke to a sub-range of the outline; null strokes the whole outline.
   setTrim(trim: TrimDescriptor | null): void;
   // Stroke dash pattern + offset. Empty array => solid stroke. Ignored while a

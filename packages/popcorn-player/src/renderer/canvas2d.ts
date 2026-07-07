@@ -1,6 +1,6 @@
 import type { Renderer } from './interface';
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
+import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -28,6 +28,8 @@ export class Canvas2DRenderer implements Renderer {
   private fillGradient: GradientData | null = null;
   private strokeGradient: GradientData | null = null;
   private lineCap: StrokeLineCap = 'butt';
+  private lineJoin: StrokeLineJoin = 'miter';
+  private miterLimit: number = 4;
   private trim: TrimDescriptor | null = null;
   private dashArray: number[] = [];
   private dashOffset: number = 0;
@@ -229,6 +231,14 @@ export class Canvas2DRenderer implements Renderer {
     this.lineCap = cap;
   }
 
+  setStrokeLineJoin(join: StrokeLineJoin): void {
+    this.lineJoin = join;
+  }
+
+  setStrokeMiterLimit(limit: number): void {
+    this.miterLimit = limit;
+  }
+
   setTrim(trim: TrimDescriptor | null): void {
     this.trim = trim;
   }
@@ -340,6 +350,8 @@ export class Canvas2DRenderer implements Renderer {
     }
 
     this.ctx.lineCap = this.lineCap;
+    this.ctx.lineJoin = this.lineJoin;
+    this.ctx.miterLimit = this.miterLimit;
     this.ctx.strokeStyle = stroke;
     this.ctx.lineWidth = this.strokeWidth;
     this.ctx.stroke();
