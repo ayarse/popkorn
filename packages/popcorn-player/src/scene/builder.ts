@@ -32,7 +32,7 @@ import type {
   StateStyles,
   ClipPathData,
   ImageData,
-  MatteMode,
+  MaskMode,
   TimeRemapStop,
 } from './types';
 import type { PathCommand } from '../renderer/types';
@@ -130,9 +130,9 @@ export class SceneBuilder {
   // Static :root custom properties, for build-time resolution of static var()
   // references on non-animatable string properties (e.g. a hoisted image src).
   private variablesMap: Map<string, Value> = new Map();
-  // Nodes that authored a `matte:` reference, resolved to source nodes once the
+  // Nodes that authored a `mask:` reference, resolved to source nodes once the
   // whole tree is built (the source can live anywhere in the scene).
-  private pendingMattes: { node: SceneNode; sourceId: string; mode: MatteMode }[] = [];
+  private pendingMasks: { node: SceneNode; sourceId: string; mode: MaskMode }[] = [];
   // Longhand animation-fill-mode for the node currently being built (it
   // overrides any value in the animation shorthand, regardless of source order).
   private pendingFillMode: AnimationFillMode | null = null;
@@ -159,31 +159,31 @@ export class SceneBuilder {
       root.children.push(node);
     }
 
-    this.resolveMattes(root);
+    this.resolveMasks(root);
 
     return root;
   }
 
   /**
-   * Wire up authored `matte:` references now that every node exists. The matte
+   * Wire up authored `mask:` references now that every node exists. The mask
    * source is looked up by id anywhere in the scene; the referenced node is
-   * flagged so the renderer paints it only as a matte, never on its own.
+   * flagged so the renderer paints it only as a mask, never on its own.
    */
-  private resolveMattes(root: SceneNode): void {
-    if (this.pendingMattes.length === 0) return;
+  private resolveMasks(root: SceneNode): void {
+    if (this.pendingMasks.length === 0) return;
     const byId = new Map<string, SceneNode>();
     const index = (n: SceneNode) => { byId.set(n.id, n); n.children.forEach(index); };
     index(root);
 
-    for (const { node, sourceId, mode } of this.pendingMattes) {
+    for (const { node, sourceId, mode } of this.pendingMasks) {
       const source = byId.get(sourceId);
       if (!source) {
-        throw new Error(`matte on '${node.id}' references unknown node '#${sourceId}'`);
+        throw new Error(`mask on '${node.id}' references unknown node '#${sourceId}'`);
       }
-      node.matte = { source, mode };
-      source.isMatteSource = true;
+      node.mask = { source, mode };
+      source.isMaskSource = true;
     }
-    this.pendingMattes = [];
+    this.pendingMasks = [];
   }
 
   private buildNode(rule: Rule): SceneNode {
@@ -597,8 +597,8 @@ export class SceneBuilder {
         node.clipPath = this.parseClipPath(value);
         break;
 
-      case 'matte':
-        this.parseMatte(node, value);
+      case 'mask':
+        this.parseMask(node, value);
         break;
 
       // CSS Motion Path. offset-path is static (cached arc-length table built
@@ -1232,23 +1232,23 @@ export class SceneBuilder {
   }
 
   /**
-   * Parse `matte: #<id> alpha | alpha-invert | luma | luma-invert`. The id is
+   * Parse `mask: #<id> alpha | alpha-invert | luminance | luminance-invert`. The id is
    * carried as a `#`-prefixed keyword by the parser; the mode defaults to alpha.
    * Resolution to the source node happens once the whole tree exists.
    */
-  private parseMatte(node: SceneNode, value: Value): void {
+  private parseMask(node: SceneNode, value: Value): void {
     const values = isListValue(value) ? value.values : [value];
     let sourceId: string | null = null;
-    let mode: MatteMode = 'alpha';
+    let mode: MaskMode = 'alpha';
     for (const v of values) {
       if (!isKeywordValue(v)) continue;
       if (v.value.startsWith('#')) {
         sourceId = v.value.slice(1);
-      } else if (v.value === 'alpha' || v.value === 'alpha-invert' || v.value === 'luma' || v.value === 'luma-invert') {
+      } else if (v.value === 'alpha' || v.value === 'alpha-invert' || v.value === 'luminance' || v.value === 'luminance-invert') {
         mode = v.value;
       }
     }
-    if (sourceId) this.pendingMattes.push({ node, sourceId, mode });
+    if (sourceId) this.pendingMasks.push({ node, sourceId, mode });
   }
 
   /**

@@ -62,9 +62,9 @@ function hitTestNode(
   // subtree) can't be hit either. `hidden` is set by the per-frame resolve walk.
   if (node.hidden) return;
 
-  // Matte sources are never painted on their own, so they can't be hit; skip
-  // the whole subtree. (Matted content is hit-tested normally on its shape.)
-  if (node.isMatteSource) return;
+  // Mask sources are never painted on their own, so they can't be hit; skip
+  // the whole subtree. (Maskd content is hit-tested normally on its shape.)
+  if (node.isMaskSource) return;
 
   const world = computeWorldMatrix(node, parentWorld);
   const depth = order.value++;

@@ -236,34 +236,34 @@ test('clip-path: @keyframes morph the clip commands via the registry', () => {
   }
 });
 
-// --- track mattes ------------------------------------------------------------
+// --- track masks ------------------------------------------------------------
 
-const MATTE_SRC = `
-#content { type: rect; x: 0px; y: 0px; width: 50px; height: 50px; fill: #f00; matte: #mask alpha; }
+const MASK_SRC = `
+#content { type: rect; x: 0px; y: 0px; width: 50px; height: 50px; fill: #f00; mask: #mask alpha; }
 #mask { type: circle; cx: 25px; cy: 25px; r: 25px; fill: #fff; }
 `;
 
-test('matte: resolves the source by id, flags it, and links the mode', () => {
-  const root = build(MATTE_SRC);
+test('mask: resolves the source by id, flags it, and links the mode', () => {
+  const root = build(MASK_SRC);
   const [content, mask] = root.children;
-  expect(content.matte?.source).toBe(mask);
-  expect(content.matte?.mode).toBe('alpha');
-  // The source is painted only as a matte, never on its own.
-  expect(mask.isMatteSource).toBe(true);
-  expect(content.isMatteSource).toBe(false);
+  expect(content.mask?.source).toBe(mask);
+  expect(content.mask?.mode).toBe('alpha');
+  // The source is painted only as a mask, never on its own.
+  expect(mask.isMaskSource).toBe(true);
+  expect(content.isMaskSource).toBe(false);
 });
 
-test('matte: an unknown source id throws', () => {
-  expect(() => build('#c { type: rect; width: 10px; matte: #nope alpha; }'))
-    .toThrow(/matte on 'c' references unknown node '#nope'/);
+test('mask: an unknown source id throws', () => {
+  expect(() => build('#c { type: rect; width: 10px; mask: #nope alpha; }'))
+    .toThrow(/mask on 'c' references unknown node '#nope'/);
 });
 
-test('matte: mode variants parse (luma-invert)', () => {
+test('mask: mode variants parse (luminance-invert)', () => {
   const root = build(`
-    #c { type: rect; width: 10px; matte: #m luma-invert; }
+    #c { type: rect; width: 10px; mask: #m luminance-invert; }
     #m { type: rect; width: 10px; }
   `);
-  expect(root.children[0].matte?.mode).toBe('luma-invert');
+  expect(root.children[0].mask?.mode).toBe('luminance-invert');
 });
 
 // --- image nodes -------------------------------------------------------------

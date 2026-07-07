@@ -503,17 +503,17 @@ export const examples: Example[] = [
   },
 
   {
-    key: 'matte',
-    label: 'Matte',
-    source: `/* Matte — big text revealed through a sweeping bar (luma track matte) */
+    key: 'mask',
+    label: 'Mask',
+    source: `/* Mask — big text revealed through a sweeping bar (luminance mask) */
 :canvas {
   width: 800px;
   height: 600px;
   background: #0b1021;
 }
 
-/* The matte source is a white bar that sweeps across. Driving a luma matte, it
-   is never drawn itself — only its brightness shows the content through. */
+/* The mask source is a white bar that sweeps across. Driving a luminance mask,
+   it is never drawn itself — only its brightness shows the content through. */
 @keyframes sweep {
   0%   { transform: translateX(-700px); }
   100% { transform: translateX(700px);  }
@@ -528,7 +528,7 @@ export const examples: Example[] = [
   font-weight: 700;
   text-anchor: middle;
   fill: #ffe66d;
-  matte: #wipe luma;
+  mask: #wipe luminance;
 }
 
 #wipe {

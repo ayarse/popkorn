@@ -1,6 +1,6 @@
 ---
 name: creating-popcorn-animations
-description: Use when authoring or editing a Popcorn scene (.css DSL for @popcorn/player) — writing shapes, keyframe animations, symbols, motion paths, masks/mattes, or interactive scenes in this repo's CSS-subset animation language.
+description: Use when authoring or editing a Popcorn scene (.css DSL for @popcorn/player) — writing shapes, keyframe animations, symbols, motion paths, masks, or interactive scenes in this repo's CSS-subset animation language.
 ---
 
 # Creating Popcorn Animations
@@ -41,7 +41,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Nesting | `> #child { … }` inside a rule body |
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |
 | Motion path | `offset-path: path('…'); offset-distance: 50%; offset-rotate: auto` (animate `offset-distance`) |
-| Mask / matte | `clip-path: circle(80 at 200 200)` · `matte: #layer alpha` |
+| Mask | `clip-path: circle(80 at 200 200)` · `mask: #layer alpha` |
 | Gradient/path animation | animate `fill: linear-gradient(…)` (same type + stop count) or `d: 'M…'` (same command sequence) in `@keyframes`; incompatible endpoints step |
 | Retime subtree | `time-offset: 2s; time-scale: 0.5` on a group — shifts + scales that node and all descendants (precomp-style; static) |
 | Group opacity | cascades: `opacity` on a group dims its whole subtree |

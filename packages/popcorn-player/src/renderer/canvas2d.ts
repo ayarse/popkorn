@@ -1,6 +1,6 @@
 import type { Renderer } from './interface';
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
+import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MaskMode, PaintOrder } from '../scene/types';
 import { colorToCSS } from './types';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
@@ -19,7 +19,7 @@ interface ImageEntry {
 
 export class Canvas2DRenderer implements Renderer {
   private ctx: CanvasRenderingContext2D;
-  // Image cache and lazily-created offscreen buffers for track mattes.
+  // Image cache and lazily-created offscreen buffers for track masks.
   private images = new Map<string, ImageEntry>();
   private offscreen: (CanvasRenderingContext2D | null)[] = [];
   private fillColor: string | null = '#000000';
@@ -139,29 +139,29 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.drawImage(entry.img, x, y, dw, dh);
   }
 
-  compositeMatte(mode: MatteMode, drawContent: () => void, drawMatte: () => void): void {
+  compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void {
     const a = this.ensureOffscreen(0);
     const b = this.ensureOffscreen(1);
     if (!a || !b) { drawContent(); return; } // headless / no offscreen: content only
 
     const main = this.ctx;
 
-    // Content -> A, matte source -> B; each closure sets its own world transform.
+    // Content -> A, mask source -> B; each closure sets its own world transform.
     this.ctx = a;
     this.beginFrame();
     drawContent();
 
     this.ctx = b;
     this.beginFrame();
-    drawMatte();
+    drawMask();
 
-    // Turn a luma matte into an alpha matte in place, so a single
+    // Turn a luminance mask into an alpha mask in place, so a single
     // destination-in/out handles every mode.
-    if (mode === 'luma' || mode === 'luma-invert') lumaToAlpha(b);
+    if (mode === 'luminance' || mode === 'luminance-invert') luminanceToAlpha(b);
 
-    // destination-in keeps content where the matte is opaque; destination-out
-    // keeps it where the matte is transparent (the *-invert variants).
-    const invert = mode === 'alpha-invert' || mode === 'luma-invert';
+    // destination-in keeps content where the mask is opaque; destination-out
+    // keeps it where the mask is transparent (the *-invert variants).
+    const invert = mode === 'alpha-invert' || mode === 'luminance-invert';
     a.save();
     a.setTransform(1, 0, 0, 1, 0, 0);
     a.globalCompositeOperation = invert ? 'destination-out' : 'destination-in';
@@ -169,7 +169,7 @@ export class Canvas2DRenderer implements Renderer {
     a.globalCompositeOperation = 'source-over';
     a.restore();
 
-    // Blit the matted result onto the main canvas at identity (A already holds
+    // Blit the masked result onto the main canvas at identity (A already holds
     // world-positioned pixels).
     this.ctx = main;
     main.save();
@@ -406,20 +406,20 @@ function createOffscreen(w: number, h: number): CanvasRenderingContext2D | null 
 
 /**
  * Rewrite a buffer's alpha to its per-pixel luminance (×existing alpha), so a
- * luma matte can be applied with the same destination-in/out path as an alpha
- * matte. One getImageData/putImageData pass.
+ * luminance mask can be applied with the same destination-in/out path as an alpha
+ * mask. One getImageData/putImageData pass.
  *
  * ponytail: a filter-only fast path (`ctx.filter = 'grayscale(1)'` + a luminance
  * blend) would avoid the CPU round-trip; the pixel loop is the simple version.
  */
-function lumaToAlpha(ctx: CanvasRenderingContext2D): void {
+function luminanceToAlpha(ctx: CanvasRenderingContext2D): void {
   const { width, height } = ctx.canvas;
   if (width === 0 || height === 0) return;
   let data: ImageData;
   try {
     data = ctx.getImageData(0, 0, width, height);
   } catch {
-    return; // tainted canvas — leave as-is (treated as an alpha matte)
+    return; // tainted canvas — leave as-is (treated as an alpha mask)
   }
   const px = data.data;
   for (let i = 0; i < px.length; i += 4) {

@@ -178,7 +178,7 @@ function parseValue(c: Cursor): Value {
 
   if (ch === '#') {
     // A hex color, or — when the hash isn't hex (e.g. `#myLayer`) — a reference
-    // to a node id (used by `matte: #id ...`). Kept as a keyword so no new AST
+    // to a node id (used by `mask: #id ...`). Kept as a keyword so no new AST
     // node kind is needed; the builder strips the leading '#'.
     const col = c.match(COLOR);
     if (col) return { type: 'color', value: col };

@@ -169,7 +169,7 @@ export function splitProp(p: any): Prop {
  * Do the two axes of a split position/scale genuinely need per-axis timing?
  * True when their keyframe grids differ, or (same grid) any per-segment easing
  * or hold differs. When false the axes are interchangeable and the cleaner
- * combined translate()/scale() is exact — so we only split when it matters.
+ * combined translate()/scale() is exact — so we only split when __KEEP_MASKRS__.
  */
 export function axesDiverge(x: Prop, y: Prop): boolean {
   const xk = x.kfs, yk = y.kfs;
@@ -463,7 +463,7 @@ export class Converter {
   /**
    * Convert one composition's layer list (the root comp, or a precomp asset's
    * layers) into top-level rules. Parenting, reverse paint order, and track
-   * mattes are all resolved locally within the list. `prefix` namespaces ids so
+   * masks are all resolved locally within the list. `prefix` namespaces ids so
    * multiple instances of the same precomp never collide.
    */
   private buildLayerList(layers: any[], prefix: string, compIp: number, compOp: number): Rule[] {
@@ -521,19 +521,19 @@ export class Converter {
       if (r) topRules.push(r);
     }
 
-    // Track mattes: a layer with `tt` is masked by its matte source (the layer
-    // referenced by `tp`, else the one directly above). Emit `matte: #id <mode>`
-    // on the content rule; the source rule is marked matteSource at build time.
+    // Track masks: a layer with `tt` is masked by its mask source (the layer
+    // referenced by `tp`, else the one directly above). Emit `mask: #id <mode>`
+    // on the content rule; the source rule is marked maskSource at build time.
     for (let i = 0; i < layers.length; i++) {
       const l = layers[i];
       if (l.tt === undefined) continue;
-      const mode = MATTE_MODE[l.tt];
-      if (!mode) { this.blocked.add(`track matte mode tt:${l.tt}`); continue; }
+      const mode = MASK_MODE[l.tt];
+      if (!mode) { this.blocked.add(`track mask mode tt:${l.tt}`); continue; }
       const content = ruleByInd.get(l.ind);
       const srcInd = typeof l.tp === 'number' ? l.tp : layers[i - 1]?.ind;
       const source = srcInd !== undefined ? ruleByInd.get(srcInd) : undefined;
-      if (!content || !source) { this.blocked.add('track matte (unresolved source)'); continue; }
-      content.decls.push(`matte: #${source.id} ${mode}`);
+      if (!content || !source) { this.blocked.add('track mask (unresolved source)'); continue; }
+      content.decls.push(`mask: #${source.id} ${mode}`);
     }
 
     this.clampIp = prevClampIp;
@@ -1812,8 +1812,8 @@ function collectStrokeableDraws(items: any[]): any[] | null {
   return ok ? out : null;
 }
 
-/** Lottie track-matte type (tt) -> Popcorn matte mode. */
-const MATTE_MODE: Record<number, string> = { 1: 'alpha', 2: 'alpha-invert', 3: 'luma', 4: 'luma-invert' };
+/** Lottie track-mask type (tt) -> Popcorn mask mode. */
+const MASK_MODE: Record<number, string> = { 1: 'alpha', 2: 'alpha-invert', 3: 'luminance', 4: 'luminance-invert' };
 
 /** Resolve an image asset to a src: embedded data URI if present, else u + p. */
 function assetSrc(asset: any): string {

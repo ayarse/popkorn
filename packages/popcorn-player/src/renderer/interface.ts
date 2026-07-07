@@ -1,5 +1,5 @@
 import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MatteMode, PaintOrder } from '../scene/types';
+import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MaskMode, PaintOrder } from '../scene/types';
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -25,11 +25,11 @@ export interface Renderer {
   // Clip the current node and its descendants to a region (in local space).
   clip(clip: ResolvedClip): void;
 
-  // Track-matte composite. Paints `drawContent` and `drawMatte` into offscreen
+  // Track-mask composite. Paints `drawContent` and `drawMask` into offscreen
   // buffers (each closure sets its own world transform and draws a subtree),
-  // masks the content by the matte per `mode`, and blits the result to the main
+  // masks the content by the mask per `mode`, and blits the result to the main
   // canvas. Degrades to drawing the content alone when offscreen isn't available.
-  compositeMatte(mode: MatteMode, drawContent: () => void, drawMatte: () => void): void;
+  compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void;
 
   // Style (called before draw)
   setFill(color: Color | null): void;

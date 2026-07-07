@@ -20,9 +20,9 @@ export type ClipPathData =
 // Scene node types
 export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path' | 'text' | 'star' | 'polygon' | 'image';
 
-// Track-matte modes (Lottie tt): the matte source's alpha or luminance drives
+// Track-mask modes (Lottie tt): the mask source's alpha or luminance drives
 // the masked node's visibility; the *-invert variants flip it.
-export type MatteMode = 'alpha' | 'alpha-invert' | 'luma' | 'luma-invert';
+export type MaskMode = 'alpha' | 'alpha-invert' | 'luminance' | 'luminance-invert';
 
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
 export type FillRule = 'nonzero' | 'evenodd';
@@ -151,13 +151,13 @@ export interface SceneNode {
   // Clip region for this node and its descendants (static).
   clipPath: ClipPathData | null;
 
-  // Track matte: this node is composited against `source`'s alpha/luminance.
+  // Track mask: this node is composited against `source`'s alpha/luminance.
   // `source` is resolved by id at build time (any node in the scene). When set,
   // the renderer composites the two subtrees offscreen (see runtime/loop).
-  matte: { source: SceneNode; mode: MatteMode } | null;
-  // True when this node is referenced as some node's matte source: it is not
-  // painted in the normal walk, only sampled as a matte.
-  isMatteSource: boolean;
+  mask: { source: SceneNode; mode: MaskMode } | null;
+  // True when this node is referenced as some node's mask source: it is not
+  // painted in the normal walk, only sampled as a mask.
+  isMaskSource: boolean;
 
   // CSS Motion Path. offsetPath is the (static) motion path with a cached
   // arc-length table, in the node's local space; offsetDistance is the animated
@@ -511,8 +511,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     fillGradient: null,
     strokeGradient: null,
     clipPath: null,
-    matte: null,
-    isMatteSource: false,
+    mask: null,
+    isMaskSource: false,
     offsetPath: null,
     offsetDistance: 0,
     offsetRotate: { auto: true, angle: 0 },

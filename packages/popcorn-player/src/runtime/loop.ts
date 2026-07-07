@@ -277,12 +277,12 @@ export class RenderLoop {
     // Outside its visibility window the node (and subtree) paints nothing.
     if (node.hidden) return;
 
-    // In the normal walk, a matte source is painted only via its dependent's
-    // composite (below), and a node with a matte is composited offscreen. The
+    // In the normal walk, a mask source is painted only via its dependent's
+    // composite (below), and a node with a mask is composited offscreen. The
     // isolated passes that feed those composites bypass both (isolated = true).
     if (!isolated) {
-      if (node.isMatteSource) return;
-      if (node.matte) { this.renderMatte(node); return; }
+      if (node.isMaskSource) return;
+      if (node.mask) { this.renderMask(node); return; }
     }
 
     this.renderer.save();
@@ -372,23 +372,23 @@ export class RenderLoop {
   }
 
   /**
-   * Composite a node against its track-matte source. Both subtrees are rendered
+   * Composite a node against its track-mask source. Both subtrees are rendered
    * in the canvas-root frame (each closure re-establishes its own world
    * transform), so alignment is exact regardless of where the source lives.
    */
-  private renderMatte(node: SceneNode): void {
-    const source = node.matte!.source;
-    // Fold the viewport into each subtree's world transform: the matte closures
+  private renderMask(node: SceneNode): void {
+    const source = node.mask!.source;
+    // Fold the viewport into each subtree's world transform: the mask closures
     // call setTransform (bypassing the render-root viewport), so without this the
-    // matte would render at 1:1 while the rest of the scene is fit-scaled.
+    // mask would render at 1:1 while the rest of the scene is fit-scaled.
     const contentParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
-    const matteParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(source.parent));
+    const maskParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(source.parent));
     const contentAlpha = worldAlpha(node.parent);
-    const matteAlpha = worldAlpha(source.parent);
-    this.renderer.compositeMatte(
-      node.matte!.mode,
+    const maskAlpha = worldAlpha(source.parent);
+    this.renderer.compositeMask(
+      node.mask!.mode,
       () => { this.renderer.setTransform(contentParent); this.renderNode(node, true, contentAlpha); },
-      () => { this.renderer.setTransform(matteParent); this.renderNode(source, true, matteAlpha); }
+      () => { this.renderer.setTransform(maskParent); this.renderNode(source, true, maskAlpha); }
     );
   }
 }

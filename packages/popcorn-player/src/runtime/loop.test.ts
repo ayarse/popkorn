@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test';
 import type { Renderer } from '../renderer/interface';
 import type { Color, PathCommand, GradientData, ResolvedClip, TrimDescriptor, Matrix3x3 } from '../renderer/types';
 import { IDENTITY_MATRIX } from '../renderer/types';
-import type { StrokeLineCap, TextAnchor, FillRule, MatteMode } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule, MaskMode } from '../scene/types';
 import { createSceneNode, snapshotNode } from '../scene/types';
 import { RenderLoop } from './loop';
 
@@ -20,9 +20,9 @@ function createRecordingRenderer(): Renderer & { opacities: number[] } {
     drawText() {},
     drawImage() {},
     clip(_c: ResolvedClip) {},
-    compositeMatte(_m: MatteMode, drawContent: () => void, drawMatte: () => void) {
+    compositeMask(_m: MaskMode, drawContent: () => void, drawMask: () => void) {
       drawContent();
-      drawMatte();
+      drawMask();
     },
     setFill(_c: Color | null) {},
     setFillGradient(_g: GradientData | null) {},

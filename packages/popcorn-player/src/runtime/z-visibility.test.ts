@@ -1,7 +1,7 @@
 import { test, expect } from 'bun:test';
 import type { Renderer } from '../renderer/interface';
 import type { Color, PathCommand, GradientData, ResolvedClip, TrimDescriptor, Matrix3x3 } from '../renderer/types';
-import type { StrokeLineCap, TextAnchor, FillRule, MatteMode, SceneNode } from '../scene/types';
+import type { StrokeLineCap, TextAnchor, FillRule, MaskMode, SceneNode } from '../scene/types';
 import { createSceneNode, snapshotNode } from '../scene/types';
 import { RenderLoop } from './loop';
 import { hitTest } from './hit-test';
@@ -18,7 +18,7 @@ function recordingRenderer(): Renderer & { drawn: string[] } {
     drawPath(_c: PathCommand[]) { push(); },
     drawText() {}, drawImage() {},
     clip(_c: ResolvedClip) {},
-    compositeMatte(_m: MatteMode, c: () => void, m: () => void) { c(); m(); },
+    compositeMask(_m: MaskMode, c: () => void, m: () => void) { c(); m(); },
     setFill(c: Color | null) { fill = c; },
     setFillGradient(_g: GradientData | null) {},
     setStroke(_c: Color | null, _w: number) {},

@@ -178,7 +178,7 @@ export function computeAllWorldTransforms(
 /**
  * World matrix of a node by folding local matrices down from the root along the
  * parent chain. For callers that don't already have the parent's world matrix
- * in hand (e.g. matte compositing).
+ * in hand (e.g. mask compositing).
  */
 export function computeWorldMatrixFromRoot(node: SceneNode | null): Matrix3x3 {
   if (!node) return IDENTITY_MATRIX;

@@ -105,7 +105,7 @@ Number grammar `-?[0-9]+(\.[0-9]+)?` — **no exponents, no leading-dot** (`.5` 
 - **Hex only** is a true color value: `#rgb`, `#rrggbb`, `#rrggbbaa`.
 - `rgb()`/`rgba()`/`hsl()` parse as generic functions; the builder rebuilds `rgb()`/`rgba()` to CSS strings (unknown color fn → `#000000`).
 - **Named colors** (`red`) parse as keywords, passed straight to canvas — any CSS named color works for fill/stroke.
-- `#name` (non-hex) → keyword keeping `#`, used for node refs like `matte: #layer alpha` (builder strips `#`).
+- `#name` (non-hex) → keyword keeping `#`, used for node refs like `mask: #layer alpha` (builder strips `#`).
 
 ### Comments & semicolons
 
@@ -185,7 +185,7 @@ fill: radial-gradient(circle 40px at 150px 150px from 140px 140px, #fff 0%, #333
 
 ### Blend modes
 
-**Not supported** — no `mix-blend-mode`. Compositing is masks + track mattes only (§9).
+**Not supported** — no `mix-blend-mode`. Compositing is clip-path + masks only (§9).
 
 ---
 
@@ -254,7 +254,7 @@ Property is **`src`** (not `href`). **No `object-fit`.** `width`/`height` of `0`
 
 ---
 
-## 9. Compositing — masks & track mattes
+## 9. Compositing — clip-path & masks
 
 ### clip-path
 
@@ -267,16 +267,16 @@ clip-path: path('M…Z') path('M…Z');     /* multi-shape mask: union (nonzero)
 
 `circle(r at x y)`, `inset(t [r b l])` (resolved against bounding box), `path('…')`. A space-separated list of `path()` values unions into one clip region (Lottie mask add-mode). Applied with the node's `fill-rule`. Default: no clip.
 
-### Track mattes
+### Masks
 
 ```css
-matte: #maskLayer alpha;   /* alpha | alpha-invert | luma | luma-invert */
+mask: #maskLayer alpha;   /* alpha | alpha-invert | luminance | luminance-invert */
 ```
 
 - References another node by id (`#id`, `#` stripped). Default mode `alpha`.
-- The source node becomes matte-only (never painted on its own).
-- Luma modes convert alpha to luminance (`0.2126R + 0.7152G + 0.0722B`); `*-invert` uses `destination-out` vs `destination-in`.
-- Unknown source id throws `matte on '…' references unknown node '#…'`.
+- The source node becomes mask-only (never painted on its own).
+- Luminance modes convert alpha to luminance (`0.2126R + 0.7152G + 0.0722B`); `*-invert` uses `destination-out` vs `destination-in`.
+- Unknown source id throws `mask on '…' references unknown node '#…'`.
 
 ---
 
@@ -506,7 +506,7 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 }
 ```
 
-- Hit-testing uses the inverse world matrix (regions match paint exactly), respects clip regions, returns the topmost interactive node. Groups and matte sources aren't hit-testable.
+- Hit-testing uses the inverse world matrix (regions match paint exactly), respects clip regions, returns the topmost interactive node. Groups and mask sources aren't hit-testable.
 - State override consumes only `fill`, `stroke`, `stroke-width`, `opacity`, `transform`.
 - `active` falls back to `hover` styles if no `&:active` block.
 - **Transform overrides layer on top of running animations:** `translate`/`rotate` additive, `scale` multiplicative.
