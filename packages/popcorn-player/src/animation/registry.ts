@@ -1,5 +1,5 @@
 import type { SceneNode, NodeBase } from '../scene/types';
-import type { GradientData, PathCommand } from '../renderer/types';
+import type { GradientData, RadialGradientData, PathCommand } from '../renderer/types';
 import { parseColor, isGradientData } from '../renderer/types';
 import { lerp } from '../scene/transform';
 
@@ -230,20 +230,46 @@ export function interpolateProp(
 // Two gradients interpolate only when they paint the same way: same type and
 // same stop count (so stops pair up index-for-index).
 export function gradientsCompatible(a: GradientData, b: GradientData): boolean {
-  return a.type === b.type && a.stops.length === b.stops.length;
+  if (a.type !== b.type || a.stops.length !== b.stops.length) return false;
+  // Explicit geometry must be present on both (or neither) so fields pair up.
+  if (a.type === 'linear-gradient' && b.type === 'linear-gradient') {
+    return !!a.from === !!b.from && !!a.to === !!b.to;
+  }
+  if (a.type === 'radial-gradient' && b.type === 'radial-gradient') {
+    return !!a.at === !!b.at && !!a.focal === !!b.focal;
+  }
+  return true;
 }
 
-// Lerp each stop's offset and color (and the linear angle). Caller guarantees
-// compatibility. Returns a fresh GradientData; never mutates the endpoints.
+const lerpPt = (a: { x: number; y: number }, b: { x: number; y: number }, t: number) => ({
+  x: lerp(a.x, b.x, t),
+  y: lerp(a.y, b.y, t),
+});
+
+// Lerp each stop's offset and color (and the linear angle / explicit geometry).
+// Caller guarantees compatibility. Returns a fresh GradientData; never mutates.
 export function interpolateGradient(a: GradientData, b: GradientData, t: number): GradientData {
   const stops = a.stops.map((s, i) => ({
     offset: lerp(s.offset, b.stops[i].offset, t),
     color: interpolateColor(s.color, b.stops[i].color, t),
   }));
   if (a.type === 'linear-gradient' && b.type === 'linear-gradient') {
-    return { type: 'linear-gradient', angle: lerp(a.angle, b.angle, t), stops };
+    return {
+      type: 'linear-gradient',
+      angle: lerp(a.angle, b.angle, t),
+      stops,
+      from: a.from && b.from ? lerpPt(a.from, b.from, t) : undefined,
+      to: a.to && b.to ? lerpPt(a.to, b.to, t) : undefined,
+    };
   }
-  return { type: 'radial-gradient', stops };
+  const ra = a as RadialGradientData, rb = b as RadialGradientData;
+  return {
+    type: 'radial-gradient',
+    stops,
+    radius: ra.radius != null && rb.radius != null ? lerp(ra.radius, rb.radius, t) : undefined,
+    at: ra.at && rb.at ? lerpPt(ra.at, rb.at, t) : undefined,
+    focal: ra.focal && rb.focal ? lerpPt(ra.focal, rb.focal, t) : undefined,
+  };
 }
 
 // --- paths ------------------------------------------------------------------

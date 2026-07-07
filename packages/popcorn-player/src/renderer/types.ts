@@ -15,15 +15,30 @@ export interface GradientStop {
   color: string;  // any CSS color string (hex or rgb/rgba)
 }
 
+// A 2D point in the shape's local coordinate space.
+export interface GradientPoint {
+  x: number;
+  y: number;
+}
+
 export interface LinearGradientData {
   type: 'linear-gradient';
   angle: number; // CSS degrees: 0 = up, 90 = right
   stops: GradientStop[];
+  // Explicit endpoints in local space (`from x y to x y`). When present the
+  // renderer draws point-to-point and ignores `angle`/the bbox approximation.
+  from?: GradientPoint;
+  to?: GradientPoint;
 }
 
 export interface RadialGradientData {
   type: 'radial-gradient';
   stops: GradientStop[];
+  // Explicit geometry in local space (`circle r at cx cy [from fx fy]`). When
+  // present the renderer draws an exact circle instead of the bbox half-diagonal.
+  radius?: number;
+  at?: GradientPoint;
+  focal?: GradientPoint; // inner-circle center (Lottie highlight); defaults to `at`
 }
 
 export type GradientData = LinearGradientData | RadialGradientData;
@@ -40,9 +55,10 @@ export function isGradientData(v: unknown): v is GradientData {
 export function cloneGradient(g: GradientData | null): GradientData | null {
   if (!g) return null;
   const stops = g.stops.map((s) => ({ offset: s.offset, color: s.color }));
+  const pt = (p?: GradientPoint) => (p ? { x: p.x, y: p.y } : undefined);
   return g.type === 'linear-gradient'
-    ? { type: 'linear-gradient', angle: g.angle, stops }
-    : { type: 'radial-gradient', stops };
+    ? { type: 'linear-gradient', angle: g.angle, stops, from: pt(g.from), to: pt(g.to) }
+    : { type: 'radial-gradient', stops, radius: g.radius, at: pt(g.at), focal: pt(g.focal) };
 }
 
 // Resolved trim-path descriptor for the stroke, expressed in the shape's local

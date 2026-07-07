@@ -1122,6 +1122,32 @@ export class SceneBuilder {
       i = 1;
     }
 
+    // Explicit geometry keywords lead the arg list (from the Lottie converter):
+    //   linear-gradient(from <x>px <y>px to <x>px <y>px, stops...)
+    //   radial-gradient(circle <r>px at <cx>px <cy>px [from <fx>px <fy>px], stops...)
+    // Coordinates are in the shape's local space; `from` is endpoint for linear,
+    // focal (inner-circle center) for radial.
+    const num = (v?: Value): number | null =>
+      v && (isLengthValue(v) || isNumberValue(v)) ? v.value : null;
+    let from: { x: number; y: number } | undefined;
+    let to: { x: number; y: number } | undefined;
+    let radius: number | undefined;
+    let at: { x: number; y: number } | undefined;
+    let focal: { x: number; y: number } | undefined;
+    while (i < args.length && isKeywordValue(args[i])) {
+      const kw = (args[i] as { value: string }).value;
+      const x = num(args[i + 1]);
+      if (kw === 'circle' && x != null) { radius = x; i += 2; continue; }
+      const y = num(args[i + 2]);
+      if (kw === 'at' && x != null && y != null) { at = { x, y }; i += 3; continue; }
+      if (kw === 'to' && x != null && y != null) { to = { x, y }; i += 3; continue; }
+      if (kw === 'from' && x != null && y != null) {
+        if (isLinear) from = { x, y }; else focal = { x, y };
+        i += 3; continue;
+      }
+      break; // unknown keyword — leave it for the stop loop to skip
+    }
+
     const stops: GradientStop[] = [];
     while (i < args.length) {
       const color = this.colorArgToString(args[i++]);
@@ -1146,8 +1172,8 @@ export class SceneBuilder {
     }
 
     return isLinear
-      ? { type: 'linear-gradient', angle, stops }
-      : { type: 'radial-gradient', stops };
+      ? { type: 'linear-gradient', angle, stops, from, to }
+      : { type: 'radial-gradient', stops, radius, at, focal };
   }
 
   private colorArgToString(value: Value): string | null {

@@ -369,14 +369,23 @@ export class Canvas2DRenderer implements Renderer {
     let grad: CanvasGradient;
 
     if (g.type === 'linear-gradient') {
-      const rad = (g.angle * Math.PI) / 180;
-      const dx = Math.sin(rad);
-      const dy = -Math.cos(rad);
-      const len = Math.abs(b.width * dx) + Math.abs(b.height * dy);
-      grad = this.ctx.createLinearGradient(
-        cx - (dx * len) / 2, cy - (dy * len) / 2,
-        cx + (dx * len) / 2, cy + (dy * len) / 2
-      );
+      if (g.from && g.to) {
+        grad = this.ctx.createLinearGradient(g.from.x, g.from.y, g.to.x, g.to.y);
+      } else {
+        const rad = (g.angle * Math.PI) / 180;
+        const dx = Math.sin(rad);
+        const dy = -Math.cos(rad);
+        const len = Math.abs(b.width * dx) + Math.abs(b.height * dy);
+        grad = this.ctx.createLinearGradient(
+          cx - (dx * len) / 2, cy - (dy * len) / 2,
+          cx + (dx * len) / 2, cy + (dy * len) / 2
+        );
+      }
+    } else if (g.at && g.radius != null) {
+      // Exact circle. Inner circle at the focal point (Lottie highlight offset)
+      // when given, else concentric with the outer.
+      const f = g.focal ?? g.at;
+      grad = this.ctx.createRadialGradient(f.x, f.y, 0, g.at.x, g.at.y, g.radius);
     } else {
       const r = Math.hypot(b.width, b.height) / 2;
       grad = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
