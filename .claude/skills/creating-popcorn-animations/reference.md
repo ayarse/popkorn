@@ -168,7 +168,20 @@ fill: radial-gradient(#fff, #000 100%);
 
 - Linear: optional leading angle (**default 180 = to-bottom**; render convention `0deg = up, 90deg = right`). Stops `color [offset%]`; omitted offsets evenly distributed.
 - Radial: centered on bounding box, radius = half box diagonal.
-- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are *compatible* — same gradient type and same stop count (stops pair index-for-index, offsets + colors interpolate). Incompatible endpoints step (hold departing value).
+
+**Explicit geometry** (leading keyword args, before the stops; coordinates in the shape's **local space**, `px`):
+
+```css
+fill: linear-gradient(from 0px 0px to 100px 100px, #ff6b6b 0%, #4ecdc4 100%);
+fill: radial-gradient(circle 40px at 150px 150px, #fff 0%, #333 100%);
+fill: radial-gradient(circle 40px at 150px 150px from 140px 140px, #fff 0%, #333 100%);
+```
+
+- Linear `from <x> <y> to <x> <y>` — exact endpoints instead of an angle.
+- Radial `circle <r> at <cx> <cy>` — exact radius + center; optional `from <fx> <fy>` sets a **focal point** (offset inner-circle center, for off-axis highlights).
+- Angle/bbox-centered forms remain the fallback when geometry is omitted.
+
+- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are *compatible* — same gradient type and same stop count (stops pair index-for-index; colors, offsets, **and matching geometry fields** interpolate). Incompatible endpoints step (hold departing value).
 
 ### Blend modes
 
