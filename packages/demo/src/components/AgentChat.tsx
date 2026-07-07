@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { parse } from "@popcorn/parser";
 import { cn } from "@/lib/utils";
+import { extractEdits, applyEdits } from "@/lib/edits";
 import {
   Dialog,
   DialogContent,
@@ -65,9 +66,17 @@ const SYSTEM_PROMPT = [
   "You are Popcorn Copilot, embedded in the Popcorn demo editor. Popcorn is a hand-authorable CSS-subset DSL that compiles to a 2D scene graph and plays back on Canvas2D. You help the user create and edit the scene that is live in the editor.",
   "",
   "Output contract:",
-  "- When the user asks you to create or change an animation, reply with one or two sentences of prose, then exactly ONE fenced ```css code block containing the COMPLETE scene. Never emit a diff, fragment, or partial scene — the code block replaces the entire editor contents.",
-  "- For pure questions that do not change the scene, reply with prose only and no code block.",
-  "- Keep prose brief; put all the detail in the scene.",
+  "- For a NEW animation or a full rewrite, reply with exactly ONE fenced ```css block containing the COMPLETE scene. It replaces the entire editor contents.",
+  "- For a MODIFICATION to the existing scene, do NOT resend the whole scene. Instead reply with one or more fenced ```edit blocks, each an exact search/replace in this form:",
+  "  ```edit",
+  "  <<<<<<<",
+  "  [text copied verbatim from the current scene]",
+  "  =======",
+  "  [replacement text]",
+  "  >>>>>>>",
+  "  ```",
+  "  The search text (between <<<<<<< and =======) must match the current scene character-for-character, including whitespace and indentation, and must be unique in the scene. Keep it minimal — just enough lines to be unique. Never emit the whole scene for a small change. To delete, leave the replacement empty.",
+  "- Prose: at most one or two short sentences before the block(s). For a pure question that changes nothing, reply with prose only and no blocks.",
   "",
   "The following is your authoritative knowledge of the Popcorn language. Follow it exactly.",
   "",
@@ -81,13 +90,13 @@ const SYSTEM_PROMPT = [
 const GREETING: Message = {
   id: 0,
   role: "agent",
-  text: "I'm your Popcorn Copilot — I edit the scene that's live in the editor. Ask me to create or tweak an animation and the canvas updates instantly, or ask a question about the DSL.",
+  text: "I'm your Popcorn Copilot — describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the DSL welcome too.",
 };
 
 const suggestions = [
+  "Create a solar system animation from scratch",
   "Make the ball bounce twice as fast",
-  "Add a spinning star",
-  "How do motion paths work?",
+  "Change the palette to warm colors",
 ];
 
 function loadConfig(): AgentConfig | null {
@@ -254,21 +263,26 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
           agentId = idRef.current++;
           setMessages((m) => [...m, { id: agentId, role: "agent", text: reply }]);
         }
-        const css = extractCss(reply);
-        if (css) {
+        const fail = (msg: string) =>
+          setMessages((m) =>
+            m.map((x) => (x.id === agentId ? { ...x, parseError: msg } : x)),
+          );
+        const applyScene = (css: string) => {
           try {
             parse(css);
             onApplySource(css);
           } catch (e: any) {
-            const detail = e?.message ?? String(e);
-            setMessages((m) =>
-              m.map((msg) =>
-                msg.id === agentId
-                  ? { ...msg, parseError: `Generated scene failed to parse: ${detail}` }
-                  : msg,
-              ),
-            );
+            fail(`Generated scene failed to parse: ${e?.message ?? String(e)}`);
           }
+        };
+        const edits = extractEdits(reply);
+        if (edits.length > 0) {
+          const applied = applyEdits(source, edits);
+          if (!applied.ok) fail(applied.error);
+          else applyScene(applied.result);
+        } else {
+          const css = extractCss(reply);
+          if (css) applyScene(css);
         }
       } catch (e: any) {
         if (ac.signal.aborted) return;
@@ -401,7 +415,7 @@ function HeaderIconButton({
 }
 
 function MessageBody({ text }: { text: string }) {
-  const parts = text.split(/```(?:css)?\n?/);
+  const parts = text.split(/```(?:css|edit)?\n?/);
   return (
     <>
       {parts.map((part, i) =>
