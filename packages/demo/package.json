@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@popcorn/parser": "workspace:*",
     "@popcorn/player": "workspace:*",
     "prismjs": "^1.30.0",
     "react": "^18.3.1",

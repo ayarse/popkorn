@@ -5,13 +5,46 @@ import 'prismjs/components/prism-css';
 import 'prismjs/themes/prism-tomorrow.css';
 import { MotionCanvas } from './components/MotionCanvas';
 import { convertLottie } from '../../../tools/lottie2popcorn';
+import { parse, serialize } from '@popcorn/parser';
 import { examples } from './examples';
+
+const enc = new TextEncoder();
+const bytes = (s: string) => enc.encode(s).length;
+
+function humanBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// popcorn vs lottie, signed one-decimal percent (larger popcorn → +%).
+function pct(lottie: number, popcorn: number): string {
+  if (lottie === 0) return '';
+  const d = ((popcorn - lottie) / lottie) * 100;
+  return ` (${d > 0 ? '+' : ''}${d.toFixed(1)}%)`;
+}
+
+// Builds the one-line size comparison; minified forms are best-effort.
+function sizeSummary(rawLottie: string, css: string): string {
+  const lRaw = bytes(rawLottie);
+  const pRaw = bytes(css);
+  let line = `Lottie ${humanBytes(lRaw)} → Popcorn ${humanBytes(pRaw)}${pct(lRaw, pRaw)}`;
+  try {
+    const lMin = bytes(JSON.stringify(JSON.parse(rawLottie)));
+    const pMin = bytes(serialize(parse(css), { minify: true }));
+    line += ` · minified: ${humanBytes(lMin)} → ${humanBytes(pMin)}${pct(lMin, pMin)}`;
+  } catch {
+    // Degrade to unminified sizes only rather than breaking the import.
+  }
+  return line;
+}
 
 function App() {
   const [currentExample, setCurrentExample] = useState<string | null>('motion');
   const [source, setSource] = useState(examples[1].source);
   const [error, setError] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [sizeStatus, setSizeStatus] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -24,6 +57,7 @@ function App() {
   function importLottie(text: string, label: string): boolean {
     setError(null);
     setImportStatus(null);
+    setSizeStatus(null);
     let lottie: any;
     try {
       lottie = JSON.parse(text);
@@ -39,6 +73,7 @@ function App() {
       if (warnings.length) parts.push(`${warnings.length} warning${warnings.length === 1 ? '' : 's'}: ${warnings.join('; ')}`);
       if (blocked.length) parts.push(`blocked: ${blocked.join('; ')}`);
       setImportStatus(parts.length ? `Imported ${label} — ${parts.join(' | ')}` : `Imported ${label}`);
+      setSizeStatus(sizeSummary(text, css));
       return true;
     } catch (e: any) {
       setError(`Lottie conversion failed: ${e.message}`);
@@ -68,7 +103,8 @@ function App() {
         borderBottom: '1px solid #333',
         display: 'flex',
         alignItems: 'center',
-        gap: '20px',
+        gap: '12px 20px',
+        flexWrap: 'wrap',
         flexShrink: 0,
       }}>
         <h1 style={{ margin: 0, fontSize: '20px', color: '#4ecdc4' }}>
@@ -78,11 +114,11 @@ function App() {
           CSS-like DSL for interactive motion graphics
         </span>
 
-        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
           {examples.map((ex) => (
             <button
               key={ex.key}
-              onClick={() => { setCurrentExample(ex.key); setImportStatus(null); setError(null); }}
+              onClick={() => { setCurrentExample(ex.key); setImportStatus(null); setSizeStatus(null); setError(null); }}
               style={{
                 padding: '6px 14px',
                 backgroundColor: currentExample === ex.key ? '#4ecdc4' : '#252530',
@@ -141,24 +177,34 @@ function App() {
             {error}
           </div>
         )}
-
-        {!error && importStatus && (
-          <div style={{
-            backgroundColor: '#4ecdc4',
-            color: '#000',
-            padding: '6px 12px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            maxWidth: '400px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {importStatus}
-          </div>
-        )}
       </header>
+
+      {/* Import metadata strip — only after a Lottie import, not for examples. */}
+      {(importStatus || sizeStatus) && (
+        <div style={{
+          padding: '8px 20px',
+          borderBottom: '1px solid #333',
+          backgroundColor: '#0d0d18',
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'baseline',
+          gap: '4px 20px',
+          flexShrink: 0,
+          fontSize: '12px',
+        }}>
+          {importStatus && (
+            <span style={{ color: '#4ecdc4', fontWeight: 600 }}>{importStatus}</span>
+          )}
+          {sizeStatus && (
+            <span style={{
+              color: '#9a9aa8',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+            }}>
+              {sizeStatus}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Main content */}
       <div style={{
