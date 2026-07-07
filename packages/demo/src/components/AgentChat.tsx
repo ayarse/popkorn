@@ -422,7 +422,7 @@ function MessageBody({ text }: { text: string }) {
         i % 2 === 1 ? (
           <pre
             key={i}
-            className="my-1 max-h-40 overflow-auto rounded-md bg-background/60 p-2 font-mono text-[11px] leading-snug"
+            className="my-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-background/60 p-2 font-mono text-[11px] leading-snug"
           >
             {part}
           </pre>
@@ -448,7 +448,7 @@ function Bubble({ message }: { message: Message }) {
         )}
         <div
           className={cn(
-            "max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
+            "max-w-[85%] break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
             isUser
               ? "whitespace-pre-wrap rounded-br-sm bg-primary text-primary-foreground"
               : "rounded-bl-sm bg-secondary text-secondary-foreground",
