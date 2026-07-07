@@ -1331,15 +1331,15 @@ export class Converter {
       return rule;
     }
     if (it.ty === 'sr') {
-      // Polystar: sy 1 = star, 2 = polygon. pt=points, or/ir=radii, r=rotation
-      // (deg), os/is=roundness (%), p=center. points is static; radii/rotation/
+      // Polystar: sy 1 = star, 2 = polygon. pt=sides, or/ir=radii, r=rotation
+      // (deg), os/is=roundness (%), p=center. sides is static; radii/rotation/
       // center animate. Geometry is synthesized into a path downstream.
       const star = it.sy !== 2;
       const rule: Rule = { id, type: star ? 'star' : 'polygon', decls: [], channels: [], children: [] };
       const p = prop(it.p), pt = prop(it.pt), or = prop(it.or), ir = prop(it.ir),
         rot = prop(it.r), os = prop(it.os), is = prop(it.is);
       const pv = p ? p.at(0) : [0, 0];
-      rule.decls.push(`points: ${num(pt ? pt.at(0)[0] : 5, 0)}`);
+      rule.decls.push(`sides: ${num(pt ? pt.at(0)[0] : 5, 0)}`);
       rule.decls.push(`outer-radius: ${num(or ? or.at(0)[0] : 0)}px`);
       if (star) rule.decls.push(`inner-radius: ${num(ir ? ir.at(0)[0] : 0)}px`);
       rule.decls.push(`cx: ${num(pv[0])}px`, `cy: ${num(pv[1])}px`);
@@ -1717,7 +1717,7 @@ function polystarToD(it: any, t: number): string {
   const pv = p ? p.at(t) : [0, 0];
   const sd: any = {
     type: it.sy !== 2 ? 'star' : 'polygon',
-    points: pt ? pt.at(t)[0] : 5,
+    sides: pt ? pt.at(t)[0] : 5,
     outerRadius: or ? or.at(t)[0] : 0,
     innerRadius: ir ? ir.at(t)[0] : 0,
     outerRoundness: os ? os.at(t)[0] : 0,

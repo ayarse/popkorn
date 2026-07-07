@@ -124,27 +124,27 @@ test('animation shorthand: 1s duration + nonzero delay parses exactly', () => {
 
 test('star: declarations populate PolystarData', () => {
   const src = `#s {
-    type: star; points: 6; outer-radius: 80px; inner-radius: 40px;
+    type: star; sides: 6; outer-radius: 80px; inner-radius: 40px;
     rotation: 15deg; cx: 100px; cy: 100px; outer-roundness: 25%; fill: #f00;
   }`;
   const [node] = build(src).children;
   expect(node.type).toBe('star');
   const sd = node.shapeData as PolystarData;
   expect(sd).toMatchObject({
-    type: 'star', points: 6, outerRadius: 80, innerRadius: 40,
+    type: 'star', sides: 6, outerRadius: 80, innerRadius: 40,
     rotation: 15, cx: 100, cy: 100, outerRoundness: 25,
   });
 });
 
 test('polygon: inner-radius is ignored (polygon has none)', () => {
-  const [node] = build('#p { type: polygon; points: 5; outer-radius: 50px; inner-radius: 99px; }').children;
+  const [node] = build('#p { type: polygon; sides: 5; outer-radius: 50px; inner-radius: 99px; }').children;
   expect((node.shapeData as PolystarData).innerRadius).toBe(0);
 });
 
 test('star: animating outer-radius rebuilds via the registry (dirty flag)', () => {
   const src = `
 @keyframes pulse { from { outer-radius: 10px; } to { outer-radius: 110px; } }
-#s { type: star; points: 5; outer-radius: 10px; inner-radius: 5px; animation: pulse 1s linear; }
+#s { type: star; sides: 5; outer-radius: 10px; inner-radius: 5px; animation: pulse 1s linear; }
 `;
   const [node] = build(src).children;
   const sched = new AnimationScheduler();

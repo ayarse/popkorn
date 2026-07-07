@@ -260,13 +260,13 @@ export interface ImageData {
   src: string;
 }
 
-// Star (alternating outer/inner radius over 2·points vertices) or regular
-// polygon (points vertices at the outer radius). Synthesized into PathCommand[]
+// Star (alternating outer/inner radius over 2·sides vertices) or regular
+// polygon (sides vertices at the outer radius). Synthesized into PathCommand[]
 // at render/hit-test time (see scene/polystar.ts), so it reuses the whole path
 // pipeline (trim, bounds, fill-rule, hit-test). Geometry matches lottie/AE.
 export interface PolystarData {
   type: 'star' | 'polygon';
-  points: number;         // vertex count (static)
+  sides: number;          // vertex count (static)
   outerRadius: number;
   innerRadius: number;    // star only
   rotation: number;       // degrees; 0 points up (matches Lottie/AE)

@@ -30,7 +30,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Need | Syntax |
 |---|---|
 | Stage | `:canvas { width: 800px; height: 600px; background: #0f0f23; }` |
-| Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(points,outer-radius,inner-radius) · `text` · `image` · `group` |
+| Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(sides,outer-radius,inner-radius) · `text` · `image` · `group` |
 | Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-dasharray`, `fill-rule`, `opacity` |
 | Transform | `transform: translate(x,y) rotate(45deg) scale(1.2)` · `transform-origin: center` (**no skew**) |
 | Animate | `animation: <name> <dur> <easing> <count> <dir> <delay>` e.g. `pulse 1.5s ease-in-out infinite` |
@@ -53,7 +53,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 - **Shape invisible** → `fill` defaults to `none`. Set a fill (or stroke *color*, not just width).
 - **`type:` forgotten** → node becomes a `group` (nothing draws). Always declare `type:`.
-- **Property does nothing** → it's likely unsupported (`skew`, `mix-blend-mode`, `steps()`, `object-fit`, `text-align`, `href`, `sides`, `line-height`). Parses silently, no effect. Check reference.md §17.
+- **Property does nothing** → it's likely unsupported (`skew`, `mix-blend-mode`, `steps()`, `object-fit`, `text-align`, `href`, `points`, `line-height`). Parses silently, no effect. Check reference.md §17.
 - **Wrong geometry prop for the type** → silently ignored (`r` on a rect, `x` on a circle).
 - **`.5` or `//` comments** → invalid. Write `0.5`; use `/* */` only.
 - **Animating a color via `var()`** → not supported; `var()`/`input()` bind numeric props only. (Solid colors, gradient stops, and path `d` *do* animate in `@keyframes` — gradients/paths only between compatible endpoints; see reference.md §12.)

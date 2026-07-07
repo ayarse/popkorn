@@ -3,7 +3,7 @@ import { polystarToCommands } from './polystar';
 import type { PolystarData } from './types';
 
 const base: Omit<PolystarData, 'type'> = {
-  points: 5, outerRadius: 100, innerRadius: 50, rotation: 0,
+  sides: 5, outerRadius: 100, innerRadius: 50, rotation: 0,
   cx: 0, cy: 0, outerRoundness: 0, innerRoundness: 0,
 };
 
@@ -18,8 +18,8 @@ function rounded(cmd: any) {
 }
 
 test('4-point star: alternating outer/inner vertices, first point up', () => {
-  const cmds = polystarToCommands({ ...base, type: 'star', points: 4 });
-  // M + 8 line segments (2*points) + Z.
+  const cmds = polystarToCommands({ ...base, type: 'star', sides: 4 });
+  // M + 8 line segments (2*sides) + Z.
   expect(cmds.length).toBe(1 + 8 + 1);
   expect(cmds[cmds.length - 1]).toEqual({ type: 'Z' });
   // Starts at the top outer vertex (rotation 0 => straight up, y is down => -r).
@@ -32,7 +32,7 @@ test('4-point star: alternating outer/inner vertices, first point up', () => {
 });
 
 test('hexagon: 6 vertices on the outer radius, no inner radius', () => {
-  const cmds = polystarToCommands({ ...base, type: 'polygon', points: 6 });
+  const cmds = polystarToCommands({ ...base, type: 'polygon', sides: 6 });
   expect(cmds.length).toBe(1 + 6 + 1);
   expect(rounded(cmds[0])).toEqual({ type: 'M', x: 0, y: -100 });
   // 60deg steps: (86.603, -50), (86.603, 50), (0, 100), ...
@@ -42,22 +42,22 @@ test('hexagon: 6 vertices on the outer radius, no inner radius', () => {
 });
 
 test('rotation offsets the starting angle', () => {
-  const cmds = polystarToCommands({ ...base, type: 'polygon', points: 4, rotation: 45 });
+  const cmds = polystarToCommands({ ...base, type: 'polygon', sides: 4, rotation: 45 });
   // A square rotated 45deg from "point up": first vertex at -90+45 = -45deg.
   const d = 100 * Math.SQRT1_2;
   expect(rounded(cmds[0])).toEqual({ type: 'M', x: Math.round(d * 1000) / 1000, y: Math.round(-d * 1000) / 1000 });
 });
 
 test('cx/cy translate the whole shape', () => {
-  const cmds = polystarToCommands({ ...base, type: 'polygon', points: 4, cx: 10, cy: 20 });
+  const cmds = polystarToCommands({ ...base, type: 'polygon', sides: 4, cx: 10, cy: 20 });
   expect(rounded(cmds[0])).toEqual({ type: 'M', x: 10, y: -80 });
 });
 
 test('roundness > 0 emits cubic beziers instead of straight lines', () => {
-  const straight = polystarToCommands({ ...base, type: 'star', points: 5 });
+  const straight = polystarToCommands({ ...base, type: 'star', sides: 5 });
   expect(straight.every((c) => c.type !== 'C')).toBe(true);
 
-  const round = polystarToCommands({ ...base, type: 'star', points: 5, outerRoundness: 50, innerRoundness: 50 });
+  const round = polystarToCommands({ ...base, type: 'star', sides: 5, outerRoundness: 50, innerRoundness: 50 });
   const curves = round.filter((c) => c.type === 'C');
-  expect(curves.length).toBe(10); // one per edge (2*points)
+  expect(curves.length).toBe(10); // one per edge (2*sides)
 });

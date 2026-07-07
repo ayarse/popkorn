@@ -155,7 +155,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // star / polygon geometry (points is static, so not registered)
+  // star / polygon geometry (sides is static, so not registered)
   'outer-radius': geometryNumber('outerRadius'),
   'inner-radius': geometryNumber('innerRadius'),
   rotation: geometryNumber('rotation'),

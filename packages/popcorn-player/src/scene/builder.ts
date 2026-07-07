@@ -521,11 +521,11 @@ export class SceneBuilder {
         }
         break;
 
-      // Star / polygon geometry. Synthesized into a path at render time; `points`
+      // Star / polygon geometry. Synthesized into a path at render time; `sides`
       // is static, the rest are animatable (see the registry).
-      case 'points':
+      case 'sides':
         if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).points = getNumericValue(value);
+          (node.shapeData as PolystarData).sides = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
@@ -772,7 +772,7 @@ export class SceneBuilder {
         case 'polygon':
           node.shapeData = {
             type: node.type,
-            points: 5, outerRadius: 0, innerRadius: 0, rotation: 0,
+            sides: 5, outerRadius: 0, innerRadius: 0, rotation: 0,
             cx: 0, cy: 0, outerRoundness: 0, innerRoundness: 0,
           };
           break;

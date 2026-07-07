@@ -43,7 +43,7 @@ export const examples: Example[] = [
 /* A five-point star (polystar geometry) with a gradient fill */
 #star {
   type: star;
-  points: 5;
+  sides: 5;
   outer-radius: 84px;
   inner-radius: 36px;
   cx: 410px;

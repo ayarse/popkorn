@@ -6,14 +6,14 @@ import type { SceneNode, PolystarData } from './types';
  * lottie-web's convertStarToPath / convertPolygonToPath.
  *
  * Vertices sit on a circle starting straight up (-90deg) plus `rotation`, walked
- * over `points` (polygon) or `2·points` alternating outer/inner (star) vertices.
+ * over `sides` (polygon) or `2·sides` alternating outer/inner (star) vertices.
  * When roundness is 0 the edges are straight lines; otherwise each vertex grows a
  * cubic-bezier handle of length `perimSegment · roundness` along the tangent
  * (perpendicular to the radius), giving Lottie's rounded corners.
  */
 export function polystarToCommands(sd: PolystarData): PathCommand[] {
   const isStar = sd.type === 'star';
-  const pts = Math.max(2, Math.floor(sd.points));
+  const pts = Math.max(2, Math.floor(sd.sides));
   const numPts = isStar ? pts * 2 : pts;
   const angle = (Math.PI * 2) / numPts;
   const dir = 1; // Lottie's `d === 3` reverse winding isn't modelled here.

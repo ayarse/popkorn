@@ -87,7 +87,7 @@
 
 @define star {
   type: star;
-  points: 4;
+  sides: 4;
   outer-radius: 8px;
   inner-radius: 2px;
   fill: #f4f6ff;

@@ -124,14 +124,14 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 | `circle` | `cx`, `cy`, `r` | all `0` |
 | `ellipse` | `cx`, `cy`, `rx`, `ry` | all `0` |
 | `path` | `d` (SVG path) | `d: ''` |
-| `star` | `points`, `outer-radius`, `inner-radius`, `outer-roundness`, `inner-roundness`, `rotation`, `cx`, `cy` | `points: 5`, radii/roundness `0`, `rotation: 0` |
-| `polygon` | `points`, `outer-radius`, `outer-roundness`, `rotation`, `cx`, `cy` | same |
+| `star` | `sides`, `outer-radius`, `inner-radius`, `outer-roundness`, `inner-roundness`, `rotation`, `cx`, `cy` | `sides: 5`, radii/roundness `0`, `rotation: 0` |
+| `polygon` | `sides`, `outer-radius`, `outer-roundness`, `rotation`, `cx`, `cy` | same |
 | `text` | see §6 | |
 | `image` | see §7 | |
 
 - `rect` renders rounded corners when `rx>0` or `ry>0`.
 - `path` commands: `M L H V C S Q T A Z` (absolute + relative).
-- `star` vs `polygon`: polygon ignores `inner-radius`/`inner-roundness`. Vertex count is `points` (**no `sides`**), floored, min 2. Star vertices start at −90° + `rotation` (0 points up). `*-roundness` are percentages; 0 = straight edges.
+- `star` vs `polygon`: polygon ignores `inner-radius`/`inner-roundness`. Vertex count is `sides` (**not `points`**), floored, min 2. Star vertices start at −90° + `rotation` (0 points up). `*-roundness` are percentages; 0 = straight edges.
 - Geometry props are **type-gated**: mismatched props (`r` on a rect) are silently ignored.
 
 ---
@@ -430,7 +430,7 @@ Numeric (lerp): `translateX`, `translateY`, `rotate`, `scaleX`, `scaleY`, `opaci
 Color (rgb/rgba lerp): `fill`, `stroke` (solid colors).
 Gradient paint: `fill`, `stroke` — interpolated when endpoints are **compatible** (same gradient type + stop count); otherwise step.
 Path shape: **`d` morphs** — interpolated when both keyframe paths have the **same command sequence** (same letters, same order/counts); otherwise step. Trim, fill-rule, hit-testing keep working on the morphing path.
-**Not animatable:** `points` (star/polygon vertex count), `time-offset`, `time-scale`.
+**Not animatable:** `sides` (star/polygon vertex count), `time-offset`, `time-scale`.
 
 ```css
 @keyframes recolor {          /* gradient stop animation (compatible endpoints) */
@@ -634,7 +634,7 @@ player.source = myDslCode;   // parse + build + play
 - **1000ms duration is real**, not a sentinel; the second shorthand time value is always the delay.
 - **`infinite` = ∞ iterations**.
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
-- **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href` (use `src`), `sides` (use `points`).
+- **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href` (use `src`), `points` (use `sides`).
 - **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
 - **Gradients + path `d` ARE animatable** — but only between *compatible* endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).
