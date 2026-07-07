@@ -96,7 +96,10 @@ converter emits it for precomp layers.
 - Verification bar for any player/converter change: `bun run test` green,
   `bun run build` green, corpus batch unchanged-or-better, and a browser
   eyeball of an affected demo scene (screenshots lie less than tests here —
-  several real bugs were only visible on canvas).
+  several real bugs were only visible on canvas). For frame-accurate visual
+  truth, use the lottie-web vs popcorn comparison harness at
+  `tools/harness/` (see its README) — lottie-web is the parity floor, not
+  the ceiling.
 - Demo gallery scenes live in `packages/demo/src/examples.ts` and are synced
   verbatim to `examples/*.css` (test-globbed) — keep them in lockstep. Use the
   `creating-popcorn-animations` skill when authoring scenes.

@@ -686,6 +686,12 @@ as reliably as pristine ones. Against the 80-file LottieFiles conformance
 corpus, 73 files convert (66 clean); the remainder use rare shape modifiers
 that mainstream Lottie players also skip.
 
+### Comparison harness
+
+`tools/harness/` is a frame-accurate lottie-web vs `<popcorn-player>`
+side-by-side page — the visual-truth step of the verification bar (see its
+README). lottie-web is the parity floor, not the ceiling.
+
 ## License
 
 MIT

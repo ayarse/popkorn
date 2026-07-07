@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Popcorn vs lottie-web harness</title>
+<style>
+  body { margin: 0; background: #c9c9c9; font: 13px system-ui; color: #111; }
+  .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 12px; background: #eee; border-bottom: 1px solid #999; }
+  .bar label { display: flex; gap: 4px; align-items: center; }
+  .row { display: flex; gap: 16px; padding: 12px; }
+  .pane { text-align: center; }
+  #lot, popcorn-player { display: block; background: #c9c9c9; }
+  #lot canvas { display: block; }
+  h3 { margin: 4px; }
+  #status { padding: 0 12px 12px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <label>Lottie JSON <input type="file" id="jsonFile" accept="application/json"></label>
+  <label>Popcorn CSS <input type="file" id="cssFile" accept=".css,text/css"></label>
+  <label>t (s) <input type="number" id="tInput" step="0.05" value="0" style="width:5em"></label>
+  <button id="stepBack">-1 frame</button>
+  <button id="stepFwd">+1 frame</button>
+  <button id="diffBtn">pixel diff</button>
+</div>
+<div class="row">
+  <div class="pane"><h3>lottie-web (parity floor)</h3><div id="lot"></div></div>
+  <div class="pane"><h3>popcorn-player</h3><popcorn-player id="pc"></popcorn-player></div>
+</div>
+<pre id="status"></pre>
+
+<!--
+  lottie-web 5.12.2, loaded from a CDN so nothing binary is committed here.
+  Pass ?lottie=./vendor/lottie.min.js to use a local/offline copy instead
+  (see README "Working offline").
+-->
+<script id="lottieScript"></script>
+<script type="module">
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 500);
+const H = +(q.get('h') || 500);
+const FPS = +(q.get('fps') || 30);
+const lottieSrc = q.get('lottie') || 'https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js';
+// Path to the popcorn-player bundle produced by `bun build` — see README.
+const popcornBundle = q.get('bundle') || './dist/popcorn.js';
+
+const status = document.getElementById('status');
+const log = (msg) => { status.textContent += msg + '\n'; };
+
+await new Promise((resolve, reject) => {
+  const s = document.getElementById('lottieScript');
+  s.src = lottieSrc;
+  s.onload = resolve;
+  s.onerror = () => reject(new Error('failed to load lottie-web from ' + lottieSrc));
+});
+
+const { registerPopcornPlayer } = await import(popcornBundle);
+registerPopcornPlayer();
+
+const lotEl = document.getElementById('lot');
+const pc = document.getElementById('pc');
+lotEl.style.width = pc.style.width = W + 'px';
+lotEl.style.height = pc.style.height = H + 'px';
+pc.setAttribute('loop', ''); // keep animations cycling like the lottie-web loop
+
+let anim = null;
+let pcReady = false;
+let lotReady = false;
+
+async function loadLottie(jsonSourceOrUrl) {
+  if (anim) anim.destroy();
+  lotReady = false;
+  anim = lottie.loadAnimation({
+    container: lotEl,
+    renderer: 'canvas',
+    loop: false,
+    autoplay: false,
+    ...(typeof jsonSourceOrUrl === 'string'
+      ? { path: jsonSourceOrUrl }
+      : { animationData: jsonSourceOrUrl }),
+  });
+  const lotCanvas = () => lotEl.querySelector('canvas');
+  await new Promise((resolve) => anim.addEventListener('DOMLoaded', resolve));
+  const c = lotCanvas();
+  if (c) { c.style.width = W + 'px'; c.style.height = H + 'px'; }
+  lotReady = true;
+}
+
+async function loadPopcorn(css) {
+  pcReady = false;
+  pc.source = css;
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  pc.pause();
+  pcReady = true;
+}
+
+// Query-param bootstrap: ?json=./cat.json&css=./cat.css
+const jsonParam = q.get('json');
+const cssParam = q.get('css');
+if (jsonParam) await loadLottie(jsonParam);
+if (cssParam) await loadPopcorn(await (await fetch(cssParam)).text());
+
+// File-picker bootstrap (overrides query params).
+document.getElementById('jsonFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await loadLottie(JSON.parse(await file.text()));
+  log('loaded lottie JSON: ' + file.name);
+});
+document.getElementById('cssFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await loadPopcorn(await file.text());
+  log('loaded popcorn CSS: ' + file.name);
+});
+
+// Frame-synced seeking: lottie's goToAndStop takes frames, popcorn's seek takes ms.
+window.seekBoth = (sec) => {
+  if (anim) anim.goToAndStop(sec * FPS, true);
+  if (pcReady) pc.seek(sec * 1000);
+  document.getElementById('tInput').value = sec;
+  log('t = ' + sec + 's (frame ' + (sec * FPS).toFixed(1) + ')');
+};
+window.__ready = () => pcReady && lotReady;
+
+// Pixel diff between the two canvases at whatever time they're currently paused on.
+window.__diff = () => {
+  const lc = lotEl.querySelector('canvas');
+  const pcc = pc.querySelector('canvas') || pc.shadowRoot?.querySelector('canvas');
+  if (!lc || !pcc) return { error: 'canvas not ready' };
+  const off = (el) => {
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    c.getContext('2d').drawImage(el, 0, 0, W, H);
+    return c.getContext('2d').getImageData(0, 0, W, H).data;
+  };
+  const a = off(lc), b = off(pcc);
+  let sum = 0, n = 0, maxDelta = 0, worst = -1;
+  for (let i = 0; i < a.length; i += 4) {
+    if (a[i + 3] < 8 && b[i + 3] < 8) continue; // both transparent: ignore
+    const d = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+    sum += d; n++;
+    if (d > maxDelta) { maxDelta = d; worst = i / 4; }
+  }
+  const result = {
+    meanDelta: n ? (sum / n).toFixed(2) : 'n/a',
+    maxDelta,
+    samples: n,
+    worstPx: worst >= 0 ? [worst % W, Math.floor(worst / W)] : null,
+  };
+  log(JSON.stringify(result));
+  return result;
+};
+
+document.getElementById('tInput').addEventListener('change', (e) => seekBoth(+e.target.value));
+document.getElementById('stepFwd').addEventListener('click', () => seekBoth(+document.getElementById('tInput').value + 1 / FPS));
+document.getElementById('stepBack').addEventListener('click', () => seekBoth(+document.getElementById('tInput').value - 1 / FPS));
+document.getElementById('diffBtn').addEventListener('click', () => window.__diff());
+
+log('harness ready. ready() = ' + window.__ready());
+</script>
+</body>
+</html>
