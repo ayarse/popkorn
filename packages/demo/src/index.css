@@ -64,6 +64,37 @@
   * {
     border-color: var(--border);
   }
+  /* Thin dark scrollbars with a faint always-visible rail that brightens on hover.
+     Pure CSS can't key off "currently scrolling" (no :scrolling pseudo), so we
+     keep the rail subtle at rest and brighten it when the cursor enters the
+     gutter — the same trick VS Code/Linear use for their CSS scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.35 0.02 264 / 0.6) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    background-color: oklch(0.2 0.015 264 / 0.25);
+  }
+  ::-webkit-scrollbar:hover {
+    background-color: oklch(0.2 0.015 264 / 0.5);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: oklch(0.3 0.02 264 / 0.35);
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.45 0.02 264 / 0.8);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
   html,
   body,
   #root {
