@@ -128,7 +128,8 @@ export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
   private definitionsMap: Map<string, DefinitionRule> = new Map();
   // Static :root custom properties, for build-time resolution of static var()
-  // references on non-animatable string properties (e.g. a hoisted image src).
+  // references on non-animatable string properties (e.g. a hoisted image
+  // `content: url(...)`).
   private variablesMap: Map<string, Value> = new Map();
   // Nodes that authored a `mask:` reference, resolved to source nodes once the
   // whole tree is built (the source can live anywhere in the scene).
@@ -375,16 +376,25 @@ export class SceneBuilder {
     }
   }
 
+  /** Image source from a `url('…')` function value, or a bare string. */
+  private imageSrc(value: Value): string {
+    if (isFunctionValue(value) && value.name === 'url') {
+      return value.args.length > 0 ? getStringValue(value.args[0]) : '';
+    }
+    return getStringValue(value);
+  }
+
   private applyDeclaration(node: SceneNode, decl: Declaration): void {
     const { property, value } = decl;
 
-    // Image src is static, so a `var()` reference to a :root custom property is
-    // resolved once here at build time (dedup hoists shared data URIs into
-    // :root). This must precede the generic binding path, which is numeric-only.
-    if (property === 'src' && isVariableRefValue(value)) {
+    // Image content (`content: url(...)`) is static, so a `var()` reference to a
+    // :root custom property is resolved once here at build time (dedup hoists
+    // shared data URIs into :root). This must precede the generic binding path,
+    // which is numeric-only.
+    if (property === 'content' && node.shapeData.type === 'image' && isVariableRefValue(value)) {
       const resolved = this.variablesMap.get(value.name) ?? value.fallback;
-      if (resolved && node.shapeData.type === 'image') {
-        (node.shapeData as ImageData).src = getStringValue(resolved);
+      if (resolved) {
+        (node.shapeData as ImageData).src = this.imageSrc(resolved);
       }
       return;
     }
@@ -430,10 +440,12 @@ export class SceneBuilder {
         }
         break;
 
-      // Text
+      // Text content, or image source (`content: url('…')`).
       case 'content':
         if (node.shapeData.type === 'text') {
           (node.shapeData as TextData).content = getStringValue(value);
+        } else if (node.shapeData.type === 'image') {
+          (node.shapeData as ImageData).src = this.imageSrc(value);
         }
         break;
       case 'font-size':
@@ -475,12 +487,6 @@ export class SceneBuilder {
         }
         break;
 
-      // Image source (url or data: URI).
-      case 'src':
-        if (node.shapeData.type === 'image') {
-          (node.shapeData as ImageData).src = getStringValue(value);
-        }
-        break;
       case 'rx':
         if (node.shapeData.type === 'rect') {
           (node.shapeData as RectData).rx = getNumericValue(value);

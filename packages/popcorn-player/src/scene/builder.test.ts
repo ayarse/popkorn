@@ -269,12 +269,12 @@ test('mask: mode variants parse (luminance-invert)', () => {
 // --- image nodes -------------------------------------------------------------
 
 test('image: props map with a default-0 box until natural size is known', () => {
-  const [n] = build("#i { type: image; src: 'x.png'; }").children;
+  const [n] = build("#i { type: image; content: url('x.png'); }").children;
   expect(n.type).toBe('image');
   expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 0, y: 0, width: 0, height: 0, src: 'x.png' });
 });
 
 test('image: x/y/width/height populate the box', () => {
-  const [n] = build("#i { type: image; src: 'a.png'; x: 10px; y: 20px; width: 40px; height: 30px; }").children;
+  const [n] = build("#i { type: image; content: url('a.png'); x: 10px; y: 20px; width: 40px; height: 30px; }").children;
   expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 10, y: 20, width: 40, height: 30, src: 'a.png' });
 });

@@ -218,18 +218,18 @@ Text color uses **`fill`** (and `stroke`), not `color`. Gradients work. **No `te
 ```css
 #photo {
   type: image;
-  src: "data:image/png;base64,…";   /* or a URL */
+  content: url("data:image/png;base64,…");   /* or url("https://…") */
   x: 100px; y: 100px; width: 200px; height: 150px;
 }
 ```
 
 | Property | Value | Default |
 |---|---|---|
-| `src` | string (URL or `data:` URI) | `''` |
+| `content` | `url('<URL or data: URI>')` | `''` |
 | `x` / `y` | number | `0` |
 | `width` / `height` | number | `0` |
 
-Property is **`src`** (not `href`). **No `object-fit`.** `width`/`height` of `0` → natural size. Nothing paints until the image decodes.
+Source property is **`content: url(...)`** (the CSS spelling — not `href`/`src`). **No `object-fit`.** `width`/`height` of `0` → natural size. Nothing paints until the image decodes.
 
 ---
 
@@ -634,7 +634,7 @@ player.source = myDslCode;   // parse + build + play
 - **1000ms duration is real**, not a sentinel; the second shorthand time value is always the delay.
 - **`infinite` = ∞ iterations**.
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
-- **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href` (use `src`), `points` (use `sides`).
+- **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href`/`src` (use `content: url()`), `points` (use `sides`).
 - **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
 - **Gradients + path `d` ARE animatable** — but only between *compatible* endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).

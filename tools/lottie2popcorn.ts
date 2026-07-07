@@ -339,7 +339,7 @@ export class Converter {
   private ids = new Set<string>();
   private synthId = 1;
   private assets = new Map<string, any>();
-  // Each emitted image node's src decl list + its asset id/data URI, so a data
+  // Each emitted image node's content decl list + its asset id/data URI, so a data
   // URI referenced by more than one node can be hoisted into a single :root
   // custom property instead of being inlined (and duplicated) at every use.
   private imageUses: { decls: string[]; assetId: string; uri: string }[] = [];
@@ -433,8 +433,9 @@ export class Converter {
 
   /**
    * A data URI inlined at N>1 use sites is N-1 copies of dead weight (the FIFA
-   * preloader is 5x101KB = 51% of its output). Rewrite each such src to
-   * `var(--img-<id>)` and return the `:root` declarations that define them once.
+   * preloader is 5x101KB = 51% of its output). Rewrite each such `content: url(…)`
+   * to `content: var(--img-<id>)` and return the `:root` declarations that define
+   * each URI once.
    * Single-use assets stay inlined, so image-free / single-image files are
    * byte-identical to before.
    */
@@ -446,11 +447,11 @@ export class Converter {
     for (const u of this.imageUses) {
       if ((count.get(u.assetId) || 0) < 2) continue;
       const varName = `--img-${u.assetId.replace(/[^\w-]/g, '-')}`;
-      const i = u.decls.findIndex((d) => d.startsWith('src:'));
-      if (i >= 0) u.decls[i] = `src: var(${varName})`;
+      const i = u.decls.findIndex((d) => d.startsWith('content:'));
+      if (i >= 0) u.decls[i] = `content: var(${varName})`;
       if (!seen.has(u.assetId)) {
         seen.add(u.assetId);
-        vars.push(`  ${varName}: '${u.uri}';`);
+        vars.push(`  ${varName}: url('${u.uri}');`);
       }
     }
     return vars;
@@ -650,7 +651,7 @@ export class Converter {
       if (!asset) { this.blocked.add('image layer missing asset'); throw new Error(`missing asset '${l.refId}'`); }
       const img: Rule = { id, type: 'image', decls: [], channels: [], children: [] };
       const uri = assetSrc(asset);
-      img.decls.push(`src: '${uri}'`, `x: 0`, `y: 0`);
+      img.decls.push(`content: url('${uri}')`, `x: 0`, `y: 0`);
       this.imageUses.push({ decls: img.decls, assetId: l.refId, uri });
       if (asset.w) img.decls.push(`width: ${num(asset.w)}px`);
       if (asset.h) img.decls.push(`height: ${num(asset.h)}px`);
@@ -1815,7 +1816,7 @@ function collectStrokeableDraws(items: any[]): any[] | null {
 /** Lottie track-mask type (tt) -> Popcorn mask mode. */
 const MASK_MODE: Record<number, string> = { 1: 'alpha', 2: 'alpha-invert', 3: 'luminance', 4: 'luminance-invert' };
 
-/** Resolve an image asset to a src: embedded data URI if present, else u + p. */
+/** Resolve an image asset to a URL: embedded data URI if present, else u + p. */
 function assetSrc(asset: any): string {
   const p = asset.p || '';
   if (typeof p === 'string' && p.startsWith('data:')) return p;
