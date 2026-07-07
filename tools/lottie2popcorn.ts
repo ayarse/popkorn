@@ -1196,7 +1196,7 @@ export class Converter {
       if (effectiveTrim) {
         if (!effectiveTrim.startCh) rule.decls.push(`trim-start: ${num(effectiveTrim.start)}%`);
         if (!effectiveTrim.endCh) rule.decls.push(`trim-end: ${num(effectiveTrim.end)}%`);
-        if (effectiveTrim.offset && !effectiveTrim.offsetCh) rule.decls.push(`trim-offset: ${num(effectiveTrim.offset, 3)}`);
+        if (effectiveTrim.offset && !effectiveTrim.offsetCh) rule.decls.push(`trim-offset: ${num(effectiveTrim.offset * 100, 3)}%`);
         if (effectiveTrim.startCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.startCh.kfs, sample: effectiveTrim.startCh.sample });
         if (effectiveTrim.endCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.endCh.kfs, sample: effectiveTrim.endCh.sample });
         if (effectiveTrim.offsetCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.offsetCh.kfs, sample: effectiveTrim.offsetCh.sample });
@@ -1586,7 +1586,7 @@ function declsFromSample(s: Sample): string[] {
   if (s.offsetDistance !== undefined) out.push(`offset-distance: ${num(s.offsetDistance * 100)}%`);
   if (s.trimStart !== undefined) out.push(`trim-start: ${num(s.trimStart)}%`);
   if (s.trimEnd !== undefined) out.push(`trim-end: ${num(s.trimEnd)}%`);
-  if (s.trimOffset !== undefined) out.push(`trim-offset: ${num(s.trimOffset, 3)}`);
+  if (s.trimOffset !== undefined) out.push(`trim-offset: ${num(s.trimOffset * 100, 3)}%`);
   if (s.outerRadius !== undefined) out.push(`outer-radius: ${num(s.outerRadius)}px`);
   if (s.innerRadius !== undefined) out.push(`inner-radius: ${num(s.innerRadius)}px`);
   if (s.starRotation !== undefined) out.push(`rotation: ${num(s.starRotation)}deg`);
