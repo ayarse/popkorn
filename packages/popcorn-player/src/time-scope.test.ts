@@ -35,6 +35,18 @@ const scene = `
       > #c { type: circle; ${anim} }
     }
   }
+  #remapped { type: group; time-remap: 0s 0s, 2s 1s;
+    > #e { type: circle; ${anim} }
+  }
+  #held { type: group; time-remap: 0s 0s, 1s 1s;
+    > #f { type: circle; ${anim} }
+  }
+  #stepped { type: group; time-remap: 0s 0s step-end, 1s 1s;
+    > #g { type: circle; ${anim} }
+  }
+  #override { type: group; time-offset: 5s; time-remap: 0s 0s, 2s 1s;
+    > #h { type: circle; ${anim} }
+  }
 `;
 
 function loopAt(ms: number): SceneNode {
@@ -64,6 +76,28 @@ test('time-scale compresses the subtree timeline', () => {
 test('nested scopes compose: offset then scale', () => {
   // local = (t - 500) * 2. At t=750ms -> 500ms -> halfway.
   expect(cx(loopAt(750), 'c')).toBeCloseTo(50);
+});
+
+test('time-remap maps the timeline through a linear curve (t -> t/2)', () => {
+  // Curve 0s->0s, 2s->1s is linear halving: local = t/2.
+  expect(cx(loopAt(500), 'e')).toBeCloseTo(25);   // local 250ms
+  expect(cx(loopAt(1000), 'e')).toBeCloseTo(50);  // local 500ms
+  expect(cx(loopAt(2000), 'e')).toBeCloseTo(100); // local 1000ms (end)
+});
+
+test('time-remap holds the last output beyond the curve domain', () => {
+  // Curve ends at 1s->1s; past t=1000ms local stays 1000ms (anim end).
+  expect(cx(loopAt(1500), 'f')).toBeCloseTo(100);
+});
+
+test('time-remap step-end holds the departing stop across the segment', () => {
+  expect(cx(loopAt(500), 'g')).toBeCloseTo(0);    // step-end -> local held at 0
+  expect(cx(loopAt(1000), 'g')).toBeCloseTo(100); // jumps at the next stop
+});
+
+test('time-remap subsumes time-offset (the remap defines local time)', () => {
+  // Despite time-offset: 5s, the remap alone drives local time -> t/2.
+  expect(cx(loopAt(1000), 'h')).toBeCloseTo(50);
 });
 
 test('invalid time-scale (<= 0) warns and falls back to 1', () => {

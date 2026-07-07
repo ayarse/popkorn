@@ -33,6 +33,7 @@ import type {
   ClipPathData,
   ImageData,
   MatteMode,
+  TimeRemapStop,
 } from './types';
 import type { PathCommand } from '../renderer/types';
 import type { GradientData, GradientStop } from '../renderer/types';
@@ -699,6 +700,13 @@ export class SceneBuilder {
         }
         break;
       }
+
+      // Keyframed time remap (static curve). A comma-separated list of
+      // `<input-time> <output-time> [easing]` stops maps the subtree's inherited
+      // time through a monotonic curve — the general form of time-offset/scale.
+      case 'time-remap':
+        node.timeRemap = this.parseTimeRemap(value);
+        break;
 
       // Sibling paint order (static integer). See childrenInPaintOrder.
       case 'z-index':
@@ -1385,6 +1393,49 @@ export class SceneBuilder {
   /**
    * Parse a cubic-bezier FunctionValue into a CubicBezier timing function
    */
+  /**
+   * Parse a `time-remap` value into sorted stops. The value is a comma list of
+   * stops, each a space list `<input-time> <output-time> [easing]` (times in
+   * s/ms; easing is a cubic-bezier()/step-end/named curve governing the segment
+   * to the next stop, departing-keyframe convention). A single bare stop is
+   * accepted too. Returns null when nothing usable was found.
+   */
+  private parseTimeRemap(value: Value): TimeRemapStop[] | null {
+    const items = isListValue(value) && value.separator === 'comma'
+      ? value.values
+      : [value];
+    const stops: TimeRemapStop[] = [];
+    for (const item of items) {
+      const parts = isListValue(item) ? item.values : [item];
+      let input: number | null = null;
+      let output: number | null = null;
+      let easing: TimingFunction | undefined;
+      for (const p of parts) {
+        if (isLengthValue(p) && (p.unit === 's' || p.unit === 'ms')) {
+          const ms = p.unit === 's' ? p.value * 1000 : p.value;
+          if (input === null) input = ms;
+          else if (output === null) output = ms;
+        } else if (isNumberValue(p)) {
+          const ms = p.value; // bare number = ms
+          if (input === null) input = ms;
+          else if (output === null) output = ms;
+        } else if (isFunctionValue(p) && p.name === 'cubic-bezier') {
+          easing = this.parseCubicBezierFunction(p);
+        } else if (isKeywordValue(p) && (p.value === 'step-end' || p.value === 'hold')) {
+          easing = 'step-end';
+        } else if (isKeywordValue(p) && (
+          p.value === 'linear' || p.value === 'ease' || p.value === 'ease-in' ||
+          p.value === 'ease-out' || p.value === 'ease-in-out')) {
+          easing = p.value;
+        }
+      }
+      if (input !== null && output !== null) stops.push({ input, output, easing });
+    }
+    if (stops.length === 0) return null;
+    stops.sort((a, b) => a.input - b.input);
+    return stops;
+  }
+
   private parseCubicBezierFunction(func: { name: string; args: Value[] }): TimingFunction {
     if (func.args.length >= 4) {
       return {

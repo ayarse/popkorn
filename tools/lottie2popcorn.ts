@@ -38,6 +38,16 @@ function first(v: unknown): number {
   return Array.isArray(v) ? (v as number[])[0] : (v as number);
 }
 
+/** cubic-bezier()/step-end easing from a keyframe's departing tangents (kf.o/kf.i),
+ *  matching the per-segment convention used elsewhere. Null if none/degenerate. */
+function tmEasing(kf: Kf): string | null {
+  if (kf.h === 1) return 'step-end';
+  if (!kf.o || !kf.i) return null;
+  const ox = first(kf.o.x), oy = first(kf.o.y), ix = first(kf.i.x), iy = first(kf.i.y);
+  if ([ox, oy, ix, iy].some((v) => v === undefined || isNaN(v))) return null;
+  return `cubic-bezier(${num(ox, 3)}, ${num(oy, 3)}, ${num(ix, 3)}, ${num(iy, 3)})`;
+}
+
 /**
  * [r,g,b,a] in 0..1 (a optional) times an extra opacity 0..1 -> #rrggbb / rgba().
  * Some Lottie exports use 0..255 integer components instead of the standard
@@ -578,11 +588,17 @@ export class Converter {
       if (mask) this.applyMask(group, mask);
       else if (cw && ch) group.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
 
-      // Time scoping: st -> local start offset; sr stretch -> time-scale (1/sr,
-      // since Lottie sr=2 plays at half speed).
-      if (st) group.decls.push(`time-offset: ${num(st / this.fr, 3)}s`);
-      if (typeof l.sr === 'number' && l.sr !== 1 && l.sr > 0) {
-        group.decls.push(`time-scale: ${num(1 / l.sr, 4)}`);
+      // Time scoping. A keyframed time remap (tm) fully defines the local
+      // timeline, so it subsumes st/sr; otherwise st -> time-offset and sr
+      // stretch -> time-scale (1/sr, since Lottie sr=2 plays at half speed).
+      const remapDecl = this.timeRemapDecl(l);
+      if (remapDecl) {
+        group.decls.push(remapDecl);
+      } else {
+        if (st) group.decls.push(`time-offset: ${num(st / this.fr, 3)}s`);
+        if (typeof l.sr === 'number' && l.sr !== 1 && l.sr > 0) {
+          group.decls.push(`time-scale: ${num(1 / l.sr, 4)}`);
+        }
       }
 
       // Asset layers time in the asset's own frame space; map the precomp's
@@ -591,12 +607,15 @@ export class Converter {
       // window is first intersected with the parent's playback range [compIp,
       // compOp]: a precomp only renders while it is on-screen, so this carries the
       // root comp's op down through nested precomps (a child animation can't
-      // outlast the ancestor comp that stopped rendering it).
+      // outlast the ancestor comp that stopped rendering it). Under a time remap
+      // the parent->source mapping is nonlinear, so the linear window clamp no
+      // longer applies; the group's own visible-from/until (parent time) already
+      // gates the subtree, so pass the asset's native frame space unclamped.
       const sr = typeof l.sr === 'number' && l.sr > 0 ? l.sr : 1;
       const lip = Math.max(typeof l.ip === 'number' ? l.ip : compIp, compIp);
       const lop = Math.min(typeof l.op === 'number' ? l.op : compOp, compOp);
-      const aip = (lip - st) / sr;
-      const aop = (lop - st) / sr;
+      const aip = remapDecl ? 0 : (lip - st) / sr;
+      const aop = remapDecl ? Number.POSITIVE_INFINITY : (lop - st) / sr;
       this.compStack.add(l.refId);
       const assetRules = this.buildLayerList(asset.layers, id, aip, aop);
       this.compStack.delete(l.refId);
@@ -702,7 +721,39 @@ export class Converter {
   }
 
   private scanBlocked(l: any) {
-    if (l.tm !== undefined) this.blocked.add('time remap (tm)');
+    // tm on a precomp (ty 0) becomes a time-remap curve (below); on any other
+    // layer type there is no source timeline to remap, so it is ignored.
+    if (l.tm !== undefined && l.ty !== 0) {
+      this.warnOnce('time remap (tm) ignored on non-precomp layer');
+    }
+  }
+
+  /**
+   * Layer time remap (Lottie 'tm') -> a `time-remap` curve: `<in>s <out>s
+   * [easing]` stops where input is parent-comp seconds (keyframe time / fr) and
+   * output is the source time the tm keyframe holds (already seconds). Departing
+   * tangents map onto per-segment easing. Null for absent/static/degenerate tm,
+   * which then falls back to plain st/sr time scoping.
+   */
+  private timeRemapDecl(l: any): string | null {
+    const tm = l.tm;
+    if (!tm || !Array.isArray(tm.k) || typeof tm.k[0] !== 'object') return null;
+    const kfs = normalizeKfs(tm.k);
+    if (kfs.length < 2) return null;
+    const stops: string[] = [];
+    for (let i = 0; i < kfs.length; i++) {
+      const kf = kfs[i];
+      const out = first(kf.s);
+      if (out === undefined || isNaN(out)) continue;
+      let stop = `${num(kf.t / this.fr, 3)}s ${num(out, 3)}s`;
+      // Departing-keyframe easing governs the segment to the next stop.
+      if (i < kfs.length - 1) {
+        const e = tmEasing(kf);
+        if (e) stop += ` ${e}`;
+      }
+      stops.push(stop);
+    }
+    return stops.length >= 2 ? `time-remap: ${stops.join(', ')}` : null;
   }
 
   /**

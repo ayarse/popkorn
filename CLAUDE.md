@@ -78,10 +78,13 @@ checks live in the sticker/demo files under `examples/lottie/`.
 ## Deliberate skips (don't "helpfully" add these)
 
 JS expressions, text animators, merge-path subtract/intersect (union is
-supported), offset/zig-zag/pucker/round-corner modifiers, 3D/camera, time
-remap, effects beyond what Canvas2D gives nearly free. These match what
-shipping Lottie players actually support; revisit only with real files that
-need them.
+supported), offset/zig-zag/pucker/round-corner modifiers, 3D/camera, effects
+beyond what Canvas2D gives nearly free. These match what shipping Lottie
+players actually support; revisit only with real files that need them.
+
+Precomp time remap (layer `tm`) IS supported: the `time-remap` property maps a
+subtree's inherited time through a keyframe curve (AE tm semantics), and the
+converter emits it for precomp layers.
 
 ## Workflow
 

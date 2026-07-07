@@ -83,6 +83,39 @@ test('a windowed layer scheduled entirely past op holds its first keyframe (no a
   expect(css).not.toContain('animation:');
 });
 
+function tmComp(tmKfs: any[]) {
+  const inner = {
+    ty: 4, nm: 'dot', ind: 1, ip: 0, op: 60, st: 0,
+    ks: { p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 }, r: { a: 0, k: 0 } },
+    shapes: [{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } },
+             { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 0, k: 100 } }],
+  };
+  return {
+    v: '5', fr: 30, ip: 0, op: 60, w: 100, h: 100,
+    assets: [{ id: 'inner', layers: [inner] }],
+    layers: [{
+      ty: 0, nm: 'pre', ind: 1, refId: 'inner', ip: 0, op: 60, st: 0, w: 100, h: 100,
+      ks: { p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 }, r: { a: 0, k: 0 } },
+      tm: { a: 1, k: tmKfs },
+    }],
+  };
+}
+
+test('precomp time remap (tm) emits a time-remap curve, not a blocked feature', () => {
+  const c = new Converter();
+  const css = c.convert(tmComp([
+    { t: 0, s: [0], i: { x: [0.6], y: [1] }, o: { x: [0.4], y: [0] } },
+    { t: 30, s: [2] },
+  ]));
+  // 0 frames -> 0s in / 0s out; 30 frames @30fps -> 1s in / source 2s out.
+  expect(css).toContain('time-remap:');
+  expect(css).toContain('0s 0s cubic-bezier(0.4, 0, 0.6, 1)');
+  expect(css).toContain('1s 2s');
+  // The remap fully defines the local timeline, so plain time scoping is dropped.
+  expect(css).not.toContain('time-offset:');
+  expect([...c.blocked].some((b) => b.includes('time remap'))).toBe(false);
+});
+
 test('a hoisted union stroke samples the combined d on the UNION of every input grid', () => {
   // Two grouped rects animate on DIFFERENT keyframe grids ({0,10} and {5,15})
   // with different per-segment easings, sharing one group stroke. The hoisted

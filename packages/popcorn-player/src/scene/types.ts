@@ -175,6 +175,13 @@ export interface SceneNode {
   timeOffset: number;
   timeScale: number;
 
+  // Per-subtree time remap (static): a monotonic keyframe curve mapping the
+  // inherited timeline time (ms) to a local time (ms) for this node AND its
+  // descendants. When present it REPLACES timeOffset/timeScale (a remap curve
+  // already defines the full time mapping). Stops are sorted by input; outside
+  // the domain the endpoints hold. Null = no remap.
+  timeRemap: TimeRemapStop[] | null;
+
   // Sibling paint order (static). Siblings paint in ascending z-index (document
   // order breaks ties); the same order drives hit-testing. Default 0. Negative
   // values are valid and are the main use — painting a node behind its siblings.
@@ -350,6 +357,15 @@ export interface CubicBezier {
   y2: number;
 }
 
+// One stop of a `time-remap` curve: at inherited time `input` (ms) the local
+// timeline reads `output` (ms). `easing` (departing-keyframe convention, like
+// KeyframeData.easing) shapes the segment from this stop to the next.
+export interface TimeRemapStop {
+  input: number;
+  output: number;
+  easing?: TimingFunction;
+}
+
 export interface KeyframeData {
   offset: number;  // 0-1
   properties: Record<string, AnimatableValue>;
@@ -502,6 +518,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     offsetRotate: { auto: true, angle: 0 },
     timeOffset: 0,
     timeScale: 1,
+    timeRemap: null,
     zIndex: 0,
     visibleFrom: -Infinity,
     visibleUntil: Infinity,

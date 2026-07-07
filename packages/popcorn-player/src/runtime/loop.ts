@@ -1,5 +1,5 @@
 import type { Renderer } from '../renderer/interface';
-import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData } from '../scene/types';
+import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData, TimeRemapStop } from '../scene/types';
 import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
 import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
 import { resetNodeToBase, childrenInPaintOrder } from '../scene/types';
@@ -8,6 +8,7 @@ import { outlineLength } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
 import { resolveClip } from '../scene/clip';
 import { AnimationScheduler, computeSceneDuration } from '../animation/scheduler';
+import { applyEasing } from '../animation/easing';
 import { getPropHandler } from '../animation/registry';
 import { InputTracker, createInputTracker } from './inputs';
 import { VariableResolver, createVariableResolver } from './variables';
@@ -217,8 +218,12 @@ export class RenderLoop {
     // Per-subtree time scoping: shift then scale the inherited time into this
     // node's local timeline, which applies to the node and all descendants.
     // Nested scopes compose because the scoped time is what recurses down.
-    // Defaults (0, 1) leave `t` unchanged.
-    const local = (t - node.timeOffset) * node.timeScale;
+    // Defaults (0, 1) leave `t` unchanged. A time-remap curve, when present,
+    // fully defines the local time (it subsumes offset/scale) by mapping the
+    // inherited time through its monotonic stops — Lottie `tm` semantics.
+    const local = node.timeRemap
+      ? sampleTimeRemap(node.timeRemap, t)
+      : (t - node.timeOffset) * node.timeScale;
 
     resetNodeToBase(node);
     this.applyBindings(node);
@@ -412,6 +417,31 @@ function worldAlpha(node: SceneNode | null): number {
 export function wrapTime(t: number, duration: number, loop: boolean): number {
   if (loop && duration > 0 && t >= duration) return t % duration;
   return t;
+}
+
+/**
+ * Evaluate a time-remap curve: map the inherited time `t` (ms) to a local time
+ * (ms). A pure function of `t` (invariant 4), mirroring keyframe sampling —
+ * bracket by input, ease the local fraction with the departing stop's easing,
+ * lerp the outputs. Outside the domain the endpoints hold. `stops` must be
+ * sorted by input (the builder guarantees this).
+ */
+export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
+  const n = stops.length;
+  if (n === 0) return t;
+  if (t <= stops[0].input) return stops[0].output;
+  if (t >= stops[n - 1].input) return stops[n - 1].output;
+  for (let i = 0; i < n - 1; i++) {
+    const a = stops[i], b = stops[i + 1];
+    if (t >= a.input && t <= b.input) {
+      const range = b.input - a.input;
+      let f = range > 0 ? (t - a.input) / range : 0;
+      if (a.easing === 'step-end') f = 0;
+      else if (a.easing) f = applyEasing(f, a.easing);
+      return a.output + (b.output - a.output) * f;
+    }
+  }
+  return stops[n - 1].output;
 }
 
 /**
