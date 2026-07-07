@@ -4,6 +4,8 @@ import Prism from "prismjs";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
 import { MotionCanvas } from "./components/MotionCanvas";
+import AgentChat from "./components/AgentChat";
+import { Sparkles } from "lucide-react";
 import { convertLottie } from "../../../tools/lottie2popcorn";
 import { parse, serialize } from "@popcorn/parser";
 import { examples } from "./examples";
@@ -123,6 +125,7 @@ function App() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [loop, setLoop] = useState(true);
   const [fit, setFit] = useState<FitMode>("contain");
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     const ex = examples.find((e) => e.key === currentExample);
@@ -217,6 +220,15 @@ function App() {
           >
             <Upload className="size-3.5" />
             Import Lottie
+          </Button>
+          <Button
+            variant={chatOpen ? "default" : "secondary"}
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setChatOpen((v) => !v)}
+          >
+            <Sparkles className="size-3.5" />
+            Copilot
           </Button>
         </div>
       </header>
@@ -396,6 +408,9 @@ function App() {
             )}
           </div>
         </div>
+
+        {/* Agent chat sidebar — toggled from the header */}
+        <AgentChat open={chatOpen} onClose={() => setChatOpen(false)} />
       </div>
 
       {showImport && (
