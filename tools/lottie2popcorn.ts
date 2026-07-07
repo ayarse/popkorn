@@ -887,7 +887,10 @@ export class Converter {
     let dashArray: number[] | null = inherited.dashArray;
     let dashOffset = inherited.dashOffset;
     let gradientFill: string | null = null;
-    let fillCount = 0;
+    // Multiple `fl` in a group = stacked layers of the SAME geometry, painted
+    // first-on-top (Lottie order). Collected here; the first (top) fill becomes
+    // this level's primary paint, the rest are emitted as under-layer copies.
+    const fills: { color: string | null; ch: ((t: number) => Sample) | null; kfs: Kf[] | null; rule: number | null }[] = [];
     let fillRule: number | null = null;
     let trim: TrimInfo | null = null;
 
@@ -902,19 +905,19 @@ export class Converter {
     for (const it of items) {
       switch (it.ty) {
         case 'fl': {
-          fillCount++;
           const c = prop(it.c);
           const o = prop(it.o);
           const op = o && !o.animated ? (o.at(0)[0] ?? 100) / 100 : 1;
           if (o && o.animated) this.warnOnce('animated fill opacity baked to first value');
+          let color: string | null = null, ch: ((t: number) => Sample) | null = null, kfs: Kf[] | null = null;
           if (c && c.animated && c.kfs) {
-            fillKfs = c.kfs;
-            fillCh = (t) => ({ fill: lottieColor(c.at(t), op) });
-            fill = lottieColor(c.at(c.kfs[0].t), op);
+            kfs = c.kfs;
+            ch = (t) => ({ fill: lottieColor(c.at(t), op) });
+            color = lottieColor(c.at(c.kfs[0].t), op);
           } else if (c) {
-            fill = lottieColor(c.at(0), op);
+            color = lottieColor(c.at(0), op);
           }
-          if (it.r === 1 || it.r === 2) fillRule = it.r;
+          fills.push({ color, ch, kfs, rule: it.r === 1 || it.r === 2 ? it.r : null });
           break;
         }
         case 'st': {
@@ -998,7 +1001,14 @@ export class Converter {
           if (it.ty in BLOCKED_MODIFIERS) this.blocked.add(BLOCKED_MODIFIERS[it.ty]);
       }
     }
-    if (fillCount > 1) this.warnOnce('group has multiple fills; last one used');
+    // The top (first) fill is this level's primary paint — inherited by nested
+    // groups and used by merged/single drawables; the rest paint below it.
+    if (fills.length) {
+      fill = fills[0].color;
+      fillCh = fills[0].ch;
+      fillKfs = fills[0].kfs;
+      if (fills[0].rule) fillRule = fills[0].rule;
+    }
 
     // A stroke that reaches into nested `gr` children styles their descendant
     // fills in Lottie as ONE stroke of the combined paths, painted BELOW every
@@ -1038,8 +1048,11 @@ export class Converter {
       strokeWidth, lineCap, lineJoin, miterLimit, dashArray, dashOffset,
     };
 
-    const applyStyle = (rule: Rule) => {
-      if (effectiveFill) rule.decls.push(`fill: ${effectiveFill}`);
+    // `layer` overrides the fill for one stacked under-layer of a multi-fill
+    // group; omitted, the level's primary (gradient or top) fill is used.
+    const applyStyle = (rule: Rule, layer?: (typeof fills)[number]) => {
+      const layerFill = layer ? layer.color : effectiveFill;
+      if (layerFill) rule.decls.push(`fill: ${layerFill}`);
       else rule.decls.push(`fill: none`);
       if (stroke) rule.decls.push(`stroke: ${stroke}`);
       if (stroke && !hasLocalStroke) rule.decls.push(`paint-order: stroke`);
@@ -1049,7 +1062,7 @@ export class Converter {
       if (miterLimit != null && miterLimit !== 4) rule.decls.push(`stroke-miterlimit: ${num(miterLimit)}`);
       if (dashArray) rule.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
       if (dashOffset) rule.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
-      if (fillRule === 2) rule.decls.push(`fill-rule: evenodd`);
+      if ((layer ? layer.rule : fillRule) === 2) rule.decls.push(`fill-rule: evenodd`);
       if (effectiveTrim) {
         if (!effectiveTrim.startCh) rule.decls.push(`trim-start: ${num(effectiveTrim.start)}%`);
         if (!effectiveTrim.endCh) rule.decls.push(`trim-end: ${num(effectiveTrim.end)}%`);
@@ -1058,7 +1071,8 @@ export class Converter {
         if (effectiveTrim.endCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.endCh.kfs, sample: effectiveTrim.endCh.sample });
         if (effectiveTrim.offsetCh) rule.channels.push({ priority: 1, kfs: effectiveTrim.offsetCh.kfs, sample: effectiveTrim.offsetCh.sample });
       }
-      if (fillCh && fillKfs) rule.channels.push({ priority: 1, kfs: fillKfs, sample: fillCh });
+      const lch = layer ? layer.ch : fillCh, lkfs = layer ? layer.kfs : fillKfs;
+      if (lch && lkfs) rule.channels.push({ priority: 1, kfs: lkfs, sample: lch });
     };
 
     const out: Rule[] = [];
@@ -1116,21 +1130,25 @@ export class Converter {
         siblingDraws.push(it);
       }
     }
+    // >1 `fl` stacks copies of the same geometry, one per fill, in Lottie order
+    // (first ends up on top after the reverse below); a single/absent fill emits
+    // one node with the level's primary paint.
+    const paintLayers: ((typeof fills)[number] | undefined)[] = fills.length > 1 ? fills : [undefined];
+    const emit = (make: () => Rule | null) => {
+      paintLayers.forEach((layer, i) => {
+        const node = make();
+        if (!node) return;
+        applyStyle(node, layer);
+        this.finalizeAnim(node, 0);
+        out.splice(drawIdx + i, 0, node);
+      });
+    };
     if (siblingDraws.length === 1) {
       const it = siblingDraws[0];
-      const drawable = this.buildDrawable(it, prefix + '-' + (it.nm ? it.nm : `s${dcount++}`));
-      if (drawable) {
-        applyStyle(drawable);
-        this.finalizeAnim(drawable, 0);
-        out.splice(drawIdx, 0, drawable);
-      }
+      const base = prefix + '-' + (it.nm ? it.nm : `s${dcount++}`);
+      emit(() => this.buildDrawable(it, base));
     } else if (siblingDraws.length > 1) {
-      const merged = this.buildMergedPath(siblingDraws, this.uniqueId(prefix + '-shapes'), fillRule);
-      if (merged) {
-        applyStyle(merged);
-        this.finalizeAnim(merged, 0);
-        out.splice(drawIdx, 0, merged);
-      }
+      emit(() => this.buildMergedPath(siblingDraws, this.uniqueId(prefix + '-shapes'), fillRule));
     }
     // A hoisted group stroke paints beneath every fill: last in Lottie (top-first)
     // order so it lands first (behind) after the reverse below.
