@@ -50,8 +50,12 @@ import {
   Repeat,
   RepeatOff,
   Maximize,
+  FoldVertical,
+  UnfoldVertical,
+  Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { exportGif, downloadGif } from "@/lib/gif";
 
 const enc = new TextEncoder();
 const bytes = (s: string) => enc.encode(s).length;
@@ -72,6 +76,7 @@ function fmtPct(d: number): string {
 }
 
 type SizePair = { lottie: number; popcorn: number };
+type SizeDelta = { before: number; after: number };
 
 type ImportResult = {
   label: string;
@@ -81,7 +86,11 @@ type ImportResult = {
   min?: SizePair;
 };
 
-function buildImportResult(label: string, rawLottie: string, css: string): ImportResult {
+function buildImportResult(
+  label: string,
+  rawLottie: string,
+  css: string,
+): ImportResult {
   const raw: SizePair = { lottie: bytes(rawLottie), popcorn: bytes(css) };
   let min: SizePair | undefined;
   try {
@@ -121,16 +130,52 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showImport, setShowImport] = useState(false);
-  const [bgIndex, setBgIndex] = useState(4); // Ink
+  const [bgIndex, setBgIndex] = useState(3); // Graphite
   const [controlsVisible, setControlsVisible] = useState(true);
   const [loop, setLoop] = useState(true);
   const [fit, setFit] = useState<FitMode>("contain");
   const [chatOpen, setChatOpen] = useState(false);
+  const [minified, setMinified] = useState(false);
+  const [sizeDelta, setSizeDelta] = useState<SizeDelta | null>(null);
+  // null = idle; 0..1 = export progress fraction.
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
+
+  async function handleExportGif() {
+    if (exportProgress !== null) return;
+    setExportProgress(0);
+    try {
+      const bytes = await exportGif(source, {
+        background: activeBg.value,
+        onProgress: setExportProgress,
+      });
+      downloadGif(bytes);
+    } catch (e: any) {
+      setError(`GIF export failed: ${e.message}`);
+    } finally {
+      setExportProgress(null);
+    }
+  }
 
   useEffect(() => {
     const ex = examples.find((e) => e.key === currentExample);
-    if (ex) setSource(ex.source);
+    if (ex) {
+      setSource(ex.source);
+      setMinified(false);
+      setSizeDelta(null);
+    }
   }, [currentExample]);
+
+  function toggleMinify() {
+    try {
+      const next = serialize(parse(source), { minify: !minified });
+      setSizeDelta({ before: bytes(source), after: bytes(next) });
+      setSource(next);
+      setMinified(!minified);
+      setError(null);
+    } catch (e: any) {
+      setError(`Could not format: ${e.message}`);
+    }
+  }
 
   function importLottie(text: string, label: string): boolean {
     setError(null);
@@ -145,6 +190,8 @@ function App() {
       const { css, warnings, blocked } = convertLottie(lottie);
       setCurrentExample(null);
       setSource(css);
+      setMinified(false);
+      setSizeDelta(null);
       const result = buildImportResult(label, text, css);
       result.warnings = warnings;
       result.blocked = blocked;
@@ -159,7 +206,8 @@ function App() {
   function handleLottieFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
-      if (importLottie(reader.result as string, `"${file.name}"`)) setShowImport(false);
+      if (importLottie(reader.result as string, `"${file.name}"`))
+        setShowImport(false);
     };
     reader.onerror = () => setError(`Could not read file: ${file.name}`);
     reader.readAsText(file);
@@ -169,270 +217,338 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={400}>
-    <div className="flex h-full flex-col bg-background text-foreground">
-      {/* Header — compact, Linear-style */}
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-        <div className="flex items-center gap-2 pr-2">
-          <div className="size-5 rounded-md bg-gradient-to-br from-primary to-accent" />
-          <h1 className="text-[15px] font-semibold tracking-tight">Popcorn</h1>
-        </div>
+      <div className="flex h-full flex-col bg-background text-foreground">
+        {/* Header — compact, Linear-style */}
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+          <div className="flex items-center gap-2 pr-2">
+            <div className="size-5 rounded-md bg-gradient-to-br from-primary to-accent" />
+            <h1 className="text-[15px] font-semibold tracking-tight">
+              Popcorn
+            </h1>
+          </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5">
-              Examples
-              <ChevronDown className="size-3.5 opacity-60" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-1.5">
+                Examples
+                <ChevronDown className="size-3.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52">
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Example scenes</span>
+                <span className="text-[10px] font-normal tracking-widest text-muted-foreground">
+                  {examples.length}
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {examples.map((ex) => (
+                <DropdownMenuCheckboxItem
+                  key={ex.key}
+                  checked={currentExample === ex.key}
+                  onCheckedChange={() => {
+                    setCurrentExample(ex.key);
+                    setImportResult(null);
+                    setError(null);
+                  }}
+                >
+                  {ex.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="ml-auto flex items-center gap-2">
+            {importResult && (
+              <ImportStatusChip
+                result={importResult}
+                onDismiss={() => setImportResult(null)}
+              />
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowImport(true)}
+            >
+              <Upload className="size-3.5" />
+              Import Lottie
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-52">
-            <DropdownMenuLabel className="flex items-center justify-between">
-              <span>Example scenes</span>
-              <span className="text-[10px] font-normal tracking-widest text-muted-foreground">
-                {examples.length}
-              </span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {examples.map((ex) => (
-              <DropdownMenuCheckboxItem
-                key={ex.key}
-                checked={currentExample === ex.key}
-                onCheckedChange={() => {
-                  setCurrentExample(ex.key);
-                  setImportResult(null);
-                  setError(null);
+            <Button
+              variant={chatOpen ? "default" : "secondary"}
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setChatOpen((v) => !v)}
+            >
+              <Sparkles className="size-3.5" />
+              Copilot
+            </Button>
+          </div>
+        </header>
+
+        {/* Main content */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Source panel */}
+          <div className="flex flex-1 flex-col overflow-hidden border-r border-border bg-card/30">
+            <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-2">
+              <div className="ml-auto flex items-center gap-2">
+                {sizeDelta && (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {humanBytes(sizeDelta.before)} →{" "}
+                    {humanBytes(sizeDelta.after)} (
+                    {fmtPct(pct(sizeDelta.before, sizeDelta.after))})
+                  </span>
+                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={toggleMinify}>
+                      {minified ? (
+                        <UnfoldVertical className="size-4" />
+                      ) : (
+                        <FoldVertical className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {minified ? "Format source" : "Minify source"}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <Editor
+                value={source}
+                onValueChange={(v) => {
+                  setSource(v);
+                  setSizeDelta(null);
+                }}
+                highlight={(code) =>
+                  Prism.highlight(code, Prism.languages.css, "css")
+                }
+                padding={16}
+                style={{
+                  minHeight: "100%",
+                  fontSize: "13px",
+                  fontFamily: "var(--font-mono)",
+                  lineHeight: "1.6",
+                  backgroundColor: "transparent",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Animation panel */}
+          <div className="flex flex-1 flex-col bg-background overflow-hidden">
+            {/* Toolbar */}
+            <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
+              <div className="ml-auto flex items-center gap-1">
+                {/* Fit mode */}
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1.5">
+                          <Maximize className="size-3.5" />
+                          {FIT_MODES.find((m) => m.value === fit)?.label}
+                          <ChevronDown className="size-3 opacity-60" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Fit mode</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end" className="w-32">
+                    <DropdownMenuRadioGroup
+                      value={fit}
+                      onValueChange={(v) => setFit(v as FitMode)}
+                    >
+                      {FIT_MODES.map((m) => (
+                        <DropdownMenuRadioItem key={m.value} value={m.value}>
+                          {m.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Loop toggle */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setLoop((v) => !v)}
+                    >
+                      {loop ? (
+                        <Repeat className="size-4" />
+                      ) : (
+                        <RepeatOff className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {loop ? "Loop playback" : "Loop playback (off)"}
+                  </TooltipContent>
+                </Tooltip>
+
+                {/* Toggle playback controls */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setControlsVisible((v) => !v)}
+                    >
+                      {controlsVisible ? (
+                        <PanelBottom className="size-4" />
+                      ) : (
+                        <PanelBottomDashed className="size-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {controlsVisible
+                      ? "Hide playback controls"
+                      : "Show playback controls"}
+                  </TooltipContent>
+                </Tooltip>
+
+                {/* Export GIF */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleExportGif}
+                      disabled={exportProgress !== null}
+                    >
+                      <Film className="size-3.5" />
+                      {exportProgress !== null
+                        ? `Exporting… ${Math.round(exportProgress * 100)}%`
+                        : "Export GIF"}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Export animation as GIF</TooltipContent>
+                </Tooltip>
+
+                <div className="mx-1 h-5 w-px bg-border" />
+
+                {/* Background color picker */}
+                <Popover>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <span
+                            className="size-4 rounded-full border border-border/60"
+                            style={
+                              activeBg.value === "transparent"
+                                ? {
+                                    backgroundImage:
+                                      "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
+                                    backgroundColor: "var(--background)",
+                                  }
+                                : { backgroundColor: activeBg.swatch }
+                            }
+                          />
+                        </Button>
+                      </PopoverTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Background color</TooltipContent>
+                  </Tooltip>
+                  <PopoverContent align="end" className="w-48 p-1.5">
+                    <div className="grid grid-cols-2 gap-0.5">
+                      {PLAYER_BACKGROUNDS.map((bg, i) => (
+                        <button
+                          key={bg.name}
+                          onClick={() => setBgIndex(i)}
+                          className={cn(
+                            "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-secondary/60",
+                            bgIndex === i && "bg-secondary/60",
+                          )}
+                        >
+                          <span
+                            className="size-3.5 shrink-0 rounded-full border border-border/40"
+                            style={
+                              bg.value === "transparent"
+                                ? {
+                                    backgroundImage:
+                                      "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
+                                    backgroundColor: "var(--background)",
+                                  }
+                                : { backgroundColor: bg.swatch }
+                            }
+                          />
+                          <span className="truncate">{bg.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            {/* Player content */}
+            <div className="relative flex flex-1 items-center justify-center p-6 overflow-hidden">
+              <div
+                className="flex w-full max-w-[960px] rounded-xl border border-border/60 shadow-2xl shadow-black/30 overflow-hidden"
+                style={{
+                  height: "100%",
+                  backgroundColor:
+                    activeBg.value === "transparent"
+                      ? undefined
+                      : activeBg.value,
                 }}
               >
-                {ex.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <MotionCanvas
+                  source={source}
+                  controls={controlsVisible}
+                  loop={loop}
+                  fit={fit}
+                  style={{ height: "100%", backgroundColor: activeBg.value }}
+                  onError={(err) => setError(err.message)}
+                  onSceneReady={() => setError(null)}
+                />
+              </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {importResult && (
-            <ImportStatusChip result={importResult} onDismiss={() => setImportResult(null)} />
-          )}
-          <Button
-            variant="secondary"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setShowImport(true)}
-          >
-            <Upload className="size-3.5" />
-            Import Lottie
-          </Button>
-          <Button
-            variant={chatOpen ? "default" : "secondary"}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setChatOpen((v) => !v)}
-          >
-            <Sparkles className="size-3.5" />
-            Copilot
-          </Button>
-        </div>
-      </header>
+              {/* Error toast */}
+              {error && (
+                <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground backdrop-blur-md">
+                  <AlertCircle className="size-4 shrink-0 text-destructive" />
+                  <span className="max-w-[420px] truncate font-mono">
+                    {error}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Source panel */}
-        <div className="flex-1 overflow-auto border-r border-border bg-card/30">
-          <Editor
-            value={source}
-            onValueChange={setSource}
-            highlight={(code) => Prism.highlight(code, Prism.languages.css, "css")}
-            padding={16}
-            style={{
-              minHeight: "100%",
-              fontSize: "13px",
-              fontFamily: "var(--font-mono)",
-              lineHeight: "1.6",
-              backgroundColor: "transparent",
+          {/* Agent chat sidebar — toggled from the header */}
+          <AgentChat
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
+            source={source}
+            onApplySource={(css) => {
+              setCurrentExample(null);
+              setSource(css);
+              setMinified(false);
+              setSizeDelta(null);
+              setImportResult(null);
+              setError(null);
             }}
           />
         </div>
 
-        {/* Animation panel */}
-        <div className="flex flex-1 flex-col bg-background overflow-hidden">
-          {/* Toolbar */}
-          <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
-            <div className="ml-auto flex items-center gap-1">
-              {/* Fit mode */}
-              <DropdownMenu>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="gap-1.5">
-                        <Maximize className="size-3.5" />
-                        {FIT_MODES.find((m) => m.value === fit)?.label}
-                        <ChevronDown className="size-3 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>Fit mode</TooltipContent>
-                </Tooltip>
-                <DropdownMenuContent align="end" className="w-32">
-                  <DropdownMenuRadioGroup
-                    value={fit}
-                    onValueChange={(v) => setFit(v as FitMode)}
-                  >
-                    {FIT_MODES.map((m) => (
-                      <DropdownMenuRadioItem key={m.value} value={m.value}>
-                        {m.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Loop toggle */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setLoop((v) => !v)}
-                  >
-                    {loop ? (
-                      <Repeat className="size-4" />
-                    ) : (
-                      <RepeatOff className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {loop ? "Loop playback" : "Loop playback (off)"}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Toggle playback controls */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setControlsVisible((v) => !v)}
-                  >
-                    {controlsVisible ? (
-                      <PanelBottom className="size-4" />
-                    ) : (
-                      <PanelBottomDashed className="size-4" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {controlsVisible ? "Hide playback controls" : "Show playback controls"}
-                </TooltipContent>
-              </Tooltip>
-
-              <div className="mx-1 h-5 w-px bg-border" />
-
-              {/* Background color picker */}
-              <Popover>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <span
-                          className="size-4 rounded-full border border-border/60"
-                          style={
-                            activeBg.value === "transparent"
-                              ? {
-                                  backgroundImage:
-                                    "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
-                                  backgroundColor: "var(--background)",
-                                }
-                              : { backgroundColor: activeBg.swatch }
-                          }
-                        />
-                      </Button>
-                    </PopoverTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>Background color</TooltipContent>
-                </Tooltip>
-                <PopoverContent align="end" className="w-48 p-1.5">
-                  <div className="grid grid-cols-2 gap-0.5">
-                    {PLAYER_BACKGROUNDS.map((bg, i) => (
-                      <button
-                        key={bg.name}
-                        onClick={() => setBgIndex(i)}
-                        className={cn(
-                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-secondary/60",
-                          bgIndex === i && "bg-secondary/60"
-                        )}
-                      >
-                        <span
-                          className="size-3.5 shrink-0 rounded-full border border-border/40"
-                          style={
-                            bg.value === "transparent"
-                              ? {
-                                  backgroundImage:
-                                    "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
-                                  backgroundColor: "var(--background)",
-                                }
-                              : { backgroundColor: bg.swatch }
-                          }
-                        />
-                        <span className="truncate">{bg.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          {/* Player content */}
-          <div className="relative flex flex-1 items-center justify-center p-6 overflow-hidden">
-            <div
-              className="flex w-full max-w-[960px] rounded-xl border border-border/60 shadow-2xl shadow-black/30 overflow-hidden"
-              style={{ height: "100%", backgroundColor: activeBg.value === "transparent" ? undefined : activeBg.value }}
-            >
-              <MotionCanvas
-                source={source}
-                controls={controlsVisible}
-                loop={loop}
-                fit={fit}
-                style={{ height: "100%", backgroundColor: activeBg.value }}
-                onError={(err) => setError(err.message)}
-                onSceneReady={() => setError(null)}
-              />
-            </div>
-
-            {/* Error toast */}
-            {error && (
-              <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground backdrop-blur-md">
-                <AlertCircle className="size-4 shrink-0 text-destructive" />
-                <span className="max-w-[420px] truncate font-mono">{error}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Agent chat sidebar — toggled from the header */}
-        <AgentChat
-          open={chatOpen}
-          onClose={() => setChatOpen(false)}
-          source={source}
-          onApplySource={(css) => {
-            setCurrentExample(null);
-            setSource(css);
-            setImportResult(null);
-            setError(null);
-          }}
-        />
+        {showImport && (
+          <ImportModal
+            onFile={handleLottieFile}
+            onText={(text) => {
+              if (importLottie(text, "pasted JSON")) setShowImport(false);
+            }}
+            onClose={() => setShowImport(false)}
+          />
+        )}
       </div>
-
-      {showImport && (
-        <ImportModal
-          onFile={handleLottieFile}
-          onText={(text) => {
-            if (importLottie(text, "pasted JSON")) setShowImport(false);
-          }}
-          onClose={() => setShowImport(false)}
-        />
-      )}
-    </div>
     </TooltipProvider>
   );
 }
@@ -501,25 +617,41 @@ function ImportStatusChip({
           <div className="px-3 py-2.5 text-xs">
             <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
               <span className="w-2/5" />
-              <span className="flex-1 whitespace-nowrap text-center">Lottie</span>
-              <span className="flex-1 whitespace-nowrap text-center">Popcorn</span>
+              <span className="flex-1 whitespace-nowrap text-center">
+                Lottie
+              </span>
+              <span className="flex-1 whitespace-nowrap text-center">
+                Popcorn
+              </span>
               <span className="w-12 whitespace-nowrap text-center">Δ</span>
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 font-mono">
                 <span className="w-2/5 text-muted-foreground">Raw</span>
-                <span className="flex-1 whitespace-nowrap text-center">{humanBytes(raw.lottie)}</span>
-                <span className="flex-1 whitespace-nowrap text-center">{humanBytes(raw.popcorn)}</span>
-                <span className={`w-12 whitespace-nowrap text-center ${deltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                <span className="flex-1 whitespace-nowrap text-center">
+                  {humanBytes(raw.lottie)}
+                </span>
+                <span className="flex-1 whitespace-nowrap text-center">
+                  {humanBytes(raw.popcorn)}
+                </span>
+                <span
+                  className={`w-12 whitespace-nowrap text-center ${deltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
+                >
                   {fmtPct(deltaPct)}
                 </span>
               </div>
               {min && (
                 <div className="flex items-center gap-2 font-mono">
                   <span className="w-2/5 text-muted-foreground">Minified</span>
-                  <span className="flex-1 whitespace-nowrap text-center">{humanBytes(min.lottie)}</span>
-                  <span className="flex-1 whitespace-nowrap text-center">{humanBytes(min.popcorn)}</span>
-                  <span className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                  <span className="flex-1 whitespace-nowrap text-center">
+                    {humanBytes(min.lottie)}
+                  </span>
+                  <span className="flex-1 whitespace-nowrap text-center">
+                    {humanBytes(min.popcorn)}
+                  </span>
+                  <span
+                    className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
+                  >
                     {fmtPct(minDeltaPct)}
                   </span>
                 </div>
@@ -568,7 +700,11 @@ function ImportStatusChip({
   );
 }
 
-function ImportModal({ onFile, onText, onClose }: {
+function ImportModal({
+  onFile,
+  onText,
+  onClose,
+}: {
   onFile: (file: File) => void;
   onText: (text: string) => void;
   onClose: () => void;
@@ -586,19 +722,28 @@ function ImportModal({ onFile, onText, onClose }: {
   }, [onClose]);
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Import Lottie</DialogTitle>
           <DialogDescription>
-            Drop a bodymovin <code className="font-mono">.json</code> file or paste its contents. It will be converted to Popcorn DSL.
+            Drop a bodymovin <code className="font-mono">.json</code> file or
+            paste its contents. It will be converted to Popcorn DSL.
           </DialogDescription>
         </DialogHeader>
 
         {/* Dropzone */}
         <div
           onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
           onDragLeave={() => setDragOver(false)}
           onDrop={(e) => {
             e.preventDefault();
@@ -610,10 +755,11 @@ function ImportModal({ onFile, onText, onClose }: {
             "cursor-pointer rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors",
             dragOver
               ? "border-primary bg-primary/5 text-primary"
-              : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
+              : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground",
           )}
         >
-          Drop a <code className="font-mono">.json</code> file here, or click to browse
+          Drop a <code className="font-mono">.json</code> file here, or click to
+          browse
         </div>
         <input
           ref={fileRef}
