@@ -1,0 +1,82 @@
+@import url("https://rsms.me/inter/inter.css");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: oklch(0.145 0.02 264);
+  --foreground: oklch(0.985 0.005 264);
+  --card: oklch(0.179 0.02 264);
+  --card-foreground: oklch(0.985 0.005 264);
+  --popover: oklch(0.179 0.02 264);
+  --popover-foreground: oklch(0.985 0.005 264);
+  --primary: oklch(0.62 0.193 275);
+  --primary-foreground: oklch(0.985 0.005 264);
+  --secondary: oklch(0.22 0.02 264);
+  --secondary-foreground: oklch(0.92 0.01 264);
+  --muted: oklch(0.22 0.02 264);
+  --muted-foreground: oklch(0.65 0.018 264);
+  --accent: oklch(0.62 0.193 275);
+  --accent-foreground: oklch(0.985 0.005 264);
+  --destructive: oklch(0.7 0.193 22);
+  --border: oklch(0.27 0.015 264 / 0.6);
+  --input: oklch(0.27 0.015 264 / 0.6);
+  --ring: oklch(0.62 0.193 275 / 0.5);
+  --sidebar: oklch(0.179 0.02 264);
+  --sidebar-foreground: oklch(0.985 0.005 264);
+  --sidebar-primary: oklch(0.62 0.193 275);
+  --sidebar-border: oklch(0.27 0.015 264 / 0.6);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: "Inter", "Inter var", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    font-variation-settings: "opsz" 32;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}

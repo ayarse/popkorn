@@ -1,12 +1,30 @@
-import { useState, useEffect, useRef } from 'react';
-import Editor from 'react-simple-code-editor';
-import Prism from 'prismjs';
-import 'prismjs/components/prism-css';
-import 'prismjs/themes/prism-tomorrow.css';
-import { MotionCanvas } from './components/MotionCanvas';
-import { convertLottie } from '../../../tools/lottie2popcorn';
-import { parse, serialize } from '@popcorn/parser';
-import { examples } from './examples';
+import { useState, useEffect, useRef } from "react";
+import Editor from "react-simple-code-editor";
+import Prism from "prismjs";
+import "prismjs/components/prism-css";
+import "prismjs/themes/prism-tomorrow.css";
+import { MotionCanvas } from "./components/MotionCanvas";
+import { convertLottie } from "../../../tools/lottie2popcorn";
+import { parse, serialize } from "@popcorn/parser";
+import { examples } from "./examples";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { ChevronDown, Upload, AlertCircle, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const enc = new TextEncoder();
 const bytes = (s: string) => enc.encode(s).length;
@@ -17,14 +35,12 @@ function humanBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// popcorn vs lottie, signed one-decimal percent (larger popcorn → +%).
 function pct(lottie: number, popcorn: number): string {
-  if (lottie === 0) return '';
+  if (lottie === 0) return "";
   const d = ((popcorn - lottie) / lottie) * 100;
-  return ` (${d > 0 ? '+' : ''}${d.toFixed(1)}%)`;
+  return ` (${d > 0 ? "+" : ""}${d.toFixed(1)}%)`;
 }
 
-// Builds the one-line size comparison; minified forms are best-effort.
 function sizeSummary(rawLottie: string, css: string): string {
   const lRaw = bytes(rawLottie);
   const pRaw = bytes(css);
@@ -39,21 +55,31 @@ function sizeSummary(rawLottie: string, css: string): string {
   return line;
 }
 
+const PLAYER_BACKGROUNDS = [
+  { name: "Transparent", value: "transparent", swatch: "transparent" },
+  { name: "White", value: "#ffffff", swatch: "#ffffff" },
+  { name: "Paper", value: "#f4f4f5", swatch: "#f4f4f5" },
+  { name: "Graphite", value: "#1f1f2e", swatch: "#1f1f2e" },
+  { name: "Ink", value: "#0a0a12", swatch: "#0a0a12" },
+  { name: "Crimson", value: "#5e1020", swatch: "#5e1020" },
+  { name: "Forest", value: "#11241a", swatch: "#11241a" },
+  { name: "Cobalt", value: "#1a1f4d", swatch: "#1a1f4d" },
+];
+
 function App() {
-  const [currentExample, setCurrentExample] = useState<string | null>('motion');
+  const [currentExample, setCurrentExample] = useState<string | null>("motion");
   const [source, setSource] = useState(examples[1].source);
   const [error, setError] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [sizeStatus, setSizeStatus] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [bgIndex, setBgIndex] = useState(4); // Ink
 
   useEffect(() => {
     const ex = examples.find((e) => e.key === currentExample);
     if (ex) setSource(ex.source);
   }, [currentExample]);
 
-  // Returns true on success so callers can close the modal.
   function importLottie(text: string, label: string): boolean {
     setError(null);
     setImportStatus(null);
@@ -70,9 +96,12 @@ function App() {
       setCurrentExample(null);
       setSource(css);
       const parts: string[] = [];
-      if (warnings.length) parts.push(`${warnings.length} warning${warnings.length === 1 ? '' : 's'}: ${warnings.join('; ')}`);
-      if (blocked.length) parts.push(`blocked: ${blocked.join('; ')}`);
-      setImportStatus(parts.length ? `Imported ${label} — ${parts.join(' | ')}` : `Imported ${label}`);
+      if (warnings.length)
+        parts.push(`${warnings.length} warning${warnings.length === 1 ? "" : "s"}: ${warnings.join("; ")}`);
+      if (blocked.length) parts.push(`blocked: ${blocked.join("; ")}`);
+      setImportStatus(
+        parts.length ? `Imported ${label} — ${parts.join(" | ")}` : `Imported ${label}`
+      );
       setSizeStatus(sizeSummary(text, css));
       return true;
     } catch (e: any) {
@@ -83,181 +112,147 @@ function App() {
 
   function handleLottieFile(file: File) {
     const reader = new FileReader();
-    reader.onload = () => { if (importLottie(reader.result as string, `"${file.name}"`)) setShowImport(false); };
+    reader.onload = () => {
+      if (importLottie(reader.result as string, `"${file.name}"`)) setShowImport(false);
+    };
     reader.onerror = () => setError(`Could not read file: ${file.name}`);
     reader.readAsText(file);
   }
 
-  return (
-    <div style={{
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#0a0a1a',
-      color: '#ffffff',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
-      {/* Header */}
-      <header style={{
-        padding: '12px 20px',
-        borderBottom: '1px solid #333',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px 20px',
-        flexWrap: 'wrap',
-        flexShrink: 0,
-      }}>
-        <h1 style={{ margin: 0, fontSize: '20px', color: '#4ecdc4' }}>
-          Popcorn
-        </h1>
-        <span style={{ color: '#666', fontSize: '13px' }}>
-          CSS-like DSL for interactive motion graphics
-        </span>
+  const activeBg = PLAYER_BACKGROUNDS[bgIndex];
 
-        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
-          {examples.map((ex) => (
-            <button
-              key={ex.key}
-              onClick={() => { setCurrentExample(ex.key); setImportStatus(null); setSizeStatus(null); setError(null); }}
-              style={{
-                padding: '6px 14px',
-                backgroundColor: currentExample === ex.key ? '#4ecdc4' : '#252530',
-                color: currentExample === ex.key ? '#000' : '#888',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: currentExample === ex.key ? 600 : 400,
-              }}
-            >
-              {ex.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setShowImport(true)}
-            style={{
-              padding: '6px 14px',
-              backgroundColor: '#252530',
-              color: '#888',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 400,
-            }}
-          >
-            Import Lottie
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleLottieFile(file);
-              e.target.value = '';
-            }}
-          />
+  return (
+    <div className="flex h-full flex-col bg-background text-foreground">
+      {/* Header — compact, Linear-style */}
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+        <div className="flex items-center gap-2 pr-2">
+          <div className="size-5 rounded-md bg-gradient-to-br from-primary to-accent" />
+          <h1 className="text-[15px] font-semibold tracking-tight">Popcorn</h1>
         </div>
 
-        {error && (
-          <div style={{
-            backgroundColor: '#ff4444',
-            color: '#fff',
-            padding: '6px 12px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            maxWidth: '400px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
-            {error}
-          </div>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5">
+              Examples
+              <ChevronDown className="size-3.5 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span>Example scenes</span>
+              <span className="text-[10px] font-normal tracking-widest text-muted-foreground">
+                {examples.length}
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {examples.map((ex) => (
+              <DropdownMenuCheckboxItem
+                key={ex.key}
+                checked={currentExample === ex.key}
+                onCheckedChange={() => {
+                  setCurrentExample(ex.key);
+                  setImportStatus(null);
+                  setSizeStatus(null);
+                  setError(null);
+                }}
+              >
+                {ex.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setShowImport(true)}
+          >
+            <Upload className="size-3.5" />
+            Import Lottie
+          </Button>
+        </div>
       </header>
 
-      {/* Import metadata strip — only after a Lottie import, not for examples. */}
+      {/* Import metadata strip */}
       {(importStatus || sizeStatus) && (
-        <div style={{
-          padding: '8px 20px',
-          borderBottom: '1px solid #333',
-          backgroundColor: '#0d0d18',
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'baseline',
-          gap: '4px 20px',
-          flexShrink: 0,
-          fontSize: '12px',
-        }}>
+        <div className="flex shrink-0 flex-wrap items-baseline gap-x-5 gap-y-1 border-b border-border bg-card/40 px-4 py-2 text-xs">
           {importStatus && (
-            <span style={{ color: '#4ecdc4', fontWeight: 600 }}>{importStatus}</span>
-          )}
-          {sizeStatus && (
-            <span style={{
-              color: '#9a9aa8',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            }}>
-              {sizeStatus}
+            <span className="flex items-center gap-1.5 font-medium text-primary">
+              <Check className="size-3.5" />
+              {importStatus}
             </span>
           )}
+          {sizeStatus && <span className="font-mono text-muted-foreground">{sizeStatus}</span>}
         </div>
       )}
 
       {/* Main content */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        overflow: 'hidden',
-      }}>
+      <div className="flex flex-1 overflow-hidden">
         {/* Source panel */}
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          borderRight: '1px solid #333',
-          backgroundColor: '#0f0f1a',
-        }}>
+        <div className="flex-1 overflow-auto border-r border-border bg-card/30">
           <Editor
             value={source}
             onValueChange={setSource}
-            highlight={(code) => Prism.highlight(code, Prism.languages.css, 'css')}
+            highlight={(code) => Prism.highlight(code, Prism.languages.css, "css")}
             padding={16}
             style={{
-              minHeight: '100%',
-              fontSize: '13px',
-              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-              lineHeight: '1.6',
-              backgroundColor: 'transparent',
+              minHeight: "100%",
+              fontSize: "13px",
+              fontFamily: "var(--font-mono)",
+              lineHeight: "1.6",
+              backgroundColor: "transparent",
             }}
           />
         </div>
 
         {/* Animation panel */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0a0a12',
-          padding: '20px',
-          overflow: 'hidden',
-        }}>
-          {/* Bounded container: the player fills it and letterboxes (fit=contain),
-              so oversized scenes shrink to fit instead of clipping. */}
-          <div style={{
-            width: '100%',
-            height: '100%',
-            maxWidth: '960px',
-            display: 'flex',
-          }}>
+        <div className="relative flex flex-1 items-center justify-center bg-background p-6 overflow-hidden">
+          <div
+            className="flex w-full max-w-[960px] rounded-xl border border-border/60 shadow-2xl shadow-black/30 overflow-hidden"
+            style={{ height: "100%", backgroundColor: activeBg.value === "transparent" ? undefined : activeBg.value }}
+          >
             <MotionCanvas
               source={source}
-              style={{ height: '100%' }}
+              style={{ height: "100%", backgroundColor: activeBg.value }}
               onError={(err) => setError(err.message)}
               onSceneReady={() => setError(null)}
             />
+          </div>
+
+          {/* Error toast */}
+          {error && (
+            <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground backdrop-blur-md">
+              <AlertCircle className="size-4 shrink-0 text-destructive" />
+              <span className="max-w-[420px] truncate font-mono">{error}</span>
+            </div>
+          )}
+
+          {/* Background color picker — circle swatches */}
+          <div className="absolute right-5 top-5 z-20 flex items-center gap-1.5 rounded-full border border-border/70 bg-background/70 p-1.5 backdrop-blur-md">
+            {PLAYER_BACKGROUNDS.map((bg, i) => (
+              <button
+                key={bg.name}
+                title={bg.name}
+                onClick={() => setBgIndex(i)}
+                className={cn(
+                  "size-5 rounded-full border transition-all hover:scale-110",
+                  bgIndex === i
+                    ? "border-primary ring-2 ring-ring ring-offset-2 ring-offset-background"
+                    : "border-border/40"
+                )}
+                style={
+                  bg.value === "transparent"
+                    ? {
+                        backgroundImage:
+                          "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
+                        backgroundColor: "var(--background)",
+                      }
+                    : { backgroundColor: bg.swatch }
+                }
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -265,7 +260,9 @@ function App() {
       {showImport && (
         <ImportModal
           onFile={handleLottieFile}
-          onText={(text) => { if (importLottie(text, 'pasted JSON')) setShowImport(false); }}
+          onText={(text) => {
+            if (importLottie(text, "pasted JSON")) setShowImport(false);
+          }}
           onClose={() => setShowImport(false)}
         />
       )}
@@ -279,42 +276,26 @@ function ImportModal({ onFile, onText, onClose }: {
   onClose: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 100,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '480px', maxWidth: '90vw',
-          backgroundColor: '#14141f',
-          border: '1px solid #333',
-          borderRadius: '8px',
-          padding: '20px',
-          display: 'flex', flexDirection: 'column', gap: '14px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ margin: 0, fontSize: '16px', color: '#4ecdc4' }}>Import Lottie</h2>
-          <button onClick={onClose} style={{
-            background: 'none', border: 'none', color: '#888', fontSize: '20px',
-            cursor: 'pointer', lineHeight: 1,
-          }}>×</button>
-        </div>
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Import Lottie</DialogTitle>
+          <DialogDescription>
+            Drop a bodymovin <code className="font-mono">.json</code> file or paste its contents. It will be converted to Popcorn DSL.
+          </DialogDescription>
+        </DialogHeader>
 
         {/* Dropzone */}
         <div
@@ -327,35 +308,31 @@ function ImportModal({ onFile, onText, onClose }: {
             const file = e.dataTransfer.files?.[0];
             if (file) onFile(file);
           }}
-          style={{
-            border: `2px dashed ${dragOver ? '#4ecdc4' : '#3a3a4a'}`,
-            borderRadius: '6px',
-            padding: '32px 16px',
-            textAlign: 'center',
-            color: dragOver ? '#4ecdc4' : '#888',
-            backgroundColor: dragOver ? 'rgba(78,205,196,0.08)' : 'transparent',
-            cursor: 'pointer',
-            fontSize: '13px',
-          }}
+          className={cn(
+            "cursor-pointer rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors",
+            dragOver
+              ? "border-primary bg-primary/5 text-primary"
+              : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
+          )}
         >
-          Drop a <code>.json</code> file here, or click to browse
+          Drop a <code className="font-mono">.json</code> file here, or click to browse
         </div>
         <input
           ref={fileRef}
           type="file"
           accept=".json,application/json"
-          style={{ display: 'none' }}
+          className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) onFile(file);
-            e.target.value = '';
+            e.target.value = "";
           }}
         />
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#555', fontSize: '12px' }}>
-          <div style={{ flex: 1, height: '1px', backgroundColor: '#333' }} />
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <div className="h-px flex-1 bg-border" />
           or paste JSON
-          <div style={{ flex: 1, height: '1px', backgroundColor: '#333' }} />
+          <div className="h-px flex-1 bg-border" />
         </div>
 
         <textarea
@@ -363,32 +340,14 @@ function ImportModal({ onFile, onText, onClose }: {
           onChange={(e) => setText(e.target.value)}
           placeholder='{ "v": "5.7.0", "layers": [ ... ] }'
           spellCheck={false}
-          style={{
-            width: '100%', height: '140px', resize: 'vertical',
-            backgroundColor: '#0f0f1a', color: '#ddd',
-            border: '1px solid #333', borderRadius: '6px',
-            padding: '10px', boxSizing: 'border-box',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-            fontSize: '12px', lineHeight: 1.5,
-          }}
+          className="h-36 w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground outline-none focus:ring-2 focus:ring-ring"
         />
 
-        <button
-          onClick={() => onText(text)}
-          style={{
-            alignSelf: 'flex-end',
-            padding: '8px 18px',
-            backgroundColor: '#4ecdc4',
-            color: '#000',
-            border: 'none', borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '13px', fontWeight: 600,
-          }}
-        >
-          Import JSON
-        </button>
-      </div>
-    </div>
+        <div className="flex justify-end">
+          <Button onClick={() => onText(text)}>Import JSON</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
