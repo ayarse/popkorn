@@ -573,11 +573,14 @@ export class Converter {
         return record(rect);
       }
       // Solid used as a parent: wrap the rect in a group carrying the transform.
+      // Lottie parenting inherits transform only (never opacity), so the solid's
+      // own opacity stays on its rect and the wrapper must not carry it, or a
+      // 0/dimmed control solid would wrongly dim every parented child.
       const group: Rule = { id, type: 'group', decls: [], channels: [], children: [] };
-      this.applyTransform(l.ks, group, st);
+      this.applyTransform(l.ks, group, st, { skipOpacity: true });
       if (maskDecl) group.decls.push(maskDecl);
       rect.id = this.uniqueId(id + '-rect');
-      rect.decls = rect.decls.filter((d) => !d.startsWith('transform') && !d.startsWith('opacity'));
+      rect.decls = rect.decls.filter((d) => !d.startsWith('transform'));
       rect.channels = [];
       group.children.push(rect, ...childRules);
       this.finalizeAnim(group, st);

@@ -53,3 +53,28 @@ test('a windowed layer scheduled entirely past op holds its first keyframe (no a
   const css = new Converter().convert(comp(60, [60, 120], /*st*/ 60, /*ip*/ 0));
   expect(css).not.toContain('animation:');
 });
+
+test("a solid parent's opacity dims only its own rect, never its parented children", () => {
+  // Lottie parenting inherits transform only, never opacity. A solid used as a
+  // transform-control parent (here o=0, like lottie-logo's MASTER null-solid)
+  // must not push its opacity onto the wrapper group, or every parented child
+  // vanishes — the whole scene renders blank but the background. Its opacity
+  // belongs on its own rect.
+  const css = new Converter().convert({
+    v: '5', fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      { ty: 1, nm: 'ctrl', ind: 1, ip: 0, op: 30, st: 0, sw: 100, sh: 100, sc: '#000000',
+        ks: { r: { a: 0, k: 0 }, p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 0 } } },
+      { ty: 4, nm: 'dot', ind: 2, parent: 1, ip: 0, op: 30, st: 0,
+        ks: { r: { a: 0, k: 0 }, p: { a: 0, k: [10, 10] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 } },
+        shapes: [{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } },
+                 { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 0, k: 100 } }] },
+    ],
+  });
+  // The wrapper group's own decls (before its first child) carry no opacity.
+  const groupDecls = css.slice(css.indexOf('#ctrl {'), css.indexOf('> #ctrl-rect'));
+  expect(groupDecls).not.toContain('opacity');
+  // The solid's own rect keeps the opacity 0 (it is what is invisible).
+  const rectBlock = css.slice(css.indexOf('#ctrl-rect {'), css.indexOf('> #dot'));
+  expect(rectBlock).toContain('opacity: 0');
+});
