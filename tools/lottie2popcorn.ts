@@ -926,16 +926,25 @@ export class Converter {
           break;
         }
         case 'tm': {
-          const s = prop(it.s), e = prop(it.e), o = prop(it.o);
+          let s = prop(it.s), e = prop(it.e);
+          const o = prop(it.o);
+          // Lottie's `s`/`e` are unordered — lottie-web swaps them so start<=end
+          // before drawing (a window from 61% to 23% is the segment 23..61). The
+          // player treats trim-start>=trim-end as an empty (invisible) stroke, so
+          // when this trim runs "backwards" (start above end) swap the roles: each
+          // prop keeps its own keyframes/easing, they just change which is start.
+          const sVal0 = s ? s.at(0)[0] ?? 0 : 0;
+          const eVal0 = e ? e.at(0)[0] ?? 100 : 100;
+          if (sVal0 > eVal0) { const tmp = s; s = e; e = tmp; }
           trim = {
             start: s ? s.at(0)[0] ?? 0 : 0,
             end: e ? e.at(0)[0] ?? 100 : 100,
             offset: o ? (o.at(0)[0] ?? 0) / 360 : 0,
             startCh: s && s.animated && s.kfs
-              ? { kfs: s.kfs, sample: (t: number) => ({ trimStart: s.at(t)[0] ?? 0 }) }
+              ? { kfs: s.kfs, sample: (t: number) => ({ trimStart: s!.at(t)[0] ?? 0 }) }
               : null,
             endCh: e && e.animated && e.kfs
-              ? { kfs: e.kfs, sample: (t: number) => ({ trimEnd: e.at(t)[0] ?? 100 }) }
+              ? { kfs: e.kfs, sample: (t: number) => ({ trimEnd: e!.at(t)[0] ?? 100 }) }
               : null,
             offsetCh: o && o.animated && o.kfs
               ? { kfs: o.kfs, sample: (t: number) => ({ trimOffset: (o.at(t)[0] ?? 0) / 360 }) }
