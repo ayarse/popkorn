@@ -249,16 +249,24 @@ const EMPTY_STYLE: InheritedStyle = {
   lineJoin: null, miterLimit: null, dashArray: null, dashOffset: 0, trim: null,
 };
 
+/** One emitted @keyframes + its animation-shorthand timing, for a single channel. */
+interface AnimSpec {
+  name: string;
+  blocks: { offset: number; decls: string[]; easing?: string }[];
+  durationSec: number;
+  delaySec: number;
+}
+
 interface Rule {
   id: string;
   type: string; // group | rect | circle | ellipse | path
   decls: string[];
   channels: Channel[];
   children: Rule[];
-  animName?: string;
-  animBlocks?: { offset: number; decls: string[]; easing?: string }[];
-  durationSec?: number;
-  delaySec?: number;
+  // One anim per animated channel, so each keeps its own keyframe times and
+  // per-segment easing (emitted as a comma-separated `animation:` list). Distinct
+  // transform components (translate/rotate/scale/opacity) never share a timeline.
+  anims?: AnimSpec[];
 }
 
 // ---------------------------------------------------------------------------
@@ -300,7 +308,6 @@ export class Converter {
   blocked = new Set<string>();
   private ids = new Set<string>();
   private synthId = 1;
-  private crossSampled = false;
   private assets = new Map<string, any>();
   // Each emitted image node's src decl list + its asset id/data URI, so a data
   // URI referenced by more than one node can be hoisted into a single :root
@@ -353,10 +360,6 @@ export class Converter {
     const layers: any[] = Array.isArray(lottie.layers) ? lottie.layers : [];
     const topRules = this.buildLayerList(layers, '', this.ip, op);
 
-    if (this.crossSampled) {
-      this.warnOnce('some nodes animate multiple properties with differing keyframe times; secondary props linear-sampled');
-    }
-
     // Hoist any data URI used by more than one node into a shared :root var.
     const rootVars = this.dedupeImages();
 
@@ -379,7 +382,7 @@ export class Converter {
 
     const keyframeBlocks: string[] = [];
     const collectKf = (r: Rule) => {
-      if (r.animName && r.animBlocks) keyframeBlocks.push(serializeKeyframes(r));
+      if (r.anims) for (const a of r.anims) keyframeBlocks.push(serializeKeyframes(a));
       r.children.forEach(collectKf);
     };
     topRules.forEach(collectKf);
@@ -1350,71 +1353,67 @@ export class Converter {
   private finalizeAnim(rule: Rule, st: number) {
     if (rule.channels.length === 0) return;
 
-    // Union of keyframe times across the node's channels.
-    const timeSet = new Set<number>();
-    for (const ch of rule.channels) for (const k of ch.kfs) timeSet.add(k.t);
-    let times = [...timeSet].sort((a, b) => a - b);
-
     // lottie-web evaluates a layer's keyframes at (compFrame − st) and renders
     // only the comp's [ip, op] window, so a keyframe at stored time t plays at
-    // effective comp frame t + st and shows only while ip ≤ t + st ≤ op. Clamp the
-    // animation window to that range (stored-time bounds [ip − st, op − st]); AE
-    // often leaves keyframes past the work area (op) that never play. When the
+    // effective comp frame t + st and shows only while ip ≤ t + st ≤ op. Clamp a
+    // channel's window to that range (stored-time bounds [ip − st, op − st]); AE
+    // often leaves keyframes past the work area (op) that never play. When a
     // track runs past a bound, keep the bound itself (sampled) so the node holds
     // its pose there — a track entirely past op collapses to its first keyframe.
     const lo = this.clampIp - st, hi = this.clampOp - st;
-    if (Number.isFinite(lo) && Number.isFinite(hi) && (times[0] < lo || times[times.length - 1] > hi)) {
-      const inRange = times.filter((t) => t >= lo && t <= hi);
-      if (times.some((t) => t > hi) && (inRange.length === 0 || inRange[inRange.length - 1] < hi)) inRange.push(hi);
-      if (times.some((t) => t < lo) && (inRange.length === 0 || inRange[0] > lo)) inRange.unshift(lo);
-      times = inRange;
-    }
+    const anims: AnimSpec[] = [];
 
-    // A single (or fully clamped-away) time = degenerate; bake static, drop anim.
-    if (times.length < 2) {
-      const s = mergeSamples(rule.channels.map((c) => c.sample(times[0] ?? lo)));
-      rule.decls.push(...declsFromSample(s));
-      rule.channels = [];
-      return;
-    }
+    // Each animated channel becomes its OWN @keyframes on its OWN keyframe times
+    // and per-segment easing — never resampled onto a sibling channel's grid — so
+    // translate/rotate/scale/opacity follow their true curves. They compose in the
+    // player because each writes a distinct property (invariant 2 animation step).
+    for (const ch of rule.channels) {
+      let times = [...new Set(ch.kfs.map((k) => k.t))].sort((a, b) => a - b);
 
-    const primary = rule.channels.reduce((a, b) => (b.priority > a.priority ? b : a));
-    const primTimes = new Set(primary.kfs.map((k) => k.t));
-    if (rule.channels.some((ch) => ch !== primary && ch.kfs.some((k) => !primTimes.has(k.t))))
-      this.crossSampled = true;
-
-    const t0 = times[0], tN = times[times.length - 1];
-    const span = tN - t0;
-
-    rule.durationSec = span / this.fr;
-    rule.delaySec = (t0 - this.ip) / this.fr + st / this.fr;
-    rule.animName = this.uniqueId(rule.id + '-k');
-    rule.animBlocks = [];
-
-    for (let i = 0; i < times.length; i++) {
-      const t = times[i];
-      const sample = mergeSamples(rule.channels.map((c) => c.sample(t)));
-      const block: { offset: number; decls: string[]; easing?: string } = {
-        offset: (span > 0 ? (t - t0) / span : 0) * 100,
-        decls: declsFromSample(sample),
-      };
-      if (i < times.length - 1) {
-        const easing = this.segmentEasing(primary, t);
-        if (easing) block.easing = easing;
+      if (Number.isFinite(lo) && Number.isFinite(hi) && (times[0] < lo || times[times.length - 1] > hi)) {
+        const inRange = times.filter((t) => t >= lo && t <= hi);
+        if (times.some((t) => t > hi) && (inRange.length === 0 || inRange[inRange.length - 1] < hi)) inRange.push(hi);
+        if (times.some((t) => t < lo) && (inRange.length === 0 || inRange[0] > lo)) inRange.unshift(lo);
+        times = inRange;
       }
-      rule.animBlocks.push(block);
+
+      // A single (or fully clamped-away) time = degenerate; bake it static. Its
+      // decl(s) merge with any sibling channel's transform in the player.
+      if (times.length < 2) {
+        rule.decls.push(...declsFromSample(ch.sample(times[0] ?? lo)));
+        continue;
+      }
+
+      const t0 = times[0], tN = times[times.length - 1], span = tN - t0;
+      const blocks: AnimSpec['blocks'] = [];
+      for (let i = 0; i < times.length; i++) {
+        const t = times[i];
+        const block: AnimSpec['blocks'][number] = {
+          offset: (span > 0 ? (t - t0) / span : 0) * 100,
+          decls: declsFromSample(ch.sample(t)),
+        };
+        if (i < times.length - 1) {
+          const easing = this.segmentEasing(ch, t);
+          if (easing) block.easing = easing;
+        }
+        blocks.push(block);
+      }
+      anims.push({
+        name: this.uniqueId(rule.id + '-k'),
+        blocks,
+        durationSec: span / this.fr,
+        delaySec: (t0 - this.ip) / this.fr + st / this.fr,
+      });
     }
+
+    rule.channels = [];
+    if (anims.length) rule.anims = anims;
   }
 
-  /** Per-segment easing from the primary channel's departing keyframe. */
-  private segmentEasing(primary: Channel, t: number): string | null {
-    const kfs = primary.kfs;
-    let idx = kfs.findIndex((k) => k.t === t);
-    if (idx < 0) {
-      // Union introduced a foreign time; fall back to the containing segment.
-      for (let i = 0; i < kfs.length - 1; i++) if (t >= kfs[i].t && t < kfs[i + 1].t) { idx = i; break; }
-      this.crossSampled = true;
-    }
+  /** Per-segment easing from a channel's departing keyframe at time t. */
+  private segmentEasing(ch: Channel, t: number): string | null {
+    const kfs = ch.kfs;
+    const idx = kfs.findIndex((k) => k.t === t);
     if (idx < 0 || idx >= kfs.length - 1) return null;
     const kf = kfs[idx];
     if (kf.h === 1) return 'step-end';
@@ -1430,10 +1429,6 @@ export class Converter {
 // ---------------------------------------------------------------------------
 // Sample -> declarations
 // ---------------------------------------------------------------------------
-
-function mergeSamples(samples: Sample[]): Sample {
-  return Object.assign({}, ...samples);
-}
 
 function declsFromSample(s: Sample): string[] {
   const out: string[] = [];
@@ -1685,9 +1680,9 @@ function assetSrc(asset: any): string {
 // Serialization
 // ---------------------------------------------------------------------------
 
-function serializeKeyframes(rule: Rule): string {
-  const lines: string[] = [`@keyframes ${rule.animName} {`];
-  for (const b of rule.animBlocks!) {
+function serializeKeyframes(anim: AnimSpec): string {
+  const lines: string[] = [`@keyframes ${anim.name} {`];
+  for (const b of anim.blocks) {
     const inner = b.decls.map((d) => `${d};`);
     if (b.easing) inner.push(`animation-timing-function: ${b.easing};`);
     lines.push(`  ${num(b.offset)}% { ${inner.join(' ')} }`);
@@ -1703,12 +1698,15 @@ function serializeRule(rule: Rule, depth: number, top: boolean): string {
   const ip = pad + '  ';
   lines.push(`${ip}type: ${rule.type};`);
   for (const d of rule.decls) lines.push(`${ip}${d};`);
-  if (rule.animName) {
-    const delay = rule.delaySec && Math.abs(rule.delaySec) > 1e-6;
-    const durTok = `${num(rule.durationSec!, 3)}s`;
-    const parts = [rule.animName, durTok, 'linear', '1'];
-    if (delay) parts.push(`${num(rule.delaySec!, 3)}s`);
-    lines.push(`${ip}animation: ${parts.join(' ')};`);
+  if (rule.anims && rule.anims.length) {
+    // One comma-separated entry per channel; a single `animation-fill-mode: both`
+    // longhand applies to every entry (the player carries it to each instance).
+    const entries = rule.anims.map((a) => {
+      const parts = [a.name, `${num(a.durationSec, 3)}s`, 'linear', '1'];
+      if (Math.abs(a.delaySec) > 1e-6) parts.push(`${num(a.delaySec, 3)}s`);
+      return parts.join(' ');
+    });
+    lines.push(`${ip}animation: ${entries.join(', ')};`);
     lines.push(`${ip}animation-fill-mode: both;`);
   }
   for (const c of rule.children) lines.push(serializeRule(c, depth + 1, false));
