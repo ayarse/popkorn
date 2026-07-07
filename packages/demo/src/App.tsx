@@ -410,7 +410,17 @@ function App() {
         </div>
 
         {/* Agent chat sidebar — toggled from the header */}
-        <AgentChat open={chatOpen} onClose={() => setChatOpen(false)} />
+        <AgentChat
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          source={source}
+          onApplySource={(css) => {
+            setCurrentExample(null);
+            setSource(css);
+            setImportResult(null);
+            setError(null);
+          }}
+        />
       </div>
 
       {showImport && (
