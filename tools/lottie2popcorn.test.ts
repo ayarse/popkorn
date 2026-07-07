@@ -67,19 +67,21 @@ test('keyframes past comp op are clamped to the comp playback window', () => {
   expect(firstAnimDuration(css)).toBeCloseTo(1, 2);
 });
 
-test('layer start-time (st) still offsets an in-window animation (kept, not dropped)', () => {
-  // Keyframes at t=60..120 with st=60 play at effective comp frames 120..180,
-  // inside the 180-frame comp, so the animation survives and its delay includes
-  // st: (60-0)/30 + 60/30 = 4s. This locks in lottie-web's (compFrame - st) model.
+test('layer start-time (st) does NOT offset a layer\'s own keyframes', () => {
+  // A layer's transform keyframe times are stored in comp-global frames, and
+  // lottie-web samples them at the comp frame directly (verified: a keyframe at
+  // stored time t renders at comp frame t, NOT t+st). So keyframes at t=60..120
+  // play at comp frames 60..120 regardless of st — delay is (60-0)/30 = 2s, with
+  // no st term. (st matters only as a precomp instance's subtree time-offset.)
   const css = new Converter().convert(comp(180, [60, 120], /*st*/ 60, /*ip*/ 0));
-  expect(firstAnimDelay(css)).toBeCloseTo(4, 2);
+  expect(firstAnimDelay(css)).toBeCloseTo(2, 2);
 });
 
-test('a windowed layer scheduled entirely past op holds its first keyframe (no anim)', () => {
-  // st=60 shifts the keyframes (t=60,120) to effective comp frames 120,180 — both
-  // past this comp's op=60, so lottie-web never plays them; the layer holds its
-  // first-keyframe pose. The clamp must collapse the animation to a static value.
-  const css = new Converter().convert(comp(60, [60, 120], /*st*/ 60, /*ip*/ 0));
+test('a layer whose keyframes are (mostly) past op holds its first keyframe (no anim)', () => {
+  // Keyframes at comp frames 60,120 with op=60: only t=60 sits at the window
+  // edge and t=120 is past it, so the clamp collapses the track to a single
+  // in-window sample — a static first-keyframe pose, no animation.
+  const css = new Converter().convert(comp(60, [60, 120], /*st*/ 0, /*ip*/ 0));
   expect(css).not.toContain('animation:');
 });
 

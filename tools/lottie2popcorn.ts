@@ -624,7 +624,7 @@ export class Converter {
       const assetRules = this.buildLayerList(asset.layers, id, aip, aop);
       this.compStack.delete(l.refId);
       group.children.push(...assetRules, ...childRules);
-      this.finalizeAnim(group, 0);
+      this.finalizeAnim(group);
       return record(group);
     }
 
@@ -642,7 +642,7 @@ export class Converter {
       this.applyTransform(l.ks, img, st);
       if (mask) this.applyMask(img, mask);
       img.children.push(...childRules);
-      this.finalizeAnim(img, st);
+      this.finalizeAnim(img);
       return record(img);
     }
 
@@ -654,7 +654,7 @@ export class Converter {
       this.applyTransform(l.ks, rect, st);
       if (childRules.length === 0) {
         if (mask) this.applyMask(rect, mask);
-        this.finalizeAnim(rect, st);
+        this.finalizeAnim(rect);
         return record(rect);
       }
       // Solid used as a parent: wrap the rect in a group carrying the transform.
@@ -668,7 +668,7 @@ export class Converter {
       rect.decls = rect.decls.filter((d) => !d.startsWith('transform'));
       rect.channels = [];
       group.children.push(rect, ...childRules);
-      this.finalizeAnim(group, st);
+      this.finalizeAnim(group);
       return record(group);
     }
 
@@ -685,7 +685,7 @@ export class Converter {
       group.children.push(...shapeChildren);
     }
     group.children.push(...childRules);
-    this.finalizeAnim(group, st);
+    this.finalizeAnim(group);
     return record(group);
   }
 
@@ -1130,7 +1130,7 @@ export class Converter {
           if (miterLimit != null && miterLimit !== 4) node.decls.push(`stroke-miterlimit: ${num(miterLimit)}`);
           if (dashArray) node.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
           if (dashOffset) node.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
-          this.finalizeAnim(node, 0);
+          this.finalizeAnim(node);
           hoistStroke = node;
           // The fills below now paint unstroked; the hoisted node is the stroke.
           stroke = null; strokeWidth = null; lineCap = null; lineJoin = null; miterLimit = null; dashArray = null; dashOffset = 0;
@@ -1199,7 +1199,7 @@ export class Converter {
           if (merged) {
             if (stroke) this.warnOnce('stroke on a merged path shows interior seams (fills are unioned, strokes are not)');
             applyStyle(merged);
-            this.finalizeAnim(merged, 0);
+            this.finalizeAnim(merged);
             out.push(merged);
           }
         } else {
@@ -1223,7 +1223,7 @@ export class Converter {
         const tr = (it.it || []).find((x: any) => x.ty === 'tr');
         if (tr) this.applyTransform(trToKs(tr), grp, 0);
         grp.children.push(...this.processItems(it.it || [], gid, style));
-        this.finalizeAnim(grp, 0);
+        this.finalizeAnim(grp);
         out.push(grp);
       } else if (it.ty === 'rc' || it.ty === 'el' || it.ty === 'sh' || it.ty === 'sr') {
         if (drawIdx < 0) drawIdx = out.length;
@@ -1239,7 +1239,7 @@ export class Converter {
         const node = make();
         if (!node) return;
         applyStyle(node, layer);
-        this.finalizeAnim(node, 0);
+        this.finalizeAnim(node);
         out.splice(drawIdx + i, 0, node);
       });
     };
@@ -1447,17 +1447,19 @@ export class Converter {
 
   // --- animation assembly -------------------------------------------------
 
-  private finalizeAnim(rule: Rule, st: number) {
+  private finalizeAnim(rule: Rule) {
     if (rule.channels.length === 0) return;
 
-    // lottie-web evaluates a layer's keyframes at (compFrame − st) and renders
-    // only the comp's [ip, op] window, so a keyframe at stored time t plays at
-    // effective comp frame t + st and shows only while ip ≤ t + st ≤ op. Clamp a
-    // channel's window to that range (stored-time bounds [ip − st, op − st]); AE
-    // often leaves keyframes past the work area (op) that never play. When a
-    // track runs past a bound, keep the bound itself (sampled) so the node holds
-    // its pose there — a track entirely past op collapses to its first keyframe.
-    const lo = this.clampIp - st, hi = this.clampOp - st;
+    // A layer's transform keyframe times are stored in comp-global frames, and
+    // lottie-web samples them at the comp frame directly — it does NOT subtract
+    // the layer's own `st` (verified against lottie-web: a keyframe at stored
+    // time t renders at comp frame t). A precomp instance's `st` shifts its whole
+    // subtree and is emitted as `time-offset` on the group, never folded in here.
+    // Clamp each channel to the comp's [ip, op] window; AE often leaves keyframes
+    // past the work area (op) that never play. When a track runs past a bound,
+    // keep the bound itself (sampled) so the node holds its pose there — a track
+    // entirely past op collapses to its first keyframe.
+    const lo = this.clampIp, hi = this.clampOp;
     const anims: AnimSpec[] = [];
 
     // Each animated channel becomes its OWN @keyframes on its OWN keyframe times
@@ -1499,7 +1501,7 @@ export class Converter {
         name: this.uniqueId(rule.id + '-k'),
         blocks,
         durationSec: span / this.fr,
-        delaySec: (t0 - this.ip) / this.fr + st / this.fr,
+        delaySec: (t0 - this.ip) / this.fr,
         defaultEasing: modalEasing(blocks),
       });
     }
