@@ -23,7 +23,19 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { ChevronDown, Upload, AlertCircle, Check } from "lucide-react";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  ChevronDown,
+  Upload,
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const enc = new TextEncoder();
@@ -35,24 +47,37 @@ function humanBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function pct(lottie: number, popcorn: number): string {
-  if (lottie === 0) return "";
-  const d = ((popcorn - lottie) / lottie) * 100;
-  return ` (${d > 0 ? "+" : ""}${d.toFixed(1)}%)`;
+function pct(lottie: number, popcorn: number): number {
+  if (lottie === 0) return 0;
+  return ((popcorn - lottie) / lottie) * 100;
 }
 
-function sizeSummary(rawLottie: string, css: string): string {
-  const lRaw = bytes(rawLottie);
-  const pRaw = bytes(css);
-  let line = `Lottie ${humanBytes(lRaw)} → Popcorn ${humanBytes(pRaw)}${pct(lRaw, pRaw)}`;
+function fmtPct(d: number): string {
+  return `${d > 0 ? "+" : ""}${d.toFixed(1)}%`;
+}
+
+type SizePair = { lottie: number; popcorn: number };
+
+type ImportResult = {
+  label: string;
+  warnings: string[];
+  blocked: string[];
+  raw: SizePair;
+  min?: SizePair;
+};
+
+function buildImportResult(label: string, rawLottie: string, css: string): ImportResult {
+  const raw: SizePair = { lottie: bytes(rawLottie), popcorn: bytes(css) };
+  let min: SizePair | undefined;
   try {
-    const lMin = bytes(JSON.stringify(JSON.parse(rawLottie)));
-    const pMin = bytes(serialize(parse(css), { minify: true }));
-    line += ` · minified: ${humanBytes(lMin)} → ${humanBytes(pMin)}${pct(lMin, pMin)}`;
+    min = {
+      lottie: bytes(JSON.stringify(JSON.parse(rawLottie))),
+      popcorn: bytes(serialize(parse(css), { minify: true })),
+    };
   } catch {
     // Degrade to unminified sizes only rather than breaking the import.
   }
-  return line;
+  return { label, warnings: [], blocked: [], raw, min };
 }
 
 const PLAYER_BACKGROUNDS = [
@@ -70,8 +95,7 @@ function App() {
   const [currentExample, setCurrentExample] = useState<string | null>("motion");
   const [source, setSource] = useState(examples[1].source);
   const [error, setError] = useState<string | null>(null);
-  const [importStatus, setImportStatus] = useState<string | null>(null);
-  const [sizeStatus, setSizeStatus] = useState<string | null>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [bgIndex, setBgIndex] = useState(4); // Ink
 
@@ -82,8 +106,6 @@ function App() {
 
   function importLottie(text: string, label: string): boolean {
     setError(null);
-    setImportStatus(null);
-    setSizeStatus(null);
     let lottie: any;
     try {
       lottie = JSON.parse(text);
@@ -95,14 +117,10 @@ function App() {
       const { css, warnings, blocked } = convertLottie(lottie);
       setCurrentExample(null);
       setSource(css);
-      const parts: string[] = [];
-      if (warnings.length)
-        parts.push(`${warnings.length} warning${warnings.length === 1 ? "" : "s"}: ${warnings.join("; ")}`);
-      if (blocked.length) parts.push(`blocked: ${blocked.join("; ")}`);
-      setImportStatus(
-        parts.length ? `Imported ${label} — ${parts.join(" | ")}` : `Imported ${label}`
-      );
-      setSizeStatus(sizeSummary(text, css));
+      const result = buildImportResult(label, text, css);
+      result.warnings = warnings;
+      result.blocked = blocked;
+      setImportResult(result);
       return true;
     } catch (e: any) {
       setError(`Lottie conversion failed: ${e.message}`);
@@ -151,8 +169,7 @@ function App() {
                 checked={currentExample === ex.key}
                 onCheckedChange={() => {
                   setCurrentExample(ex.key);
-                  setImportStatus(null);
-                  setSizeStatus(null);
+                  setImportResult(null);
                   setError(null);
                 }}
               >
@@ -163,6 +180,9 @@ function App() {
         </DropdownMenu>
 
         <div className="ml-auto flex items-center gap-2">
+          {importResult && (
+            <ImportStatusChip result={importResult} onDismiss={() => setImportResult(null)} />
+          )}
           <Button
             variant="secondary"
             size="sm"
@@ -174,19 +194,6 @@ function App() {
           </Button>
         </div>
       </header>
-
-      {/* Import metadata strip */}
-      {(importStatus || sizeStatus) && (
-        <div className="flex shrink-0 flex-wrap items-baseline gap-x-5 gap-y-1 border-b border-border bg-card/40 px-4 py-2 text-xs">
-          {importStatus && (
-            <span className="flex items-center gap-1.5 font-medium text-primary">
-              <Check className="size-3.5" />
-              {importStatus}
-            </span>
-          )}
-          {sizeStatus && <span className="font-mono text-muted-foreground">{sizeStatus}</span>}
-        </div>
-      )}
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
@@ -266,6 +273,137 @@ function App() {
           onClose={() => setShowImport(false)}
         />
       )}
+    </div>
+  );
+}
+
+function ImportStatusChip({
+  result,
+  onDismiss,
+}: {
+  result: ImportResult;
+  onDismiss: () => void;
+}) {
+  const { label, warnings, blocked, raw, min } = result;
+  const hasIssues = warnings.length > 0 || blocked.length > 0;
+  const deltaPct = pct(raw.lottie, raw.popcorn);
+  const minDeltaPct = min ? pct(min.lottie, min.popcorn) : 0;
+
+  return (
+    <div className="flex items-center overflow-hidden rounded-md border border-border">
+      {/* Dismiss */}
+      <button
+        onClick={onDismiss}
+        className="flex h-8 items-center px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+        aria-label="Dismiss"
+      >
+        <X className="size-3.5" />
+      </button>
+
+      {/* Status — opens popover */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40">
+            {hasIssues ? (
+              <AlertTriangle className="size-3.5 text-amber-500" />
+            ) : (
+              <Check className="size-3.5 text-emerald-500" />
+            )}
+            <span className="max-w-[160px] truncate">{label}</span>
+            {warnings.length > 0 && (
+              <span className="rounded-sm bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-500">
+                {warnings.length}w
+              </span>
+            )}
+            {blocked.length > 0 && (
+              <span className="rounded-sm bg-destructive/15 px-1 text-[10px] font-semibold text-destructive">
+                {blocked.length}b
+              </span>
+            )}
+            <span className="ml-0.5 font-mono text-[11px] text-muted-foreground">
+              {fmtPct(deltaPct)}
+            </span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80">
+          <div className="border-b border-border px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
+              {hasIssues ? (
+                <AlertTriangle className="size-3.5 text-amber-500" />
+              ) : (
+                <Check className="size-3.5 text-emerald-500" />
+              )}
+              Imported {label}
+            </div>
+          </div>
+
+          {/* Size delta */}
+          <div className="px-3 py-2.5 text-xs">
+            <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
+              <span className="w-2/5" />
+              <span className="flex-1 whitespace-nowrap text-center">Lottie</span>
+              <span className="flex-1 whitespace-nowrap text-center">Popcorn</span>
+              <span className="w-12 whitespace-nowrap text-center">Δ</span>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 font-mono">
+                <span className="w-2/5 text-muted-foreground">Raw</span>
+                <span className="flex-1 whitespace-nowrap text-center">{humanBytes(raw.lottie)}</span>
+                <span className="flex-1 whitespace-nowrap text-center">{humanBytes(raw.popcorn)}</span>
+                <span className={`w-12 whitespace-nowrap text-center ${deltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                  {fmtPct(deltaPct)}
+                </span>
+              </div>
+              {min && (
+                <div className="flex items-center gap-2 font-mono">
+                  <span className="w-2/5 text-muted-foreground">Minified</span>
+                  <span className="flex-1 whitespace-nowrap text-center">{humanBytes(min.lottie)}</span>
+                  <span className="flex-1 whitespace-nowrap text-center">{humanBytes(min.popcorn)}</span>
+                  <span className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}>
+                    {fmtPct(minDeltaPct)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Warnings */}
+          {warnings.length > 0 && (
+            <div className="border-t border-border px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-500">
+                <AlertTriangle className="size-3.5" />
+                {warnings.length} warning{warnings.length === 1 ? "" : "s"}
+              </div>
+              <ul className="max-h-40 space-y-1.5 overflow-auto pr-1 text-[11px] leading-relaxed text-muted-foreground">
+                {warnings.map((w, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="mt-1 size-1 shrink-0 rounded-full bg-amber-500/70" />
+                    <span>{w}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Blocked */}
+          {blocked.length > 0 && (
+            <div className="border-t border-border px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-destructive">
+                <AlertCircle className="size-3.5" />
+                Blocked (not converted)
+              </div>
+              <ul className="max-h-40 space-y-1.5 overflow-auto pr-1 text-[11px] leading-relaxed text-muted-foreground">
+                {blocked.map((b, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="mt-1 size-1 shrink-0 rounded-full bg-destructive/70" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
