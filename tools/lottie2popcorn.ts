@@ -289,6 +289,11 @@ export class Converter {
   private compStack = new Set<string>();
   fr = 60;
   ip = 0;
+  // Playback window [ip, op] (frames) of the comp currently being built, used to
+  // clamp animation windows to what lottie-web actually renders. Set per comp in
+  // buildLayerList (save/restore around precomp recursion).
+  private clampIp = -Infinity;
+  private clampOp = Infinity;
 
   warnOnce(msg: string) {
     if (!this.warnings.includes(msg)) this.warnings.push(msg);
@@ -374,6 +379,11 @@ export class Converter {
    * multiple instances of the same precomp never collide.
    */
   private buildLayerList(layers: any[], prefix: string, compIp: number, compOp: number): Rule[] {
+    // Scope the animation-clamp window to this comp (restored after, so a nested
+    // precomp's window doesn't leak back into its parent).
+    const prevClampIp = this.clampIp, prevClampOp = this.clampOp;
+    this.clampIp = compIp; this.clampOp = compOp;
+
     const byInd = new Map<number, any>();
     // Global paint-stack index of each layer (array order; earlier = on top).
     // Used to assign z-index so nested parented layers reproduce Lottie's stack
@@ -438,6 +448,8 @@ export class Converter {
       content.decls.push(`matte: #${source.id} ${mode}`);
     }
 
+    this.clampIp = prevClampIp;
+    this.clampOp = prevClampOp;
     return topRules;
   }
 
@@ -515,10 +527,16 @@ export class Converter {
 
       // Asset layers time in the asset's own frame space; map the precomp's
       // visible window [ip, op] (parent frames) through st/sr into that space so
-      // inner visibility windows are measured against the right comp bounds.
+      // inner visibility windows are measured against the right comp bounds. The
+      // window is first intersected with the parent's playback range [compIp,
+      // compOp]: a precomp only renders while it is on-screen, so this carries the
+      // root comp's op down through nested precomps (a child animation can't
+      // outlast the ancestor comp that stopped rendering it).
       const sr = typeof l.sr === 'number' && l.sr > 0 ? l.sr : 1;
-      const aip = ((typeof l.ip === 'number' ? l.ip : compIp) - st) / sr;
-      const aop = ((typeof l.op === 'number' ? l.op : compOp) - st) / sr;
+      const lip = Math.max(typeof l.ip === 'number' ? l.ip : compIp, compIp);
+      const lop = Math.min(typeof l.op === 'number' ? l.op : compOp, compOp);
+      const aip = (lip - st) / sr;
+      const aop = (lop - st) / sr;
       this.compStack.add(l.refId);
       const assetRules = this.buildLayerList(asset.layers, id, aip, aop);
       this.compStack.delete(l.refId);
@@ -1180,11 +1198,26 @@ export class Converter {
     // Union of keyframe times across the node's channels.
     const timeSet = new Set<number>();
     for (const ch of rule.channels) for (const k of ch.kfs) timeSet.add(k.t);
-    const times = [...timeSet].sort((a, b) => a - b);
+    let times = [...timeSet].sort((a, b) => a - b);
 
-    // A single time = degenerate; bake it as static and drop the animation.
+    // lottie-web evaluates a layer's keyframes at (compFrame − st) and renders
+    // only the comp's [ip, op] window, so a keyframe at stored time t plays at
+    // effective comp frame t + st and shows only while ip ≤ t + st ≤ op. Clamp the
+    // animation window to that range (stored-time bounds [ip − st, op − st]); AE
+    // often leaves keyframes past the work area (op) that never play. When the
+    // track runs past a bound, keep the bound itself (sampled) so the node holds
+    // its pose there — a track entirely past op collapses to its first keyframe.
+    const lo = this.clampIp - st, hi = this.clampOp - st;
+    if (Number.isFinite(lo) && Number.isFinite(hi) && (times[0] < lo || times[times.length - 1] > hi)) {
+      const inRange = times.filter((t) => t >= lo && t <= hi);
+      if (times.some((t) => t > hi) && (inRange.length === 0 || inRange[inRange.length - 1] < hi)) inRange.push(hi);
+      if (times.some((t) => t < lo) && (inRange.length === 0 || inRange[0] > lo)) inRange.unshift(lo);
+      times = inRange;
+    }
+
+    // A single (or fully clamped-away) time = degenerate; bake static, drop anim.
     if (times.length < 2) {
-      const s = mergeSamples(rule.channels.map((c) => c.sample(times[0] ?? 0)));
+      const s = mergeSamples(rule.channels.map((c) => c.sample(times[0] ?? lo)));
       rule.decls.push(...declsFromSample(s));
       rule.channels = [];
       return;
