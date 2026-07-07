@@ -266,6 +266,10 @@ interface AnimSpec {
   blocks: { offset: number; decls: string[]; easing?: string }[];
   durationSec: number;
   delaySec: number;
+  // Modal per-segment easing, hoisted into the `animation:` shorthand's timing
+  // slot so matching keyframes can drop their own `animation-timing-function`.
+  // The player resolves `prev.easing || defaultEasing`, so this is loss-free.
+  defaultEasing: string;
 }
 
 interface Rule {
@@ -1496,6 +1500,7 @@ export class Converter {
         blocks,
         durationSec: span / this.fr,
         delaySec: (t0 - this.ip) / this.fr + st / this.fr,
+        defaultEasing: modalEasing(blocks),
       });
     }
 
@@ -1786,11 +1791,33 @@ function assetSrc(asset: any): string {
 // Serialization
 // ---------------------------------------------------------------------------
 
+/** The most common per-segment easing across a track's non-last keyframes. A
+ * segment with no explicit easing renders linear, so absent easing votes as
+ * 'linear'. First-seen wins on ties (deterministic given block order). This
+ * value goes in the `animation:` shorthand; keyframes matching it drop their
+ * own `animation-timing-function` (player: `prev.easing || defaultEasing`). */
+function modalEasing(blocks: AnimSpec['blocks']): string {
+  const votes = new Map<string, number>();
+  for (let i = 0; i < blocks.length - 1; i++) {
+    const e = blocks[i].easing ?? 'linear';
+    votes.set(e, (votes.get(e) || 0) + 1);
+  }
+  let modal = 'linear', best = 0;
+  for (const [e, c] of votes) if (c > best) { best = c; modal = e; }
+  return modal;
+}
+
 function serializeKeyframes(anim: AnimSpec): string {
   const lines: string[] = [`@keyframes ${anim.name} {`];
-  for (const b of anim.blocks) {
+  const last = anim.blocks.length - 1;
+  for (let i = 0; i < anim.blocks.length; i++) {
+    const b = anim.blocks[i];
     const inner = b.decls.map((d) => `${d};`);
-    if (b.easing) inner.push(`animation-timing-function: ${b.easing};`);
+    // Emit easing only when it differs from the shorthand default. The last
+    // keyframe has no outgoing segment, so its easing never renders — drop it.
+    if (i < last && (b.easing ?? 'linear') !== anim.defaultEasing) {
+      inner.push(`animation-timing-function: ${b.easing ?? 'linear'};`);
+    }
     lines.push(`  ${num(b.offset)}% { ${inner.join(' ')} }`);
   }
   lines.push(`}`);
@@ -1808,7 +1835,7 @@ function serializeRule(rule: Rule, depth: number, top: boolean): string {
     // One comma-separated entry per channel; a single `animation-fill-mode: both`
     // longhand applies to every entry (the player carries it to each instance).
     const entries = rule.anims.map((a) => {
-      const parts = [a.name, `${num(a.durationSec, 3)}s`, 'linear', '1'];
+      const parts = [a.name, `${num(a.durationSec, 3)}s`, a.defaultEasing, '1'];
       if (Math.abs(a.delaySec) > 1e-6) parts.push(`${num(a.delaySec, 3)}s`);
       return parts.join(' ');
     });
