@@ -934,8 +934,6 @@ export class SceneBuilder {
           name = kw;
         } else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-end') {
           timingFunction = kw;
-        } else if (kw === 'hold') {
-          timingFunction = 'step-end';
         } else if (kw === 'infinite') {
           iterationCount = Infinity;
         } else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') {
@@ -1324,10 +1322,6 @@ export class SceneBuilder {
         easingStr === 'ease-in-out' || easingStr === 'step-end') {
       return easingStr;
     }
-    // `hold` is an alias for step-end (holds the departing keyframe's value).
-    if (easingStr === 'hold') {
-      return 'step-end';
-    }
 
     // Check for cubic-bezier()
     const cubicBezierMatch = easingStr.match(/^cubic-bezier\(\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)$/);
@@ -1376,7 +1370,7 @@ export class SceneBuilder {
           else if (output === null) output = ms;
         } else if (isFunctionValue(p) && p.name === 'cubic-bezier') {
           easing = this.parseCubicBezierFunction(p);
-        } else if (isKeywordValue(p) && (p.value === 'step-end' || p.value === 'hold')) {
+        } else if (isKeywordValue(p) && p.value === 'step-end') {
           easing = 'step-end';
         } else if (isKeywordValue(p) && (
           p.value === 'linear' || p.value === 'ease' || p.value === 'ease-in' ||

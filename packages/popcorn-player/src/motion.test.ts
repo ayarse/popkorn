@@ -62,14 +62,14 @@ test('step-end: holds the departing value across the segment, then jumps (number
   expect(node.fill).toBe('rgb(100, 0, 0)');
 });
 
-test('step-end parses from the animation shorthand and per-keyframe (hold alias)', () => {
+test('step-end parses from the animation shorthand and per-keyframe', () => {
   const root = build(`
-    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; animation-timing-function: hold; } 100% { opacity: 1; } }
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; animation-timing-function: step-end; } 100% { opacity: 1; } }
     #a { type: circle; r: 10px; animation: blink 1s step-end infinite; }
   `);
   const node = root.children[0];
   expect(node.animations[0].timingFunction).toBe('step-end');
-  // The 50% keyframe's `hold` easing normalized to step-end.
+  // The 50% keyframe's step-end easing.
   const mid = node.animations[0].keyframes.find((k) => k.offset === 0.5)!;
   expect(mid.easing).toBe('step-end');
 });

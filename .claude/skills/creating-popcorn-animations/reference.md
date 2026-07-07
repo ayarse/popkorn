@@ -377,7 +377,6 @@ animation: slide 1s cubic-bezier(0.42,0,0.58,1) 2 reverse 0.5s;
 |---|---|---|
 | keyword matching a `@keyframes` name | animation `name` | required |
 | `linear`/`ease`/`ease-in`/`ease-out`/`ease-in-out`/`step-end` | timing fn | `ease` |
-| `hold` | alias for `step-end` | |
 | `cubic-bezier(x1,y1,x2,y2)` | timing fn | |
 | `infinite` | iteration count ∞ | `1` |
 | bare integer `0 < n < 100` | iteration count | `1` |
@@ -444,7 +443,7 @@ Path shape: **`d` morphs** — interpolated when both keyframe paths have the **
 }
 ```
 
-### Per-keyframe easing & hold keyframes
+### Per-keyframe easing & step-end (hold) keyframes
 
 Put `animation-timing-function:` **inside** a keyframe block — controls the transition **from that keyframe to the next**:
 
@@ -456,7 +455,7 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 }
 ```
 
-`step-end`/`hold` holds the *from* value and jumps at the next keyframe. No easing → falls back to the animation-level timing function.
+`step-end` holds the *from* value and jumps at the next keyframe. No easing → falls back to the animation-level timing function.
 
 ---
 
@@ -469,10 +468,10 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 | `ease-in` | cubic-bezier(0.42, 0, 1, 1) |
 | `ease-out` | cubic-bezier(0, 0, 0.58, 1) |
 | `ease-in-out` | cubic-bezier(0.42, 0, 0.58, 1) |
-| `step-end` / `hold` | hold 0 until t=1, then 1 |
+| `step-end` | hold 0 until t=1, then 1 |
 | `cubic-bezier(x1,y1,x2,y2)` | custom (Newton-Raphson solve) |
 
-**`steps()` NOT supported** — only `step-end`/`hold`.
+**`steps()` NOT supported** — only `step-end`.
 
 Direction semantics: `normal` → progress; `reverse` → 1−progress; `alternate` → forward on even iterations, back on odd; `alternate-reverse` → opposite parity. The held final frame under `forwards`/`both` accounts for direction and iteration parity.
 
@@ -633,7 +632,7 @@ player.source = myDslCode;   // parse + build + play
 - **`fill` and `stroke` default to `none`** — `stroke-width: 1` alone paints nothing.
 - **fill-mode defaults to `forwards`**, not CSS's `none`.
 - **1000ms duration is real**, not a sentinel; the second shorthand time value is always the delay.
-- **`hold` = `step-end`**; **`infinite` = ∞ iterations**.
+- **`infinite` = ∞ iterations**.
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
 - **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href` (use `src`), `sides` (use `points`).
 - **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
