@@ -15,6 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
   DropdownMenuCheckboxItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -29,12 +31,23 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import {
   ChevronDown,
   Upload,
   AlertCircle,
   AlertTriangle,
   Check,
   X,
+  PanelBottom,
+  PanelBottomDashed,
+  Repeat,
+  RepeatOff,
+  Maximize,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +104,15 @@ const PLAYER_BACKGROUNDS = [
   { name: "Cobalt", value: "#1a1f4d", swatch: "#1a1f4d" },
 ];
 
+type FitMode = "contain" | "cover" | "fill" | "none";
+
+const FIT_MODES: { value: FitMode; label: string }[] = [
+  { value: "contain", label: "Contain" },
+  { value: "cover", label: "Cover" },
+  { value: "fill", label: "Fill" },
+  { value: "none", label: "None" },
+];
+
 function App() {
   const [currentExample, setCurrentExample] = useState<string | null>("motion");
   const [source, setSource] = useState(examples[1].source);
@@ -98,6 +120,9 @@ function App() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [bgIndex, setBgIndex] = useState(4); // Ink
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [loop, setLoop] = useState(true);
+  const [fit, setFit] = useState<FitMode>("contain");
 
   useEffect(() => {
     const ex = examples.find((e) => e.key === currentExample);
@@ -140,6 +165,7 @@ function App() {
   const activeBg = PLAYER_BACKGROUNDS[bgIndex];
 
   return (
+    <TooltipProvider delayDuration={400}>
     <div className="flex h-full flex-col bg-background text-foreground">
       {/* Header — compact, Linear-style */}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
@@ -215,51 +241,159 @@ function App() {
         </div>
 
         {/* Animation panel */}
-        <div className="relative flex flex-1 items-center justify-center bg-background p-6 overflow-hidden">
-          <div
-            className="flex w-full max-w-[960px] rounded-xl border border-border/60 shadow-2xl shadow-black/30 overflow-hidden"
-            style={{ height: "100%", backgroundColor: activeBg.value === "transparent" ? undefined : activeBg.value }}
-          >
-            <MotionCanvas
-              source={source}
-              style={{ height: "100%", backgroundColor: activeBg.value }}
-              onError={(err) => setError(err.message)}
-              onSceneReady={() => setError(null)}
-            />
+        <div className="flex flex-1 flex-col bg-background overflow-hidden">
+          {/* Toolbar */}
+          <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
+            <div className="ml-auto flex items-center gap-1">
+              {/* Fit mode */}
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="gap-1.5">
+                        <Maximize className="size-3.5" />
+                        {FIT_MODES.find((m) => m.value === fit)?.label}
+                        <ChevronDown className="size-3 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Fit mode</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" className="w-32">
+                  <DropdownMenuRadioGroup
+                    value={fit}
+                    onValueChange={(v) => setFit(v as FitMode)}
+                  >
+                    {FIT_MODES.map((m) => (
+                      <DropdownMenuRadioItem key={m.value} value={m.value}>
+                        {m.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Loop toggle */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setLoop((v) => !v)}
+                  >
+                    {loop ? (
+                      <Repeat className="size-4" />
+                    ) : (
+                      <RepeatOff className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {loop ? "Loop playback" : "Loop playback (off)"}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Toggle playback controls */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setControlsVisible((v) => !v)}
+                  >
+                    {controlsVisible ? (
+                      <PanelBottom className="size-4" />
+                    ) : (
+                      <PanelBottomDashed className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {controlsVisible ? "Hide playback controls" : "Show playback controls"}
+                </TooltipContent>
+              </Tooltip>
+
+              <div className="mx-1 h-5 w-px bg-border" />
+
+              {/* Background color picker */}
+              <Popover>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <PopoverTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <span
+                          className="size-4 rounded-full border border-border/60"
+                          style={
+                            activeBg.value === "transparent"
+                              ? {
+                                  backgroundImage:
+                                    "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
+                                  backgroundColor: "var(--background)",
+                                }
+                              : { backgroundColor: activeBg.swatch }
+                          }
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Background color</TooltipContent>
+                </Tooltip>
+                <PopoverContent align="end" className="w-48 p-1.5">
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {PLAYER_BACKGROUNDS.map((bg, i) => (
+                      <button
+                        key={bg.name}
+                        onClick={() => setBgIndex(i)}
+                        className={cn(
+                          "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors hover:bg-secondary/60",
+                          bgIndex === i && "bg-secondary/60"
+                        )}
+                      >
+                        <span
+                          className="size-3.5 shrink-0 rounded-full border border-border/40"
+                          style={
+                            bg.value === "transparent"
+                              ? {
+                                  backgroundImage:
+                                    "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
+                                  backgroundColor: "var(--background)",
+                                }
+                              : { backgroundColor: bg.swatch }
+                          }
+                        />
+                        <span className="truncate">{bg.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
-          {/* Error toast */}
-          {error && (
-            <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground backdrop-blur-md">
-              <AlertCircle className="size-4 shrink-0 text-destructive" />
-              <span className="max-w-[420px] truncate font-mono">{error}</span>
-            </div>
-          )}
-
-          {/* Background color picker — circle swatches */}
-          <div className="absolute right-5 top-5 z-20 flex items-center gap-1.5 rounded-full border border-border/70 bg-background/70 p-1.5 backdrop-blur-md">
-            {PLAYER_BACKGROUNDS.map((bg, i) => (
-              <button
-                key={bg.name}
-                title={bg.name}
-                onClick={() => setBgIndex(i)}
-                className={cn(
-                  "size-5 rounded-full border transition-all hover:scale-110",
-                  bgIndex === i
-                    ? "border-primary ring-2 ring-ring ring-offset-2 ring-offset-background"
-                    : "border-border/40"
-                )}
-                style={
-                  bg.value === "transparent"
-                    ? {
-                        backgroundImage:
-                          "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
-                        backgroundColor: "var(--background)",
-                      }
-                    : { backgroundColor: bg.swatch }
-                }
+          {/* Player content */}
+          <div className="relative flex flex-1 items-center justify-center p-6 overflow-hidden">
+            <div
+              className="flex w-full max-w-[960px] rounded-xl border border-border/60 shadow-2xl shadow-black/30 overflow-hidden"
+              style={{ height: "100%", backgroundColor: activeBg.value === "transparent" ? undefined : activeBg.value }}
+            >
+              <MotionCanvas
+                source={source}
+                controls={controlsVisible}
+                loop={loop}
+                fit={fit}
+                style={{ height: "100%", backgroundColor: activeBg.value }}
+                onError={(err) => setError(err.message)}
+                onSceneReady={() => setError(null)}
               />
-            ))}
+            </div>
+
+            {/* Error toast */}
+            {error && (
+              <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground backdrop-blur-md">
+                <AlertCircle className="size-4 shrink-0 text-destructive" />
+                <span className="max-w-[420px] truncate font-mono">{error}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -274,6 +408,7 @@ function App() {
         />
       )}
     </div>
+    </TooltipProvider>
   );
 }
 
