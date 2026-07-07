@@ -85,6 +85,40 @@ test('a layer whose keyframes are (mostly) past op holds its first keyframe (no 
   expect(css).not.toContain('animation:');
 });
 
+/** Split position whose x and y animate on different grids with different easing. */
+function splitPosComp() {
+  const ease = (ox: number, ix: number) => ({ o: { x: ox, y: 0 }, i: { x: ix, y: 1 } });
+  return {
+    v: '5', fr: 30, ip: 0, op: 120, w: 100, h: 100,
+    layers: [{
+      ty: 4, nm: 'mover', ind: 1, ip: 0, op: 120, st: 0,
+      ks: {
+        p: {
+          s: true,
+          x: { a: 1, k: [{ t: 0, s: [0], ...ease(0.1, 0.9), h: 0 }, { t: 30, s: [40], h: 0 }] },
+          y: { a: 1, k: [{ t: 0, s: [0], ...ease(0.6, 0.3), h: 0 }, { t: 60, s: [80], h: 0 }] },
+        },
+        a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 },
+      },
+      shapes: [{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } },
+               { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 0, k: 100 } }],
+    }],
+  };
+}
+
+test('split position with per-axis easing emits independent translateX/translateY channels', () => {
+  // Lottie stores separate bezier tangents per axis. x (t=0..30) and y (t=0..60)
+  // diverge in both grid and easing, so folding them onto one translate() would
+  // force x's curve onto y. Each axis must become its own longhand channel with
+  // its own duration: 30f=1s for X, 60f=2s for Y.
+  const css = new Converter().convert(splitPosComp());
+  expect(css).toContain('translateX(');
+  expect(css).toContain('translateY(');
+  const animLine = css.match(/animation:[^;]*/)![0];
+  const durs = [...animLine.matchAll(/[\w-]+\s+([\d.]+)s/g)].map((m) => +m[1]).sort();
+  expect(durs).toEqual([1, 2]); // X span 30f=1s, Y span 60f=2s — two independent channels
+});
+
 function tmComp(tmKfs: any[]) {
   const inner = {
     ty: 4, nm: 'dot', ind: 1, ip: 0, op: 60, st: 0,

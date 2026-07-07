@@ -165,6 +165,21 @@ export function splitProp(p: any): Prop {
   return { animated: true, kfs, at };
 }
 
+/**
+ * Do the two axes of a split position/scale genuinely need per-axis timing?
+ * True when their keyframe grids differ, or (same grid) any per-segment easing
+ * or hold differs. When false the axes are interchangeable and the cleaner
+ * combined translate()/scale() is exact — so we only split when it matters.
+ */
+export function axesDiverge(x: Prop, y: Prop): boolean {
+  const xk = x.kfs, yk = y.kfs;
+  if (!xk || !yk) return false;
+  if (xk.length !== yk.length || xk.some((k, i) => k.t !== yk[i].t)) return true;
+  const ez = (k: Kf) =>
+    k.h === 1 ? 'h' : k.o && k.i ? `${first(k.o.x)},${first(k.o.y)},${first(k.i.x)},${first(k.i.y)}` : '';
+  return xk.some((k, i) => ez(k) !== ez(yk[i]));
+}
+
 /** Linear sample of a keyframe list at frame t (ignores easing; for cross-sampling). */
 function sampleAt(kfs: Kf[], t: number): number[] {
   const n = kfs.length;
@@ -214,7 +229,7 @@ interface Channel {
   sample: (t: number) => Sample; // dsl values at a frame
 }
 type Sample = Partial<{
-  tx: number; ty: number; rot: number; sx: number; sy: number;
+  tx: number; ty: number; txx: number; txy: number; rot: number; sx: number; sy: number;
   opacity: number; cx: number; cy: number; rx: number; ry: number;
   x: number; y: number; width: number; height: number;
   fill: string; stroke: string; strokeWidth: number;
@@ -849,6 +864,20 @@ export class Converter {
     if (p && p.animated && p.kfs && hasSpatialTangents(p.kfs)) {
       this.applyMotionPath(p.kfs, rule, ax, ay, ks.ao === 1, r);
       positionHandled = true;
+    }
+
+    // Split position whose axes carry their own keyframe times/easing: emit
+    // translateX and translateY as independent channels so each axis follows its
+    // true curve. Lottie stores separate bezier tangents per axis; the combined
+    // translate() can only carry one, so one axis's easing would bleed onto the
+    // other (visible as an off-time bounce). Only when the axes actually diverge.
+    if (!positionHandled && ks.p && ks.p.s === true) {
+      const px = prop(ks.p.x), py = prop(ks.p.y);
+      if (px && py && px.animated && py.animated && axesDiverge(px, py)) {
+        rule.channels.push({ priority: 5, kfs: px.kfs!, sample: (t) => ({ txx: (px.at(t)[0] || 0) - ax }) });
+        rule.channels.push({ priority: 5, kfs: py.kfs!, sample: (t) => ({ txy: (py.at(t)[0] || 0) - ay }) });
+        positionHandled = true;
+      }
     }
 
     // Static transform pieces.
@@ -1534,6 +1563,10 @@ function declsFromSample(s: Sample): string[] {
   const out: string[] = [];
   const tf: string[] = [];
   if (s.tx !== undefined || s.ty !== undefined) tf.push(`translate(${num(s.tx ?? 0)}px, ${num(s.ty ?? 0)}px)`);
+  // Split position: each axis is its own channel (own times + easing), so emit
+  // the single-axis longhand rather than folding both onto one translate().
+  if (s.txx !== undefined) tf.push(`translateX(${num(s.txx)}px)`);
+  if (s.txy !== undefined) tf.push(`translateY(${num(s.txy)}px)`);
   if (s.rot !== undefined) tf.push(`rotate(${num(s.rot)}deg)`);
   if (s.sx !== undefined || s.sy !== undefined) tf.push(`scale(${num(s.sx ?? 1)}, ${num(s.sy ?? 1)})`);
   if (tf.length) out.push(`transform: ${tf.join(' ')}`);
