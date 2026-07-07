@@ -57,7 +57,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --font-sans: "Inter", "Inter var", system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 @layer base {
