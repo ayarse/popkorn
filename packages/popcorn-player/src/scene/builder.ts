@@ -79,6 +79,9 @@ function warnIncompatibleObjectKeyframes(name: string, frames: KeyframeData[]): 
 export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
   private definitionsMap: Map<string, DefinitionRule> = new Map();
+  // Static :root custom properties, for build-time resolution of static var()
+  // references on non-animatable string properties (e.g. a hoisted image src).
+  private variablesMap: Map<string, Value> = new Map();
   // Nodes that authored a `matte:` reference, resolved to source nodes once the
   // whole tree is built (the source can live anywhere in the scene).
   private pendingMattes: { node: SceneNode; sourceId: string; mode: MatteMode }[] = [];
@@ -93,6 +96,9 @@ export class SceneBuilder {
     }
     for (const def of stylesheet.definitions) {
       this.definitionsMap.set(def.name, def);
+    }
+    for (const v of stylesheet.variables) {
+      this.variablesMap.set(v.name, v.value);
     }
 
     // Create root node
@@ -359,6 +365,17 @@ export class SceneBuilder {
 
   private applyDeclaration(node: SceneNode, decl: Declaration): void {
     const { property, value } = decl;
+
+    // Image src is static, so a `var()` reference to a :root custom property is
+    // resolved once here at build time (dedup hoists shared data URIs into
+    // :root). This must precede the generic binding path, which is numeric-only.
+    if (property === 'src' && isVariableRefValue(value)) {
+      const resolved = this.variablesMap.get(value.name) ?? value.fallback;
+      if (resolved && node.shapeData.type === 'image') {
+        (node.shapeData as ImageData).src = getStringValue(resolved);
+      }
+      return;
+    }
 
     // Check if this value contains a variable reference
     if (this.hasVariableReference(value)) {

@@ -302,6 +302,10 @@ export class Converter {
   private synthId = 1;
   private crossSampled = false;
   private assets = new Map<string, any>();
+  // Each emitted image node's src decl list + its asset id/data URI, so a data
+  // URI referenced by more than one node can be hoisted into a single :root
+  // custom property instead of being inlined (and duplicated) at every use.
+  private imageUses: { decls: string[]; assetId: string; uri: string }[] = [];
   // refIds of precomps currently being expanded, for cycle detection.
   private compStack = new Set<string>();
   fr = 60;
@@ -353,6 +357,9 @@ export class Converter {
       this.warnOnce('some nodes animate multiple properties with differing keyframe times; secondary props linear-sampled');
     }
 
+    // Hoist any data URI used by more than one node into a shared :root var.
+    const rootVars = this.dedupeImages();
+
     // Serialize.
     const out: string[] = [];
     out.push(`/* Generated from Lottie by tools/lottie2popcorn.ts */`);
@@ -363,6 +370,12 @@ export class Converter {
     out.push(`  height: ${num(h)}px;`);
     out.push(`}`);
     out.push('');
+    if (rootVars.length) {
+      out.push(`:root {`);
+      out.push(...rootVars);
+      out.push(`}`);
+      out.push('');
+    }
 
     const keyframeBlocks: string[] = [];
     const collectKf = (r: Rule) => {
@@ -384,6 +397,31 @@ export class Converter {
   }
 
   // --- layer list -> rules ------------------------------------------------
+
+  /**
+   * A data URI inlined at N>1 use sites is N-1 copies of dead weight (the FIFA
+   * preloader is 5x101KB = 51% of its output). Rewrite each such src to
+   * `var(--img-<id>)` and return the `:root` declarations that define them once.
+   * Single-use assets stay inlined, so image-free / single-image files are
+   * byte-identical to before.
+   */
+  private dedupeImages(): string[] {
+    const count = new Map<string, number>();
+    for (const u of this.imageUses) count.set(u.assetId, (count.get(u.assetId) || 0) + 1);
+    const vars: string[] = [];
+    const seen = new Set<string>();
+    for (const u of this.imageUses) {
+      if ((count.get(u.assetId) || 0) < 2) continue;
+      const varName = `--img-${u.assetId.replace(/[^\w-]/g, '-')}`;
+      const i = u.decls.findIndex((d) => d.startsWith('src:'));
+      if (i >= 0) u.decls[i] = `src: var(${varName})`;
+      if (!seen.has(u.assetId)) {
+        seen.add(u.assetId);
+        vars.push(`  ${varName}: '${u.uri}';`);
+      }
+    }
+    return vars;
+  }
 
   private isConvertible(l: any): boolean {
     return l && (l.ty === 0 || l.ty === 1 || l.ty === 2 || l.ty === 3 || l.ty === 4);
@@ -568,7 +606,9 @@ export class Converter {
       const asset = this.assets.get(l.refId);
       if (!asset) { this.blocked.add('image layer missing asset'); throw new Error(`missing asset '${l.refId}'`); }
       const img: Rule = { id, type: 'image', decls: [], channels: [], children: [] };
-      img.decls.push(`src: '${assetSrc(asset)}'`, `x: 0`, `y: 0`);
+      const uri = assetSrc(asset);
+      img.decls.push(`src: '${uri}'`, `x: 0`, `y: 0`);
+      this.imageUses.push({ decls: img.decls, assetId: l.refId, uri });
       if (asset.w) img.decls.push(`width: ${num(asset.w)}px`);
       if (asset.h) img.decls.push(`height: ${num(asset.h)}px`);
       this.applyTransform(l.ks, img, st);
