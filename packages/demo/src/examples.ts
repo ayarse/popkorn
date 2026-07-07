@@ -15,7 +15,6 @@ export const examples: Example[] = [
 :canvas {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
 }
 
 /* Gradient backdrop card with a gradient hairline border */
@@ -98,7 +97,6 @@ export const examples: Example[] = [
 :canvas {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
 }
 
 /* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still (the
@@ -254,7 +252,6 @@ export const examples: Example[] = [
 :canvas {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
 }
 
 :root {
@@ -392,7 +389,6 @@ export const examples: Example[] = [
 :canvas {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
 }
 
 /* Reveal the stroke from 0% to 100% of its length */
@@ -472,7 +468,6 @@ export const examples: Example[] = [
 :canvas {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
 }
 
 @keyframes twinkle {
