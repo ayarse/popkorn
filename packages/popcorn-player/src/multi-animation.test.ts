@@ -69,3 +69,44 @@ test('the two animations touch distinct components (no clobber at the end)', () 
   expect(node.transform.translateX).toBe(100);
   expect(node.transform.rotate).toBe(90);
 });
+
+// --- animation-* longhands (WP7) --------------------------------------------
+// The longhands compose with the shorthand per CSS: later declarations win
+// per sub-property; the shorthand resets the whole list.
+
+const build1 = (decls: string) =>
+  findNode(buildSceneGraph(parse(
+    `@keyframes blink { 0% { opacity: 1; } 100% { opacity: 0; } }\n#n { type: circle; r: 5px; ${decls} }`
+  )), 'n');
+
+test('longhands alone (name + duration) build an animation', () => {
+  const node = build1('animation-name: blink; animation-duration: 2s;');
+  expect(node.animations).toHaveLength(1);
+  expect(node.animations[0].name).toBe('blink');
+  expect(node.animations[0].duration).toBe(2000);
+});
+
+test('a longhand overrides an earlier shorthand (later wins)', () => {
+  const node = build1('animation: blink 1s; animation-duration: 2s;');
+  expect(node.animations).toHaveLength(1);
+  expect(node.animations[0].duration).toBe(2000);
+});
+
+test('a shorthand resets an earlier longhand', () => {
+  // animation-duration:2s is wiped by the later shorthand, which sets 1s.
+  const node = build1('animation-duration: 2s; animation: blink 1s;');
+  expect(node.animations).toHaveLength(1);
+  expect(node.animations[0].duration).toBe(1000);
+});
+
+test('longhands cycle positionally across a two-animation list', () => {
+  const node = build1(
+    'animation-name: blink, blink; animation-duration: 1s, 2s; animation-iteration-count: infinite;'
+  );
+  expect(node.animations).toHaveLength(2);
+  expect(node.animations[0].duration).toBe(1000);
+  expect(node.animations[1].duration).toBe(2000);
+  // A single iteration-count cycles onto both animations.
+  expect(node.animations[0].iterationCount).toBe(Infinity);
+  expect(node.animations[1].iterationCount).toBe(Infinity);
+});

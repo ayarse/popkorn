@@ -355,12 +355,23 @@ Show a node (and its whole subtree) only during a time window, in **scene-local 
 
 ## 11. Animation
 
-Applied **only** through the `animation:` shorthand. All longhands except `animation-fill-mode` are no-ops.
+Set with the `animation:` shorthand and/or the `animation-*` longhands
+(`-name`, `-duration`, `-timing-function`, `-iteration-count`, `-direction`,
+`-delay`, `-fill-mode`). They compose per CSS: declarations apply in source
+order and later ones win **per sub-property**; the shorthand resets the whole
+list, a longhand overrides only its own sub-property. A comma-separated
+longhand is matched positionally against the animation list (shorter lists
+cycle).
 
 ```css
 animation: pulse 1.5s ease-in-out infinite;
 animation: spin 3s linear infinite;
 animation: slide 1s cubic-bezier(0.42,0,0.58,1) 2 reverse 0.5s;
+
+/* longhands, alone or refining a shorthand */
+animation-name: pulse;
+animation-duration: 1.5s;
+animation: fade 1s;  animation-duration: 2s;   /* duration → 2s (later wins) */
 ```
 
 ### Shorthand tokens (parsed by type, order-independent except time values)
@@ -381,10 +392,10 @@ animation: slide 1s cubic-bezier(0.42,0,0.58,1) 2 reverse 0.5s;
 
 ### fill-mode (deliberate CSS divergence)
 
-Defaults to **`forwards`** (CSS defaults to `none`) so scenes hold their final frame. The longhand always overrides the shorthand regardless of order:
+Defaults to **`forwards`** (CSS defaults to `none`) so scenes hold their final frame. The longhand composes by source order like any other sub-property — put it after the shorthand to override the shorthand's fill mode:
 
 ```css
-#node { animation: fade 1s ease; animation-fill-mode: both; }
+#node { animation: fade 1s ease; animation-fill-mode: both; }  /* → both */
 ```
 
 ### No duration sentinel

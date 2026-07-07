@@ -22,7 +22,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 2. Give every node an `#id` and a `type:` declaration. **No `type:` → it's a `group`.**
 3. Set geometry (props are type-gated: `r` only on circle, `cx/cy` on circle/ellipse/star/polygon…).
 4. Set paint: `fill` and `stroke` **both default to `none`** — a shape with only `stroke-width` shows nothing.
-5. Animate via `@keyframes name {…}` + the `animation:` shorthand. Longhands are no-ops (except `animation-fill-mode`).
+5. Animate via `@keyframes name {…}` + the `animation:` shorthand (or the `animation-*` longhands, which compose per CSS: later declarations win per sub-property).
 6. Verify by parsing (see below) — the parser won't catch dead properties, so cross-check names against reference.md.
 
 ## Quick reference

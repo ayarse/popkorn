@@ -134,9 +134,6 @@ export class SceneBuilder {
   // Nodes that authored a `mask:` reference, resolved to source nodes once the
   // whole tree is built (the source can live anywhere in the scene).
   private pendingMasks: { node: SceneNode; sourceId: string; mode: MaskMode }[] = [];
-  // Longhand animation-fill-mode for the node currently being built (it
-  // overrides any value in the animation shorthand, regardless of source order).
-  private pendingFillMode: AnimationFillMode | null = null;
 
   build(stylesheet: StyleSheet): SceneNode {
     // Index keyframes and symbol definitions by name
@@ -208,13 +205,12 @@ export class SceneBuilder {
       node.className = id;
     }
 
-    // Pre-scan the longhand animation-fill-mode so it wins over the shorthand.
-    this.pendingFillMode = this.findFillMode(rule.declarations);
-
     // Apply declarations
     this.applyDeclarations(node, rule.declarations);
 
-    this.pendingFillMode = null;
+    // Resolve the `animation` shorthand together with the `animation-*`
+    // longhands (CSS composition: later declarations win per sub-property).
+    this.resolveAnimations(node, rule.declarations);
 
     // Extract state-specific styles from pseudo rules
     if (rule.states && rule.states.length > 0) {
@@ -356,18 +352,6 @@ export class SceneBuilder {
       transform[key] = val;
     });
     return transform;
-  }
-
-  private findFillMode(declarations: Declaration[]): AnimationFillMode | null {
-    for (const decl of declarations) {
-      if (decl.property === 'animation-fill-mode' && isKeywordValue(decl.value)) {
-        const kw = decl.value.value;
-        if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') {
-          return kw;
-        }
-      }
-    }
-    return null;
   }
 
   private applyDeclarations(node: SceneNode, declarations: Declaration[]): void {
@@ -729,26 +713,16 @@ export class SceneBuilder {
           : getNumericValue(value); // ms (bare number or 'ms')
         break;
 
-      // Animation (shorthand)
+      // The `animation` shorthand and all `animation-*` longhands are resolved
+      // together (composed per CSS) by resolveAnimations after this pass.
       case 'animation':
-        this.applyAnimation(node, value);
-        break;
-
       case 'animation-name':
-        // Will be combined with other animation properties
-        break;
       case 'animation-duration':
-        break;
       case 'animation-timing-function':
-        break;
       case 'animation-iteration-count':
-        break;
       case 'animation-direction':
-        break;
       case 'animation-delay':
-        break;
       case 'animation-fill-mode':
-        // Handled by the pre-scan in buildNode (see pendingFillMode).
         break;
     }
 
@@ -902,93 +876,134 @@ export class SceneBuilder {
     }
   }
 
-  private applyAnimation(node: SceneNode, value: Value): void {
-    // A comma-separated `animation` shorthand is a list of independent
-    // animations; each group is one AnimationInstance. They layer on the node
-    // in order (invariant 2's animation-sampling step), so channels that touch
-    // distinct properties (translate vs rotate vs opacity) compose without
-    // clobbering. Recurse per group.
-    if (isListValue(value) && value.separator === 'comma') {
-      for (const item of value.values) this.applyAnimation(node, item);
-      return;
-    }
+  /**
+   * Compose the `animation` shorthand and the `animation-*` longhands into the
+   * node's animation instances, following CSS: declarations apply in source
+   * order and later ones win per sub-property. The shorthand is a comma list of
+   * independent animations (one instance each); a longhand is a comma list
+   * indexed positionally against them, shorter lists cycling. The shorthand
+   * resets the whole list; a longhand mutates only its own sub-property.
+   */
+  private resolveAnimations(node: SceneNode, declarations: Declaration[]): void {
+    let slots: AnimSlot[] | null = null;
+    // Grow (creating default slots) so a longhand seen before any shorthand can
+    // still define animations positionally.
+    const ensure = (n: number): AnimSlot[] => {
+      slots ??= [];
+      while (slots.length < n) slots.push(defaultAnimSlot());
+      return slots;
+    };
+    const eachSlot = (v: Value, fn: (slot: AnimSlot, val: Value) => void): void => {
+      const vals = commaValues(v);
+      const s = ensure(vals.length);
+      for (let i = 0; i < s.length; i++) fn(s[i], vals[i % vals.length]);
+    };
 
-    // Parse animation shorthand: name duration timing-function iteration-count direction
-    let values: Value[] = [];
-    if (isListValue(value)) {
-      values = value.values;
-    } else {
-      values = [value];
-    }
-
-    let name = '';
-    let duration = 1000;
-    let durationSet = false;
-    let timingFunction: TimingFunction = 'ease';
-    let iterationCount = 1;
-    let direction: AnimationDirection = 'normal';
-    let delay = 0;
-    // CSS default is 'none', but existing examples rely on animations holding
-    // their final frame after finishing, so we deliberately default to
-    // 'forwards'. A longhand `animation-fill-mode` (below) still overrides it.
-    let fillMode: AnimationFillMode = this.pendingFillMode ?? 'forwards';
-
-    for (const v of values) {
-      if (isKeywordValue(v)) {
-        const kw = v.value;
-        if (this.keyframesMap.has(kw)) {
-          name = kw;
-        } else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-end') {
-          timingFunction = kw;
-        } else if (kw === 'infinite') {
-          iterationCount = Infinity;
-        } else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') {
-          direction = kw;
-        } else if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') {
-          // A longhand animation-fill-mode still wins over the shorthand value.
-          fillMode = this.pendingFillMode ?? kw;
+    for (const decl of declarations) {
+      switch (decl.property) {
+        case 'animation': {
+          // Shorthand resets the whole animation list.
+          const groups = isListValue(decl.value) && decl.value.separator === 'comma'
+            ? decl.value.values : [decl.value];
+          slots = groups.map((g) => this.parseAnimationGroup(isListValue(g) ? g.values : [g]));
+          break;
         }
-      } else if (isFunctionValue(v) && v.name === 'cubic-bezier') {
-        // Handle cubic-bezier(x1, y1, x2, y2)
-        timingFunction = this.parseCubicBezierFunction(v);
-      } else if (isLengthValue(v)) {
-        // Time values are assigned by order (CSS rule): the first is duration,
-        // the second is delay — regardless of magnitude.
-        const ms = v.unit === 's' ? v.value * 1000 : v.unit === 'ms' ? v.value : null;
-        if (ms !== null) {
-          if (!durationSet) {
-            duration = ms;
-            durationSet = true;
-          } else {
-            delay = ms;
-          }
-        }
-      } else if (isNumberValue(v)) {
-        // Could be iteration count or duration
-        if (v.value === Math.floor(v.value) && v.value > 0 && v.value < 100) {
-          iterationCount = v.value;
-        }
-      } else if (isStringValue(v)) {
-        // Animation name as string
-        name = v.value;
+        case 'animation-name':
+          eachSlot(decl.value, (slot, v) => {
+            if (isKeywordValue(v) || isStringValue(v)) slot.name = v.value;
+          });
+          break;
+        case 'animation-duration':
+          eachSlot(decl.value, (slot, v) => {
+            const ms = timeMs(v);
+            if (ms !== null) { slot.duration = ms; slot.durationSet = true; }
+          });
+          break;
+        case 'animation-delay':
+          eachSlot(decl.value, (slot, v) => {
+            const ms = timeMs(v);
+            if (ms !== null) slot.delay = ms;
+          });
+          break;
+        case 'animation-timing-function':
+          eachSlot(decl.value, (slot, v) => { slot.timingFunction = this.timingFromValue(v); });
+          break;
+        case 'animation-iteration-count':
+          eachSlot(decl.value, (slot, v) => {
+            if (isKeywordValue(v) && v.value === 'infinite') slot.iterationCount = Infinity;
+            else if (isNumberValue(v)) slot.iterationCount = v.value;
+          });
+          break;
+        case 'animation-direction':
+          eachSlot(decl.value, (slot, v) => {
+            if (isKeywordValue(v) && (v.value === 'normal' || v.value === 'reverse' || v.value === 'alternate' || v.value === 'alternate-reverse')) {
+              slot.direction = v.value;
+            }
+          });
+          break;
+        case 'animation-fill-mode':
+          eachSlot(decl.value, (slot, v) => {
+            if (isKeywordValue(v) && (v.value === 'none' || v.value === 'forwards' || v.value === 'backwards' || v.value === 'both')) {
+              slot.fillMode = v.value;
+            }
+          });
+          break;
       }
     }
 
-    if (name && this.keyframesMap.has(name)) {
-      const keyframeRule = this.keyframesMap.get(name)!;
-      const keyframes = this.buildKeyframes(keyframeRule);
-
-      node.animations.push({
-        name,
-        duration,
-        timingFunction,
-        iterationCount,
-        direction,
-        delay,
-        fillMode,
-        keyframes,
-      });
+    if (!slots) return;
+    for (const slot of slots) {
+      if (slot.name && this.keyframesMap.has(slot.name)) {
+        node.animations.push({
+          name: slot.name,
+          duration: slot.duration,
+          timingFunction: slot.timingFunction,
+          iterationCount: slot.iterationCount,
+          direction: slot.direction,
+          delay: slot.delay,
+          fillMode: slot.fillMode,
+          keyframes: this.buildKeyframes(this.keyframesMap.get(slot.name)!),
+        });
+      }
     }
+  }
+
+  /** Parse one `animation` shorthand group (space-separated) into a slot. */
+  private parseAnimationGroup(values: Value[]): AnimSlot {
+    const slot = defaultAnimSlot();
+    for (const v of values) {
+      if (isKeywordValue(v)) {
+        const kw = v.value;
+        if (this.keyframesMap.has(kw)) slot.name = kw;
+        else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-end') slot.timingFunction = kw;
+        else if (kw === 'infinite') slot.iterationCount = Infinity;
+        else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') slot.direction = kw;
+        else if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') slot.fillMode = kw;
+      } else if (isFunctionValue(v) && v.name === 'cubic-bezier') {
+        slot.timingFunction = this.parseCubicBezierFunction(v);
+      } else if (isLengthValue(v)) {
+        // Time values are assigned by order (CSS rule): first duration, second delay.
+        const ms = timeMs(v);
+        if (ms !== null) {
+          if (!slot.durationSet) { slot.duration = ms; slot.durationSet = true; }
+          else slot.delay = ms;
+        }
+      } else if (isNumberValue(v)) {
+        if (v.value === Math.floor(v.value) && v.value > 0 && v.value < 100) slot.iterationCount = v.value;
+      } else if (isStringValue(v)) {
+        slot.name = v.value;
+      }
+    }
+    return slot;
+  }
+
+  /** Resolve a timing-function value (named keyword or cubic-bezier()). */
+  private timingFromValue(v: Value): TimingFunction {
+    if (isFunctionValue(v) && v.name === 'cubic-bezier') return this.parseCubicBezierFunction(v);
+    if (isKeywordValue(v) && (v.value === 'linear' || v.value === 'ease' || v.value === 'ease-in' || v.value === 'ease-out' || v.value === 'ease-in-out' || v.value === 'step-end')) {
+      return v.value;
+    }
+    return 'ease';
   }
 
   private buildKeyframes(rule: KeyframeRule): KeyframeData[] {
@@ -1437,4 +1452,38 @@ function mergeStates(defStates: StateRule[], useStates: StateRule[]): StateRule[
 function normalizeFraction(value: Value): number {
   if (isLengthValue(value) && value.unit === '%') return value.value / 100;
   return getNumericValue(value);
+}
+
+// Accumulated state for one animation while composing the `animation` shorthand
+// with the `animation-*` longhands (see resolveAnimations).
+interface AnimSlot {
+  name: string;
+  duration: number;
+  durationSet: boolean;
+  timingFunction: TimingFunction;
+  iterationCount: number;
+  direction: AnimationDirection;
+  delay: number;
+  fillMode: AnimationFillMode;
+}
+
+// fill-mode defaults to 'forwards' (not CSS's 'none') so scenes hold their final
+// frame; every other field is the CSS initial value.
+function defaultAnimSlot(): AnimSlot {
+  return {
+    name: '', duration: 1000, durationSet: false, timingFunction: 'ease',
+    iterationCount: 1, direction: 'normal', delay: 0, fillMode: 'forwards',
+  };
+}
+
+// A comma-separated animation longhand splits into per-animation values; a bare
+// value is a single-element list.
+function commaValues(value: Value): Value[] {
+  return isListValue(value) && value.separator === 'comma' ? value.values : [value];
+}
+
+// Time value (`s`/`ms`) to milliseconds, or null when it isn't a time.
+function timeMs(value: Value): number | null {
+  if (!isLengthValue(value)) return null;
+  return value.unit === 's' ? value.value * 1000 : value.unit === 'ms' ? value.value : null;
 }
