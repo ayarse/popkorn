@@ -238,11 +238,15 @@ test("masks: any non-'n' mode clips (canvas parity), 'n' is a no-op, none block"
   expect((css.match(/clip-path:\s*path\(/g) || []).length).toBe(1);
 });
 
-test('animated mask (legacy, no `a` flag) bakes to a clip-path instead of blocking', () => {
+test('animated mask (legacy, no `a` flag) drives a keyframed clip-path', () => {
   const masks = [{ mode: 'a', pt: { k: [{ t: 0, s: [tri(0)] }, { t: 10, s: [tri(20)] }] } }];
   const c = new Converter();
   const css = c.convert(shapeLayer([{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }], masks));
   expect(c.blocked.size).toBe(0);
+  // A static base clip plus an animation whose @keyframes morph the clip region;
+  // the mask shape is no longer frozen to its first frame.
   expect(css).toContain('clip-path: path(');
-  expect(c.warnings.some((w) => w.includes('baked to first frame'))).toBe(true);
+  expect(css).toContain('animation:');
+  expect(css).toMatch(/\d+%\s*\{[^}]*clip-path: path\(/);
+  expect(c.warnings.some((w) => w.includes('baked to first frame'))).toBe(false);
 });

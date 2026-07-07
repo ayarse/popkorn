@@ -80,6 +80,60 @@ test('converter: animated path + gradient stops are no longer blocked and valida
   expect(() => buildSceneGraph(parse(css))).not.toThrow();
 });
 
+// A shape layer carrying an animated layer mask (masksProperties with an
+// animated bezier pt). The mask should drive a keyframed clip-path, not bake.
+function animatedMaskDoc() {
+  return {
+    fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [
+      {
+        ty: 4, ind: 1, ks: {},
+        masksProperties: [
+          {
+            mode: 'a',
+            pt: {
+              a: 1,
+              k: [
+                { t: 0, s: [shape([[0, 0], [10, 0], [10, 10]])] },
+                { t: 30, s: [shape([[0, 0], [20, 0], [20, 20]])] },
+              ],
+            },
+          },
+        ],
+        shapes: [
+          {
+            ty: 'gr',
+            it: [
+              { ty: 'rc', s: { a: 0, k: [50, 50] }, p: { a: 0, k: [25, 25] } },
+              { ty: 'fl', c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+              { ty: 'tr' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+test('converter: an animated mask emits a keyframed clip-path (not baked)', () => {
+  const c = new Converter();
+  const css = c.convert(animatedMaskDoc());
+
+  // No longer a "baked to first frame" warning; nothing blocks the layer.
+  expect(c.warnings.join('\n')).not.toContain('baked to first frame');
+  expect([...c.blocked]).toEqual([]);
+
+  // A static base clip plus a @keyframes whose blocks carry clip-path path()s.
+  expect(css).toContain('clip-path: path(');
+  expect(css).toMatch(/\d+%\s*\{[^}]*clip-path: path\(/);
+
+  // The morphing endpoint's x grows 10 -> 20 across the two keyframes.
+  const clips = css.match(/clip-path: path\('([^']*)'\)/g) ?? [];
+  expect(clips.length).toBeGreaterThanOrEqual(2);
+
+  expect(() => buildSceneGraph(parse(css))).not.toThrow();
+});
+
 // A group with two closed contours (outer ring + inner hole) sharing ONE fill.
 // Lottie fills all a group's paths as a single nonzero region, so the inner,
 // opposite-wound contour cuts a hole. Emitting each contour as its own solid

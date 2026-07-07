@@ -211,6 +211,7 @@ type Sample = Partial<{
   offsetDistance: number; trimStart: number; trimEnd: number; trimOffset: number;
   outerRadius: number; innerRadius: number; starRotation: number;
   d: string;
+  clipPath: string; // full clip-path list value, e.g. `path('…') path('…')`
 }>;
 
 /** A shape-level trim (Lottie 'tm'), static or per-property animated. */
@@ -519,7 +520,7 @@ export class Converter {
     const st = l.st || 0;
 
     this.scanBlocked(l);
-    const maskDecl = this.maskClipPath(l);
+    const mask = this.maskClip(l);
 
     // Layer visibility window narrower than the comp -> emit visible-from/until
     // (scene-local seconds) so the player skips the node outside it. Sticker
@@ -574,7 +575,7 @@ export class Converter {
       // A layer mask is the tighter clip and shares the single `clip-path` slot,
       // so prefer it — never emit both (the second would clobber the first).
       const cw = l.w ?? asset.w, ch = l.h ?? asset.h;
-      if (maskDecl) group.decls.push(maskDecl);
+      if (mask) this.applyMask(group, mask);
       else if (cw && ch) group.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
 
       // Time scoping: st -> local start offset; sr stretch -> time-scale (1/sr,
@@ -616,7 +617,7 @@ export class Converter {
       if (asset.w) img.decls.push(`width: ${num(asset.w)}px`);
       if (asset.h) img.decls.push(`height: ${num(asset.h)}px`);
       this.applyTransform(l.ks, img, st);
-      if (maskDecl) img.decls.push(maskDecl);
+      if (mask) this.applyMask(img, mask);
       img.children.push(...childRules);
       this.finalizeAnim(img, st);
       return record(img);
@@ -629,7 +630,7 @@ export class Converter {
       if (l.sc) rect.decls.push(`fill: ${l.sc}`);
       this.applyTransform(l.ks, rect, st);
       if (childRules.length === 0) {
-        if (maskDecl) rect.decls.push(maskDecl);
+        if (mask) this.applyMask(rect, mask);
         this.finalizeAnim(rect, st);
         return record(rect);
       }
@@ -639,7 +640,7 @@ export class Converter {
       // 0/dimmed control solid would wrongly dim every parented child.
       const group: Rule = { id, type: 'group', decls: [], channels: [], children: [] };
       this.applyTransform(l.ks, group, st, { skipOpacity: true });
-      if (maskDecl) group.decls.push(maskDecl);
+      if (mask) this.applyMask(group, mask);
       rect.id = this.uniqueId(id + '-rect');
       rect.decls = rect.decls.filter((d) => !d.startsWith('transform'));
       rect.channels = [];
@@ -654,7 +655,7 @@ export class Converter {
     // opacity), so a null's opacity affects nothing — dropping it stops a
     // 0/animated control null from wrongly dimming its parented children.
     this.applyTransform(l.ks, group, st, { skipOpacity: l.ty === 3 });
-    if (maskDecl) group.decls.push(maskDecl);
+    if (mask) this.applyMask(group, mask);
 
     if (l.ty === 4 && Array.isArray(l.shapes)) {
       const shapeChildren = this.processItems(l.shapes, id, EMPTY_STYLE);
@@ -709,35 +710,64 @@ export class Converter {
    * unioned. Modelled on lottie-web's *canvas* renderer (Popcorn's target),
    * whose CVMaskElement clips to the nonzero union of every mask whose mode
    * isn't 'none' — it ignores add/subtract/intersect/difference entirely — so
-   * any non-'n' mode is treated as an additive clip. Animated mask shapes
-   * (including legacy exports that omit the `a` flag) can't yet drive an
-   * animated clip-path, so their shape is baked to the first frame rather than
-   * dropped (dropping leaves the full-comp solid these masks exist to cut down).
-   * Inverted or reduced-opacity masks still block. Mask expansion (x != 0) is
-   * ignored with a warning.
+   * any non-'n' mode is treated as an additive clip. An animated mask shape
+   * drives a keyframed clip-path: each frame the union is re-sampled, so the
+   * clip morphs with the mask (Popcorn animates the path() command list, exactly
+   * as it morphs a shape's `d`). Inverted or reduced-opacity masks still block.
+   * Mask expansion (x != 0) is ignored with a warning.
+   *
+   * Returns the static `clip-path` base decl plus, when any mask animates, a
+   * channel whose sample re-unions every mask at frame t (static masks stay
+   * constant). The base is sampled at the earliest animated keyframe, matching
+   * how an animated shape's `d` base is its first keyframe.
    */
-  private maskClipPath(l: any): string | null {
+  private maskClip(l: any): { base: string; channel: Channel | null } | null {
     const masks = l.masksProperties;
     if (!Array.isArray(masks) || masks.length === 0) return null;
-    const paths: string[] = [];
+    const samplers: ((t: number) => string)[] = [];
+    const animKfs: Kf[] = [];
     for (const m of masks) {
       if (m.mode === 'n') continue; // 'none': contributes nothing, blocks nothing
       if (m.inv) { this.blocked.add('inverted mask (inv)'); return null; }
       const o = prop(m.o);
       if (o && (o.animated || (o.at(0)[0] ?? 100) < 100)) { this.blocked.add('mask opacity < 100'); return null; }
       const pt = m.pt;
-      if (!pt) { this.blocked.add('animated mask shape'); return null; }
+      if (!pt) { this.blocked.add('mask missing shape'); return null; }
       const x = prop(m.x);
       if (x && Math.abs(x.at(0)[0] ?? 0) > 1e-6) this.warnOnce(`mask expansion on '${l.nm || l.ind}' ignored`);
-      let shp = pt.k;
       if (isAnimatedShape(pt)) {
-        this.warnOnce(`animated mask on '${l.nm || l.ind}' baked to first frame`);
-        shp = shapeAt(pathKfs({ ks: pt }), 0);
+        const kfs = pathKfs({ ks: pt });
+        animKfs.push(...kfs);
+        samplers.push((t) => { const d = shapeToPath(shapeAt(kfs, t)); return d ? `path('${d}')` : ''; });
+      } else {
+        const d = shapeToPath(pt.k);
+        const s = d ? `path('${d}')` : '';
+        samplers.push(() => s);
       }
-      const d = shapeToPath(shp);
-      if (d) paths.push(`path('${d}')`);
     }
-    return paths.length ? `clip-path: ${paths.join(' ')}` : null;
+    if (samplers.length === 0) return null;
+    const unionAt = (t: number) => samplers.map((f) => f(t)).filter(Boolean).join(' ');
+
+    if (animKfs.length === 0) {
+      const base = unionAt(0);
+      return base ? { base: `clip-path: ${base}`, channel: null } : null;
+    }
+    // Union of every animated mask's keyframe times drives the emitted @keyframes
+    // (finalizeAnim dedupes); per-segment easing is read from the first mask with
+    // a keyframe at that time (a single animated mask per layer is the norm).
+    const t0 = Math.min(...animKfs.map((k) => k.t));
+    const base = unionAt(t0);
+    if (!base) return null;
+    return {
+      base: `clip-path: ${base}`,
+      channel: { priority: 1, kfs: animKfs, sample: (t) => ({ clipPath: unionAt(t) }) },
+    };
+  }
+
+  /** Attach a mask's static clip base decl and, if animated, its clip channel. */
+  private applyMask(rule: Rule, mask: { base: string; channel: Channel | null }) {
+    rule.decls.push(mask.base);
+    if (mask.channel) rule.channels.push(mask.channel);
   }
 
   // --- transform (ks / tr) -> decls + channels ----------------------------
@@ -1469,6 +1499,7 @@ function declsFromSample(s: Sample): string[] {
   if (s.innerRadius !== undefined) out.push(`inner-radius: ${num(s.innerRadius)}px`);
   if (s.starRotation !== undefined) out.push(`rotation: ${num(s.starRotation)}deg`);
   if (s.d !== undefined) out.push(`d: '${s.d}'`);
+  if (s.clipPath !== undefined) out.push(`clip-path: ${s.clipPath}`);
   return out;
 }
 

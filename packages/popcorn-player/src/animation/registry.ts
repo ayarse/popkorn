@@ -141,6 +141,20 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
+  // clip-path morphing: reuses the path (command-list) kind exactly like `d`.
+  // Only the path() clip variant is animatable — its commands morph pairwise
+  // (Lottie animated masks). No cache keys off the clip region: resolveClip and
+  // the renderer read node.clipPath live each frame, so no dirty flag is needed.
+  'clip-path': {
+    kind: 'path',
+    readBase: (base) =>
+      base.clipPath?.type === 'path' ? base.clipPath.commands : null,
+    apply: (node, value) => {
+      if (node.clipPath?.type !== 'path' || !Array.isArray(value)) return;
+      node.clipPath.commands = value as PathCommand[];
+    },
+  },
+
   // star / polygon geometry (points is static, so not registered)
   'outer-radius': geometryNumber('outerRadius'),
   'inner-radius': geometryNumber('innerRadius'),

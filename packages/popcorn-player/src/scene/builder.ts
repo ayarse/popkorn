@@ -50,13 +50,13 @@ const isPolystar = (sd: ShapeData): sd is PolystarData =>
 const warnedAnimations = new Set<string>();
 function warnIncompatibleObjectKeyframes(name: string, frames: KeyframeData[]): void {
   const sorted = [...frames].sort((a, b) => a.offset - b.offset);
-  for (const prop of ['fill', 'stroke', 'd'] as const) {
+  for (const prop of ['fill', 'stroke', 'd', 'clip-path'] as const) {
     for (let i = 0; i < sorted.length - 1; i++) {
       const a = sorted[i].properties[prop];
       const b = sorted[i + 1].properties[prop];
       if (a === undefined || b === undefined) continue;
       let ok: boolean;
-      if (prop === 'd') {
+      if (prop === 'd' || prop === 'clip-path') {
         ok = Array.isArray(a) && Array.isArray(b) && pathsCompatible(a, b);
       } else if (!isGradientData(a) && !isGradientData(b)) {
         ok = true; // plain color-to-color fill/stroke: interpolates fine
@@ -1073,6 +1073,14 @@ export class SceneBuilder {
           // Path morphing: parse the path string to commands once at build.
           props.d = parsePath(getStringValue(value));
           break;
+        case 'clip-path': {
+          // Animated clip (Lottie animated masks): only the path() variant
+          // morphs — reuse parseClipPath, then carry its command list as the
+          // path-kind keyframe value (circle/inset aren't command-morphable).
+          const clip = this.parseClipPath(value);
+          if (clip && clip.type === 'path') props['clip-path'] = clip.commands;
+          break;
+        }
         default:
           // Store raw numeric/string value
           if (isNumberValue(value) || isLengthValue(value)) {

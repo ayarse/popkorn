@@ -226,6 +226,10 @@ export interface NodeBase {
   // per-frame interpolation never mutates authored stops (see reset/snapshot).
   fillGradient: GradientData | null;
   strokeGradient: GradientData | null;
+  // Clip region; animatable when authored as path() keyframes (Lottie animated
+  // masks). Held as a copy so per-frame command morphs never mutate the authored
+  // clip (same discipline as gradients above).
+  clipPath: ClipPathData | null;
 }
 
 export type ShapeData =
@@ -406,6 +410,16 @@ export function cloneShapeData(sd: ShapeData): ShapeData {
   return { ...sd };
 }
 
+// Clone a clip-path for the base snapshot. The `path` variant's command list is
+// copied (the array reference is swapped, never mutated in place, by the
+// registry's clip-path apply) so an animated clip can't corrupt the authored
+// base; circle/inset carry only numbers.
+export function cloneClipPath(clip: ClipPathData | null): ClipPathData | null {
+  if (!clip) return null;
+  if (clip.type === 'path') return { type: 'path', commands: clip.commands.slice() };
+  return { ...clip };
+}
+
 // Capture the current authored render state of a node as its immutable base.
 export function snapshotNode(node: SceneNode): NodeBase {
   return {
@@ -422,6 +436,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
     shapeData: cloneShapeData(node.shapeData),
     fillGradient: cloneGradient(node.fillGradient),
     strokeGradient: cloneGradient(node.strokeGradient),
+    clipPath: cloneClipPath(node.clipPath),
   };
 }
 
@@ -443,6 +458,9 @@ export function resetNodeToBase(node: SceneNode): void {
   // node.fillGradient can never corrupt the authored base stops.
   node.fillGradient = cloneGradient(b.fillGradient);
   node.strokeGradient = cloneGradient(b.strokeGradient);
+  // Fresh clip copy each frame so an animated clip-path morph writes into a node
+  // copy, never the authored base (mirrors the gradient reset above).
+  node.clipPath = cloneClipPath(b.clipPath);
 }
 
 // Helper to create a default scene node
@@ -504,6 +522,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       shapeData: { type: 'group' },
       fillGradient: null,
       strokeGradient: null,
+      clipPath: null,
     },
     bindings: [],
     interactionState: 'normal',

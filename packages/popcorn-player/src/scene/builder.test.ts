@@ -203,6 +203,39 @@ test('clip-path: multiple path() values union into one command list', () => {
   }
 });
 
+test('clip-path: @keyframes morph the clip commands via the registry', () => {
+  const [g] = build(`
+    @keyframes reveal {
+      from { clip-path: path('M0 0 L10 0 L10 10 L0 10 Z'); }
+      to   { clip-path: path('M0 0 L20 0 L20 10 L0 10 Z'); }
+    }
+    #g { type: group; clip-path: path('M0 0 L10 0 L10 10 L0 10 Z');
+         animation: reveal 1s linear; }
+  `).children;
+
+  // Base = first keyframe (unclipped author state).
+  expect(g.clipPath?.type).toBe('path');
+  const handler = getPropHandler('clip-path');
+  expect(handler?.kind).toBe('path');
+
+  const sched = new AnimationScheduler();
+  resetNodeToBase(g);
+  sched.sampleNode(g, 500); // midway through the 1s animation
+  // The second point's x lerps 10 -> 20, so at t=0.5 it sits at 15.
+  if (g.clipPath?.type === 'path') {
+    const line = g.clipPath.commands.find((c) => c.type === 'L') as { x: number };
+    expect(line.x).toBeCloseTo(15, 5);
+  }
+
+  // A fresh reset restores the authored base (10), proving the morph never
+  // corrupts the base snapshot.
+  resetNodeToBase(g);
+  if (g.clipPath?.type === 'path') {
+    const line = g.clipPath.commands.find((c) => c.type === 'L') as { x: number };
+    expect(line.x).toBeCloseTo(10, 5);
+  }
+});
+
 // --- track mattes ------------------------------------------------------------
 
 const MATTE_SRC = `
