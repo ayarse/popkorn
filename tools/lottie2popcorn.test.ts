@@ -145,3 +145,54 @@ test("a solid parent's opacity dims only its own rect, never its parented childr
   const rectBlock = css.slice(css.indexOf('#ctrl-rect {'), css.indexOf('> #dot'));
   expect(rectBlock).toContain('opacity: 0');
 });
+
+// --- gradient alpha-stop merge + exact geometry -----------------------------
+
+/** One shape layer whose single fill is the given gradient item (`gf`). */
+function gradComp(gf: any) {
+  return {
+    v: '5', fr: 30, ip: 0, op: 30, w: 100, h: 100,
+    layers: [{
+      ty: 4, nm: 'g', ind: 1, ip: 0, op: 30, st: 0,
+      ks: { r: { a: 0, k: 0 }, p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 } },
+      shapes: [{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, gf],
+    }],
+  };
+}
+const gf = (t: number, extra: any, gk: number[], p: number) => ({
+  ty: 'gf', t, o: { a: 0, k: 100 },
+  s: { a: 0, k: [0, 0] }, e: { a: 0, k: [10, 0] }, h: { a: 0, k: 0 }, a: { a: 0, k: 0 },
+  g: { p, k: { a: 0, k: gk } }, ...extra,
+});
+const fillOf = (css: string) => css.match(/fill:\s*((?:radial|linear)-gradient\([^;\n]*\))/)![1];
+
+test('alpha tail merges into color stops as rgba() at merged positions', () => {
+  // 2 color stops (white@0, black@1) + alpha tail (a=1@0, a=0@1) -> fade to transparent.
+  const css = new Converter().convert(gradComp(gf(2, {}, [0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 0], 2)));
+  const fill = fillOf(css);
+  expect(fill).toContain('#ffffff 0%');
+  expect(fill).toContain('rgba(0, 0, 0, 0) 100%');
+});
+
+test('alpha keys not aligned with color keys insert interpolated rgba stops', () => {
+  // colors white@0, black@1; alphas 1@0, 0@0.5, 1@1 -> midpoint is grey, alpha 0.
+  const css = new Converter().convert(gradComp(gf(2, {}, [0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 0.5, 0, 1, 1], 2)));
+  const fill = fillOf(css);
+  expect(fill).toContain('rgba(128, 128, 128, 0) 50%');
+});
+
+test('radial gradient emits exact circle geometry (radius from |e-s|, center s)', () => {
+  const css = new Converter().convert(gradComp({ ...gf(2, {}, [0, 1, 1, 1, 1, 0, 0, 0], 2), s: { a: 0, k: [10, 20] }, e: { a: 0, k: [10, 120] } }));
+  expect(fillOf(css)).toMatch(/^radial-gradient\(circle 100px at 10px 20px,/);
+});
+
+test('radial highlight (h%, angle a) offsets the focal via `from fx fy`', () => {
+  // center (10,20), e straight down -> base angle 90deg; h=50% of r=100 -> focal 50 below center.
+  const css = new Converter().convert(gradComp({ ...gf(2, {}, [0, 1, 1, 1, 1, 0, 0, 0], 2), s: { a: 0, k: [10, 20] }, e: { a: 0, k: [10, 120] }, h: { a: 0, k: 50 }, a: { a: 0, k: 0 } }));
+  expect(fillOf(css)).toContain('from 10px 70px');
+});
+
+test('linear gradient emits exact from/to endpoints (not a bbox angle)', () => {
+  const css = new Converter().convert(gradComp({ ...gf(1, {}, [0, 1, 0, 0, 1, 0, 0, 1], 2), s: { a: 0, k: [0, 0] }, e: { a: 0, k: [100, 50] } }));
+  expect(fillOf(css)).toMatch(/^linear-gradient\(from 0px 0px to 100px 50px,/);
+});

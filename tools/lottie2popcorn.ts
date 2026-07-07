@@ -171,6 +171,21 @@ function sampleAt(kfs: Kf[], t: number): number[] {
   return asArr(kfs[n - 1].s);
 }
 
+/** Linear-sample a position-sorted stop list at `p` (clamped at both ends). */
+function sampleStopScalar<T extends { pos: number }>(stops: T[], p: number, get: (s: T) => number): number {
+  if (p <= stops[0].pos) return get(stops[0]);
+  const last = stops[stops.length - 1];
+  if (p >= last.pos) return get(last);
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i], b = stops[i + 1];
+    if (p >= a.pos && p <= b.pos) {
+      const f = b.pos - a.pos > 0 ? (p - a.pos) / (b.pos - a.pos) : 0;
+      return get(a) + (get(b) - get(a)) * f;
+    }
+  }
+  return get(last);
+}
+
 function hasSpatialTangents(kfs: Kf[]): boolean {
   return kfs.some(
     (k) =>
@@ -880,10 +895,24 @@ export class Converter {
         case 'gf':
         case 'gs': {
           gradientFill = this.buildGradient(it);
-          // Animated stops -> a fill channel of gradient() strings per keyframe.
-          if (it.g && it.g.k && it.g.k.a === 1) {
-            const gk = it.g.k.k as Kf[];
-            fillKfs = gk;
+          // Animated stops OR geometry (s/e center-endpoint, h/a highlight) -> a
+          // fill channel of gradient() strings per keyframe (Popcorn interpolates
+          // them; see registry 'gradient'). Drive it off the union of every
+          // animated input's keyframe grid so the sampled gradient matches each
+          // contributing track at its own keyframes.
+          const gradTracks = [
+            it.g && it.g.k && it.g.k.a === 1 ? (it.g.k.k as Kf[]) : null,
+            prop(it.s)?.animated ? prop(it.s)!.kfs : null,
+            prop(it.e)?.animated ? prop(it.e)!.kfs : null,
+            prop(it.h)?.animated ? prop(it.h)!.kfs : null,
+            prop(it.a)?.animated ? prop(it.a)!.kfs : null,
+          ].filter((k): k is Kf[] => !!k && k.length > 0);
+          if (gradTracks.length) {
+            const times = [...new Set(gradTracks.flatMap((k) => k.map((kf) => kf.t)))].sort((a, b) => a - b);
+            fillKfs = times.map((t) => {
+              const src = gradTracks.map((tk) => tk.find((kf) => kf.t === t)).find(Boolean);
+              return { t, i: src?.i, o: src?.o, h: src?.h };
+            });
             fillCh = (t) => ({ fill: this.gradientCssAt(it, t) ?? gradientFill! });
           }
           break;
@@ -1186,28 +1215,59 @@ export class Converter {
     return this.gradientCssAt(it, g.k.a === 1 ? g.k.k[0].t : 0);
   }
 
-  /** Build the CSS gradient string for `it` at frame `t` (samples animated stops). */
+  /**
+   * Gradient color stops as CSS, merging Lottie's separate opacity (alpha) stops
+   * into the color stops. Lottie stores `p` color stops [pos,r,g,b] followed by
+   * an optional alpha tail [pos,a]. CSS has no alpha channel, so we sample color
+   * and alpha on the union of both position sets and emit rgba() stops (dropping
+   * the tail lost the fade-to-transparent that soft glows depend on).
+   */
+  private gradientStops(flat: number[], count: number): string[] {
+    const colors: { pos: number; rgb: number[] }[] = [];
+    for (let i = 0; i < count; i++) {
+      colors.push({ pos: flat[i * 4], rgb: [flat[i * 4 + 1], flat[i * 4 + 2], flat[i * 4 + 3]] });
+    }
+    const alphas: { pos: number; a: number }[] = [];
+    for (let i = count * 4; i + 1 < flat.length; i += 2) alphas.push({ pos: flat[i], a: flat[i + 1] });
+    if (alphas.length === 0) return colors.map((c) => `${lottieColor(c.rgb)} ${num(c.pos * 100)}%`);
+    const positions = [...new Set([...colors.map((c) => c.pos), ...alphas.map((a) => a.pos)])].sort((x, y) => x - y);
+    return positions.map((p) => {
+      const rgb = [0, 1, 2].map((k) => sampleStopScalar(colors, p, (c) => c.rgb[k]));
+      const a = sampleStopScalar(alphas, p, (s) => s.a);
+      return `${lottieColor([...rgb, a])} ${num(p * 100)}%`;
+    });
+  }
+
+  /** Build the CSS gradient string for `it` at frame `t` (samples animated stops/geometry). */
   private gradientCssAt(it: any, t: number): string | null {
     const g = it.g;
     if (!g || !g.k) return null;
     const flat: number[] = g.k.a === 1 ? sampleAt(g.k.k, t) : g.k.k;
     const count = g.p || Math.floor(flat.length / 4);
-    const stops: string[] = [];
-    for (let i = 0; i < count; i++) {
-      const pos = flat[i * 4];
-      const col = lottieColor([flat[i * 4 + 1], flat[i * 4 + 2], flat[i * 4 + 3]]);
-      stops.push(`${col} ${num(pos * 100)}%`);
-    }
-    if (flat.length > count * 4) this.warnOnce('gradient alpha stops ignored');
-    if (it.t === 2) {
-      this.warnOnce('radial gradient position is approximate (centered on bbox)');
-      return `radial-gradient(${stops.join(', ')})`;
-    }
-    // Linear: CSS angle from the s->e vector (CSS 0deg = up, 90deg = right).
+    const stops = this.gradientStops(flat, count);
+    // Exact geometry in the shape's local space (same coords as the path `d`), so
+    // the player draws point-to-point / circle-at rather than approximating off
+    // the bbox. s = center/start, e = radius endpoint / linear end.
     const s = prop(it.s)?.at(t) ?? [0, 0];
     const e = prop(it.e)?.at(t) ?? [1, 0];
-    const angle = (Math.atan2(e[0] - s[0], -(e[1] - s[1])) * 180) / Math.PI;
-    return `linear-gradient(${num(angle)}deg, ${stops.join(', ')})`;
+    if (it.t === 2) {
+      const r = Math.hypot(e[0] - s[0], e[1] - s[1]);
+      let geom = `circle ${num(r)}px at ${num(s[0])}px ${num(s[1])}px`;
+      // Highlight: h (% of radius) along angle a offsets the focal (inner) circle
+      // — the createRadialGradient(fx,fy,0, cx,cy,r) start point (lottie-web).
+      const h = prop(it.h)?.at(t)[0] ?? 0;
+      const ha = prop(it.a)?.at(t)[0] ?? 0;
+      if (r > 1e-6 && Math.abs(h) > 1e-6) {
+        const base = Math.atan2(e[1] - s[1], e[0] - s[0]);
+        const pct = Math.max(-0.99, Math.min(0.99, h / 100));
+        const ang = base + (ha * Math.PI) / 180;
+        const fx = s[0] + Math.cos(ang) * r * pct;
+        const fy = s[1] + Math.sin(ang) * r * pct;
+        geom += ` from ${num(fx)}px ${num(fy)}px`;
+      }
+      return `radial-gradient(${geom}, ${stops.join(', ')})`;
+    }
+    return `linear-gradient(from ${num(s[0])}px ${num(s[1])}px to ${num(e[0])}px ${num(e[1])}px, ${stops.join(', ')})`;
   }
 
   // --- animation assembly -------------------------------------------------
