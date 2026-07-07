@@ -798,15 +798,23 @@ export class Converter {
     // offset-path coords are absolute comp coords; keep only anchor compensation.
     if (ax !== 0 || ay !== 0) rule.decls.push(`transform: translate(${num(-ax)}px, ${num(-ay)}px)`);
 
-    const idxAt = (t: number) => {
-      let best = 0;
-      for (let i = 0; i < kfs.length; i++) if (kfs[i].t <= t) best = i;
-      return best;
+    // Arc-length fraction at an arbitrary time. At a vertex this returns that
+    // vertex's exact `frac`; between vertices (e.g. a synthetic clamp boundary
+    // inserted mid-segment) it interpolates in time so a track truncated part
+    // way along its path holds a point *on* the path, not the previous vertex.
+    const fracAt = (t: number) => {
+      if (t <= kfs[0].t) return frac[0];
+      if (t >= kfs[kfs.length - 1].t) return frac[frac.length - 1];
+      let i = 0;
+      for (let k = 0; k < kfs.length - 1; k++) if (kfs[k].t <= t) i = k;
+      const span = kfs[i + 1].t - kfs[i].t || 1;
+      const u = (t - kfs[i].t) / span;
+      return frac[i] + u * (frac[i + 1] - frac[i]);
     };
     rule.channels.push({
       priority: 6,
       kfs,
-      sample: (t) => ({ offsetDistance: frac[idxAt(t)] }),
+      sample: (t) => ({ offsetDistance: fracAt(t) }),
     });
     // rotation still applies statically or via its own channel (handled by caller path).
     void r;
@@ -1159,7 +1167,7 @@ export class Converter {
     // command sequences (Lottie guarantees matching vertex counts per track).
     const rule: Rule = { id, type: 'path', decls: [], channels: [], children: [] };
     if (it.ks && it.ks.a === 1) {
-      const kfs = it.ks.k as Kf[];
+      const kfs = pathKfs(it);
       rule.decls.push(`d: '${shapeToPath(shapeKf(kfs[0]))}'`);
       rule.channels.push({ priority: 6, kfs, sample: (t) => ({ d: shapeToPath(shapeAt(kfs, t)) }) });
       return rule;
@@ -1400,6 +1408,15 @@ function shapeKf(kf: Kf): any {
   return Array.isArray(s) ? s[0] : s;
 }
 
+/**
+ * Animated shape (`sh`) keyframes, canonicalized like numeric props: a legacy
+ * `s`-less final keyframe (only `t`, value held on the previous keyframe's `e`)
+ * gets its `s` filled in, so shapeKf/shapeAt never hit an undefined vertex list.
+ */
+function pathKfs(it: any): Kf[] {
+  return normalizeKfs(it.ks.k as any[]);
+}
+
 /** Shape at frame t: hold the departing keyframe (Popcorn morphs between them). */
 function shapeAt(kfs: Kf[], t: number): any {
   let kf = kfs[0];
@@ -1506,7 +1523,7 @@ function polystarToD(it: any, t: number): string {
 /** A drawable (sh/rc/el/sr) as an absolute-coordinate `d` subpath at frame t. */
 function drawableToDAt(it: any, t: number): string {
   if (it.ty === 'sh') {
-    if (it.ks && it.ks.a === 1) return shapeToPath(shapeAt(it.ks.k, t));
+    if (it.ks && it.ks.a === 1) return shapeToPath(shapeAt(pathKfs(it), t));
     return it.ks ? shapeToPath(it.ks.k) : '';
   }
   if (it.ty === 'rc') {
@@ -1534,7 +1551,7 @@ function drawableAnimated(it: any): boolean {
 
 /** The keyframe track driving a drawable's geometry (for the union grid + easing). */
 function drawableKfs(it: any): Kf[] {
-  if (it.ty === 'sh') return it.ks && it.ks.a === 1 ? (it.ks.k as Kf[]) : [];
+  if (it.ty === 'sh') return it.ks && it.ks.a === 1 ? pathKfs(it) : [];
   for (const key of ['p', 's', 'r', 'pt', 'or', 'ir', 'os', 'is']) {
     const v = prop(it[key]);
     if (v && v.animated && v.kfs) return v.kfs;
