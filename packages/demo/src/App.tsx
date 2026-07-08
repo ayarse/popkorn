@@ -55,7 +55,7 @@ import {
   Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { exportGif, downloadGif } from "@/lib/gif";
+import { exportGifInWorker, downloadGif } from "@/lib/gif";
 
 const enc = new TextEncoder();
 const bytes = (s: string) => enc.encode(s).length;
@@ -144,8 +144,7 @@ function App() {
     if (exportProgress !== null) return;
     setExportProgress(0);
     try {
-      const bytes = await exportGif(source, {
-        background: activeBg.value,
+      const bytes = await exportGifInWorker(source, {
         onProgress: setExportProgress,
       });
       downloadGif(bytes);
