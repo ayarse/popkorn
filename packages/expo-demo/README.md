@@ -39,5 +39,11 @@ the resulting build, then `bunx expo start --dev-client`.
 - Monorepo Metro resolution is set in `metro.config.js` (watch the repo root,
   resolve hoisted deps from both node_modules). `@popcorn/skia` and
   `@popcorn/player` ship raw TS from `src/`; `babel-preset-expo` transpiles it.
+- `@shopify/react-native-skia` 2.x requires `react-native-reanimated` (and its
+  `react-native-worklets` peer) as native dependencies, even though this demo
+  doesn't call Reanimated APIs directly. `babel-preset-expo` auto-detects
+  `react-native-worklets` and wires its Babel plugin in — no `babel.config.js`
+  changes needed. Adding/upgrading either package changes native code, so
+  **rebuild the dev client**: `bunx expo run:ios` (or `run:android`).
 - To sanity-check bundling without a device:
   `bunx expo export --platform ios`.
