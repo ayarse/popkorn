@@ -34,29 +34,49 @@ export interface HitTestResult {
 }
 
 /**
- * Perform hit-testing on the scene graph
- * Returns the topmost interactive node at the given point
+ * Perform hit-testing on the scene graph.
+ * Returns the topmost interactive node at the given point.
+ *
+ * Hit-testing bubbles like the DOM: any shape whose geometry contains the point
+ * credits its NEAREST INTERACTIVE ANCESTOR-OR-SELF (see hitTestNode), so an
+ * interactive group is hit when any descendant shape is, and an interactive
+ * shape's hover region grows to include descendant geometry that pokes outside
+ * its own outline. A directly-interactive child still wins over an interactive
+ * ancestor inside the child's geometry (nearest wins).
  */
 export function hitTest(root: SceneNode, point: Point): SceneNode | null {
-  const results: HitTestResult[] = [];
-  hitTestNode(root, point, IDENTITY_MATRIX, { value: 0 }, results);
+  // Best (highest) paint depth credited to each interactive node. A node's hit
+  // priority is the topmost-painted shape that contains the point and bubbles to
+  // it, so keeping the max depth (not each contribution) is enough to pick the
+  // topmost node and avoids duplicate entries for the same credited node.
+  const hits = new Map<SceneNode, number>();
+  hitTestNode(root, point, IDENTITY_MATRIX, { value: 0 }, null, hits);
 
-  if (results.length === 0) return null;
-
-  // Higher depth = painted later = on top
-  results.sort((a, b) => b.depth - a.depth);
-  return results[0].node;
+  let best: SceneNode | null = null;
+  let bestDepth = -Infinity;
+  for (const [node, depth] of hits) {
+    // Higher depth = painted later = on top.
+    if (depth > bestDepth) {
+      bestDepth = depth;
+      best = node;
+    }
+  }
+  return best;
 }
 
 /**
  * Recursively test nodes for hit, in paint order (parent before children).
+ * `nearestInteractive` is the closest interactive ancestor of `node` (null if
+ * none); a shape that contains the point credits it (or `node` itself when
+ * `node` is interactive) at the shape's own paint depth.
  */
 function hitTestNode(
   node: SceneNode,
   point: Point,
   parentWorld: Matrix3x3,
   order: { value: number },
-  results: HitTestResult[]
+  nearestInteractive: SceneNode | null,
+  hits: Map<SceneNode, number>
 ): void {
   // A node hidden by its visibility window paints nothing, so it (and its
   // subtree) can't be hit either. `hidden` is set by the per-frame resolve walk.
@@ -65,6 +85,11 @@ function hitTestNode(
   // Mask sources are never painted on their own, so they can't be hit; skip
   // the whole subtree. (Maskd content is hit-tested normally on its shape.)
   if (node.isMaskSource) return;
+
+  // pointer-events: none removes this node AND its subtree from hit-testing —
+  // its geometry neither hits it nor bubbles to an ancestor, and (we don't
+  // support re-enabling) no descendant can opt back in.
+  if (node.pointerEvents === 'none') return;
 
   const world = computeWorldMatrix(node, parentWorld);
   const depth = order.value++;
@@ -76,14 +101,21 @@ function hitTestNode(
   const clip = resolveClip(node);
   if (clip && !isPointInClip(clip, local, node.fillRule)) return;
 
-  if (node.interactive && isPointInShape(node, local)) {
-    results.push({ node, depth });
+  // Nearest interactive ancestor-or-self for this node and its subtree.
+  const credited = node.interactive ? node : nearestInteractive;
+
+  // Any shape containing the point credits `credited` at this shape's paint
+  // depth (bubbling). Groups have no geometry of their own (isPointInShape
+  // returns false), so they only ever get credited via a descendant shape.
+  if (credited && isPointInShape(node, local)) {
+    const prev = hits.get(credited);
+    if (prev === undefined || depth > prev) hits.set(credited, depth);
   }
 
   // Same paint order as the render walk, so hit depth (= paint order) and
   // stacking agree: later-painted siblings get higher depth (topmost).
   for (const child of childrenInPaintOrder(node)) {
-    hitTestNode(child, point, world, order, results);
+    hitTestNode(child, point, world, order, credited, hits);
   }
 }
 

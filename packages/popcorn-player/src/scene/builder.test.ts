@@ -54,6 +54,81 @@ test('text: hit-test against estimated bounds', () => {
   expect(hitTest(root, { x: 300, y: 300 })).toBeNull();            // outside
 });
 
+// --- hit-test bubbling + pointer-events --------------------------------------
+// DOM/SVG-style bubbling: a shape whose geometry contains the point credits its
+// nearest interactive ancestor-or-self. This replaces the old "only a directly-
+// interactive shape is ever hit, groups never" behavior — those semantics are
+// asserted below on purpose.
+
+test('bubbling: interactive group is hit (and flips to :hover) when a descendant shape is hovered', () => {
+  // The group itself has no geometry; the old hit-test could never hit it. Now a
+  // hover over its child rect bubbles up and drives the group's &:hover.
+  const src = `#g { type: group; &:hover { opacity: 0.5; }
+    > #c { type: rect; x: 0; y: 0; width: 40px; height: 40px; fill: #000; } }`;
+  const root = build(src);
+  const g = root.children[0];
+  expect(g.type).toBe('group');
+  expect(g.interactive).toBe(true);
+
+  // Point inside the child rect, which has no interactive ancestor but the group.
+  expect(hitTest(root, { x: 10, y: 10 })).toBe(g);
+
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  mgr.update({ cursor: { x: 10, y: 10, isDown: false } }, 0);
+  expect(g.interactionState).toBe('hover');
+});
+
+test('bubbling: child geometry poking outside the parent bubbles to the interactive parent', () => {
+  // Parent rect is (0,0)-(50,50); the child overhangs to (80,80). A point in the
+  // overhang is outside the parent's own outline but still hits the parent.
+  const src = `#p { type: rect; x: 0; y: 0; width: 50px; height: 50px; &:hover { opacity: 0.5; }
+    > #c { type: rect; x: 40px; y: 40px; width: 40px; height: 40px; fill: #000; } }`;
+  const p = build(src).children[0];
+  expect(hitTest(p, { x: 70, y: 70 })).toBe(p); // overhang region -> parent
+  expect(hitTest(p, { x: 5, y: 5 })).toBe(p);   // parent's own geometry -> parent
+  expect(hitTest(p, { x: 200, y: 200 })).toBeNull(); // outside both
+});
+
+test('bubbling: a directly-interactive child beats an interactive ancestor inside the child geometry', () => {
+  // Both parent and child are interactive; nearest wins. Inside the child -> the
+  // child (deeper paint depth); in the parent-only region -> the parent.
+  const src = `#p { type: rect; x: 0; y: 0; width: 100px; height: 100px; &:hover { opacity: 0.5; }
+    > #c { type: rect; x: 20px; y: 20px; width: 20px; height: 20px; &:hover { opacity: 0.5; } } }`;
+  const p = build(src).children[0];
+  const c = p.children[0];
+  expect(hitTest(p, { x: 30, y: 30 })).toBe(c); // inside child -> nearest (child)
+  expect(hitTest(p, { x: 5, y: 5 })).toBe(p);   // parent-only -> parent
+});
+
+test('pointer-events: none excludes a child from the parent hover region and skips its subtree', () => {
+  // The none child overhangs the interactive parent; its geometry neither hits
+  // it nor bubbles to the parent.
+  const overhang = `#p { type: rect; x: 0; y: 0; width: 50px; height: 50px; &:hover { opacity: 0.5; }
+    > #c { type: rect; x: 40px; y: 40px; width: 40px; height: 40px; pointer-events: none; } }`;
+  const p = build(overhang).children[0];
+  expect(p.children[0].pointerEvents).toBe('none');
+  expect(hitTest(p, { x: 70, y: 70 })).toBeNull(); // overhang no longer bubbles
+  expect(hitTest(p, { x: 10, y: 10 })).toBe(p);    // parent's own geometry still hits
+
+  // A none subtree is skipped whole: an interactive descendant is not re-enabled.
+  const subtree = `#g { type: group; pointer-events: none;
+    > #c { type: rect; x: 0; y: 0; width: 40px; height: 40px; &:hover { opacity: 0.5; } } }`;
+  const g = build(subtree).children[0];
+  expect(hitTest(g, { x: 10, y: 10 })).toBeNull();
+});
+
+test('bubbling: an unpainted (fill: none) child still hits, crediting the interactive parent', () => {
+  // Hit-testing is geometry-only, so a fill:none shape still hits (existing
+  // quirk); bubbling inherits it — the parent's hover region includes the
+  // invisible child geometry.
+  const src = `#p { type: rect; x: 0; y: 0; width: 50px; height: 50px; &:hover { opacity: 0.5; }
+    > #c { type: rect; x: 40px; y: 40px; width: 40px; height: 40px; fill: none; } }`;
+  const p = build(src).children[0];
+  expect(p.children[0].fill).toBeNull();
+  expect(hitTest(p, { x: 70, y: 70 })).toBe(p);
+});
+
 // --- symbols (@define / use) -------------------------------------------------
 
 const SYMBOL_SRC = `

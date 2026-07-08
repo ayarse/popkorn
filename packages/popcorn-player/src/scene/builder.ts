@@ -743,6 +743,14 @@ export class SceneBuilder {
         }
         break;
 
+      // CSS pointer-events (subset): `none` removes this node and its subtree
+      // from hit-testing. Static keyword; not animatable / state-overridable.
+      case 'pointer-events':
+        if (isKeywordValue(value)) {
+          node.pointerEvents = value.value === 'none' ? 'none' : 'auto';
+        }
+        break;
+
       // Trim paths: percentages normalized to 0..1 (like opacity is authored as
       // a fraction) and clamped to range.
       case 'trim-start':

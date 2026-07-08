@@ -101,7 +101,9 @@ test('hitTest: rotated + origin-shifted rect matches the world matrix', () => {
   expect(hitTest(node, outside)).toBeNull();
 });
 
-test('hitTest: non-interactive node is never hit', () => {
+test('hitTest: non-interactive node with no interactive ancestor is never hit', () => {
+  // Bubbling credits the nearest interactive ancestor-or-self; with neither the
+  // node nor any ancestor interactive, its geometry has nothing to bubble to.
   const node = rect('r', 0, 0, 100, 100);
   node.interactive = false;
   expect(hitTest(node, { x: 50, y: 50 })).toBeNull();

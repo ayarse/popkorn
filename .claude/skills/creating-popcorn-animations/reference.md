@@ -563,10 +563,32 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 }
 ```
 
-- Hit-testing uses the inverse world matrix (regions match paint exactly), respects clip regions, returns the topmost interactive node. Groups and mask sources aren't hit-testable.
+- Hit-testing uses the inverse world matrix (regions match paint exactly), respects clip regions, returns the topmost interactive node.
 - State override consumes only `fill`, `stroke`, `stroke-width`, `opacity`, `transform`.
 - `active` falls back to `hover` styles if no `&:active` block.
 - **Transform overrides layer on top of running animations:** `translate`/`rotate` additive, `scale` multiplicative.
+
+**Hit-testing bubbles like the DOM.** Any shape whose *geometry* contains the
+pointer credits its **nearest interactive ancestor-or-self**:
+- A `&:hover`/`&:active` on a `type: group` now works — hovering **any**
+  descendant shape flips the group's state (groups have no geometry of their own,
+  so this is the only way they get hit).
+- An interactive shape's hover region **includes descendant geometry that pokes
+  outside its own outline** (e.g. a leaf overhanging its stem group).
+- **Nearest wins:** a directly-interactive child still beats an interactive
+  ancestor inside the child's own geometry; topmost paint depth breaks ties, so
+  hit priority stays "paint order, reversed" (matches `z-index`).
+- Hit-testing is **geometry-only** — an unpainted shape (`fill: none`, no stroke)
+  still hits, and now bubbles to its interactive ancestor too. Give a purely
+  decorative-but-invisible child `pointer-events: none` if you don't want it
+  enlarging the parent's hit region.
+
+**`pointer-events: none | auto`** (default `auto`) removes a node **and its whole
+subtree** from hit-testing: its geometry neither hits it nor bubbles to an
+ancestor. Simplification vs. CSS: we do **not** support re-enabling — a
+`pointer-events: auto` on a descendant of a `none` node is ignored. Static
+property: not animatable, not overridable inside a `&:hover`/`&:active` block.
+Mask sources are likewise never hit-testable (skipped whole, same as `none`).
 
 **Styling a child on the parent's state** — put a `> #child` rule inside the
 state block (the DSL spelling of CSS `#card:hover > #icon { … }`):

@@ -42,6 +42,13 @@ export type StrokeLineJoin = 'miter' | 'round' | 'bevel';
 // the fills it covers, so only the exposed edge (a seam) shows.
 export type PaintOrder = 'normal' | 'stroke';
 
+// CSS pointer-events (subset). `none` excludes a node's geometry from hit-testing
+// AND removes its whole subtree from consideration — its descendants can't hit or
+// bubble either. Static: not animatable, not state-block-overridable. Unlike CSS
+// we do NOT support re-enabling: `pointer-events: auto` on a descendant of a
+// `none` node is ignored (the subtree stays excluded).
+export type PointerEvents = 'auto' | 'none';
+
 // Interaction state types
 export type InteractionState = 'normal' | 'hover' | 'active';
 
@@ -139,6 +146,10 @@ export interface SceneNode {
 
   // Paint order of this node's own fill/stroke (static). Default 'normal'.
   paintOrder: PaintOrder;
+
+  // Whether this node (and its subtree) participate in hit-testing (static).
+  // 'none' skips them entirely; see PointerEvents. Default 'auto'.
+  pointerEvents: PointerEvents;
 
   // Cached total outline length (local units). Invalidated by the registry's
   // geometry apply functions (they set outlineLengthDirty); recomputed lazily
@@ -562,6 +573,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     strokeDashOffset: 0,
     fillRule: 'nonzero',
     paintOrder: 'normal',
+    pointerEvents: 'auto',
     cachedOutlineLength: null,
     outlineLengthDirty: true,
     cachedTextBounds: null,
