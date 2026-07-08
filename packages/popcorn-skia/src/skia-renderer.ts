@@ -32,8 +32,19 @@ type SkPaint = import('@shopify/react-native-skia').SkPaint;
 type SkPath = import('@shopify/react-native-skia').SkPath;
 type SkShader = import('@shopify/react-native-skia').SkShader;
 type SkColor = import('@shopify/react-native-skia').SkColor;
+type SkPathEffect = import('@shopify/react-native-skia').SkPathEffect;
 
 type Bounds = { x: number; y: number; width: number; height: number };
+
+// Bounds only feed gradient shaders; a shape with no gradient never reads them,
+// so we hand it this shared zero box instead of scanning its geometry.
+const ZERO_BOUNDS: Bounds = { x: 0, y: 0, width: 0, height: 0 };
+
+// Entry caps for the value-keyed caches below (shader, dash). A morphing
+// gradient / dash produces a fresh key every frame; cap + clear keeps those
+// from growing without bound. Static scenes stay well under the cap.
+const SHADER_CACHE_CAP = 64;
+const DASH_CACHE_CAP = 64;
 
 // Mirror the (stable) @shopify/react-native-skia enum values so we never import
 // them at runtime (that would pull the native module into the test). These match
@@ -109,7 +120,19 @@ export class SkiaRenderer implements Renderer {
   // cached too — Skia.Color re-parses the CSS string on every call otherwise.
   private fillPaint: SkPaint;
   private strokePaint: SkPaint;
+  // Lazily pooled compositing paint for compositeMask (reset + reconfigured per
+  // mask, like fill/strokePaint). Allocated on first mask so a mask-free scene
+  // never pays for it.
+  private maskPaint: SkPaint | null = null;
   private colorCache = new Map<string, SkColor>();
+
+  // Per-frame rebuild caches. drawPath/buildPath/clip otherwise realize a fresh
+  // SkPath, SkShader and dash PathEffect every frame; these memoize the static
+  // (unchanging) cases so only genuinely animated geometry rebuilds. See each
+  // cache's use site for its key + invalidation rationale.
+  private pathCache = new WeakMap<PathCommand[], SkPath>();
+  private shaderCache = new Map<string, SkShader>();
+  private dashCache = new Map<string, SkPathEffect>();
 
   constructor(skia: SkiaApi, opts: { width: number; height: number }) {
     this.skia = skia;
@@ -179,7 +202,10 @@ export class SkiaRenderer implements Renderer {
   drawPath(commands: PathCommand[]): void {
     const path = this.buildPath(commands);
     path.setFillType(FillType[this.fillRule]);
-    this.fillAndStroke(computePathBounds(commands), (p) => this.canvas!.drawPath(path, p));
+    // Only a gradient paint consumes bounds, so skip the full command scan
+    // (computePathBounds) for the common flat-fill/stroke path.
+    const bounds = this.fillGradient || this.strokeGradient ? computePathBounds(commands) : ZERO_BOUNDS;
+    this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
   }
 
   // ponytail: fonts deferred — RN Skia needs an SkFont/typeface loaded async,
@@ -222,7 +248,8 @@ export class SkiaRenderer implements Renderer {
     const savedOpacity = this.opacity;
 
     const invert = mode === 'alpha-invert' || mode === 'luminance-invert';
-    const maskPaint = this.skia.Paint();
+    const maskPaint = (this.maskPaint ??= this.skia.Paint());
+    maskPaint.reset();
     maskPaint.setBlendMode(invert ? BlendMode_DstOut : BlendMode_DstIn);
     if (mode === 'luminance' || mode === 'luminance-invert') {
       maskPaint.setColorFilter(this.skia.ColorFilter.MakeMatrix(LUMA_TO_ALPHA_MATRIX));
@@ -313,7 +340,9 @@ export class SkiaRenderer implements Renderer {
   // Matrix3x3 is row-major [a,b,tx,c,d,ty,0,0,1] — Skia's concat takes exactly
   // that 3x3 row-major array, so it maps directly (no (a,c,b,d,e,f) shuffle).
   transform(m: Matrix3x3): void {
-    this.canvas?.concat([...m]);
+    // concat copies the floats synchronously (never retains/mutates the array),
+    // so pass `m` straight through — no defensive spread.
+    this.canvas?.concat(m);
     this.ctm = multiplyMatrices(this.ctm, m);
   }
 
@@ -323,7 +352,8 @@ export class SkiaRenderer implements Renderer {
   // restoreToCount reset (mask closures call this mid-walk under ancestor clips).
   setTransform(m: Matrix3x3): void {
     const delta = multiplyMatrices(invertMatrix(this.ctm), m);
-    this.canvas?.concat([...delta]);
+    // `delta` is already a fresh array and concat copies it synchronously.
+    this.canvas?.concat(delta);
     this.ctm = m;
   }
 
@@ -398,9 +428,9 @@ export class SkiaRenderer implements Renderer {
     // Trim wins over an authored dasharray (both share the single dash slot),
     // matching Canvas2DRenderer.
     if (this.trim && this.trim.dashArray.length > 0) {
-      paint.setPathEffect(this.skia.PathEffect.MakeDash(this.trim.dashArray, this.trim.dashOffset));
+      paint.setPathEffect(this.dashEffect(this.trim.dashArray, this.trim.dashOffset));
     } else if (!this.trim && this.dashArray.length > 0) {
-      paint.setPathEffect(this.skia.PathEffect.MakeDash(this.dashArray, this.dashOffset));
+      paint.setPathEffect(this.dashEffect(this.dashArray, this.dashOffset));
     }
 
     if (this.strokeGradient) {
@@ -421,6 +451,21 @@ export class SkiaRenderer implements Renderer {
    * radius = half the box diagonal, unless explicit geometry is given.
    */
   private makeShader(g: GradientData, b: Bounds): SkShader {
+    // The reset walk deep-copies gradients every frame (scene/types.ts), so the
+    // descriptor's object identity is useless as a key — serialize its value +
+    // the bounds instead. Cheap next to rebuilding the shader (colour parse +
+    // stops arrays) each frame; a morphing gradient produces a fresh key per
+    // frame and rebuilds (capped so it can't grow unbounded).
+    const key = `${JSON.stringify(g)}|${b.x},${b.y},${b.width},${b.height}`;
+    const hit = this.shaderCache.get(key);
+    if (hit) return hit;
+    const shader = this.buildShader(g, b);
+    if (this.shaderCache.size >= SHADER_CACHE_CAP) this.shaderCache.clear();
+    this.shaderCache.set(key, shader);
+    return shader;
+  }
+
+  private buildShader(g: GradientData, b: Bounds): SkShader {
     const cx = b.x + b.width / 2;
     const cy = b.y + b.height / 2;
     const colors = g.stops.map((s) => this.color(s.color));
@@ -457,10 +502,43 @@ export class SkiaRenderer implements Renderer {
     return this.skia.Shader.MakeRadialGradient({ x: cx, y: cy }, r, colors, pos, TileMode_Clamp);
   }
 
-  /** Realize SVG-style path commands into an SkPath via the shared applyCommandsToPath. */
+  /** Memoize the dash PathEffect by interval-contents + offset (rebuilt each frame otherwise). */
+  private dashEffect(intervals: number[], offset: number): SkPathEffect {
+    const key = `${intervals.join(',')}|${offset}`;
+    let e = this.dashCache.get(key);
+    if (!e) {
+      if (this.dashCache.size >= DASH_CACHE_CAP) this.dashCache.clear();
+      e = this.skia.PathEffect.MakeDash(intervals, offset);
+      this.dashCache.set(key, e);
+    }
+    return e;
+  }
+
+  /**
+   * Realize SVG-style path commands into an SkPath via the shared
+   * applyCommandsToPath, memoized on the commands array *reference*.
+   *
+   * resetNodeToBase copies the base commands array by reference for a static
+   * path (Object.assign), so its reference is stable frame-to-frame and doubles
+   * as a free dirty check — a cache hit is provably the same geometry. An
+   * animated `d` swaps in a fresh array every frame (registry `d.apply`), a
+   * natural miss that rebuilds. The WeakMap lets those transient arrays GC.
+   *
+   * ponytail: clip paths miss every frame — cloneClipPath re-slices their
+   * commands into a fresh array per reset (scene/types.ts), so reference keying
+   * can't hit. They rebuild (as before); caching them would need a per-node
+   * cache seam threaded through drawPath/clip, not worth it while clips are rare
+   * vs draw paths. Fill type is NEVER memoized: every caller re-applies
+   * setFillType (draw and clip use different winding on potentially the same
+   * geometry).
+   */
   private buildPath(commands: PathCommand[]): SkPath {
-    const path = this.skia.Path.Make();
-    applyCommandsToPath(new SkPathSink(path), commands);
+    let path = this.pathCache.get(commands);
+    if (!path) {
+      path = this.skia.Path.Make();
+      applyCommandsToPath(new SkPathSink(path), commands);
+      this.pathCache.set(commands, path);
+    }
     return path;
   }
 }

@@ -20,7 +20,7 @@ function mockSkia() {
   // How many native SkPaint objects the renderer allocated. Paint reuse means
   // this must stay flat (the two persistent fill/stroke paints) no matter how
   // many shapes or frames are drawn.
-  const counters = { paints: 0 };
+  const counters = { paints: 0, paths: 0, shaders: 0, dashes: 0 };
 
   const makePaint = () => {
     counters.paints++;
@@ -44,6 +44,7 @@ function mockSkia() {
   };
 
   const makePath = () => {
+    counters.paths++;
     const path: any = {};
     for (const m of ['moveTo', 'lineTo', 'cubicTo', 'quadTo', 'close', 'addCircle', 'setFillType']) {
       path[m] = () => path;
@@ -74,12 +75,12 @@ function mockSkia() {
     XYWHRect: (x: number, y: number, w: number, h: number) => ({ x, y, w, h }),
     RRectXY: (rect: unknown, rx: number, ry: number) => ({ rect, rx, ry }),
     Shader: {
-      MakeLinearGradient: () => ({}),
-      MakeRadialGradient: () => ({}),
-      MakeTwoPointConicalGradient: () => ({}),
+      MakeLinearGradient: () => { counters.shaders++; return {}; },
+      MakeRadialGradient: () => { counters.shaders++; return {}; },
+      MakeTwoPointConicalGradient: () => { counters.shaders++; return {}; },
     },
     // MakeDash echoes the interval array back so the renderer's even-ization is observable.
-    PathEffect: { MakeDash: (arr: number[]) => ({ __dash: arr }) },
+    PathEffect: { MakeDash: (arr: number[]) => { counters.dashes++; return { __dash: arr }; } },
     ColorFilter: { MakeMatrix: (matrix: number[]) => ({ __matrix: matrix }) },
   };
 
@@ -308,4 +309,134 @@ test('setDash even-izes an odd dash array', () => {
 
   const stroked = calls.find((c) => c.op === 'drawPath' && c.dash);
   expect(stroked?.dash).toEqual([4, 2, 1, 4, 2, 1]);
+});
+
+// #1: a static path's commands array is reference-stable across frames (the
+// reset walk shares the base array), so the SkPath is built once and cached —
+// Path.Make must not grow on frame 2.
+test('caches the SkPath for a static path across frames', () => {
+  const { Skia, canvas, counters } = mockSkia();
+  const scene = buildSceneGraph(
+    parse(`:root { width: 100px; height: 100px } #p { type: path; d: "M 0 0 L 20 0 L 20 20 Z"; fill: #00f }`)
+  );
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+
+  rl.seek(0);
+  const afterFrame1 = counters.paths;
+  expect(afterFrame1).toBeGreaterThan(0); // built once
+  rl.seek(16);
+  expect(counters.paths).toBe(afterFrame1); // frame 2 hit the cache, no rebuild
+});
+
+// #1: an animated `d` swaps a fresh commands array every frame, so the cache
+// misses and the SkPath rebuilds — geometry can never go stale.
+test('rebuilds the SkPath for an animated (morphing) path each frame', () => {
+  const { Skia, canvas, counters } = mockSkia();
+  const scene = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px }
+      @keyframes morph { from { d: "M 0 0 L 10 0 L 10 10 Z" } to { d: "M 0 0 L 20 0 L 20 20 Z" } }
+      #p { type: path; d: "M 0 0 L 10 0 L 10 10 Z"; fill: #000; animation: morph 1s linear }
+    `)
+  );
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+
+  rl.seek(250);
+  const afterFrame1 = counters.paths;
+  rl.seek(750); // a different interpolated instant => fresh commands array
+  expect(counters.paths).toBeGreaterThan(afterFrame1);
+});
+
+// #3: a static gradient is deep-copied per frame (identity unstable), but its
+// serialized value + bounds are stable, so the SkShader is built once.
+test('caches the gradient shader for a static gradient across frames', () => {
+  const { Skia, canvas, counters } = mockSkia();
+  const scene = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px }
+      #g { type: rect; width: 40px; height: 40px; fill: linear-gradient(#f00 0%, #00f 100%) }
+    `)
+  );
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+
+  rl.seek(0);
+  expect(counters.shaders).toBe(1); // built once
+  rl.seek(16);
+  expect(counters.shaders).toBe(1); // frame 2 hit the shader cache
+});
+
+// #4: the dash PathEffect is memoized by interval-contents + offset, so a static
+// dashed stroke builds it once across frames.
+test('caches the dash PathEffect across frames', () => {
+  const { Skia, canvas, counters } = mockSkia();
+  const scene = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px }
+      #d { type: path; d: "M 0 0 L 40 0"; stroke: #000; stroke-width: 2px; stroke-dasharray: 5px 3px }
+    `)
+  );
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+
+  rl.seek(0);
+  expect(counters.dashes).toBe(1); // built once
+  rl.seek(16);
+  expect(counters.dashes).toBe(1); // frame 2 hit the dash cache
+});
+
+// #2: a paused (dynamic) loop freezes the timeline, and the dormancy PopcornView
+// relies on — deliver one frame, unbind the canvas, record nothing further until
+// time moves — rests on these renderer/loop primitives: currentTime holds while
+// paused, and an unbound canvas records no draws; resume + rebind draws again.
+// (PopcornView's frameCallback is the integrator; it can't mount headless.)
+test('a paused loop freezes time and unbinding halts draws until resume', () => {
+  const { Skia, canvas, calls } = mockSkia();
+  const scene = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px }
+      @keyframes spin { from { rotate: 0deg } to { rotate: 360deg } }
+      #r { type: rect; width: 10px; height: 10px; fill: #000; animation: spin 1s linear infinite }
+    `)
+  );
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+  rl.setLoop(true);
+
+  rl.seek(200);
+  rl.pause();
+  expect(rl.paused).toBe(true);
+  const frozen = rl.currentTime;
+
+  // Deliver the frozen frame, then go dormant (unbind) — subsequent ticks record
+  // nothing and the timeline hasn't moved.
+  calls.length = 0;
+  renderer.setCanvas(null as any);
+  rl.redraw();
+  rl.redraw();
+  expect(rl.currentTime).toBe(frozen);                  // time held while paused
+  expect(calls.some((c) => c.op.startsWith('draw'))).toBe(false); // dormant: no draws
+
+  // Resume + rebind: draws flow again.
+  rl.resume();
+  renderer.setCanvas(canvas);
+  rl.redraw();
+  expect(calls.some((c) => c.op.startsWith('draw'))).toBe(true);
 });

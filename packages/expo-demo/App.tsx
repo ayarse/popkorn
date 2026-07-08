@@ -85,7 +85,10 @@ function AppInner() {
   return (
     <View style={styles.root}>
       <View style={styles.stage}>
-        <PopcornView source={source} width={stage} height={stage} loop paused={editorOpen} />
+        {/* Keep playing behind the editor sheet — the per-frame render is cheap
+            (cached paths/shaders/dashes), and the deferred editor mount above
+            protects the open transition. */}
+        <PopcornView source={source} width={stage} height={stage} loop />
       </View>
 
       <Pressable

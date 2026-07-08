@@ -85,6 +85,11 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
       api.requestRedraw(id);
     };
 
+    // Timeline time of the frame currently frozen on screen while paused; null
+    // when the timeline is live. Lets a paused scene go dormant (the scheduler is
+    // frozen, so every tick would otherwise re-record an identical picture).
+    let frozenAt: number | null = null;
+
     bind();
     rl.setFrameCallback(() => {
       const isStatic = rl.isStatic();
@@ -105,6 +110,30 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
         // Woke back up: the canvas was unbound so nothing was painted this tick.
         // Rebind and deliver on the next one.
         settled = false;
+        bind();
+        return;
+      }
+
+      // Paused (dynamic scene, so isStatic is false): the timeline is frozen.
+      // Deliver one frame at the frozen instant, then unbind and stay dormant
+      // until time moves again (resume or seek). Keying on currentTime means a
+      // seek-while-paused wakes it; touch input is deferred in this PoC, so a
+      // frozen scene has nothing else that could change.
+      if (rl.paused) {
+        const t = rl.currentTime;
+        if (frozenAt === t) return;          // dormant, nothing changed
+        if (frozenAt !== null) {             // dormant, but time moved (seek): rebind, deliver next tick
+          frozenAt = null;
+          bind();
+          return;
+        }
+        push();                              // canvas was bound: this instant is recorded — deliver it
+        renderer.setCanvas(null);
+        frozenAt = t;
+        return;
+      }
+      if (frozenAt !== null) {               // resumed from a dormant pause: rebind, deliver next tick
+        frozenAt = null;
         bind();
         return;
       }
