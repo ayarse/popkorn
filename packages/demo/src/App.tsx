@@ -592,6 +592,9 @@ function ImportStatusChip({
   const deltaPct = pct(raw.lottie, raw.popcorn);
   const minDeltaPct = min ? pct(min.lottie, min.popcorn) : 0;
   const gzDeltaPct = gz ? pct(gz.lottie, gz.popcorn) : 0;
+  // Collapsed chip teases the gzipped delta (real wire size); until the async
+  // gzip resolves, fall back to the raw delta.
+  const chipDeltaPct = gz ? gzDeltaPct : deltaPct;
 
   return (
     <div className="flex items-center overflow-hidden rounded-md border border-border">
@@ -625,7 +628,7 @@ function ImportStatusChip({
               </span>
             )}
             <span className="ml-0.5 font-mono text-[11px] text-muted-foreground">
-              {fmtPct(deltaPct)}
+              {fmtPct(chipDeltaPct)}
             </span>
           </button>
         </PopoverTrigger>
