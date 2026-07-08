@@ -23,6 +23,7 @@ export {
   colorToCSS,
   parseColor,
   multiplyMatrices,
+  invertMatrix,
   translationMatrix,
   rotationMatrix,
   scaleMatrix,

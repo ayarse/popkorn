@@ -13,7 +13,14 @@ import type {
   PaintOrder,
   PathSink,
 } from '@popcorn/player';
-import { colorToCSS, applyCommandsToPath, computePathBounds } from '@popcorn/player';
+import {
+  colorToCSS,
+  applyCommandsToPath,
+  computePathBounds,
+  multiplyMatrices,
+  invertMatrix,
+  IDENTITY_MATRIX,
+} from '@popcorn/player';
 
 // react-native-skia types only — inline `import(...)` type refs are erased at
 // runtime, so this file loads under `bun test` without the native module. The
@@ -36,6 +43,21 @@ const StrokeJoin = { miter: 0, round: 1, bevel: 2 } as const;  // SkStrokeJoin
 const FillType = { nonzero: 0, evenodd: 1 } as const;          // Winding, EvenOdd
 const TileMode_Clamp = 0;                                       // TileMode.Clamp
 const ClipOp_Intersect = 1;                                     // ClipOp.Intersect
+const BlendMode_DstIn = 6;                                      // SkBlendMode.DstIn:  r = d * sa
+const BlendMode_DstOut = 8;                                     // SkBlendMode.DstOut: r = d * (1-sa)
+
+// Luminance -> alpha colour matrix (4x5, RGBA row-major, last column = bias).
+// Zeroes RGB and writes Rec.709 luma into alpha, so a luminance matte becomes an
+// alpha matte the DstIn/DstOut blend below consumes. Matches Canvas2DRenderer's
+// luminanceToAlpha coefficients.
+// ponytail: unlike the Canvas2D path this ignores the mask's own alpha (can't
+// express luma*alpha as a linear matrix); fine for the usual opaque luma matte.
+const LUMA_TO_ALPHA_MATRIX = [
+  0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+];
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
@@ -72,6 +94,13 @@ export class SkiaRenderer implements Renderer {
   private opacity = 1;
   private opacityStack: number[] = [];
 
+  // SkCanvas has no setMatrix, only concat (relative). We mirror the CTM in JS
+  // and push/pop it in lockstep with the native save/restore, so setTransform can
+  // reach an ABSOLUTE matrix via `concat(invert(current) · target)`. Kept alongside
+  // (not via restoreToCount) so setTransform never disturbs active clips.
+  private ctm: Matrix3x3 = IDENTITY_MATRIX;
+  private ctmStack: Matrix3x3[] = [];
+
   constructor(skia: SkiaApi, opts: { width: number; height: number }) {
     this.skia = skia;
     this.width = opts.width;
@@ -92,6 +121,9 @@ export class SkiaRenderer implements Renderer {
   beginFrame(): void {
     this.opacity = 1;
     this.opacityStack.length = 0;
+    // Fresh recorder canvas starts at identity; resync the mirror to match.
+    this.ctm = IDENTITY_MATRIX;
+    this.ctmStack.length = 0;
   }
 
   endFrame(): void {
@@ -152,13 +184,39 @@ export class SkiaRenderer implements Renderer {
     this.canvas.clipPath(path, ClipOp_Intersect, true);
   }
 
-  // ponytail: track-mask compositing degrades to content-only. The upgrade path
-  // is a `saveLayer` + `DstIn` blend for 'alpha' mode (and a luminance colour
-  // filter for 'luminance'), but it needs the mask subtree drawn at an absolute
-  // world transform — Skia has no setMatrix, so it must reset via save/restore
-  // around each closure. Deferred for the PoC.
-  compositeMask(_mode: MaskMode, drawContent: () => void, _drawMask: () => void): void {
+  // Track-matte compositing via nested layers (mirrors Canvas2DRenderer):
+  //   L1 (content layer) <- drawContent
+  //     L2 (mask layer, DstIn/DstOut paint, +luma filter) <- drawMask
+  //   restore L2  => mask alpha keeps/erases content (DstIn: r=d·sa)
+  //   restore L1  => masked content painted onto the canvas (source-over)
+  // The closures each call setTransform (absolute, per the CTM mirror) to place
+  // their subtree at its world position. Everything is bracketed so the CTM and
+  // clip state are clean afterwards.
+  compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void {
+    const canvas = this.canvas;
+    if (!canvas) { drawContent(); return; }
+
+    const savedCtm = this.ctm;
+    const savedOpacity = this.opacity;
+
+    const invert = mode === 'alpha-invert' || mode === 'luminance-invert';
+    const maskPaint = this.skia.Paint();
+    maskPaint.setBlendMode(invert ? BlendMode_DstOut : BlendMode_DstIn);
+    if (mode === 'luminance' || mode === 'luminance-invert') {
+      maskPaint.setColorFilter(this.skia.ColorFilter.MakeMatrix(LUMA_TO_ALPHA_MATRIX));
+    }
+
+    canvas.save();          // outer bracket: restores CTM + clip afterwards
+    canvas.saveLayer();     // L1: content
     drawContent();
+    canvas.saveLayer(maskPaint); // L2: mask (blended down onto L1 on restore)
+    drawMask();
+    canvas.restore();       // composite L2 -> L1 (DstIn / DstOut)
+    canvas.restore();       // composite L1 -> canvas (source-over)
+    canvas.restore();       // outer bracket
+
+    this.ctm = savedCtm;
+    this.opacity = savedOpacity;
   }
 
   // --- Style -----------------------------------------------------------------
@@ -197,7 +255,10 @@ export class SkiaRenderer implements Renderer {
   }
 
   setDash(dashArray: number[], dashOffset: number): void {
-    this.dashArray = dashArray;
+    // PathEffect.MakeDash requires an even-length interval array; an odd array
+    // means [on,off,on] — duplicate it so the pattern repeats correctly (Canvas2D
+    // does this implicitly in setLineDash).
+    this.dashArray = dashArray.length % 2 ? dashArray.concat(dashArray) : dashArray;
     this.dashOffset = dashOffset;
   }
 
@@ -218,23 +279,30 @@ export class SkiaRenderer implements Renderer {
   save(): void {
     this.canvas?.save();
     this.opacityStack.push(this.opacity);
+    this.ctmStack.push(this.ctm);
   }
 
   restore(): void {
     this.canvas?.restore();
     this.opacity = this.opacityStack.pop() ?? 1;
+    this.ctm = this.ctmStack.pop() ?? IDENTITY_MATRIX;
   }
 
   // Matrix3x3 is row-major [a,b,tx,c,d,ty,0,0,1] — Skia's concat takes exactly
   // that 3x3 row-major array, so it maps directly (no (a,c,b,d,e,f) shuffle).
   transform(m: Matrix3x3): void {
     this.canvas?.concat([...m]);
+    this.ctm = multiplyMatrices(this.ctm, m);
   }
 
-  // No setMatrix in Skia; the only caller is the frame root, where the recorder
-  // canvas starts at identity, so a concat is equivalent to an absolute set.
+  // ABSOLUTE set (mirrors Canvas2DRenderer.setTransform, which replaces the CTM).
+  // SkCanvas only has relative concat, so reach `m` by pre-cancelling the current
+  // CTM: concat(invert(current) · m). Leaves any active clip untouched, unlike a
+  // restoreToCount reset (mask closures call this mid-walk under ancestor clips).
   setTransform(m: Matrix3x3): void {
-    this.canvas?.concat([...m]);
+    const delta = multiplyMatrices(invertMatrix(this.ctm), m);
+    this.canvas?.concat([...delta]);
+    this.ctm = m;
   }
 
   getWidth(): number {
