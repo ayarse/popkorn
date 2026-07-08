@@ -285,6 +285,22 @@ Supported: `translate(x[,y])`, `translateX`, `translateY`, `rotate(deg)`, `scale
 
 Composition: translate → motion-path offset → transform-origin sandwich (`T(origin)·R·S·T(-origin)`). Rotation is a plain numeric lerp — **no shortest-arc**, so `rotate(0deg)→rotate(360deg)` spins a full turn. World matrix = parentWorld × local.
 
+### Individual transform properties
+
+The CSS individual transform properties are also accepted as standalone
+declarations — in a rule body, in `@keyframes`, and in `&:hover`/`&:active`:
+
+```css
+translate: 40px 10px;   /* <x> [<y>]  (y defaults to 0) */
+rotate: 45deg;          /* <angle> */
+scale: 1.2;             /* <n> [<n>]  (single value = uniform) */
+```
+
+ponytail: unlike CSS, these are **not** a separate transform layer — they write
+the **same** channels (`translateX/translateY/rotate/scaleX/scaleY`) as
+`transform:`. So mixing `transform:` and `translate:`/`rotate:`/`scale:` on one
+node is **last-declaration-wins per channel**, not additive layering.
+
 ### transform-origin
 
 ```css

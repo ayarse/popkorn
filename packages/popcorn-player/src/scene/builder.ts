@@ -126,6 +126,41 @@ function extractTransform(value: Value, set: (key: TransformKey, val: number) =>
   }
 }
 
+/**
+ * Map a CSS individual transform property (`translate`/`rotate`/`scale`) onto
+ * the transform channels, reporting each to `set`. Values are bare (not
+ * functions): `translate: <x> [<y>]`, `rotate: <angle>`, `scale: <n> [<n>]`.
+ * Returns false for any other property.
+ *
+ * ponytail: these write the SAME channels as the `transform:` shorthand (single
+ * source of transform math, invariant #1) rather than modeling CSS's separate
+ * translate/rotate/scale/transform layering. So mixing them with `transform:` on
+ * one node is last-declaration-wins per channel, not additive layering.
+ */
+function extractIndividualTransform(
+  property: string,
+  value: Value,
+  set: (key: TransformKey, val: number) => void
+): boolean {
+  const parts = isListValue(value) ? value.values : [value];
+  switch (property) {
+    case 'translate':
+      set('translateX', getNumericValue(parts[0]));
+      set('translateY', parts.length > 1 ? getNumericValue(parts[1]) : 0);
+      return true;
+    case 'rotate':
+      set('rotate', getNumericValue(parts[0]));
+      return true;
+    case 'scale': {
+      const sx = getNumericValue(parts[0]);
+      set('scaleX', sx);
+      set('scaleY', parts.length > 1 ? getNumericValue(parts[1]) : sx);
+      return true;
+    }
+  }
+  return false;
+}
+
 export class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
   private definitionsMap: Map<string, DefinitionRule> = new Map();
@@ -337,8 +372,18 @@ export class SceneBuilder {
           break;
 
         case 'transform':
-          styles.transform = this.extractStateTransform(value);
+          styles.transform = { ...styles.transform, ...this.extractStateTransform(value) };
           break;
+
+        case 'translate':
+        case 'rotate':
+        case 'scale': {
+          // CSS individual transform properties in a state block: merge into the
+          // same channel deltas (last-declaration-wins per channel).
+          const t = (styles.transform ??= {});
+          extractIndividualTransform(property, value, (key, val) => { t[key] = val; });
+          break;
+        }
       }
     }
 
@@ -400,6 +445,15 @@ export class SceneBuilder {
       // Transform properties
       case 'transform':
         this.applyTransform(node, value);
+        break;
+
+      // CSS individual transform properties -> the same channels as transform:.
+      case 'translate':
+      case 'rotate':
+      case 'scale':
+        extractIndividualTransform(property, value, (key, val) => {
+          node.transform[key] = val;
+        });
         break;
 
       case 'transform-origin':
@@ -1105,6 +1159,12 @@ export class SceneBuilder {
           // Store individual transform properties instead of full Transform
           // This allows merging with base transform during interpolation
           this.extractTransformProperties(value, props);
+          break;
+        case 'translate':
+        case 'rotate':
+        case 'scale':
+          // CSS individual transform properties animate the same channels.
+          extractIndividualTransform(property, value, (key, val) => { props[key] = val; });
           break;
         case 'opacity':
           props.opacity = getNumericValue(value);

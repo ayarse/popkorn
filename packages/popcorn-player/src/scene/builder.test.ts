@@ -166,6 +166,55 @@ test('linear() parses and distributes missing inputs per CSS L2', () => {
   });
 });
 
+// --- individual transform properties (translate / rotate / scale) -----------
+
+test('individual transform properties set base channels', () => {
+  const src = `#a { type: rect; width: 10px; translate: 10px 20px; rotate: 45deg; scale: 2 3; }`;
+  const [a] = build(src).children;
+  expect(a.transform.translateX).toBe(10);
+  expect(a.transform.translateY).toBe(20);
+  expect(a.transform.rotate).toBe(45);
+  expect(a.transform.scaleX).toBe(2);
+  expect(a.transform.scaleY).toBe(3);
+});
+
+test('individual transform single-arg defaults (translate y=0, scale uniform)', () => {
+  const src = `#a { type: rect; width: 10px; translate: 10px; scale: 2; }`;
+  const [a] = build(src).children;
+  expect(a.transform.translateY).toBe(0);
+  expect(a.transform.scaleX).toBe(2);
+  expect(a.transform.scaleY).toBe(2);
+});
+
+test('individual transform + transform: last declaration wins per channel', () => {
+  const [a] = build(`#a { type: rect; width: 10px; transform: translateX(5px); translate: 40px 0; }`).children;
+  expect(a.transform.translateX).toBe(40);
+  const [b] = build(`#b { type: rect; width: 10px; translate: 40px 0; transform: translateX(5px); }`).children;
+  expect(b.transform.translateX).toBe(5);
+});
+
+test('individual transform properties animate the same channels', () => {
+  const src = `
+@keyframes k { from { translate: 0 0; scale: 1; } to { translate: 100px 50px; scale: 2 3; } }
+#a { type: rect; width: 10px; animation: k 1s linear; }
+`;
+  const [a] = build(src).children;
+  const to = a.animations[0].keyframes[1].properties;
+  expect(to.translateX).toBe(100);
+  expect(to.translateY).toBe(50);
+  expect(to.scaleX).toBe(2);
+  expect(to.scaleY).toBe(3);
+});
+
+test('individual transform properties in :hover state block', () => {
+  const src = `#a { type: rect; width: 10px; &:hover { translate: 5px 0; scale: 1.1; rotate: 10deg; } }`;
+  const [a] = build(src).children;
+  expect(a.hoverStyles?.transform?.translateX).toBe(5);
+  expect(a.hoverStyles?.transform?.scaleX).toBe(1.1);
+  expect(a.hoverStyles?.transform?.scaleY).toBe(1.1);
+  expect(a.hoverStyles?.transform?.rotate).toBe(10);
+});
+
 // --- polystar (star / polygon) ----------------------------------------------
 
 test('star: declarations populate PolystarData', () => {

@@ -33,6 +33,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(sides,outer-radius,inner-radius) · `text` · `image` · `group` |
 | Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-dasharray`, `fill-rule`, `opacity` |
 | Transform | `transform: translate(x,y) rotate(45deg) scale(1.2)` · `transform-origin: center` (**no skew**) |
+| Individual transforms | `translate: 40px 10px` · `rotate: 45deg` · `scale: 1.2` (same channels as `transform:`, last-wins) |
 | Animate | `animation: <name> <dur> <easing> <count> <dir> <delay>` e.g. `pulse 1.5s ease-in-out infinite` |
 | Keyframes | `@keyframes n { 0% {…} 50% {…} 100% {…} }` (`transform:` decomposes & merges) |
 | Per-kf easing / hold | `animation-timing-function: ease-out` (or `step-end`, `steps(3, jump-end)`) **inside** a keyframe block — eases the segment *from that keyframe to the next* |
