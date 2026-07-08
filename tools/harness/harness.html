@@ -9,8 +9,8 @@
   .bar label { display: flex; gap: 4px; align-items: center; }
   .row { display: flex; gap: 16px; padding: 12px; }
   .pane { text-align: center; }
-  #lot, popcorn-player { display: block; background: #c9c9c9; }
-  #lot canvas { display: block; }
+  #lot, popcorn-player, #thorvgPane { display: block; background: #c9c9c9; }
+  #lot canvas, #thorvgPane canvas { display: block; }
   h3 { margin: 4px; }
   #status { padding: 0 12px 12px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
   #inspector { display: flex; gap: 16px; padding: 12px; border-top: 1px solid #999; align-items: flex-start; flex-wrap: wrap; }
@@ -29,6 +29,7 @@
 </div>
 <div class="row">
   <div class="pane"><h3>lottie-web (parity floor)</h3><div id="lot"></div></div>
+  <div class="pane"><h3>thorvg (reference)</h3><div id="thorvgPane"></div></div>
   <div class="pane"><h3>popcorn-player</h3><popcorn-player id="pc"></popcorn-player></div>
 </div>
 <pre id="status"></pre>
@@ -39,14 +40,29 @@
   (see README "Working offline").
 -->
 <script id="lottieScript"></script>
+<!--
+  @thorvg/lottie-player 1.0.9 (default/software preset), a second reference
+  renderer alongside lottie-web. Pass ?thorvg=<url> to override. Loading is
+  best-effort: if the CDN fetch or its WASM init fails, the harness logs a
+  warning and keeps running in two-player (lottie-web + popcorn) mode — see
+  README "Two vs three players".
+-->
+<script id="thorvgScript"></script>
 <script type="module">
 import { cellRects, regionDelta, aHash, hamming, gridDiff } from './diffmath.js';
 
 const q = new URLSearchParams(location.search);
 const W = +(q.get('w') || 500);
 const H = +(q.get('h') || 500);
-const FPS = +(q.get('fps') || 30);
+// Defaults from the loaded Lottie file's own `fr` once it's known (set at
+// the end of loadLottie) — ?fps= always wins if given. Getting this wrong
+// silently desyncs lottie-web from popcorn/thorvg: seekBoth(1.0) at the
+// wrong FPS lands lottie-web at the wrong real-time instant while the other
+// two sit at t=1.0s exactly, contaminating every diff.
+let FPS = +(q.get('fps') || 30);
+const fpsOverridden = q.has('fps');
 const lottieSrc = q.get('lottie') || 'https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js';
+const thorvgSrc = q.get('thorvg') || 'https://unpkg.com/@thorvg/lottie-player@1.0.9/dist/lottie-player.js';
 // Path to the popcorn-player bundle produced by `bun build` — see README.
 const popcornBundle = q.get('bundle') || './dist/popcorn.js';
 
@@ -60,11 +76,30 @@ await new Promise((resolve, reject) => {
   s.onerror = () => reject(new Error('failed to load lottie-web from ' + lottieSrc));
 });
 
+// Best-effort: thorvg is a bonus reference, not a hard dependency. A failure
+// here (offline, bad ?thorvg= override, blocked CDN) must not break the
+// lottie-web/popcorn two-player flow.
+let thorvgAvailable = false;
+try {
+  await new Promise((resolve, reject) => {
+    const s = document.getElementById('thorvgScript');
+    s.src = thorvgSrc;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('failed to load thorvg lottie-player from ' + thorvgSrc));
+  });
+  if (!customElements.get('lottie-player')) throw new Error('lottie-player custom element did not register');
+  thorvgAvailable = true;
+} catch (err) {
+  log('warning: thorvg unavailable (' + err.message + ') — continuing in two-player mode');
+  document.getElementById('thorvgPane').textContent = 'thorvg unavailable (see log)';
+}
+
 const { registerPopcornPlayer } = await import(popcornBundle);
 registerPopcornPlayer();
 
 const lotEl = document.getElementById('lot');
 const pc = document.getElementById('pc');
+const thorvgPaneEl = document.getElementById('thorvgPane');
 lotEl.style.width = pc.style.width = W + 'px';
 lotEl.style.height = pc.style.height = H + 'px';
 pc.setAttribute('loop', ''); // keep animations cycling like the lottie-web loop
@@ -72,6 +107,8 @@ pc.setAttribute('loop', ''); // keep animations cycling like the lottie-web loop
 let anim = null;
 let pcReady = false;
 let lotReady = false;
+let thorvgEl = null;
+let thorvgReady = false;
 
 async function loadLottie(jsonSourceOrUrl) {
   if (anim) anim.destroy();
@@ -89,7 +126,58 @@ async function loadLottie(jsonSourceOrUrl) {
   await new Promise((resolve) => anim.addEventListener('DOMLoaded', resolve));
   const c = lotCanvas();
   if (c) { c.style.width = W + 'px'; c.style.height = H + 'px'; }
+  if (!fpsOverridden && anim.frameRate) FPS = anim.frameRate;
+  log('effective fps = ' + FPS + (fpsOverridden ? ' (from ?fps=)' : ' (from lottie file fr=' + anim.frameRate + ')'));
   lotReady = true;
+}
+
+// Best-effort: never throws. On any failure (bad WASM init, malformed data,
+// or thorvg not available at all) it logs and leaves thorvgReady=false, so
+// ref='thorvg' callers get the item-6 Error and __ready()/__scan() degrade
+// to two-player behavior automatically.
+async function loadThorvg(jsonSourceOrUrl) {
+  thorvgReady = false;
+  if (!thorvgAvailable) return;
+  try {
+    // Verified empirically: thorvg's load(src) is unreliable with a bare
+    // URL string (or even an absolute URL) — it consistently lands in
+    // currentState='error' with a corrupt TVG.size(). Passing an
+    // already-parsed object works reliably every time, so always fetch +
+    // JSON.parse ourselves first, exactly like the jsonFile picker path
+    // already does for loadLottie.
+    const data = typeof jsonSourceOrUrl === 'string'
+      ? await (await fetch(jsonSourceOrUrl)).json()
+      : jsonSourceOrUrl;
+    if (!thorvgEl) {
+      thorvgEl = document.createElement('lottie-player');
+      thorvgEl.id = 'tvg';
+      thorvgEl.style.width = W + 'px';
+      thorvgEl.style.height = H + 'px';
+      thorvgPaneEl.appendChild(thorvgEl);
+    }
+    // load() swallows its own errors internally (sets currentState='error'
+    // and dispatches an 'error' event) rather than rejecting — check state.
+    // On success currentState stays whatever it was ('loading') since
+    // autoPlay is off; 'error' is the only state load() itself can produce.
+    await thorvgEl.load(data);
+    if (thorvgEl.currentState === 'error') {
+      throw new Error('thorvg failed to load the animation (bad WASM init or data) — see console');
+    }
+    thorvgEl.pause();
+    thorvgReady = true;
+    // thorvg's public `.totalFrame` property is only populated by play() (an
+    // engine quirk verified in the browser — never call play() here, we want
+    // to stay paused), so read the frame count via the internal TVG binding
+    // instead for the parity check.
+    const thorvgTotalFrame = thorvgEl.TVG?.totalFrame?.();
+    if (anim && Number.isFinite(thorvgTotalFrame) && Math.abs(thorvgTotalFrame - anim.totalFrames) > 1) {
+      log('warning: thorvg totalFrame (' + thorvgTotalFrame + ') != lottie totalFrames (' + anim.totalFrames + ') — seekBoth\'s frame math may drift');
+    }
+  } catch (err) {
+    thorvgAvailable = false; // degrade fully; don't keep retrying a broken CDN/WASM
+    log('warning: thorvg unavailable (' + err.message + ') — continuing without thorvg reference');
+    thorvgPaneEl.textContent = 'thorvg unavailable (see log)';
+  }
 }
 
 async function loadPopcorn(css) {
@@ -103,14 +191,16 @@ async function loadPopcorn(css) {
 // Query-param bootstrap: ?json=./cat.json&css=./cat.css
 const jsonParam = q.get('json');
 const cssParam = q.get('css');
-if (jsonParam) await loadLottie(jsonParam);
+if (jsonParam) { await loadLottie(jsonParam); await loadThorvg(jsonParam); }
 if (cssParam) await loadPopcorn(await (await fetch(cssParam)).text());
 
 // File-picker bootstrap (overrides query params).
 document.getElementById('jsonFile').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  await loadLottie(JSON.parse(await file.text()));
+  const data = JSON.parse(await file.text());
+  await loadLottie(data);
+  await loadThorvg(data);
   log('loaded lottie JSON: ' + file.name);
 });
 document.getElementById('cssFile').addEventListener('change', async (e) => {
@@ -120,27 +210,67 @@ document.getElementById('cssFile').addEventListener('change', async (e) => {
   log('loaded popcorn CSS: ' + file.name);
 });
 
-// Frame-synced seeking: lottie's goToAndStop takes frames, popcorn's seek takes ms.
-window.seekBoth = (sec) => {
+// Frame-synced seeking: lottie's goToAndStop and thorvg's seek both take
+// frames, popcorn's seek takes ms. thorvg parses the same source JSON as
+// lottie-web, so the same sec*FPS frame index applies to both (see the
+// totalFrame parity check in loadThorvg). This is now an async function so
+// callers that care can `await` thorvg's settle — everything up to the
+// first `await` still runs synchronously, so existing sync callers
+// (`seekBoth(1.25); __diff();`) are unaffected.
+window.seekBoth = async (sec) => {
   if (anim) anim.goToAndStop(sec * FPS, true);
   if (pcReady) pc.seek(sec * 1000);
   document.getElementById('tInput').value = sec;
   log('t = ' + sec + 's (frame ' + (sec * FPS).toFixed(1) + ')');
+  if (thorvgReady) {
+    try { await thorvgEl.seek(sec * FPS); }
+    catch (err) { log('warning: thorvg seek failed (' + err.message + ')'); }
+  }
 };
-window.__ready = () => pcReady && lotReady;
+window.__ready = () => pcReady && lotReady && (!thorvgAvailable || thorvgReady);
 
-// Pixel diff between the two canvases at whatever time they're currently paused on.
-window.__diff = () => {
-  const lc = lotEl.querySelector('canvas');
+// Shared canvas -> { data, width, height } grab. Draws into a fixed WxH
+// offscreen canvas regardless of the source's own backing resolution — this
+// is what makes the ref='thorvg' path safe even though thorvg's canvas can
+// have a different (DPR-scaled) backing size than lottie-web's or
+// popcorn's: drawImage stretch-fits it, so diffmath always sees same-size
+// images. (Verified: thorvg's own _render() resizes its canvas by a
+// devicePixelRatio factor independently of ours — this grab already
+// normalizes that, no extra step needed.)
+function grab(el) {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  c.getContext('2d').drawImage(el, 0, 0, W, H);
+  const id = c.getContext('2d').getImageData(0, 0, W, H);
+  return { data: id.data, width: W, height: H };
+}
+
+// Resolves which canvas element a ref name points at. Throws (not a soft
+// {error} return) when ref='thorvg' is requested but thorvg isn't
+// available — that's a caller mistake, distinct from "nothing loaded yet".
+function refCanvasEl(ref) {
+  if (ref === 'thorvg') {
+    if (!thorvgReady) throw new Error("ref='thorvg' requested but thorvg is unavailable (failed to load, or no scene loaded yet — see log)");
+    return thorvgEl.querySelector('canvas');
+  }
+  return lotEl.querySelector('canvas');
+}
+
+// popcorn is always the subject; ref picks the reference side ('lottie'
+// default, or 'thorvg'). Reused by __diff/__gridDiff/__inspect/__scan.
+function getImages(ref = 'lottie') {
+  const rc = refCanvasEl(ref); // may throw for a bad/unavailable ref
   const pcc = pc.querySelector('canvas') || pc.shadowRoot?.querySelector('canvas');
-  if (!lc || !pcc) return { error: 'canvas not ready' };
-  const off = (el) => {
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    c.getContext('2d').drawImage(el, 0, 0, W, H);
-    return c.getContext('2d').getImageData(0, 0, W, H).data;
-  };
-  const a = off(lc), b = off(pcc);
+  if (!rc || !pcc) return null;
+  return { a: grab(rc), b: grab(pcc) };
+}
+
+// Pixel diff between popcorn and the chosen reference ('lottie' default, or
+// 'thorvg') at whatever time they're currently paused on.
+window.__diff = (ref = 'lottie') => {
+  const imgs = getImages(ref);
+  if (!imgs) return { error: 'canvas not ready' };
+  const a = imgs.a.data, b = imgs.b.data;
   let sum = 0, n = 0, maxDelta = 0, worst = -1;
   for (let i = 0; i < a.length; i += 4) {
     if (a[i + 3] < 8 && b[i + 3] < 8) continue; // both transparent: ignore
@@ -149,6 +279,7 @@ window.__diff = () => {
     if (d > maxDelta) { maxDelta = d; worst = i / 4; }
   }
   const result = {
+    ref,
     meanDelta: n ? (sum / n).toFixed(2) : 'n/a',
     maxDelta,
     samples: n,
@@ -158,32 +289,31 @@ window.__diff = () => {
   return result;
 };
 
-// Shared canvas -> { data, width, height } grab, reused by the grid/scan/
-// inspect APIs below (kept separate from __diff's own copy to avoid
-// touching its already-working, already-documented behavior).
-function getImages() {
-  const lc = lotEl.querySelector('canvas');
-  const pcc = pc.querySelector('canvas') || pc.shadowRoot?.querySelector('canvas');
-  if (!lc || !pcc) return null;
-  const grab = (el) => {
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    c.getContext('2d').drawImage(el, 0, 0, W, H);
-    const id = c.getContext('2d').getImageData(0, 0, W, H);
-    return { data: id.data, width: W, height: H };
-  };
-  return { a: grab(lc), b: grab(pcc) };
-}
-
 // Localized diff over an 8x8 (default) grid: which region actually
 // disagrees, ranked worst-first. Complements __diff's whole-canvas number.
-window.__gridDiff = (cols = 8, rows = 8) => {
-  const imgs = getImages();
+window.__gridDiff = (cols = 8, rows = 8, ref = 'lottie') => {
+  const imgs = getImages(ref);
   if (!imgs) return { error: 'canvas not ready' };
   const result = gridDiff(imgs.a, imgs.b, cols, rows);
   const cells = result.cells.map((c) => ({ ...c, meanDelta: +c.meanDelta.toFixed(2), coverage: +c.coverage.toFixed(2) }));
+  const out = { ref, meanDelta: +result.meanDelta.toFixed(2), maxDelta: result.maxDelta, cells };
+  log('gridDiff vs ' + ref + ': mean=' + out.meanDelta + ' max=' + out.maxDelta + ' worst=(' + cells[0].col + ',' + cells[0].row + ') hashDist=' + cells[0].hashDist);
+  return out;
+};
+
+// Reference disagreement: how much do the two ground-truth renderers differ
+// from *each other* (no popcorn involved)? A nonzero refDiff means parity
+// expectations in that region are inherently soft — don't chase popcorn to
+// match either reference exactly there. Requires thorvg.
+window.__refDiff = (cols = 8, rows = 8) => {
+  if (!thorvgReady) throw new Error('__refDiff requires thorvg, which is unavailable (see log)');
+  const lc = lotEl.querySelector('canvas');
+  const tc = thorvgEl.querySelector('canvas');
+  if (!lc || !tc) return { error: 'canvas not ready' };
+  const result = gridDiff(grab(lc), grab(tc), cols, rows);
+  const cells = result.cells.map((c) => ({ ...c, meanDelta: +c.meanDelta.toFixed(2), coverage: +c.coverage.toFixed(2) }));
   const out = { meanDelta: +result.meanDelta.toFixed(2), maxDelta: result.maxDelta, cells };
-  log('gridDiff: mean=' + out.meanDelta + ' max=' + out.maxDelta + ' worst=(' + cells[0].col + ',' + cells[0].row + ') hashDist=' + cells[0].hashDist);
+  log('refDiff (lottie vs thorvg): mean=' + out.meanDelta + ' max=' + out.maxDelta);
   return out;
 };
 
@@ -203,28 +333,45 @@ function nextFrame() {
 
 // Sample n evenly-spaced times across the lottie animation's duration,
 // gridDiff at each, sorted worst-frame-first. The one call an agent needs to
-// find "where in time and space do these two players disagree."
+// find "where in time and space do these two players disagree." When
+// thorvg is available, each frame reports BOTH refs (lottie and thorvg, each
+// vs popcorn) so an agent can tell a real popcorn bug from reference
+// disagreement (cross-check with __refDiff). When thorvg is unavailable the
+// shape is identical to before this feature — { t, meanDelta, maxDelta,
+// worstCells } — so existing callers don't break.
 window.__scan = async (n = 12, cols = 8, rows = 8) => {
   if (!anim) return { error: 'no lottie animation loaded' };
   const duration = anim.totalFrames / anim.frameRate;
   const EPS = 2; // small meanDelta threshold below which a cell isn't worth reporting
-  const frames = [];
-  for (let i = 0; i < n; i++) {
-    const t = n > 1 ? (i / (n - 1)) * duration : 0;
-    seekBoth(t);
-    await nextFrame();
-    const imgs = getImages();
-    if (!imgs) continue;
-    const { cells, meanDelta, maxDelta } = gridDiff(imgs.a, imgs.b, cols, rows);
+  const summarize = (a, b) => {
+    const { cells, meanDelta, maxDelta } = gridDiff(a, b, cols, rows);
     const worstCells = cells
       .filter((c) => c.hashDist > 0 || c.meanDelta > EPS)
       .slice(0, 3)
       .map((c) => ({ col: c.col, row: c.row, x: c.x, y: c.y, w: c.w, h: c.h, meanDelta: +c.meanDelta.toFixed(2), maxDelta: c.maxDelta, hashDist: c.hashDist }));
-    frames.push({ t: +t.toFixed(3), meanDelta: +meanDelta.toFixed(2), maxDelta, worstCells });
+    return { meanDelta: +meanDelta.toFixed(2), maxDelta, worstCells };
+  };
+  const frames = [];
+  for (let i = 0; i < n; i++) {
+    const t = n > 1 ? (i / (n - 1)) * duration : 0;
+    await seekBoth(t);
+    await nextFrame();
+    const lc = lotEl.querySelector('canvas');
+    const pcc = pc.querySelector('canvas') || pc.shadowRoot?.querySelector('canvas');
+    if (!lc || !pcc) continue;
+    const pcImg = grab(pcc);
+    const lottieSummary = summarize(grab(lc), pcImg);
+    if (thorvgReady) {
+      const thorvgSummary = summarize(grab(thorvgEl.querySelector('canvas')), pcImg);
+      frames.push({ t: +t.toFixed(3), lottie: lottieSummary, thorvg: thorvgSummary });
+    } else {
+      frames.push({ t: +t.toFixed(3), ...lottieSummary });
+    }
   }
-  frames.sort((p, q2) => q2.meanDelta - p.meanDelta);
+  const worstOf = (f) => (f.thorvg ? Math.max(f.lottie.meanDelta, f.thorvg.meanDelta) : f.meanDelta);
+  frames.sort((p, q2) => worstOf(q2) - worstOf(p));
   const worst = frames[0];
-  log('scan: ' + frames.length + ' frames over ' + duration.toFixed(2) + 's, worst t=' + (worst ? worst.t + 's meanDelta=' + worst.meanDelta : 'n/a'));
+  log('scan: ' + frames.length + ' frames over ' + duration.toFixed(2) + 's, worst t=' + (worst ? worst.t + 's meanDelta=' + worstOf(worst) : 'n/a'));
   return { duration, frames };
 };
 
@@ -235,14 +382,17 @@ function ensureInspector() {
   wrap.id = 'inspector';
   wrap.innerHTML =
     '<div class="pane"><h3>lottie crop</h3><canvas id="inspLot"></canvas></div>' +
+    (thorvgAvailable ? '<div class="pane"><h3>thorvg crop</h3><canvas id="inspThorvg"></canvas></div>' : '') +
     '<div class="pane"><h3>popcorn crop</h3><canvas id="inspPc"></canvas></div>' +
-    '<div class="pane"><h3>diff heatmap (x8, red = delta)</h3><canvas id="inspDiff"></canvas></div>' +
+    '<div class="pane"><h3 id="inspDiffLabel">diff heatmap (x8, red = delta)</h3><canvas id="inspDiff"></canvas></div>' +
     '<pre id="inspStats"></pre>';
   document.body.appendChild(wrap);
   inspector = {
     lotCnv: wrap.querySelector('#inspLot'),
+    thorvgCnv: wrap.querySelector('#inspThorvg'), // null when thorvg is unavailable
     pcCnv: wrap.querySelector('#inspPc'),
     diffCnv: wrap.querySelector('#inspDiff'),
+    diffLabel: wrap.querySelector('#inspDiffLabel'),
     statsEl: wrap.querySelector('#inspStats'),
   };
   return inspector;
@@ -271,35 +421,45 @@ function paintScaled(canvasEl, data, w, h, scale) {
   ctx.drawImage(src, 0, 0, w * scale, h * scale);
 }
 
-// Visual close-up: crops both canvases to `rect` and draws an amplified
-// (x8) red diff heatmap alongside, scaled up with nearest-neighbor so a
-// small cell is legible in a screenshot. Appends a labelled inspector panel
-// below the players (created once, reused after).
-window.__inspect = (x, y, w, h) => {
-  const imgs = getImages();
+// Visual close-up: crops popcorn and the chosen reference to `rect` (plus
+// the *other* reference's crop too, when thorvg is available, purely for
+// eyeballing — lottie and thorvg crops both show regardless of which one
+// `ref` picked for the heatmap), and draws an amplified (x8) red diff
+// heatmap of popcorn vs the chosen ref, scaled up with nearest-neighbor so a
+// small cell is legible in a screenshot. Replaces the single inspector
+// panel below the players each call (created once, reused after — it does
+// not accumulate a new panel per call).
+window.__inspect = (x, y, w, h, ref = 'lottie') => {
+  const imgs = getImages(ref); // may throw for a bad/unavailable ref
   if (!imgs) return { error: 'canvas not ready' };
   const rect = { x, y, w, h };
-  const { lotCnv, pcCnv, diffCnv, statsEl } = ensureInspector();
+  const { lotCnv, thorvgCnv, pcCnv, diffCnv, diffLabel, statsEl } = ensureInspector();
   const scale = Math.max(1, Math.min(16, Math.round(64 / Math.max(w, h, 1))));
 
-  const lotData = cropData(imgs.a, rect);
+  const lotCanvasEl = lotEl.querySelector('canvas');
+  if (lotCanvasEl) paintScaled(lotCnv, cropData(grab(lotCanvasEl), rect), w, h, scale);
+  if (thorvgCnv && thorvgReady) {
+    paintScaled(thorvgCnv, cropData(grab(thorvgEl.querySelector('canvas')), rect), w, h, scale);
+  }
   const pcData = cropData(imgs.b, rect);
-  paintScaled(lotCnv, lotData, w, h, scale);
   paintScaled(pcCnv, pcData, w, h, scale);
 
+  const refData = cropData(imgs.a, rect);
   const AMP = 8;
   const heat = new Uint8ClampedArray(w * h * 4);
   for (let i = 0; i < w * h; i++) {
     const idx = i * 4;
-    const d = Math.abs(lotData[idx] - pcData[idx]) + Math.abs(lotData[idx + 1] - pcData[idx + 1]) + Math.abs(lotData[idx + 2] - pcData[idx + 2]);
+    const d = Math.abs(refData[idx] - pcData[idx]) + Math.abs(refData[idx + 1] - pcData[idx + 1]) + Math.abs(refData[idx + 2] - pcData[idx + 2]);
     heat[idx] = Math.min(255, (d * AMP) / 3);
     heat[idx + 1] = 0; heat[idx + 2] = 0; heat[idx + 3] = 255;
   }
   paintScaled(diffCnv, heat, w, h, scale);
+  if (diffLabel) diffLabel.textContent = 'diff heatmap vs ' + ref + ' (x8, red = delta)';
 
   const rd = regionDelta(imgs.a, imgs.b, rect);
   const stats = {
     rect,
+    ref,
     meanDelta: +rd.meanDelta.toFixed(2),
     maxDelta: rd.maxDelta,
     coverage: +rd.coverage.toFixed(2),
@@ -311,10 +471,10 @@ window.__inspect = (x, y, w, h) => {
 };
 
 // Convenience wrapper: __inspect by grid cell instead of raw pixel rect.
-window.__inspectCell = (col, row, cols = 8, rows = 8) => {
+window.__inspectCell = (col, row, cols = 8, rows = 8, ref = 'lottie') => {
   const rect = cellRects(W, H, cols, rows)[row * cols + col];
   if (!rect) return { error: 'cell (' + col + ',' + row + ') out of range for ' + cols + 'x' + rows + ' grid' };
-  return window.__inspect(rect.x, rect.y, rect.w, rect.h);
+  return window.__inspect(rect.x, rect.y, rect.w, rect.h, ref);
 };
 
 document.getElementById('tInput').addEventListener('change', (e) => seekBoth(+e.target.value));
@@ -322,7 +482,7 @@ document.getElementById('stepFwd').addEventListener('click', () => seekBoth(+doc
 document.getElementById('stepBack').addEventListener('click', () => seekBoth(+document.getElementById('tInput').value - 1 / FPS));
 document.getElementById('diffBtn').addEventListener('click', () => window.__diff());
 
-log('harness ready. ready() = ' + window.__ready());
+log('harness ready (thorvg ' + (thorvgAvailable ? 'available' : 'unavailable') + '). ready() = ' + window.__ready());
 </script>
 </body>
 </html>
