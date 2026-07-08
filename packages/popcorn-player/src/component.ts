@@ -512,12 +512,16 @@ function formatTime(ms: number): string {
  * Register the custom element
  */
 export function registerPopcornPlayer(): void {
+  if (typeof customElements === 'undefined') return;
   if (!customElements.get('popcorn-player')) {
     customElements.define('popcorn-player', PopcornPlayer);
   }
 }
 
-// Auto-register when imported
-if (typeof window !== 'undefined') {
+// Auto-register when imported. Guard both `window` and `customElements`
+// separately: RN/Hermes environments (e.g. Expo) can have a `window` global
+// polyfill without `customElements`, and this file is reachable from the
+// barrel import, so the ReferenceError would throw at module load.
+if (typeof window !== 'undefined' && typeof customElements !== 'undefined') {
   registerPopcornPlayer();
 }
