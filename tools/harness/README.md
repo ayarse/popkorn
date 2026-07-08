@@ -110,6 +110,17 @@ for 20–30s before concluding something is broken, especially in a
 backgrounded/automated tab where throttled timers slow everything down
 further.
 
+**Serving scope:** `bun x serve tools/harness` restricts `fetch()` traversal
+to that directory — requests like `?json=../../examples/lottie/...` will 404.
+If your JSON/CSS fixtures live elsewhere in the repo, serve the **repo root**
+instead and navigate to `http://localhost:3000/tools/harness/harness?json=../../examples/...&css=...`.
+
+**Long async calls in browser-automation JS eval:** `await __scan()` and
+other long-running calls can exceed the ~45s eval timeout, losing the result
+even if the page completes fine. Pattern: fire the call without awaiting
+(`__scan().then(r => window.__lastScan = r)`), then poll `window.__lastScan`
+in short, separate evals until it's populated.
+
 ### `__ready()` → `boolean`
 
 `true` once every *available* player has a loaded animation/scene and is
