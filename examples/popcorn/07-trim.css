@@ -1,43 +1,38 @@
-/* Trim paths — progressive stroke reveal and a marching dash window */
+/* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
+   The word is one open path; trim-end sweeps 0→100% to reveal the stroke (the draw-on),
+   then trim-start sweeps up to retract it — both ends finish at 100% (empty), matching
+   the 0% state, so the loop closes on a blank canvas with no pop. */
 :root {
   width: 800px;
   height: 600px;
+  background: #0b0f1e;
 }
 
-/* Reveal the stroke from 0% to 100% of its length */
-@keyframes draw {
-  0%   { trim-end: 0%;   }
-  100% { trim-end: 100%; }
+/* Pen writing: reveal with trim-end, hold the finished word, then wipe with trim-start. */
+@keyframes write {
+  0%   { trim-start: 0%;   trim-end: 0%;   animation-timing-function: ease-out;    }
+  50%  { trim-start: 0%;   trim-end: 100%;                                          } /* word fully written */
+  62%  { trim-start: 0%;   trim-end: 100%; animation-timing-function: ease-in-out; } /* hold, then lift the pen */
+  100% { trim-start: 100%; trim-end: 100%;                                          }
 }
 
-/* Slide a fixed trim window around a closed outline */
-@keyframes march {
-  0%   { trim-offset: 0%;   }
-  100% { trim-offset: 100%; }
+/* The ink breathes 9→10→9px — the animated stroke-width the source carried, thickest as
+   the word completes. */
+@keyframes ink {
+  0%   { stroke-width: 9px;  }
+  50%  { stroke-width: 10px; }
+  100% { stroke-width: 9px;  }
 }
 
-/* A wave that draws itself over and over — stroke-only, round caps keep the tip clean */
-#wave {
+#hello {
   type: path;
-  d: 'M100 280 C200 100 300 460 400 280 C500 100 600 460 700 280';
+  /* One continuous handwritten stroke, centred on the origin (verbatim from the source glyph). */
+  d: 'M -145.66 43.75 C -145.66 43.75 -86.11 10.26 -81.85 -26.16 C -79.42 -46.94 -98.57 -44.14 -101.43 -23.01 C -103.76 -5.76 -109.6 40.56 -109.6 40.56 C -109.6 40.56 -103.98 -0.03 -85.85 1.75 C -65.94 4.08 -91.98 40.05 -69 40.31 C -48.57 40.53 -27.64 22.69 -26.87 10.94 C -25.99 -2.6 -44.36 -4.89 -50.02 11.97 C -55.23 27.46 -43.58 44.9 -23.54 40.58 C 7.34 33.92 22.48 -10.83 23.94 -26.08 C 25.47 -42.16 13.72 -43.69 6.57 -29.4 C -0.1 -16.04 -11.24 37.09 12.96 41.58 C 41.81 46.94 64.28 -5.91 67.09 -23.78 C 69.8 -41.07 58.66 -45.95 50.23 -30.67 C 41.17 -14.22 27.84 44.08 59.94 41.33 C 86.75 39.03 76.92 2.26 102.9 -0.05 C 114.56 -1.09 119.39 9.92 118.53 21.03 C 117.64 32.65 106.66 42.47 95.81 40.94 C 85.9 39.54 80.84 25.97 83.43 17.07 C 86.62 6.09 96.66 0.12 102.9 -0.05 C 111.77 -0.29 116.23 5.33 124.15 5.2 C 131.18 5.09 138.27 -2.92 138.27 -2.92';
   fill: none;
-  stroke: #4ecdc4;
-  stroke-width: 8px;
+  stroke: linear-gradient(90deg, #ff6b6b 0%, #ffd93d 50%, #4ecdc4 100%);
+  stroke-width: 9px;
   stroke-linecap: round;
-  animation: draw 2.5s ease-in-out infinite;
-}
-
-/* A marching dash: a 25% window slides around via animated trim-offset */
-#marchingCircle {
-  type: circle;
-  cx: 400px;
-  cy: 470px;
-  r: 70px;
-  fill: none;
-  stroke: #e94560;
-  stroke-width: 6px;
-  stroke-linecap: round;
-  trim-start: 0%;
-  trim-end: 25%;
-  animation: march 3s linear infinite;
+  stroke-linejoin: round;
+  transform: translate(407px, 300px) scale(1.9);
+  animation: write 5s infinite, ink 5s ease-in-out infinite;
 }
