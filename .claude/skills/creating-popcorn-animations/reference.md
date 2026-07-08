@@ -765,7 +765,7 @@ player.source = myDslCode;   // parse + build + play
 - **1000ms duration is real**, not a sentinel; the second shorthand time value is always the delay.
 - **`infinite` = ∞ iterations**.
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
-- **Unsupported (parse but do nothing):** `skew`, blend modes, `steps()`, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href`/`src` (use `content: url()`), `points` (use `sides`).
+- **Unsupported (parse but do nothing):** `skew`, blend modes, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href`/`src` (use `content: url()`), `points` (use `sides`). (`steps()`/`linear()` easing **are** supported — see §13.)
 - **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
 - **Gradients + path `d` ARE animatable** — but only between *compatible* endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).

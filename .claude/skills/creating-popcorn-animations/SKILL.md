@@ -57,7 +57,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 - **Shape invisible** → `fill` defaults to `none`. Set a fill (or stroke *color*, not just width).
 - **`type:` forgotten** → node becomes a `group` (nothing draws). Always declare `type:`.
-- **Property does nothing** → it's likely unsupported (`skew`, `mix-blend-mode`, `steps()`, `object-fit`, `text-align`, `href`, `points`, `line-height`). Parses silently, no effect. Check reference.md §17.
+- **Property does nothing** → it's likely unsupported (`skew`, `mix-blend-mode`, `object-fit`, `text-align`, `href`, `points`, `line-height`). Parses silently, no effect. Check reference.md §17.
 - **Wrong geometry prop for the type** → silently ignored (`r` on a rect, `x` on a circle).
 - **`.5` or `//` comments** → invalid. Write `0.5`; use `/* */` only.
 - **Animating a color via `var()`** → not supported; `var()`/`input()` bind numeric props only. (Solid colors, gradient stops, and path `d` *do* animate in `@keyframes` — gradients/paths only between compatible endpoints; see reference.md §12.)
