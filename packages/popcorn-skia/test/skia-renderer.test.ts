@@ -17,8 +17,13 @@ type Call = {
 // with no native module installed. PaintStyle: 0 = Fill, 1 = Stroke.
 function mockSkia() {
   const calls: Call[] = [];
+  // How many native SkPaint objects the renderer allocated. Paint reuse means
+  // this must stay flat (the two persistent fill/stroke paints) no matter how
+  // many shapes or frames are drawn.
+  const counters = { paints: 0 };
 
   const makePaint = () => {
+    counters.paints++;
     const p: any = { __style: undefined as number | undefined };
     p.setAntiAlias = () => p;
     p.setStyle = (s: number) => { p.__style = s; return p; };
@@ -32,6 +37,9 @@ function mockSkia() {
     p.setPathEffect = (e: any) => { p.__dash = e?.__dash; return p; };
     p.setBlendMode = (b: number) => { p.__blend = b; return p; };
     p.setColorFilter = (f: unknown) => { p.__filter = f; return p; };
+    // reset() returns a persistent paint to defaults before it's reconfigured
+    // for the next shape (mirrors SkPaint.reset()).
+    p.reset = () => { p.__style = undefined; p.__dash = undefined; p.__blend = undefined; p.__filter = undefined; return p; };
     return p;
   };
 
@@ -75,7 +83,7 @@ function mockSkia() {
     ColorFilter: { MakeMatrix: (matrix: number[]) => ({ __matrix: matrix }) },
   };
 
-  return { Skia, canvas, calls };
+  return { Skia, canvas, calls, counters };
 }
 
 test('paints a rect and a path with fill paint through the render loop', () => {
@@ -196,6 +204,94 @@ test('compositeMask maps every mode to its blend mode and luma filter', () => {
     expect(calls.filter((c) => c.op === 'save').length).toBe(1);
     expect(calls.filter((c) => c.op === 'restore').length).toBe(3);
   }
+});
+
+// Paint reuse: the renderer holds one persistent fill + one stroke paint and
+// resets them per shape, so no SkPaint is allocated on the hot draw path. The
+// only Paint() calls are the two in the constructor — flat across shapes/frames.
+test('reuses paints instead of allocating per shape or per frame', () => {
+  const { Skia, canvas, counters } = mockSkia();
+
+  const scene = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px }
+      #a { type: rect; width: 40px; height: 40px; fill: #f00; stroke: #000; stroke-width: 2px }
+      #b { type: circle; r: 20px; fill: #0f0; stroke: #00f; stroke-width: 1px }
+      #c { type: rect; x: 10px; y: 10px; width: 10px; height: 10px; fill: #ff0 }
+    `)
+  );
+
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  expect(counters.paints).toBe(2); // fill + stroke, allocated once in the constructor
+  renderer.setCanvas(canvas);
+
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+  rl.seek(0);   // frame 1
+  rl.seek(16);  // frame 2
+
+  // Three shapes over two frames: without reuse this would be many allocations.
+  // With reuse it stays at the two persistent paints.
+  expect(counters.paints).toBe(2);
+});
+
+// Static-scene signal: isStatic() tells an embedder when it may stop repainting.
+// It must be honest — anything that keeps the scene changing keeps it non-static.
+test('isStatic reports only genuinely settled scenes', () => {
+  const { Skia } = mockSkia();
+  const make = (src: string) => {
+    const rl = new RenderLoop(new SkiaRenderer(Skia, { width: 100, height: 100 }));
+    rl.setScene(buildSceneGraph(parse(src)));
+    return rl;
+  };
+
+  // A one-shot scene with no animation settles immediately.
+  const stat = make(`:root { width: 100px; height: 100px } #r { type: rect; width: 10px; height: 10px; fill: #000 }`);
+  expect(stat.isStatic()).toBe(true);
+
+  // An infinite animation never settles, even past one iteration.
+  const inf = make(`
+    :root { width: 100px; height: 100px }
+    @keyframes spin { from { rotate: 0deg } to { rotate: 360deg } }
+    #r { type: rect; width: 10px; height: 10px; fill: #000; animation: spin 1s linear infinite }
+  `);
+  inf.seek(5000);
+  expect(inf.isStatic()).toBe(false);
+
+  // A cursor-reactive scene (input()/var() binding) is never static.
+  const react = make(`
+    :root { width: 100px; height: 100px; --cx: input(cursor.x) }
+    #r { type: circle; r: 10px; cx: var(--cx); fill: #000 }
+  `);
+  react.seek(9999);
+  expect(react.isStatic()).toBe(false);
+});
+
+// Static-skip mechanism: once a settled scene's canvas is unbound (what
+// PopcornView does after delivering the resting frame) the renderer records no
+// further draw ops — the paint/JSI work stops until state changes.
+test('unbinding the canvas halts renderer draw calls', () => {
+  const { Skia, canvas, calls } = mockSkia();
+
+  const scene = buildSceneGraph(
+    parse(`:root { width: 100px; height: 100px } #r { type: rect; width: 40px; height: 40px; fill: #f00 }`)
+  );
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+
+  rl.seek(0); // resting frame delivered — paints the rect
+  expect(calls.some((c) => c.op === 'drawRect')).toBe(true);
+  expect(rl.isStatic()).toBe(true);
+
+  // Go dormant: unbind and repaint — no new draw ops recorded.
+  calls.length = 0;
+  renderer.setCanvas(null as any);
+  rl.redraw();
+  expect(calls.some((c) => c.op === 'drawRect')).toBe(false);
 });
 
 // #3: an odd-length dash array is even-ized (duplicated) before MakeDash, which

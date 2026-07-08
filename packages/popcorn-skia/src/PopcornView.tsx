@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
+import { useEffect, useRef } from 'react';
+import { Skia, SkiaPictureView } from '@shopify/react-native-skia';
+import type { ISkiaViewApi } from '@shopify/react-native-skia';
 import {
   parse,
   buildSceneGraph,
@@ -9,7 +10,11 @@ import {
 } from '@popcorn/player';
 import { SkiaRenderer } from './skia-renderer';
 
-type SkPicture = import('@shopify/react-native-skia').SkPicture;
+// SkiaViewApi is a native-injected global (not a package export) — the same seam
+// SkiaPictureView uses internally to push its `picture` prop. We read it off
+// global to drive the view imperatively.
+const getSkiaViewApi = (): ISkiaViewApi | undefined =>
+  (globalThis as unknown as { SkiaViewApi?: ISkiaViewApi }).SkiaViewApi;
 
 export interface PopcornViewProps {
   /** Popcorn DSL source (the `.css` scene). */
@@ -21,18 +26,26 @@ export interface PopcornViewProps {
   autoplay?: boolean;
   /** Wrap the timeline at the scene duration (default false). */
   loop?: boolean;
+  /** Freeze the timeline without tearing down the loop (e.g. behind a modal). */
+  paused?: boolean;
 }
 
 /**
- * Renders a Popcorn scene through React Native Skia. Consumable from React
- * Native and, via react-native-web + CanvasKit, the browser.
+ * Renders a Popcorn scene through React Native Skia.
  *
- * Each RAF tick the RenderLoop paints into a fresh PictureRecorder canvas; the
- * finished SkPicture is pushed into <Picture> for display. The loop's public API
- * (start/pause/setFrameCallback) drives everything — no bespoke scheduler.
+ * The SkiaPictureView mounts once; each frame the RenderLoop paints into a fresh
+ * PictureRecorder and the finished SkPicture is pushed to the native view
+ * IMPERATIVELY (SkiaViewApi.setJsiProperty + requestRedraw) — never through React
+ * state, so React re-renders only when `source`/`width`/`height` change. This is
+ * the same seam SkiaPictureView uses internally for its own `picture` prop.
  */
-export function PopcornView({ source, width, height, autoplay = true, loop = false }: PopcornViewProps) {
-  const [picture, setPicture] = useState<SkPicture | null>(null);
+export function PopcornView({ source, width, height, autoplay = true, loop = false, paused }: PopcornViewProps) {
+  const viewRef = useRef<SkiaPictureView>(null);
+  const loopRef = useRef<RenderLoop | null>(null);
+
+  // Freeze the timeline (default) unless the caller is actively playing. `paused`
+  // wins when given; otherwise `autoplay: false` starts paused.
+  const wantPaused = paused ?? !autoplay;
 
   useEffect(() => {
     const ast = parse(source);
@@ -48,36 +61,82 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
     rl.setViewport(viewportMatrix(computeViewport(sceneW, sceneH, width, height, 1, 'contain')));
     rl.getVariableResolver().setVariables(ast.variables);
     if (ast.canvas?.background) rl.setBackgroundColor(ast.canvas.background);
+    loopRef.current = rl;
 
     const bounds = Skia.XYWHRect(0, 0, width, height);
     let recorder = Skia.PictureRecorder();
+    // Once the resting frame of a static (one-shot, non-interactive) scene is
+    // delivered we unbind the canvas so further ticks paint and push nothing.
+    let settled = false;
 
-    // Bind the canvas the NEXT frame paints into. render() runs before the frame
-    // callback fires, so the very first canvas is bound before start().
+    // A PictureRecorder is single-use (finishRecordingAsPicture invalidates it),
+    // so each frame gets a fresh one; the canvas it hands out is what render() paints.
     const bind = () => {
       recorder = Skia.PictureRecorder();
       renderer.setCanvas(recorder.beginRecording(bounds));
     };
 
+    // Hand the just-recorded picture to the native view without touching React.
+    const push = () => {
+      const api = getSkiaViewApi();
+      const id = viewRef.current?.nativeId;
+      if (!api || id == null) return;
+      api.setJsiProperty(id, 'picture', recorder.finishRecordingAsPicture());
+      api.requestRedraw(id);
+    };
+
     bind();
     rl.setFrameCallback(() => {
-      setPicture(recorder.finishRecordingAsPicture());
+      const isStatic = rl.isStatic();
+
+      // Dormant: resting frame already on screen and this tick painted nothing.
+      if (isStatic && settled) return;
+
+      if (isStatic) {
+        // First settled frame: render() just drew the resting state into `recorder`.
+        // Deliver it, then unbind so subsequent ticks do no paint/JSI work.
+        push();
+        renderer.setCanvas(null);
+        settled = true;
+        return;
+      }
+
+      if (settled) {
+        // Woke back up: the canvas was unbound so nothing was painted this tick.
+        // Rebind and deliver on the next one.
+        settled = false;
+        bind();
+        return;
+      }
+
+      push();
       bind();
     });
 
     rl.start();
-    if (!autoplay) rl.pause();
+    if (wantPaused) rl.pause();
 
-    return () => rl.stop();
-  }, [source, width, height, autoplay, loop]);
+    return () => {
+      rl.stop();
+      loopRef.current = null;
+    };
+    // wantPaused is read for the initial state only; runtime toggles go through
+    // the pause effect below so a pause never rebuilds the scene.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, width, height, loop]);
+
+  // Pause/resume without tearing down the loop — the loop keeps its rAF so a
+  // settled frame and (future) touch input stay live while frozen.
+  useEffect(() => {
+    const rl = loopRef.current;
+    if (!rl) return;
+    if (wantPaused) rl.pause();
+    else rl.resume();
+  }, [wantPaused]);
 
   // ponytail: touch input deferred. The seam is renderLoop.getInputTracker()
   // .getState().cursor (mutable) — map a touch via deviceToScene into it — but
   // wiring RN responder props cleanly needs react-native's types, out of scope
   // for this types-light PoC.
-  return (
-    <Canvas style={{ width, height }}>
-      {picture ? <Picture picture={picture} /> : null}
-    </Canvas>
-  );
+  return <SkiaPictureView ref={viewRef} style={{ width, height }} />;
 }

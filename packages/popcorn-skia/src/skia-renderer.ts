@@ -31,6 +31,7 @@ type SkCanvas = import('@shopify/react-native-skia').SkCanvas;
 type SkPaint = import('@shopify/react-native-skia').SkPaint;
 type SkPath = import('@shopify/react-native-skia').SkPath;
 type SkShader = import('@shopify/react-native-skia').SkShader;
+type SkColor = import('@shopify/react-native-skia').SkColor;
 
 type Bounds = { x: number; y: number; width: number; height: number };
 
@@ -101,14 +102,35 @@ export class SkiaRenderer implements Renderer {
   private ctm: Matrix3x3 = IDENTITY_MATRIX;
   private ctmStack: Matrix3x3[] = [];
 
+  // Reused across every shape so we don't allocate a native SkPaint per draw (the
+  // hot-path allocation the profile flagged). `reset()` returns each to its
+  // default before we reconfigure it; drawRect/drawPath copy the paint state into
+  // the recorded op, so a single instance per role is safe. Parsed colours are
+  // cached too — Skia.Color re-parses the CSS string on every call otherwise.
+  private fillPaint: SkPaint;
+  private strokePaint: SkPaint;
+  private colorCache = new Map<string, SkColor>();
+
   constructor(skia: SkiaApi, opts: { width: number; height: number }) {
     this.skia = skia;
     this.width = opts.width;
     this.height = opts.height;
+    this.fillPaint = skia.Paint();
+    this.strokePaint = skia.Paint();
   }
 
-  /** Bind the canvas painted this frame (from a PictureRecorder). */
-  setCanvas(canvas: SkCanvas): void {
+  /** Parse a CSS colour to an SkColor once, then reuse the cached (immutable) value. */
+  private color(css: string): SkColor {
+    let c = this.colorCache.get(css);
+    if (!c) {
+      c = this.skia.Color(css);
+      this.colorCache.set(css, c);
+    }
+    return c;
+  }
+
+  /** Bind the canvas painted this frame (from a PictureRecorder), or null to go dormant. */
+  setCanvas(canvas: SkCanvas | null): void {
     this.canvas = canvas;
   }
 
@@ -337,7 +359,8 @@ export class SkiaRenderer implements Renderer {
 
   private makeFillPaint(bounds: Bounds): SkPaint | null {
     if (this.fillGradient) {
-      const paint = this.skia.Paint();
+      const paint = this.fillPaint;
+      paint.reset();
       paint.setAntiAlias(true);
       paint.setStyle(PaintStyle.Fill);
       paint.setShader(this.makeShader(this.fillGradient, bounds));
@@ -345,10 +368,11 @@ export class SkiaRenderer implements Renderer {
       return paint;
     }
     if (this.fillColor) {
-      const paint = this.skia.Paint();
+      const paint = this.fillPaint;
+      paint.reset();
       paint.setAntiAlias(true);
       paint.setStyle(PaintStyle.Fill);
-      const c = this.skia.Color(this.fillColor);
+      const c = this.color(this.fillColor);
       paint.setColor(c);
       paint.setAlphaf(c[3] * this.opacity);
       return paint;
@@ -362,7 +386,8 @@ export class SkiaRenderer implements Renderer {
     // An empty trim window strokes nothing.
     if (this.trim && !this.trim.visible) return null;
 
-    const paint = this.skia.Paint();
+    const paint = this.strokePaint;
+    paint.reset();
     paint.setAntiAlias(true);
     paint.setStyle(PaintStyle.Stroke);
     paint.setStrokeWidth(this.strokeWidth);
@@ -382,7 +407,7 @@ export class SkiaRenderer implements Renderer {
       paint.setShader(this.makeShader(this.strokeGradient, bounds));
       paint.setAlphaf(this.opacity);
     } else {
-      const c = this.skia.Color(this.strokeColor!);
+      const c = this.color(this.strokeColor!);
       paint.setColor(c);
       paint.setAlphaf(c[3] * this.opacity);
     }
@@ -398,7 +423,7 @@ export class SkiaRenderer implements Renderer {
   private makeShader(g: GradientData, b: Bounds): SkShader {
     const cx = b.x + b.width / 2;
     const cy = b.y + b.height / 2;
-    const colors = g.stops.map((s) => this.skia.Color(s.color));
+    const colors = g.stops.map((s) => this.color(s.color));
     const pos = g.stops.map((s) => clamp01(s.offset));
 
     if (g.type === 'linear-gradient') {

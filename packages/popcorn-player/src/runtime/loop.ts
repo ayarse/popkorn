@@ -41,6 +41,10 @@ export class RenderLoop {
   // Looping: when on, the timeline wraps once it passes `sceneDuration`.
   private looping: boolean = false;
   private sceneDuration: number = 0;
+  // Cached at setScene: does anything make this scene keep changing on its own
+  // (infinite animation) or in response to input/interaction (bindings, hover/
+  // active)? Drives `isStatic` — an embedder can stop repainting a settled scene.
+  private sceneDynamic: boolean = false;
   // Fires once per rendered frame with the current timeline time (drives the
   // controls scrubber off the existing loop tick — no extra rAF).
   private frameCallback: ((time: number) => void) | null = null;
@@ -75,6 +79,7 @@ export class RenderLoop {
     this.sceneRoot = root;
     this.interactionManager.setScene(root);
     this.sceneDuration = computeSceneDuration(root);
+    this.sceneDynamic = sceneHasDynamicContent(root);
   }
 
   setBackgroundColor(color: string | null): void {
@@ -115,6 +120,19 @@ export class RenderLoop {
   /** Whether the timeline is frozen (paused). */
   get paused(): boolean {
     return this.scheduler.isPaused();
+  }
+
+  /**
+   * True when the scene can produce no further visual change on its own, so an
+   * embedder may stop repainting until a prop change re-mounts the loop. Honest
+   * about reactivity: a looping timeline, any infinite animation, or any
+   * input()/var() binding or :hover/:active style keeps it non-static — only a
+   * one-shot scene whose timeline has run past its duration settles.
+   */
+  isStatic(): boolean {
+    if (!this.sceneRoot) return true;
+    if (this.looping || this.sceneDynamic) return false;
+    return this.currentTime >= this.sceneDuration;
   }
 
   /** Repaint one frame at the current timeline time (for resize while paused/stopped). */
@@ -392,6 +410,19 @@ export class RenderLoop {
       () => { this.renderer.setTransform(maskParent); this.renderNode(source, true, maskAlpha); }
     );
   }
+}
+
+/**
+ * Does any node in the tree keep the scene changing beyond a one-shot timeline —
+ * an infinite (looping) animation, a var()/input() binding, or an interactive
+ * :hover/:active style? Scanned once at setScene so `isStatic` stays O(1).
+ */
+function sceneHasDynamicContent(root: SceneNode): boolean {
+  if (root.bindings.length > 0) return true;
+  if (root.hoverStyles || root.activeStyles || root.interactive) return true;
+  for (const a of root.animations) if (a.iterationCount === Infinity) return true;
+  for (const child of root.children) if (sceneHasDynamicContent(child)) return true;
+  return false;
 }
 
 /** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */
