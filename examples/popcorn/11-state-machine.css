@@ -1,0 +1,147 @@
+/* State machine — Pip, a mascot with a mind of its own. Two @machines run
+   concurrently and independently:
+
+     @machine mood   pops in once (intro -> idle on complete), idles with a
+                     breath loop, springs on every click (a bounce state whose
+                     animation RESTARTS on each re-entry, back to idle on
+                     complete), and dozes off after 6s of no attention
+                     (a state-time timeout). Poke it to wake it.
+     @machine blink  an unrelated eye-blink loop — winks, waits, winks again —
+                     proving a second graph runs on its own clock.
+
+   Click Pip. Then leave it alone and watch it get sleepy. */
+:root {
+  width: 800px;
+  height: 600px;
+  background: #0e0b1e;
+}
+
+/* ---- mood: the personality graph (initial state plays once, then loops) ---- */
+@machine mood {
+  initial: intro;
+  state intro  { to: idle on complete; }         /* pop-in finished -> settle */
+  state idle   {
+    to: bounce on click(#pip);                    /* poked -> spring (first wins) */
+    to: sleepy when style(state-time > 6s);       /* ignored for 6s -> doze off */
+  }
+  state bounce { to: idle on complete; }          /* spring finished -> settle */
+  state sleepy { to: idle on click(#pip); }       /* poke wakes it back up */
+}
+
+/* ---- blink: a fully independent loop on its own clock ---- */
+@machine blink {
+  initial: watch;
+  state watch { to: wink when style(state-time > 2800ms); }
+  state wink  { to: watch on complete; }          /* wink plays once, then wait */
+}
+
+/* ---- state-driven animations (restart from the state's entry time) ---- */
+@keyframes popIn {
+  0%   { transform: scale(0);          }
+  60%  { transform: scale(1.14);       animation-timing-function: ease-out; }
+  80%  { transform: scale(0.94);       }
+  100% { transform: scale(1);          }
+}
+@keyframes breathe {
+  0%, 100% { transform: translateY(0)   scale(1, 1);       }
+  50%      { transform: translateY(-7px) scale(0.98, 1.05); }
+}
+@keyframes bounce {
+  0%   { transform: translateY(0)     scale(1, 1);      animation-timing-function: ease-out; }
+  25%  { transform: translateY(-78px) scale(0.9, 1.14); animation-timing-function: ease-in;  }
+  55%  { transform: translateY(0)     scale(1.16, 0.8); animation-timing-function: ease-out; }
+  72%  { transform: translateY(-18px) scale(0.97, 1.05); animation-timing-function: ease-in;  }
+  100% { transform: translateY(0)     scale(1, 1);      }
+}
+@keyframes snooze {
+  0%, 100% { transform: rotate(-3.5deg) translateY(2px);  }
+  50%      { transform: rotate(3.5deg)  translateY(-2px); }
+}
+@keyframes wink {
+  0%, 100% { scale: 1 1;   }
+  50%      { scale: 1 0.08; }
+}
+@keyframes floatZ {
+  0%   { opacity: 0;    translate: 0px 0px;   }
+  25%  { opacity: 0.95; }
+  100% { opacity: 0;    translate: 20px -54px; }
+}
+
+/* ---- backdrop ---- */
+#sky {
+  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  fill: linear-gradient(#1c1740 0%, #0e0b1e 68%, #08060f 100%);
+}
+#spot {
+  type: ellipse; cx: 400px; cy: 300px; rx: 360px; ry: 300px;
+  fill: radial-gradient(#3a2f7a55 0%, #3a2f7a00 70%);
+}
+#shadow {
+  type: ellipse; cx: 400px; cy: 452px; rx: 110px; ry: 20px;
+  fill: radial-gradient(#00000066 0%, #00000000 72%);
+}
+
+/* sleepy Z's — hidden (opacity 0) until the sleepy state animates them in */
+#zzz {
+  type: text; content: "z z z"; x: 486px; y: 246px;
+  font-size: 30px; font-family: sans-serif; font-weight: bold;
+  text-anchor: start; fill: #b9a7ff; opacity: 0;
+  transform: rotate(-8deg); transform-origin: 486px 246px;
+  &:state(mood.sleepy) { animation: floatZ 2.6s ease-out infinite; }
+}
+
+/* ---- Pip ---- the whole creature is the click target (click(#pip)); the mood
+   machine drives the group transform, so every state animation moves the body
+   and face together, anchored at Pip's feet ---- */
+#pip {
+  type: group;
+  transform-origin: 400px 410px;
+  &:state(intro)  { animation: popIn  700ms ease-out; }
+  &:state(idle)   { animation: breathe 3.4s ease-in-out infinite; }
+  &:state(bounce) { animation: bounce 720ms ease-in-out; }
+  &:state(sleepy) { animation: snooze 3s   ease-in-out infinite; }
+
+  /* antenna bobble */
+  > #stalk {
+    type: path; d: "M 400 262 C 398 240 404 228 400 214";
+    fill: none; stroke: #7b6cd6; stroke-width: 6px; stroke-linecap: round;
+  }
+  > #bobble { type: circle; cx: 400px; cy: 208px; r: 11px; fill: #ffd166; }
+  > #bobbleGlow { type: circle; cx: 400px; cy: 208px; r: 20px;
+    fill: radial-gradient(#ffd16688 0%, #ffd16600 70%); }
+
+  /* body */
+  > #body {
+    type: ellipse; cx: 400px; cy: 336px; rx: 96px; ry: 90px;
+    fill: radial-gradient(circle 150px at 356px 280px, #d9c9ff 0%, #9b7ff0 56%, #6a4fc4 100%);
+  }
+  > #belly { type: ellipse; cx: 400px; cy: 362px; rx: 66px; ry: 54px;
+    fill: #efe6ff; opacity: 0.32; }
+
+  /* cheeks */
+  > #cheekL { type: ellipse; cx: 342px; cy: 354px; rx: 13px; ry: 8px; fill: #ff8fb8; opacity: 0.55; }
+  > #cheekR { type: ellipse; cx: 458px; cy: 354px; rx: 13px; ry: 8px; fill: #ff8fb8; opacity: 0.55; }
+
+  /* eyes — their own group so the blink machine can wink them as one unit */
+  > #eyes {
+    type: group; transform-origin: 400px 322px;
+    &:state(blink.wink) { animation: wink 200ms ease-in-out; }
+    > #eyeL   { type: ellipse; cx: 368px; cy: 322px; rx: 15px; ry: 19px; fill: #241a3d; }
+    > #eyeR   { type: ellipse; cx: 432px; cy: 322px; rx: 15px; ry: 19px; fill: #241a3d; }
+    > #glintL { type: circle;  cx: 373px; cy: 315px; r: 5px; fill: #ffffff; }
+    > #glintR { type: circle;  cx: 437px; cy: 315px; r: 5px; fill: #ffffff; }
+  }
+
+  /* smile */
+  > #mouth {
+    type: path; d: "M 384 350 Q 400 364 416 350";
+    fill: none; stroke: #3a2c5a; stroke-width: 4px; stroke-linecap: round;
+  }
+}
+
+/* hint */
+#hint {
+  type: text; content: "click Pip  ·  or leave it be"; x: 400px; y: 528px;
+  font-size: 17px; font-family: sans-serif; text-anchor: middle;
+  fill: #6b6296;
+}

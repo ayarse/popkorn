@@ -4,7 +4,8 @@
 and motion graphics, played by a zero-dependency Canvas2D engine. It targets
 parity with Lottie players in rendering and animation capability — vector
 shapes, gradients, masks and track mattes, trim paths, motion paths, path
-morphing, symbols, per-subtree time scoping — while the format stays something
+morphing, symbols, per-subtree time scoping, interactive state machines — while
+the format stays something
 a human (or an LLM) can author, read, and diff, where Lottie JSON is
 machine-generated and opaque.
 

@@ -1,9 +1,13 @@
-# State Machines (Proposal)
+# State Machines
 
-**Status: proposal — not implemented.**
-
-Interactive state machines for Popcorn scenes, expressed in CSS idiom. See
-[DSL.md](DSL.md) for the current language.
+**Status: implemented** — `@machine` graphs, transitions (pointer/`event()`/
+`when` guards/`on complete`/`state-time`), `:state()` styling with entry-anchored
+`animation:`, trigger variables, the `setVariable`/`getVariable`/`fire` host API,
+`statechange`/`machine-event` events, and `animation-timeline` scrubbing
+(`var()`/`input(scroll.progress)`) and `media.*` inputs in guards all ship.
+**Not yet wired:** `mix` tweening (parses, but a transition is currently a
+hard cut). This document is kept as design rationale; see [DSL.md](DSL.md)
+for the shipping syntax.
 
 ## Motivation
 
@@ -292,6 +296,12 @@ interactivity story.
   the `InteractionManager`'s hover-transition WeakMap already does.
 - `sceneHasDynamicContent` learns about machines so the loop doesn't go
   dormant while a machine could still transition.
+- A machine scene is **unbounded**: the render loop skips both the loop-wrap
+  and the play-once clamp (they're keyed off `sceneDuration`, which counts only
+  base animations), so the clock stays monotonic and a state animation's
+  entry-anchored sampling never folds negative and replays. A one-shot state
+  animation therefore holds its final frame — `:state()` animations default to
+  `animation-fill-mode: both` rather than the node-level `forwards`.
 - Cost centers are runtime, not parser: `:state()` rule matching (nothing
   keys off selectors at runtime today), entry-time-anchored animation
   restart, and animation-completion detection in the scheduler.

@@ -673,3 +673,140 @@ state block overrides the node-level transition when entering that state
   sources aren't hittable.
 - `pointer-events: none` removes a node **and its whole subtree** from
   hit-testing; unlike CSS, a descendant can't opt back in.
+
+### State Machines
+
+`&:hover`/`&:active` restyle a node while a pointer is on it; a `@machine` adds
+named states that **outlive the pointer** and can start animations — toggles,
+"intro once then loop", tap-driven reactions, app-state-driven styling. Multiple
+`@machine` blocks run concurrently and independently.
+
+A scene with a `@machine` has **no duration**: it never ends or loops as a clip
+(the player's `loop` attribute is inert, the clock runs forward monotonically),
+because machine state lives off the timeline. Per-state animations either loop
+(`infinite`) or run once and hold their final frame while the state stays active
+— so a `:state()` animation defaults to `animation-fill-mode: both` (hold the
+start frame before its delay, the end frame after completion) instead of the
+node-level `forwards`; write an explicit fill mode to override.
+
+```css
+@machine cat {
+  initial: idle;                            /* required starting state */
+
+  state idle {
+    to: excited on click(#hitbox);
+    to: hyper when style(--energy > 80);
+  }
+  state excited {
+    to: idle on complete;                   /* this state's animations finished */
+  }
+  state hyper {
+    to: idle when style(--energy <= 80);
+    emit: overheat;                         /* event out to host, fired on entry */
+  }
+  state * {                                 /* any-state: checked before current */
+    to: idle on event(reset);
+  }
+}
+```
+
+**Transitions** — one or more `to:` per state:
+
+```
+to: <state> [on <trigger>] [when <guard> [and <guard>]*];
+```
+
+Declaration order is priority: the first `to:` whose trigger and guards all pass
+fires. `on` and `when` may combine (event AND condition); guards chain with `and`
+only.
+
+**Triggers (`on …`):**
+
+| Trigger | Meaning |
+|---|---|
+| `click(#id)` `pointerdown(#id)` `pointerup(#id)` `hoverstart(#id)` `hoverend(#id)` | pointer event on a named node (the existing hit-tester) |
+| `click(:root)` etc. | same events on the whole scene (tap anywhere) |
+| `complete` | the current state's animations finished (non-infinite) |
+| `event(name)` | a named external event fired by the host — see host API |
+
+Pointer and `complete` triggers need zero host code. `event()` is the escape
+hatch for signals the player can't see itself (app logic, sensors).
+
+**Guards (`when …`):** container-style-query syntax with range comparisons, over
+custom properties and `input()` paths:
+
+```css
+when style(--energy > 80)
+when style(--mood: happy)              /* equality, CSS style() form */
+when style(input(cursor.x) < 400)
+when style(state-time > 2s)            /* time in current state → timeouts */
+```
+
+`state-time` is a reserved per-machine input measuring time in the current state.
+
+`mix <duration> [<easing>]` parses on a `to:` but currently applies as a **hard
+cut** (tweened state cross-fade is not yet wired). Environment `media.*` inputs
+(`media.prefers-reduced-motion`, `media.hover`, `media.width`, `media.height`)
+work in guards and anywhere `input()` is read.
+
+**State styling: `:state()`** — while machine `M` is in state `S`, `#node:state(S)`
+matches (namespace as `:state(M.S)` when two machines share a state name). These
+are full rules — crucially including `animation:`, which **(re)starts from the
+state's entry time on entry** — and may carry `> #child { … }` rules that restyle
+a direct descendant. `:hover`/`:active` keep working and still apply last.
+
+```css
+#cat:state(idle)    { animation: breathe 2s ease-in-out infinite; }
+#cat:state(excited) { animation: jump 600ms ease-out; }   /* restarts on entry */
+#cat:state(hyper)   { animation: vibrate 100ms infinite; fill: #f44;
+                      > #eyes { fill: #fff; } }
+```
+
+**Trigger variables.** A custom property initialized to the keyword `trigger` is a
+momentary event input that auto-resets after one evaluation:
+
+```css
+:root {
+  --energy: 0;         /* number  */
+  --pressed: false;    /* boolean */
+  --tap: trigger;      /* momentary; fire() then it clears */
+}
+```
+
+**Host API** on `<popcorn-player>`:
+
+```js
+player.setVariable('--energy', 80);   // number/boolean author-declared vars
+player.getVariable('--energy');
+player.fire('--tap');                 // pulse a trigger variable
+player.fire('reset');                 // deliver an `on event(reset)` trigger
+```
+
+The player dispatches two `CustomEvent`s: `statechange` on every transition
+(`detail: {machine, from, to}`) and `machine-event` when a state's `emit:` fires
+(`detail: {machine, name}`).
+
+```js
+player.addEventListener('statechange', (e) => console.log(e.detail.from, '→', e.detail.to));
+player.addEventListener('machine-event', (e) => console.log(e.detail.name));
+```
+
+### Scrubbing (`animation-timeline`)
+
+`animation-timeline` scrubs an animation to a 0..1 value source instead of playing
+it on the clock. It accepts the same `var()`/`input()` vocabulary used everywhere
+else:
+
+```css
+#progress-bar {
+  animation: fill-up 1s linear;
+  animation-timeline: var(--progress);          /* host-fed 0..1 */
+}
+#hero {
+  animation: reveal 1s ease-out;
+  animation-timeline: input(scroll.progress);   /* page scroll, normalized 0..1 */
+}
+```
+
+`scroll.progress` is a built-in input: scroll position normalized to 0..1 by the
+scrollable range (the raw offset stays available as `scroll.y`).
