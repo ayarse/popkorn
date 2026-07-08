@@ -10,17 +10,29 @@ type Bounds = { x: number; y: number; width: number; height: number };
  * Canvas 2D implementation of the Renderer interface
  * Used for the PoC - can be swapped for ThorVG later
  */
-// Cache entry for a loaded (or loading) image, keyed by src.
+// Cache entry for a loaded (or loading) image, keyed by src. `img` is an
+// HTMLImageElement on the main thread and an ImageBitmap in a worker; it stays
+// null until the decode lands (guarded by `loaded`).
 interface ImageEntry {
-  img: HTMLImageElement;
+  img: HTMLImageElement | ImageBitmap | null;
   loaded: boolean;
   errored: boolean;
+}
+
+// Intrinsic size: HTMLImageElement exposes naturalWidth/Height, ImageBitmap width/height.
+function imgWidth(img: HTMLImageElement | ImageBitmap): number {
+  return 'naturalWidth' in img ? img.naturalWidth : img.width;
+}
+function imgHeight(img: HTMLImageElement | ImageBitmap): number {
+  return 'naturalHeight' in img ? img.naturalHeight : img.height;
 }
 
 export class Canvas2DRenderer implements Renderer {
   private ctx: CanvasRenderingContext2D;
   // Image cache and lazily-created offscreen buffers for track masks.
   private images = new Map<string, ImageEntry>();
+  // In-flight image decodes; each promise settles (never rejects) on load/error.
+  private pendingImages = new Set<Promise<void>>();
   private offscreen: (CanvasRenderingContext2D | null)[] = [];
   private fillColor: string | null = '#000000';
   private strokeColor: string | null = null;
@@ -120,23 +132,67 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   drawImage(src: string, x: number, y: number, w: number, h: number): void {
-    if (!src || typeof Image === 'undefined') return; // headless: node is inert
+    if (!src) return;
     let entry = this.images.get(src);
     if (!entry) {
-      const img = new Image();
-      entry = { img, loaded: false, errored: false };
-      this.images.set(src, entry);
-      img.onload = () => { entry!.loaded = true; };
-      img.onerror = () => {
-        entry!.errored = true;
-        console.warn(`Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`);
-      };
-      img.src = src;
+      const loaded = this.loadImage(src);
+      if (!loaded) return; // fully headless (no Image, no fetch/createImageBitmap): node is inert
+      entry = loaded;
     }
-    if (!entry.loaded) return; // repaints in once the running loop sees it decoded
-    const dw = w > 0 ? w : entry.img.naturalWidth;
-    const dh = h > 0 ? h : entry.img.naturalHeight;
+    if (!entry.loaded || !entry.img) return; // repaints in once the decode lands
+    const dw = w > 0 ? w : imgWidth(entry.img);
+    const dh = h > 0 ? h : imgHeight(entry.img);
     this.ctx.drawImage(entry.img, x, y, dw, dh);
+  }
+
+  // Kick off a decode, caching the entry immediately so we fetch each src once.
+  // Main thread: HTMLImageElement. Worker (no Image): fetch(src) -> blob ->
+  // createImageBitmap, which also handles data: URLs. Returns null when neither
+  // path exists (e.g. bun tests), leaving the image node inert.
+  private loadImage(src: string): ImageEntry | null {
+    if (typeof Image !== 'undefined') {
+      const img = new Image();
+      const entry: ImageEntry = { img, loaded: false, errored: false };
+      this.images.set(src, entry);
+      this.trackImageLoad(new Promise<void>((resolve) => {
+        img.onload = () => { entry.loaded = true; resolve(); };
+        img.onerror = () => {
+          entry.errored = true;
+          console.warn(`Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`);
+          resolve();
+        };
+      }));
+      img.src = src;
+      return entry;
+    }
+    if (typeof createImageBitmap !== 'undefined' && typeof fetch !== 'undefined') {
+      const entry: ImageEntry = { img: null, loaded: false, errored: false };
+      this.images.set(src, entry);
+      this.trackImageLoad(
+        fetch(src)
+          .then((r) => r.blob())
+          .then((b) => createImageBitmap(b))
+          .then((bmp) => { entry.img = bmp; entry.loaded = true; })
+          .catch(() => {
+            entry.errored = true;
+            console.warn(`Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`);
+          }),
+      );
+      return entry;
+    }
+    return null;
+  }
+
+  private trackImageLoad(p: Promise<void>): void {
+    this.pendingImages.add(p);
+    void p.finally(() => { this.pendingImages.delete(p); });
+  }
+
+  // Resolves once no image decodes are in flight (immediately if none). An
+  // offline, seek-driven export awaits this after seeking so a re-render paints
+  // the now-decoded images; the live loop ignores it and repaints naturally.
+  whenImagesSettled(): Promise<void> {
+    return Promise.all([...this.pendingImages]).then(() => undefined);
   }
 
   compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void {

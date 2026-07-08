@@ -21,6 +21,10 @@ export interface Renderer {
   // size. Loading/caching is the renderer's concern; nothing paints until the
   // image decodes (the running loop repaints it in naturally).
   drawImage(src: string, x: number, y: number, w: number, h: number): void;
+  // Optional: resolves once no image decodes are in flight (immediately if
+  // none). A seek-driven offline export awaits this between seek and re-render
+  // so decoded images paint; the live loop needn't call it. Callers feature-detect.
+  whenImagesSettled?(): Promise<void>;
 
   // Clip the current node and its descendants to a region (in local space).
   clip(clip: ResolvedClip): void;
