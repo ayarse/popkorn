@@ -15,6 +15,16 @@ Canvas size and background go in the `:root` rule (the same rule that holds
 }
 ```
 
+### Selectors & Values
+
+Selectors are `#id`, `.class`, or `:root` — any other `:pseudo` selector at the
+top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
+units `s` / `ms`, plus `deg` for angles; many properties also take a bare number
+(fractions for `trim-*`/`offset-distance`, milliseconds for `time-*`/`visible-*`,
+counts for `sides`). Hex colors accept 3–8 digits (`#rgb` … `#rrggbbaa`), and
+`rgb()`/`rgba()` work for both solid colors and gradient stops. Block comments
+(`/* … */`) and a trailing `;` before `}` are allowed.
+
 ### Shapes
 
 ```css
@@ -63,7 +73,20 @@ Canvas size and background go in the `:root` rule (the same rule that holds
     fill: white;
   }
 }
+
+/* Path — arbitrary SVG geometry */
+#path {
+  type: path;
+  d: 'M10 10 L50 50 L10 50 Z';
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2px;
+}
 ```
+
+`type: path` takes an SVG `d` string supporting the commands `M L H V C S Q T A Z`
+(absolute and relative), including smooth-curve reflection (`S`/`T`) and true
+elliptical arcs (`A`); a degenerate arc collapses to a straight line.
 
 ### Text
 
@@ -151,9 +174,31 @@ instances never collide.
 }
 ```
 
+The individual CSS transform properties `translate:`, `rotate:`, and `scale:`
+also work and write the **same** channels as `transform:` — so
+`translate: 100px 50px` equals `transform: translate(100px, 50px)`. Mixing them
+with `transform:` on one node is last-declaration-wins per channel (not CSS's
+additive layering).
+
+`transform-origin` sets the pivot for rotation and scale (default `0 0`).
+Accepts the keywords `center`/`top`/`left`/`right`/`bottom`, percentages, or
+lengths; a single value fills the other axis with `50%`.
+
+```css
+#spinner {
+  type: rect;
+  x: -40px; y: -40px; width: 80px; height: 80px;
+  transform-origin: center;        /* rotate about the middle, not the corner */
+  animation: spin 2s linear infinite;
+}
+```
+
 ### Gradient Fills
 
-`fill` and `stroke` accept CSS gradients. Color stops are hex or `rgb()`/`rgba()`.
+`fill` and `stroke` accept CSS gradients. Color stops are hex or `rgb()`/`rgba()`
+(as are solid `fill`/`stroke` colors). Omitting a stop's percentage
+auto-distributes it evenly; a `linear-gradient` with no angle defaults to
+`to bottom` (180deg).
 
 ```css
 #a {
@@ -169,10 +214,17 @@ instances never collide.
 }
 ```
 
+A `linear-gradient` may instead give explicit `from`/`to` endpoints, and a
+`radial-gradient` an explicit center/`radius` and a `focal` highlight point
+(Lottie's highlight offset), rather than the bbox-derived defaults.
+
 A gradient `fill`/`stroke` is animatable in `@keyframes`: each stop's offset and
-color are interpolated. The two endpoints must be *compatible* — same gradient
-type and same stop count — so stops pair up index-for-index. Incompatible
-gradients step (hold the departing value) instead of interpolating.
+color are interpolated, along with the linear angle and the radial
+radius/center/focal. The two endpoints must be *compatible* — same gradient
+type, same stop count, and the same explicit-geometry presence (both or neither
+specify `from`/`to`, both or neither `at`/`focal`) — so stops pair up
+index-for-index. Incompatible gradients step (hold the departing value) instead
+of interpolating.
 
 ```css
 @keyframes recolor {
@@ -189,10 +241,13 @@ gradients step (hold the departing value) instead of interpolating.
 #masked {
   type: group;
   clip-path: circle(120px at 200px 150px);      /* circle(<r> at <x> <y>) */
-  /* clip-path: inset(20px 20px 20px 20px);      inset(<t> <r> <b> <l>) */
+  /* clip-path: inset(20px);                     inset(<t r b l> | <tb lr> | <t> <r> <b> <l>) */
   /* clip-path: path('M0 0 L200 0 L100 200 Z');  arbitrary SVG path */
 }
 ```
+
+`inset()` takes 1, 2, or 4 lengths (CSS shorthand: 1 → all sides, 2 →
+top-bottom / left-right, 4 → top right bottom left).
 
 Multiple `path()` values are unioned into one clip region (a point inside **any**
 of them is kept) — this maps Lottie's additive multi-mask:
@@ -203,6 +258,10 @@ of them is kept) — this maps Lottie's additive multi-mask:
   clip-path: path('M0 0 L60 0 L60 60 Z') path('M80 80 L140 80 L140 140 Z');
 }
 ```
+
+`clip-path` is animatable in `@keyframes`, but only the `path()` form morphs
+(same command-sequence compatibility rule as `d`); `circle()`/`inset()` clips
+can't be tweened.
 
 ### Track Mattes
 
@@ -228,15 +287,18 @@ painted on its own — only sampled as the matte:
 - `alpha` keeps the node where the source is opaque; `alpha-invert` where it's
   transparent.
 - `luminance` keeps it where the source is bright; `luminance-invert` where it's dark.
+- Given only an id, the mode defaults to `alpha`.
 
 Compositing is done offscreen, so both subtrees line up exactly regardless of
 their transforms. (Headless/no-canvas environments skip the matte and draw the
-content directly.)
+content directly.) A `luminance` matte silently degrades to `alpha` if the
+source canvas is tainted by a cross-origin image (pixel readback is blocked).
 
 ### Images
 
 `type: image` draws a bitmap from a URL or `data:` URI into an x/y/width/height
-box. Omit width/height to use the image's natural size once it loads.
+box. Omit width/height to use the image's natural size once it loads. The source
+can be given as `src:` or as `content: url('…')`.
 
 ```css
 #logo {
@@ -280,7 +342,8 @@ of the outline length and are animatable.
   animate it for a "marching" dash on a closed shape (circle/ellipse/rect).
 - `stroke-linecap` sets the stroke's end caps: `butt` (default), `round`, or `square`.
 
-`trim-start >= trim-end` hides the stroke entirely.
+`trim-start >= trim-end` hides the stroke entirely. The trim properties accept a
+bare number as a `0..1` fraction as well as a percentage; values clamp to range.
 
 ### Stroke Dashes
 
@@ -305,6 +368,14 @@ of the outline length and are animatable.
 Trim paths and dashes share Canvas's single dash slot, so when both are set on
 one node **trim wins** and the dash array is ignored (compositing a dash inside a
 trim window is a future upgrade).
+
+Other stroke properties:
+
+- `stroke-linejoin` — corner join: `miter` (default), `round`, or `bevel`.
+- `stroke-miterlimit` — miter cap ratio, default `4` (SVG/Lottie, not Canvas's
+  10); only affects miter joins.
+- `paint-order: stroke` — draw the stroke *behind* the fill (so only its outer
+  edge shows). Default `normal` is fill first, stroke on top.
 
 ### Fill Rule
 
@@ -348,7 +419,13 @@ merged path shows interior seams (subpath outlines aren't booleaned away).
 }
 ```
 
-Animation shorthand: `name duration timing-function iteration-count direction delay`
+Animation shorthand: `name duration timing-function iteration-count direction fill-mode delay`
+(tokens are matched by type, so order is flexible; of two time values the first
+is duration and the second is delay). Duration defaults to `1s`. A **bare
+number** in the shorthand is read as iteration-count only when it's a positive
+integer below 100 — for any other count use the `animation-iteration-count`
+longhand. Multiple animations can be comma-separated in one declaration
+(`animation: spin 2s linear infinite, fade 1s ease`).
 
 ```css
 #shape {
@@ -358,11 +435,29 @@ Animation shorthand: `name duration timing-function iteration-count direction de
 }
 ```
 
+`animation-direction` is `normal` (default), `reverse`, `alternate`, or
+`alternate-reverse`.
+
+**Fill mode.** `animation-fill-mode` is `none`, `forwards`, `backwards`, or
+`both`, and it **defaults to `forwards`** (unlike CSS's `none`) so a finished
+animation holds its final frame rather than snapping back to base.
+`backwards`/`both` also hold the first keyframe during the start `delay`.
+
+**Composition.** `animation-composition` is `replace` (default), `add`, or
+`accumulate`. With `add`/`accumulate`, numeric channels are *added* onto what
+base + bindings + earlier animations already wrote this frame (an omitted
+property contributes 0, not the base value); color/gradient/path channels always
+replace. It is a longhand only — the `animation` shorthand resets it to
+`replace`.
+
 Timing functions: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`,
-`cubic-bezier(x1, y1, x2, y2)`, `steps(n, start|end)`, `step-start`, and
-`step-end` — a step/hold that keeps the departing keyframe's value until the
-next keyframe, then jumps.
-Works as the shorthand default easing or per-keyframe via
+`cubic-bezier(x1, y1, x2, y2)`, `steps(n, <position>)`, `linear(<stops>)`,
+`step-start`, and `step-end` — a step/hold that keeps the departing keyframe's
+value until the next keyframe, then jumps. `steps()` positions are
+`jump-start`/`start`, `jump-end`/`end` (default), `jump-none`, and `jump-both`.
+`linear()` (CSS Easing L2) is *not* clamped, so control points above 1 give
+spring/overshoot curves.
+Any of these works as the shorthand default easing or per-keyframe via
 `animation-timing-function`:
 
 ```css
@@ -373,10 +468,15 @@ Works as the shorthand default easing or per-keyframe via
 }
 ```
 
+Keyframe blocks need not be authored in ascending order (they're sorted), and a
+property holds flat outside the range it defines — below the first keyframe or
+above the last, its value is that boundary keyframe (no extrapolation).
+
 A path's `d` is animatable — **path morphing**. The two keyframe paths must be
 *compatible*: the same command sequence (same letters in the same order, same
 counts) after parsing, so their numeric arguments interpolate pairwise.
 Incompatible sequences step (hold the departing path) instead of morphing.
+Arc (`A`) boolean flags don't interpolate — they step to the departing value.
 Trim, fill-rule and hit-testing all keep working on the morphing path.
 
 ```css
@@ -449,6 +549,19 @@ Both are static (not animatable). Nested scopes compose — each applies to the
 local time it inherits — which is how imported compositions (Lottie precomps,
 with per-instance start time and stretch) keep independent clocks.
 
+`time-remap` maps inherited time through an explicit curve instead of a linear
+offset/scale (Lottie `tm` — the converter emits it for precomp time remapping).
+It's a comma list of stops, each `<input-time> <output-time> [easing]` (times in
+`s`/`ms`, easing governs the segment to the next stop); outside the input domain
+the endpoints hold. When present it **replaces** `time-offset`/`time-scale`.
+
+```css
+#clip {
+  type: group;
+  time-remap: 0s 0s, 1s 2s ease-out, 2s 0s;   /* play forward then rewind */
+}
+```
+
 ### Layering & Visibility
 
 By default siblings paint in document order (first child behind, last in front).
@@ -495,8 +608,68 @@ without an opacity hack. Static; defaults are "always visible".
 }
 ```
 
-Available inputs:
-- `cursor.x`, `cursor.y` - Mouse position
+Available inputs (mouse only — no touch, despite the `cursor` name):
+- `cursor.x`, `cursor.y` - Pointer position in **scene coordinates** (mapped back
+  through the inverse viewport, so bindings stay correct under any fit/DPR)
 - `cursor.isDown` - Mouse button state (1 or 0)
-- `scroll.x`, `scroll.y` - Scroll position
+- `scroll.x`, `scroll.y` - Scroll position (`window.scrollX`/`scrollY`)
 - `time` - Monotonic clock timestamp in milliseconds (`performance.now()`)
+
+Notes on bindings:
+
+- Live `input()`/`var()` bindings drive **numeric** properties only. Color,
+  gradient, and path (`d`, `clip-path`) bindings resolve once statically — a
+  color can't be wired to a live input.
+- An unknown `var(--x)` or `input()` path resolves to `0` (no error). Custom
+  properties can reference other custom properties (resolved recursively).
+- The CSS `var(--x, fallback)` two-argument form is **not** parsed — give the
+  fallback by defining the variable in `:root` instead.
+
+### States, Transitions & Hit-Testing
+
+Nodes respond to pointer state with `&:hover` / `&:active` blocks inside the
+rule body (also valid in an `@define`). A state block restyles the node while
+it's in that state, and may contain `> #child { … }` rules that restyle a direct
+descendant while the *parent* is in the state. State blocks can't nest further
+states.
+
+```css
+#button {
+  type: rect;
+  x: 0; y: 0; width: 160px; height: 48px; rx: 8px;
+  fill: #4ecdc4;
+  transition: fill 0.2s ease-out;   /* tween into/out of the state */
+
+  &:hover { fill: #60a5fa; }
+  &:active {
+    fill: #a855f7;
+    > #label { fill: #ffffff; }      /* restyle a child while pressed */
+  }
+}
+```
+
+- State blocks only set a fixed subset: `fill`, `stroke`, `stroke-width`,
+  `opacity`, `transform` (and the individual `translate`/`rotate`/`scale`).
+- The parser accepts any `&:<ident>`, but only `hover` and `active` are driven;
+  other state names parse but never activate.
+
+**Transitions** tween a node between values when it changes state. Shorthand:
+`transition: <property> <duration> [easing] [delay]`, where `<property>` is one
+of `all` (default), `fill`, `stroke`, `stroke-width`, `opacity`, `transform`. A
+zero-duration transition is an instant change. A transition declared *inside* a
+state block overrides the node-level transition when entering that state
+(asymmetric enter/exit timing).
+
+**Hit-testing** decides what a pointer hits (for `&:hover`/`&:active`):
+
+- Testing uses the **fill region** (`fill-rule` respected), so a `fill: none`
+  stroke-only shape is still hittable across the area it encloses. Text and
+  image nodes hit-test as their bounding box.
+- Hits bubble like the DOM: an interactive group is hit whenever any descendant
+  contains the point; the nearest interactive ancestor-or-self is credited, so a
+  directly-interactive child still wins inside its own geometry.
+- Groups have no geometry of their own — a group only becomes a target via a
+  bubbled descendant hit. A node's `clip-path` also clips hit-testing, and mask
+  sources aren't hittable.
+- `pointer-events: none` removes a node **and its whole subtree** from
+  hit-testing; unlike CSS, a descendant can't opt back in.
