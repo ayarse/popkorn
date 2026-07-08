@@ -358,24 +358,7 @@ export const examples: Example[] = [
   100% { transform: scaleX(0.5) scaleY(1); opacity: 0.2;  }
 }
 
-/*
- * The whole decaying bounce of the small teal ball is baked into ONE linear()
- * easing: two plain keyframes fall straight down, and the control points are the
- * ground contacts (output 1) and shrinking rebounds. This is the linear()
- * spring/bounce idiom — no per-keyframe physics needed.
- */
-@keyframes dropBounce {
-  from { transform: translateY(0); }
-  to   { transform: translateY(330px); }
-}
-
 #ground { type: rect; x: 100px; y: 480px; width: 600px; height: 4px; rx: 2px; fill: #4a4a6a; }
-
-#dropBall {
-  type: circle; cx: 660px; cy: 150px; r: 22px; fill: #4ecdc4;
-  transform-origin: center;
-  animation: dropBounce 1.6s linear(0, 1 33%, 0.55 46%, 1 62%, 0.78 74%, 1 85%, 0.92 93%, 1) infinite;
-}
 
 #ballShadow {
   type: ellipse; cx: 400px; cy: 475px; rx: 50px; ry: 8px; fill: #000000;
