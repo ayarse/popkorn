@@ -450,19 +450,12 @@ export class SceneBuilder {
   }
 
   private applyDeclaration(node: SceneNode, decl: Declaration): void {
-    const { property, value } = decl;
-
-    // Image content (`content: url(...)`) is static, so a `var()` reference to a
-    // :root custom property is resolved once here at build time (dedup hoists
-    // shared data URIs into :root). This must precede the generic binding path,
-    // which is numeric-only.
-    if (property === 'content' && node.shapeData.type === 'image' && isVariableRefValue(value)) {
-      const resolved = this.variablesMap.get(value.name) ?? value.fallback;
-      if (resolved) {
-        (node.shapeData as ImageData).src = this.imageSrc(resolved);
-      }
-      return;
-    }
+    const { property } = decl;
+    // Resolve static `:root` var() references (path/image dedup, custom props)
+    // to their definitions here at build time, so a hoisted `d:`/`offset-path:`/
+    // `clip-path:`/`content:` value flows through normal parsing below. Reactive
+    // var()/input() refs are left intact for the numeric binding path.
+    const value = this.resolveStaticVars(decl.value);
 
     // Check if this value contains a variable reference
     if (this.hasVariableReference(value)) {
@@ -798,8 +791,9 @@ export class SceneBuilder {
         node.zIndex = getNumericValue(value);
         break;
 
-      // Visibility window (static). Times are stored in ms to match the scoped
-      // timeline the resolve walk compares them against (like time-offset).
+      // Visibility window (static). Stored in ms; the resolve walk compares it
+      // against the inherited (parent-scope) time, before this node's own
+      // time-offset/time-scale apply.
       case 'visible-from':
         node.visibleFrom = isLengthValue(value) && value.unit === 's'
           ? value.value * 1000
@@ -1275,7 +1269,11 @@ export class SceneBuilder {
     const props: Record<string, AnimatableValue> = {};
 
     for (const decl of block.declarations) {
-      const { property, value } = decl;
+      const { property } = decl;
+      // Resolve static `:root` var() refs (dedup) before keyframe parsing, so a
+      // hoisted `d:`/`clip-path:` morph target reaches parsePath, not an empty
+      // command list. Keyframes are a separate code path from applyDeclaration.
+      const value = this.resolveStaticVars(decl.value);
 
       switch (property) {
         case 'transform':
@@ -1561,6 +1559,42 @@ export class SceneBuilder {
       return `rgba(${r}, ${g}, ${b}, ${a})`;
     }
     return '#000000';
+  }
+
+  /**
+   * Replace static `:root` var() references with their definitions, recursing
+   * into function args and list values. A var() is left untouched when it has no
+   * :root definition, or when that definition is itself reactive (contains
+   * another var() or an `input()`) — those keep flowing to the numeric binding
+   * path, preserving the per-frame resolution order (base → bindings → animation
+   * → hover). This is what makes hoisted `path()` dedup resolve at build time.
+   */
+  private resolveStaticVars(value: Value): Value {
+    if (isVariableRefValue(value)) {
+      const resolved = this.variablesMap.get(value.name);
+      if (!resolved || this.hasVariableReference(resolved)) return value;
+      return this.resolveStaticVars(resolved);
+    }
+    if (isFunctionValue(value)) {
+      if (value.name === 'input') return value; // reactive; leave args alone
+      let changed = false;
+      const args = value.args.map((a) => {
+        const r = this.resolveStaticVars(a);
+        if (r !== a) changed = true;
+        return r;
+      });
+      return changed ? { ...value, args } : value;
+    }
+    if (isListValue(value)) {
+      let changed = false;
+      const values = value.values.map((v) => {
+        const r = this.resolveStaticVars(v);
+        if (r !== v) changed = true;
+        return r;
+      });
+      return changed ? { ...value, values } : value;
+    }
+    return value;
   }
 
   private hasVariableReference(value: Value): boolean {

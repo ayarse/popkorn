@@ -211,11 +211,13 @@ export interface SceneNode {
   // values are valid and are the main use — painting a node behind its siblings.
   zIndex: number;
 
-  // Visibility window in scene-local milliseconds (compared against the same
-  // scoped time the scheduler samples this node at). Outside [visibleFrom,
-  // visibleUntil) the node and its subtree are skipped by both the render walk
-  // and hit-testing. Defaults (-Infinity, +Infinity) => always visible. `hidden`
-  // is the per-frame evaluation, set during the resolve walk.
+  // Visibility window in milliseconds, compared against the time this node
+  // INHERITS (its containing/parent scope), before this node's own
+  // time-offset/time-scale apply — visibility lives in the parent comp's
+  // timeline. Outside [visibleFrom, visibleUntil) the node and its subtree are
+  // skipped by both the render walk and hit-testing. Defaults (-Infinity,
+  // +Infinity) => always visible. `hidden` is the per-frame evaluation, set
+  // during the resolve walk.
   visibleFrom: number;
   visibleUntil: number;
   hidden: boolean;
