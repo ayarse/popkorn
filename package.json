@@ -9,6 +9,13 @@
     "dev": "bun --filter @popcorn/demo dev",
     "build": "bun --filter @popcorn/demo build",
     "test": "bun --filter @popcorn/parser --filter @popcorn/player test && bun test tools/",
+    "lint": "biome check",
+    "format": "biome check --write",
+    "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/demo typecheck",
     "lottie": "./tools/lottie2popcorn-cli.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.3",
+    "typescript": "~5.6.2"
   }
 }
