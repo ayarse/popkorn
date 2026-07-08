@@ -476,8 +476,8 @@ export class PopcornPlayer extends HTMLElementBase {
     if (!this.boolAttr('controls')) return;
     if (!this.scrubbing) {
       const d = this.duration;
-      // Without looping the timeline runs past duration (fill-forward hold), and
-      // a scene with no animations (d = 0) free-runs; clamp the readout/scrubber
+      // The loop clamps the timeline to duration when not looping, but a scene
+      // with no animations (d = 0) still free-runs; clamp the readout/scrubber
       // so they never exceed the total.
       const shown = d > 0 ? Math.min(t, d) : 0;
       this.scrub.value = String(shown);

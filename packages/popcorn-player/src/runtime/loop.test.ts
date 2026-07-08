@@ -4,7 +4,33 @@ import type { Color, PathCommand, GradientData, ResolvedClip, TrimDescriptor, Ma
 import { IDENTITY_MATRIX } from '../renderer/types';
 import type { StrokeLineCap, TextAnchor, FillRule, MaskMode } from '../scene/types';
 import { createSceneNode, snapshotNode } from '../scene/types';
+import type { AnimationInstance, SceneNode } from '../scene/types';
 import { RenderLoop } from './loop';
+
+// A dot whose opacity ramps 0 -> 1 over one 3s iteration, forever. sceneDuration
+// is that single iteration (3000). The recording renderer captures the sampled
+// opacity as the first (only) setOpacity call per frame.
+function fadingDot(): SceneNode {
+  const node = createSceneNode('dot', 'circle');
+  node.shapeData = { type: 'circle', cx: 0, cy: 0, r: 10 };
+  node.opacity = 0;
+  node.base = snapshotNode(node);
+  const fade: AnimationInstance = {
+    name: 'fade',
+    duration: 3000,
+    timingFunction: 'linear',
+    iterationCount: Infinity,
+    direction: 'normal',
+    delay: 0,
+    fillMode: 'forwards',
+    keyframes: [
+      { offset: 0, properties: { opacity: 0 } },
+      { offset: 1, properties: { opacity: 1 } },
+    ],
+  };
+  node.animations = [fade];
+  return node;
+}
 
 // Minimal no-op renderer that records setOpacity calls (in draw order) and
 // counts frames (beginFrame calls) so tests can assert that a repaint happened.
@@ -108,4 +134,49 @@ test('seek repaints synchronously while paused (does not wait for the next rAF)'
   } finally {
     g.requestAnimationFrame = prevRaf;
   }
+});
+
+// Loop OFF: past the scene duration the timeline holds at the end of one full
+// pass ("play once and stop") — an infinite animation must NOT keep cycling.
+// (Paused first, mirroring the demo's scrub flow, so currentTime is exact rather
+// than free-running by wall clock.)
+test('loop off: time past duration clamps to sceneDuration', () => {
+  const renderer = createRecordingRenderer();
+  const loop = new RenderLoop(renderer);
+  loop.setScene(fadingDot()); // sceneDuration = 3000, loop defaults off
+  loop.pause();
+
+  loop.seek(3000);
+  const opacityAtEnd = renderer.opacities.at(-1)!;
+  expect(loop.currentTime).toBe(3000);
+
+  // Seek well past the end: currentTime and the sampled frame both hold at 3000
+  // (not a later point on the still-cycling infinite ramp).
+  loop.seek(9000);
+  expect(loop.currentTime).toBe(3000);
+  expect(renderer.opacities.at(-1)!).toBe(opacityAtEnd);
+
+  // Idempotent (invariant 4): seeking further past the end gives the same frame.
+  loop.seek(12000);
+  expect(loop.currentTime).toBe(3000);
+  expect(renderer.opacities.at(-1)!).toBe(opacityAtEnd);
+});
+
+// Loop ON: past the duration the timeline wraps back into [0, duration) so the
+// animation keeps cycling. (Not paused — the wrap only runs on a live timeline.)
+test('loop on: time past duration wraps', () => {
+  const renderer = createRecordingRenderer();
+  const loop = new RenderLoop(renderer);
+  loop.setScene(fadingDot());
+  loop.setLoop(true);
+
+  loop.seek(4000); // 4000 % 3000 = 1000 -> one third through the ramp
+  expect(loop.currentTime).toBeCloseTo(1000, 0);
+  expect(renderer.opacities.at(-1)!).toBeCloseTo(1000 / 3000, 3);
+
+  // Turning loop back off then seeking past the end freezes at the duration.
+  loop.setLoop(false);
+  loop.pause();
+  loop.seek(8000);
+  expect(loop.currentTime).toBe(3000);
 });

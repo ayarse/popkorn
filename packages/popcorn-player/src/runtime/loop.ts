@@ -45,6 +45,11 @@ export class RenderLoop {
   // (infinite animation) or in response to input/interaction (bindings, hover/
   // active)? Drives `isStatic` — an embedder can stop repainting a settled scene.
   private sceneDynamic: boolean = false;
+  // Cached at setScene: does any subtree remap inherited time (time-offset/
+  // time-scale/time-remap)? When it does, `sceneDuration` (a max of animation
+  // end times measured in each subtree's LOCAL time) is not the scene's end on
+  // the root timeline, so the play-once clamp below can't trust it and stays off.
+  private sceneTimeScoped: boolean = false;
   // Fires once per rendered frame with the current timeline time (drives the
   // controls scrubber off the existing loop tick — no extra rAF).
   private frameCallback: ((time: number) => void) | null = null;
@@ -80,6 +85,7 @@ export class RenderLoop {
     this.interactionManager.setScene(root);
     this.sceneDuration = computeSceneDuration(root);
     this.sceneDynamic = sceneHasDynamicContent(root);
+    this.sceneTimeScoped = sceneHasTimeScoping(root);
   }
 
   setBackgroundColor(color: string | null): void {
@@ -220,6 +226,16 @@ export class RenderLoop {
           this.scheduler.seek(wrapped, now);
           t = wrapped;
         }
+      } else if (!this.looping && !this.sceneTimeScoped && this.sceneDuration > 0 && t > this.sceneDuration) {
+        // Not looping: hold at the end of one full pass ("play once and stop").
+        // Without this, t free-runs past duration and any infinite animation
+        // keeps cycling. Re-anchor (like the wrap above) so currentTime stays
+        // bounded and the frozen frame is a pure function of time — seeking past
+        // the end shows this same clamped final frame whether playing or paused.
+        // Skipped for time-scoped scenes (see sceneTimeScoped): their duration
+        // isn't a root-timeline bound, so they keep their old free-run behavior.
+        this.scheduler.seek(this.sceneDuration, now);
+        t = this.sceneDuration;
       }
       this.resolveNode(this.sceneRoot, t, now);
     }
@@ -427,6 +443,18 @@ function sceneHasDynamicContent(root: SceneNode): boolean {
   if (root.hoverStyles || root.activeStyles || root.interactive) return true;
   for (const a of root.animations) if (a.iterationCount === Infinity) return true;
   for (const child of root.children) if (sceneHasDynamicContent(child)) return true;
+  return false;
+}
+
+/**
+ * Does any node remap inherited time (a time-remap curve, or a non-default
+ * time-offset/time-scale)? Such a subtree measures its animation end times in a
+ * local timeline, so `computeSceneDuration` (which maxes those local ends) isn't
+ * the scene's end on the root clock. Scanned once at setScene.
+ */
+function sceneHasTimeScoping(root: SceneNode): boolean {
+  if (root.timeRemap || root.timeOffset !== 0 || root.timeScale !== 1) return true;
+  for (const child of root.children) if (sceneHasTimeScoping(child)) return true;
   return false;
 }
 
