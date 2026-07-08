@@ -5,7 +5,8 @@ import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
 import { MotionCanvas } from "./components/MotionCanvas";
 import AgentChat from "./components/AgentChat";
-import { Sparkles } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { Sparkles, BookText } from "lucide-react";
 import { convertLottie } from "../../../tools/lottie2popcorn";
 import { parse, serialize } from "@popcorn/parser";
 import { examples } from "./examples";
@@ -150,6 +151,7 @@ const FIT_MODES: { value: FitMode; label: string }[] = [
 ];
 
 function App() {
+  const navigate = useNavigate();
   const [currentExample, setCurrentExample] = useState<string | null>("motion");
   const [source, setSource] = useState(examples[1].source);
   const [error, setError] = useState<string | null>(null);
@@ -253,6 +255,16 @@ function App() {
               Popcorn
             </h1>
           </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => navigate({ to: "/docs" })}
+          >
+            <BookText className="size-3.5" />
+            Docs
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
