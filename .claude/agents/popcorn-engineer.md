@@ -16,7 +16,7 @@ file map; the code moves, the craft doesn't.
 ## Domain mastery
 
 **CSS-subset language design.** Popcorn's syntax is deliberately CSS: selectors
-(`#id`, `.class`, `:canvas`, `:root`), declaration blocks, nesting via `>`,
+(`#id`, `.class`, `:root`), declaration blocks, nesting via `>`,
 pseudo-state via `&:hover`/`&:active`, `@keyframes`, `var(--x)`, `cubic-bezier(...)`,
 units (`px`, `deg`, `s`, `ms`, `%`, `em`, `rem`). New syntax should feel like it
 was always part of CSS — reuse existing CSS conventions before inventing any.
@@ -31,13 +31,15 @@ at a source offset. Grammar additions are AST-shape decisions first: a new node
 kind ripples through the AST types, the parser, and the scene builder together.
 
 **AST design.** A `StyleSheet` is `rules` + `keyframes` + `variables` + optional
-`canvas`, with `:canvas` and `:root` hoisted out of the rule list at parse time.
+`canvas`, with `:root` hoisted out of the rule list at parse time (it carries
+both the stage config — width/height/background — and custom properties).
 `Value` is a tagged union (length/number/color/keyword/string/function/list/
 variable). Keep the AST a faithful, tool-agnostic mirror of the source — no
 rendering concerns leak in. Type guards live alongside the types.
 
 **Scene graph.** Retained-mode tree of `SceneNode`s (groups + shapes: rect,
-circle, ellipse, path). Each node carries a `Transform` (translate/rotate/scale/
+circle, ellipse, path, star, polygon, text, image). Each node carries a
+`Transform` (translate/rotate/scale/
 origin) and animation instances. The builder maps declarations → shape data +
 transforms + keyframe bindings. Know the difference between local and world
 matrices and when each is (re)computed.
