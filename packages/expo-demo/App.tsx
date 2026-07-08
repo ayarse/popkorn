@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -19,6 +21,13 @@ import { PopcornView } from '@popcorn/skia';
 import { TURKEY_SCENE } from './turkey';
 
 const MONOSPACE = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+
+// @rivascva/react-native-code-editor drives react-syntax-highlighter, which
+// re-parses the WHOLE source synchronously on the JS thread on every render and
+// is effectively unusable past ~200 lines. Above this cap we drop to a plain
+// TextInput — still fully editable, just without highlighting (the turkey scene
+// alone is 2300+ lines, where highlighting is hopeless).
+const HIGHLIGHT_LINE_CAP = 300;
 
 export default function App() {
   return (
@@ -38,16 +47,23 @@ function AppInner() {
   const [draft, setDraft] = useState(TURKEY_SCENE);
   const [error, setError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  // Bumped whenever the editor opens, forcing CodeEditor to remount so its
-  // (uncontrolled) internal buffer re-syncs with `draft` — it only accepts
-  // an initialValue, not a controlled value.
-  const [editorKey, setEditorKey] = useState(0);
+  // The editor is heavy to mount, so we let the modal slide in first (showing a
+  // placeholder) and only mount it after interactions settle — the open feels
+  // instant instead of freezing on the synchronous highlight parse.
+  const [editorReady, setEditorReady] = useState(false);
   const dirty = draft !== source;
+  const useHighlighter = draft.split('\n').length <= HIGHLIGHT_LINE_CAP;
 
-  const openEditor = () => {
-    setEditorKey((k) => k + 1);
-    setEditorOpen(true);
-  };
+  useEffect(() => {
+    if (!editorOpen) {
+      setEditorReady(false);
+      return;
+    }
+    const handle = InteractionManager.runAfterInteractions(() => setEditorReady(true));
+    return () => handle.cancel();
+  }, [editorOpen]);
+
+  const openEditor = () => setEditorOpen(true);
 
   const onLoad = () => {
     try {
@@ -69,7 +85,7 @@ function AppInner() {
   return (
     <View style={styles.root}>
       <View style={styles.stage}>
-        <PopcornView source={source} width={stage} height={stage} loop />
+        <PopcornView source={source} width={stage} height={stage} loop paused={editorOpen} />
       </View>
 
       <Pressable
@@ -92,24 +108,40 @@ function AppInner() {
                 <Text style={styles.cancel}>Cancel</Text>
               </Pressable>
             </View>
-            <View style={styles.editorFrame}>
-              <CodeEditor
-                key={editorKey}
-                language="css"
-                syntaxStyle={CodeEditorSyntaxStyles.atomOneLight}
-                initialValue={draft}
-                onChange={setDraft}
-                showLineNumbers
-                autoFocus={false}
-                style={{
-                  fontSize: 12,
-                  fontFamily: MONOSPACE,
-                  inputLineHeight: 18,
-                  highlighterLineHeight: 18,
-                  padding: 10,
-                  height: editorHeight,
-                }}
-              />
+            <View style={[styles.editorFrame, { height: editorHeight }]}>
+              {!editorReady ? (
+                <View style={styles.editorPlaceholder}>
+                  <Text style={styles.placeholderText}>Loading editor…</Text>
+                </View>
+              ) : useHighlighter ? (
+                <CodeEditor
+                  language="css"
+                  syntaxStyle={CodeEditorSyntaxStyles.atomOneLight}
+                  initialValue={draft}
+                  onChange={setDraft}
+                  showLineNumbers
+                  autoFocus={false}
+                  style={{
+                    fontSize: 12,
+                    fontFamily: MONOSPACE,
+                    inputLineHeight: 18,
+                    highlighterLineHeight: 18,
+                    padding: 10,
+                    height: editorHeight,
+                  }}
+                />
+              ) : (
+                <TextInput
+                  defaultValue={draft}
+                  onChangeText={setDraft}
+                  multiline
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  spellCheck={false}
+                  textAlignVertical="top"
+                  style={[styles.plainEditor, { height: editorHeight }]}
+                />
+              )}
             </View>
             {error ? <Text style={styles.error}>{error}</Text> : null}
             <Pressable
@@ -163,6 +195,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     overflow: 'hidden',
   },
+  editorPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fafafa' },
+  placeholderText: { color: '#999', fontSize: 13 },
+  plainEditor: { fontFamily: MONOSPACE, fontSize: 12, lineHeight: 18, padding: 10, color: '#111', backgroundColor: '#fff' },
   error: { color: '#d00', fontSize: 12 },
   load: {
     backgroundColor: '#111',
