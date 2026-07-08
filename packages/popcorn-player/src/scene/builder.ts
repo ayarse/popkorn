@@ -33,6 +33,7 @@ import type {
   TextAnchor,
   TransformOriginValue,
   StateStyles,
+  TransitionSpec,
   ClipPathData,
   ImageData,
   MaskMode,
@@ -250,6 +251,9 @@ export class SceneBuilder {
     // longhands (CSS composition: later declarations win per sub-property).
     this.resolveAnimations(node, rule.declarations);
 
+    // Node-level transitions (apply to interaction state changes).
+    node.transitions = this.resolveTransitions(rule.declarations);
+
     // Extract state-specific styles from pseudo rules
     if (rule.states && rule.states.length > 0) {
       for (const stateRule of rule.states) {
@@ -387,6 +391,10 @@ export class SceneBuilder {
         }
       }
     }
+
+    // Transitions declared inside the state block govern entering that state.
+    const transitions = this.resolveTransitions(stateRule.declarations);
+    if (transitions.length > 0) styles.transitions = transitions;
 
     return styles;
   }
@@ -1034,6 +1042,78 @@ export class SceneBuilder {
     }
   }
 
+  /**
+   * Resolve the `transition` shorthand together with the `transition-*`
+   * longhands (comma lists matched positionally, composing like the animation
+   * longhands). Returns only specs with a positive duration — a zero-duration
+   * transition is an instant change, i.e. no tween. `all` is the default
+   * property.
+   */
+  private resolveTransitions(declarations: Declaration[]): TransitionSpec[] {
+    let slots: TransSlot[] | null = null;
+    const ensure = (n: number): TransSlot[] => {
+      slots ??= [];
+      while (slots.length < n) slots.push(defaultTransSlot());
+      return slots;
+    };
+    const eachSlot = (v: Value, fn: (slot: TransSlot, val: Value) => void): void => {
+      const vals = commaValues(v);
+      const s = ensure(vals.length);
+      for (let i = 0; i < s.length; i++) fn(s[i], vals[i % vals.length]);
+    };
+
+    for (const decl of declarations) {
+      switch (decl.property) {
+        case 'transition': {
+          const groups = isListValue(decl.value) && decl.value.separator === 'comma'
+            ? decl.value.values : [decl.value];
+          slots = groups.map((g) => this.parseTransitionGroup(isListValue(g) ? g.values : [g]));
+          break;
+        }
+        case 'transition-property':
+          eachSlot(decl.value, (slot, v) => { if (isKeywordValue(v)) slot.property = v.value; });
+          break;
+        case 'transition-duration':
+          eachSlot(decl.value, (slot, v) => { const ms = timeMs(v); if (ms !== null) slot.duration = ms; });
+          break;
+        case 'transition-delay':
+          eachSlot(decl.value, (slot, v) => { const ms = timeMs(v); if (ms !== null) slot.delay = ms; });
+          break;
+        case 'transition-timing-function':
+          eachSlot(decl.value, (slot, v) => { slot.easing = this.timingFromValue(v); });
+          break;
+      }
+    }
+
+    if (!slots) return [];
+    return slots
+      .filter((s) => s.duration > 0)
+      .map((s) => ({ property: s.property, duration: s.duration, easing: s.easing, delay: s.delay }));
+  }
+
+  /** Parse one `transition` shorthand group: `<property> <dur> [<easing>] [<delay>]`. */
+  private parseTransitionGroup(values: Value[]): TransSlot {
+    const slot = defaultTransSlot();
+    let durationSet = false;
+    for (const v of values) {
+      if (isLengthValue(v) && (v.unit === 's' || v.unit === 'ms')) {
+        const ms = timeMs(v)!;
+        if (!durationSet) { slot.duration = ms; durationSet = true; }
+        else slot.delay = ms;
+      } else if (isFunctionValue(v) && this.isTimingFunctionName(v.name)) {
+        slot.easing = this.timingFromFunction(v);
+      } else if (isKeywordValue(v)) {
+        const kw = v.value;
+        if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-start' || kw === 'step-end') {
+          slot.easing = kw;
+        } else {
+          slot.property = kw; // property name: all/fill/stroke/stroke-width/opacity/transform
+        }
+      }
+    }
+    return slot;
+  }
+
   /** Parse one `animation` shorthand group (space-separated) into a slot. */
   private parseAnimationGroup(values: Value[]): AnimSlot {
     const slot = defaultAnimSlot();
@@ -1604,6 +1684,20 @@ interface AnimSlot {
   delay: number;
   fillMode: AnimationFillMode;
   composition: CompositeOperation;
+}
+
+// Accumulated state for one transition while composing the `transition`
+// shorthand with the `transition-*` longhands (see resolveTransitions).
+interface TransSlot {
+  property: string;
+  duration: number;
+  easing: TimingFunction;
+  delay: number;
+}
+
+// CSS transition initial values: property `all`, duration 0, `ease`, delay 0.
+function defaultTransSlot(): TransSlot {
+  return { property: 'all', duration: 0, easing: 'ease', delay: 0 };
 }
 
 // fill-mode defaults to 'forwards' (not CSS's 'none') so scenes hold their final

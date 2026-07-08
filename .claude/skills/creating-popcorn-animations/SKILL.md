@@ -43,6 +43,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Symbols | `@define name {…}` then `#x { use: name; cx: …; fill: … }` (use-site overrides) |
 | Nesting | `> #child { … }` inside a rule body |
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |
+| Transitions | `transition: fill 0.3s ease, transform 0.2s` — state flips tween (enter+exit) instead of snapping; runtime-only, timeline stays pure |
 | Motion path | `offset-path: path('…'); offset-distance: 50%; offset-rotate: auto` (animate `offset-distance`) |
 | Mask | `clip-path: circle(80 at 200 200)` · `mask: #layer alpha` |
 | Gradient/path animation | animate `fill: linear-gradient(…)` (same type + stop count) or `d: 'M…'` (same command sequence) in `@keyframes`; incompatible endpoints step |

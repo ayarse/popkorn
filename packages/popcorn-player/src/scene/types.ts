@@ -45,6 +45,16 @@ export type PaintOrder = 'normal' | 'stroke';
 // Interaction state types
 export type InteractionState = 'normal' | 'hover' | 'active';
 
+// One resolved CSS transition: property `all` or a transitionable group name
+// ('fill' | 'stroke' | 'stroke-width' | 'opacity' | 'transform'); duration/delay
+// in ms. Governs how the property tweens when interaction state flips.
+export interface TransitionSpec {
+  property: string;
+  duration: number;         // ms
+  easing: TimingFunction;
+  delay: number;            // ms
+}
+
 // State-specific styles for interactive elements
 export interface StateStyles {
   fill?: string | null;
@@ -52,6 +62,9 @@ export interface StateStyles {
   strokeWidth?: number;
   opacity?: number;
   transform?: Partial<Transform>;
+  // Transitions declared inside this state block; when entering this state they
+  // override the node-level transitions (CSS asymmetric enter/exit timing).
+  transitions?: TransitionSpec[];
 }
 
 // Transform origin types
@@ -214,6 +227,10 @@ export interface SceneNode {
   hoverStyles: StateStyles | null;
   activeStyles: StateStyles | null;
   interactive: boolean;  // Whether this node responds to mouse events
+  // Node-level CSS transitions (apply to interaction state changes, both enter
+  // and exit). Empty = state overrides snap. Runtime tween state is held in the
+  // InteractionManager, so the timeline stays a pure function of time.
+  transitions: TransitionSpec[];
 }
 
 // Complete authored snapshot of a node's animatable render state.
@@ -583,6 +600,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     hoverStyles: null,
     activeStyles: null,
     interactive: false,
+    transitions: [],
   };
 }
 

@@ -7,6 +7,7 @@ import { AnimationScheduler } from '../animation/scheduler';
 import { resetNodeToBase } from './types';
 import type { TextData, CircleData, PolystarData, ImageData } from './types';
 import { hitTest } from '../runtime/hit-test';
+import { createInteractionManager } from '../runtime/interaction';
 
 const build = (src: string) => buildSceneGraph(parse(src));
 
@@ -285,6 +286,77 @@ test('animation-composition: color falls back to replace', () => {
   resetNodeToBase(a);
   sched.sampleNode(a, 500); // mid grey, not "added" onto red
   expect(a.fill).toBe('rgb(128, 128, 128)');
+});
+
+// --- transitions -------------------------------------------------------------
+
+test('transition shorthand parses (comma list, easing, delay)', () => {
+  const [a] = build(`#a { type: rect; width: 10px; transition: fill 0.3s ease, transform 200ms linear 100ms; }`).children;
+  expect(a.transitions).toEqual([
+    { property: 'fill', duration: 300, easing: 'ease', delay: 0 },
+    { property: 'transform', duration: 200, easing: 'linear', delay: 100 },
+  ]);
+});
+
+test('transition longhands compose positionally; default property is all', () => {
+  const [a] = build(`#a { type: rect; width: 10px; transition-property: opacity; transition-duration: 0.5s; transition-timing-function: ease-in; transition-delay: 0.1s; }`).children;
+  expect(a.transitions).toEqual([{ property: 'opacity', duration: 500, easing: 'ease-in', delay: 100 }]);
+  const [b] = build(`#b { type: rect; width: 10px; transition: 0.3s; }`).children;
+  expect(b.transitions).toEqual([{ property: 'all', duration: 300, easing: 'ease', delay: 0 }]);
+});
+
+test('zero-duration transitions are dropped (instant)', () => {
+  const [a] = build(`#a { type: rect; width: 10px; transition-property: fill; }`).children;
+  expect(a.transitions).toEqual([]);
+});
+
+test('transition inside a state block is stored on that state', () => {
+  const [a] = build(`#a { type: rect; width: 10px; &:hover { fill: #fff; transition: fill 0.2s; } }`).children;
+  expect(a.hoverStyles?.transitions).toEqual([{ property: 'fill', duration: 200, easing: 'ease', delay: 0 }]);
+});
+
+test('transition tweens fill on hover enter over the duration', () => {
+  const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000000; transition: fill 300ms linear; &:hover { fill: #ffffff; } }`;
+  const root = build(src);
+  const btn = root.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+
+  const hover = { cursor: { x: 50, y: 50, isDown: false } };
+  mgr.update(hover, 1000); // flip to hover at t=1000, snapshot from = #000
+
+  const frame = (now: number) => { resetNodeToBase(btn); mgr.applyOverrides(btn, now); return btn.fill; };
+  expect(frame(1000)).toBe('#000000');            // start (from snapshot, verbatim)
+  expect(frame(1150)).toBe('rgb(128, 128, 128)'); // halfway
+  expect(frame(1300)).toBe('#ffffff');            // done -> target snaps
+});
+
+test('transition tweens back on hover exit', () => {
+  const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000000; transition: fill 200ms linear; &:hover { fill: #ffffff; } }`;
+  const root = build(src);
+  const btn = root.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  const frame = (now: number) => { resetNodeToBase(btn); mgr.applyOverrides(btn, now); return btn.fill; };
+
+  mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0);
+  frame(200); // complete hover -> white
+  mgr.update({ cursor: { x: 500, y: 500, isDown: false } }, 1000); // leave -> flip to normal, from = white
+  expect(frame(1100)).toBe('rgb(128, 128, 128)'); // halfway back
+  expect(frame(1200)).toBe('#000000');            // back to base
+});
+
+test('transform transition tweens scale on hover', () => {
+  const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000; transition: transform 100ms linear; &:hover { transform: scale(2); } }`;
+  const root = build(src);
+  const btn = root.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0);
+  resetNodeToBase(btn); mgr.applyOverrides(btn, 50); // halfway: scale 1 -> 2
+  expect(btn.transform.scaleX).toBe(1.5);
+  resetNodeToBase(btn); mgr.applyOverrides(btn, 100);
+  expect(btn.transform.scaleX).toBe(2);
 });
 
 // --- polystar (star / polygon) ----------------------------------------------

@@ -568,6 +568,31 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 - `active` falls back to `hover` styles if no `&:active` block.
 - **Transform overrides layer on top of running animations:** `translate`/`rotate` additive, `scale` multiplicative.
 
+### Transitions
+
+`transition` makes a state flip **tween** its overridable properties (`fill`,
+`stroke`, `stroke-width`, `opacity`, `transform`) from the currently displayed
+value to the target instead of snapping — on both enter and exit.
+
+```css
+#btn {
+  type: circle; r: 30px; fill: #e94560;
+  transition: fill 0.3s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  &:hover  { fill: #ff6b8a; transform: scale(1.2); }
+}
+```
+
+- Syntax: `transition: <property> <duration> [<easing>] [<delay>]`, comma-list;
+  plus `transition-property` / `-duration` / `-timing-function` / `-delay`
+  longhands composing positionally like the animation longhands. `all` is the
+  default property; a zero-duration transition is instant (no tween).
+- Declarable at node level (governs enter and exit) or inside a state block
+  (governs entering that state — CSS asymmetric timing).
+- Runtime only, driven by wall-clock in the interaction layer. The animation
+  **timeline stays a pure function of time** — `seek(t)` twice is identical
+  whenever no interaction state changes.
+- Color tweens interpolate; a null↔color paint change snaps (nothing to lerp).
+
 ---
 
 ## 15. Embedding — `<popcorn-player>`

@@ -12,7 +12,7 @@ import { applyEasing } from '../animation/easing';
 import { getPropHandler } from '../animation/registry';
 import { InputTracker, createInputTracker } from './inputs';
 import { VariableResolver, createVariableResolver } from './variables';
-import { InteractionManager, createInteractionManager, applyInteractionOverrides } from './interaction';
+import { InteractionManager, createInteractionManager } from './interaction';
 
 /**
  * Main render loop.
@@ -172,8 +172,9 @@ export class RenderLoop {
     this.inputTracker.update(timestamp);
     this.variableResolver.updateInputState(this.inputTracker.getState());
 
-    // Update interaction state (hover, active)
-    this.interactionManager.update(this.inputTracker.getState());
+    // Update interaction state (hover, active). `timestamp` anchors any
+    // transition a state flip starts.
+    this.interactionManager.update(this.inputTracker.getState(), timestamp);
 
     // Resolve the whole scene at the current timeline time, then paint.
     this.drawFrame(timestamp);
@@ -197,7 +198,7 @@ export class RenderLoop {
           t = wrapped;
         }
       }
-      this.resolveNode(this.sceneRoot, t);
+      this.resolveNode(this.sceneRoot, t, now);
     }
     this.render();
     this.frameCallback?.(this.currentTime);
@@ -207,7 +208,7 @@ export class RenderLoop {
    * Value-resolution pipeline for one node:
    * base -> bindings -> animation -> interaction overrides.
    */
-  private resolveNode(node: SceneNode, t: number): void {
+  private resolveNode(node: SceneNode, t: number, now: number): void {
     // Visibility window: a node outside [from, until) is hidden this frame, and
     // the render walk / hit-testing skip it and its subtree. Evaluated against
     // the INCOMING time `t` (this node's containing scope) — not the local time
@@ -228,10 +229,10 @@ export class RenderLoop {
     resetNodeToBase(node);
     this.applyBindings(node);
     this.scheduler.sampleNode(node, local);
-    applyInteractionOverrides(node);
+    this.interactionManager.applyOverrides(node, now);
 
     for (const child of node.children) {
-      this.resolveNode(child, local);
+      this.resolveNode(child, local, now);
     }
   }
 
