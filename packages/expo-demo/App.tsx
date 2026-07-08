@@ -2,7 +2,8 @@ import { useState } from 'react';
 import {
   Button,
   Dimensions,
-  SafeAreaView,
+  Platform,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +14,10 @@ import { PopcornView } from '@popcorn/skia';
 import { TURKEY_SCENE } from './turkey';
 
 const STAGE = Math.min(Dimensions.get('window').width - 24, 360);
+// SafeAreaView is deprecated in react-native and expo-demo doesn't ship
+// react-native-safe-area-context — a fixed top inset keeps content clear of the
+// status bar / notch without pulling in a dependency.
+const SAFE_TOP = Platform.OS === 'ios' ? 59 : StatusBar.currentHeight ?? 24;
 
 export default function App() {
   const [source, setSource] = useState(TURKEY_SCENE);
@@ -30,7 +35,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={styles.root}>
       <View style={styles.stage}>
         <PopcornView source={source} width={STAGE} height={STAGE} loop />
       </View>
@@ -45,12 +50,12 @@ export default function App() {
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button title="Load" onPress={onLoad} />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, padding: 12, backgroundColor: '#fff', gap: 8 },
+  root: { flex: 1, padding: 12, paddingTop: SAFE_TOP, backgroundColor: '#fff', gap: 8 },
   stage: { alignItems: 'center', justifyContent: 'center' },
   input: {
     flex: 1,
