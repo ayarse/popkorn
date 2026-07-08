@@ -1,0 +1,38 @@
+/* Motion path — travel a route by arc length; offset-rotate faces the tangent.
+   The stadium circuit is centred on the 800×600 stage with generous margins. */
+:root {
+  width: 800px;
+  height: 600px;
+  background: #0b1021;
+}
+
+@keyframes fly {
+  0%   { offset-distance: 0%;   }
+  100% { offset-distance: 100%; }
+}
+
+/* The route itself, drawn once as a dashed guide (x 90..710, y 170..430) */
+#route {
+  type: path;
+  d: "M 220 170 L 580 170 A 130 130 0 0 1 580 430 L 220 430 A 130 130 0 0 1 220 170 Z";
+  fill: none;
+  stroke: #2a3350;
+  stroke-width: 3px;
+  stroke-dasharray: 10px 12px;
+  stroke-linecap: round;
+}
+
+/* A little paper plane, drawn nose-first along +x so the tangent aims it */
+@define plane {
+  type: path;
+  d: "M -14 -9 L 16 0 L -14 9 L -6 0 Z";
+  stroke: #0b1021;
+  stroke-width: 1px;
+  offset-path: path("M 220 170 L 580 170 A 130 130 0 0 1 580 430 L 220 430 A 130 130 0 0 1 220 170 Z");
+  offset-rotate: auto;
+}
+
+/* Three planes on one loop, staggered by negative delay (already in flight) */
+#plane1 { use: plane; fill: #ffe66d; animation: fly 6s linear infinite;      }
+#plane2 { use: plane; fill: #4ecdc4; animation: fly 6s linear infinite -2s;  }
+#plane3 { use: plane; fill: #f472b6; animation: fly 6s linear infinite -4s;  }

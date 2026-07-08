@@ -5,7 +5,6 @@
 :root {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
 }
 
 /* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still (the

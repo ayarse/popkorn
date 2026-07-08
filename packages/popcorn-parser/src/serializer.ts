@@ -3,7 +3,7 @@
  *
  * Two modes:
  *  - pretty  (default): 2-space indent, one declaration per line, blank line
- *    between top-level blocks — matches the style of `examples/*.css`.
+ *    between top-level blocks — matches the style of `examples/popcorn/*.css`.
  *  - minify: no comments, no optional whitespace, no trailing `;` before `}`.
  *
  * Both are value-preserving: `parse(serialize(parse(src)))` deep-equals

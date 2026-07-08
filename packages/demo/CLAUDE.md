@@ -172,10 +172,14 @@ floating toast at the bottom-center of the player pane, not a modal.
 ## Examples
 
 `src/examples.ts` exports `examples: Example[]` where `Example = { key, label, source }`.
-The gallery is ordered simple → advanced. **These scenes are mirrored verbatim
-to `examples/*.css` at the repo root** (test-globbed by the parser/player test
-suite) — editing one without the other breaks tests. Use the
-`creating-popcorn-animations` skill when authoring or editing scenes.
+**The scenes themselves live in `examples/popcorn/*.css` at the repo root** (the
+source of truth, also test-globbed by the parser/player suite); `examples.ts`
+loads them with `import.meta.glob(..., { query: '?raw', eager: true })` and
+derives `key`/`label`/order from the filename. Convention: `NN-kebab-name.css`
+— `NN` orders the gallery, the name (prefix stripped, dashes → spaces,
+sentence-cased) is the label. Add or edit a scene by touching that folder; no
+change to `examples.ts` needed. Use the `creating-popcorn-animations` skill
+when authoring scenes.
 
 The Examples dropdown uses `DropdownMenuCheckboxItem` (multi-select semantics
 for "which is active"); fit mode uses `DropdownMenuRadioGroup`/`RadioItem`

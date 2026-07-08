@@ -1,0 +1,84 @@
+/* Hierarchy — nested orbits, trim trails, a moon on its own clock */
+:root {
+  width: 800px;
+  height: 600px;
+  background: #05060f;
+}
+
+@keyframes orbit {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* A trim window marching around a ring reads as an orbital trail */
+@keyframes trail {
+  0%   { trim-offset: 0%; }
+  100% { trim-offset: 100%; }
+}
+
+@keyframes sunPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+
+#space {
+  type: group;
+  transform: translate(400px, 300px);
+
+  /* Faint orbit rings */
+  > #ring1 { type: circle; cx: 0; cy: 0; r: 150px; fill: none; stroke: #17203f; stroke-width: 2px; }
+  > #ring2 { type: circle; cx: 0; cy: 0; r: 250px; fill: none; stroke: #17203f; stroke-width: 2px; }
+
+  /* Bright trailing arcs, each matched to its planet's period */
+  > #trail1 {
+    type: circle; cx: 0; cy: 0; r: 150px;
+    fill: none; stroke: #4ecdc4; stroke-width: 3px; stroke-linecap: round;
+    trim-start: 0%; trim-end: 20%;
+    animation: trail 8s linear infinite;
+  }
+  > #trail2 {
+    type: circle; cx: 0; cy: 0; r: 250px;
+    fill: none; stroke: #e94560; stroke-width: 3px; stroke-linecap: round;
+    trim-start: 0%; trim-end: 13%;
+    animation: trail 14s linear infinite;
+  }
+
+  /* The sun, gently breathing */
+  > #sun {
+    type: circle; cx: 0; cy: 0; r: 46px;
+    fill: radial-gradient(#fff6d5 0%, #ffb02e 100%);
+    transform-origin: center;
+    animation: sunPulse 3s ease-in-out infinite;
+  }
+
+  /* Earth orbits the sun; the moon subtree runs at double speed via time-scale */
+  > #earthOrbit {
+    type: group;
+    animation: orbit 8s linear infinite;
+
+    > #earth {
+      type: circle; cx: 150px; cy: 0; r: 18px;
+      fill: radial-gradient(#8fd6ff 0%, #2f6fb0 100%);
+    }
+
+    > #moonSystem {
+      type: group;
+      transform: translate(150px, 0);
+      time-scale: 2;
+      animation: orbit 2s linear infinite;
+
+      > #moon { type: circle; cx: 34px; cy: 0; r: 7px; fill: #cbd5e1; }
+    }
+  }
+
+  /* Mars, slower and further out */
+  > #marsOrbit {
+    type: group;
+    animation: orbit 14s linear infinite;
+
+    > #mars {
+      type: circle; cx: 250px; cy: 0; r: 14px;
+      fill: radial-gradient(#ff9e7d 0%, #c0392b 100%);
+    }
+  }
+}

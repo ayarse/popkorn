@@ -100,9 +100,11 @@ converter emits it for precomp layers.
   truth, use the lottie-web vs popcorn comparison harness at
   `tools/harness/` (see its README) — lottie-web is the parity floor, not
   the ceiling.
-- Demo gallery scenes live in `packages/demo/src/examples.ts` and are synced
-  verbatim to `examples/*.css` (test-globbed) — keep them in lockstep. Use the
-  `creating-popcorn-animations` skill when authoring scenes.
+- Demo gallery scenes live in `examples/popcorn/*.css` (the source of truth,
+  also test-globbed by the parser). The demo loads them dynamically via
+  `import.meta.glob` in `packages/demo/src/examples.ts` — filename
+  `NN-kebab-name.css` sets order + label; drop a file in to add a scene.
+  Use the `creating-popcorn-animations` skill when authoring scenes.
 - Commits: straight to main, short conventional messages, no attribution
   trailers. When multiple agents work in parallel, fence them to disjoint
   files and make each run the corpus gate.

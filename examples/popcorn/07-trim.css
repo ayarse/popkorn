@@ -1,0 +1,43 @@
+/* Trim paths — progressive stroke reveal and a marching dash window */
+:root {
+  width: 800px;
+  height: 600px;
+}
+
+/* Reveal the stroke from 0% to 100% of its length */
+@keyframes draw {
+  0%   { trim-end: 0%;   }
+  100% { trim-end: 100%; }
+}
+
+/* Slide a fixed trim window around a closed outline */
+@keyframes march {
+  0%   { trim-offset: 0%;   }
+  100% { trim-offset: 100%; }
+}
+
+/* A wave that draws itself over and over — stroke-only, round caps keep the tip clean */
+#wave {
+  type: path;
+  d: 'M100 280 C200 100 300 460 400 280 C500 100 600 460 700 280';
+  fill: none;
+  stroke: #4ecdc4;
+  stroke-width: 8px;
+  stroke-linecap: round;
+  animation: draw 2.5s ease-in-out infinite;
+}
+
+/* A marching dash: a 25% window slides around via animated trim-offset */
+#marchingCircle {
+  type: circle;
+  cx: 400px;
+  cy: 470px;
+  r: 70px;
+  fill: none;
+  stroke: #e94560;
+  stroke-width: 6px;
+  stroke-linecap: round;
+  trim-start: 0%;
+  trim-end: 25%;
+  animation: march 3s linear infinite;
+}
