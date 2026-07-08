@@ -1339,20 +1339,21 @@ export class SceneBuilder {
   }
 
   private buildKeyframes(rule: KeyframeRule): KeyframeData[] {
-    const frames = rule.blocks.map(block => {
-      const keyframeData: KeyframeData = {
-        offset: block.selectors[0] / 100, // Convert percentage to 0-1
-        properties: this.buildKeyframeProperties(block),
-      };
-
-      // Add per-keyframe easing if specified (resolved through the one shared
-      // timing-function path, so keyframes accept the same easing syntax as the
-      // animation shorthand/longhand).
-      if (block.easing) {
-        keyframeData.easing = this.timingFromValue(block.easing);
-      }
-
-      return keyframeData;
+    const frames = rule.blocks.flatMap(block => {
+      const properties = this.buildKeyframeProperties(block);
+      // Per-keyframe easing, resolved through the one shared timing-function
+      // path so keyframes accept the same easing syntax as the animation
+      // shorthand/longhand.
+      const easing = block.easing ? this.timingFromValue(block.easing) : undefined;
+      // A selector list (`0%, 100% { ... }`) applies the same declarations at
+      // every listed offset — expand to one keyframe per offset, exactly as if
+      // the author had written separate blocks (repeated offsets follow the
+      // same last-wins sampling as two literal blocks would).
+      return block.selectors.map(selector => {
+        const keyframeData: KeyframeData = { offset: selector / 100, properties };
+        if (easing) keyframeData.easing = easing;
+        return keyframeData;
+      });
     });
     // Author order isn't guaranteed ascending (`100% {} 0% {}` is legal CSS);
     // sort once here so per-frame sampling can trust the order.

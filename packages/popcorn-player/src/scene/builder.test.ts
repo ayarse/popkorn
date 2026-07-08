@@ -213,6 +213,23 @@ test('steps() parses in shorthand, longhand, and per-keyframe', () => {
   expect(b.animations[0].timingFunction).toBe('step-start');
 });
 
+// --- multi-selector keyframe blocks (`0%, 100% { ... }`) --------------------
+
+test('keyframe block with a selector list applies at every listed offset', () => {
+  // `0%, 100%` must produce keyframes at BOTH 0 and 1 (standard CSS); a loop
+  // that shares its endpoints uses this idiom to return to its start value.
+  const src = `
+@keyframes k { 0%, 100% { r: 10px; } 50% { r: 20px; } }
+#a { type: circle; r: 10px; animation: k 1s linear; }
+`;
+  const [node] = build(src).children;
+  const kf = node.animations[0].keyframes;
+  expect(kf.map(k => k.offset)).toEqual([0, 0.5, 1]);
+  expect(kf[0].properties.r).toBe(10);
+  expect(kf[1].properties.r).toBe(20);
+  expect(kf[2].properties.r).toBe(10); // the trailing 100% frame — dropped before the fix
+});
+
 test('linear() parses and distributes missing inputs per CSS L2', () => {
   const src = `
 @keyframes k { from { opacity: 0; } to { opacity: 1; } }
