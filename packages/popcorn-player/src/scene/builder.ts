@@ -1,4 +1,4 @@
-import type { StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule } from '@popcorn/parser';
+import type { StyleSheet, Rule, Declaration, Value, FunctionValue, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule } from '@popcorn/parser';
 import {
   isLengthValue,
   isColorValue,
@@ -18,6 +18,7 @@ import type {
   KeyframeData,
   AnimatableValue,
   TimingFunction,
+  StepPosition,
   AnimationDirection,
   AnimationFillMode,
   RectData,
@@ -975,12 +976,12 @@ export class SceneBuilder {
       if (isKeywordValue(v)) {
         const kw = v.value;
         if (this.keyframesMap.has(kw)) slot.name = kw;
-        else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-end') slot.timingFunction = kw;
+        else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-start' || kw === 'step-end') slot.timingFunction = kw;
         else if (kw === 'infinite') slot.iterationCount = Infinity;
         else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') slot.direction = kw;
         else if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') slot.fillMode = kw;
-      } else if (isFunctionValue(v) && v.name === 'cubic-bezier') {
-        slot.timingFunction = this.parseCubicBezierFunction(v);
+      } else if (isFunctionValue(v) && this.isTimingFunctionName(v.name)) {
+        slot.timingFunction = this.timingFromFunction(v);
       } else if (isLengthValue(v)) {
         // Time values are assigned by order (CSS rule): first duration, second delay.
         const ms = timeMs(v);
@@ -997,10 +998,46 @@ export class SceneBuilder {
     return slot;
   }
 
-  /** Resolve a timing-function value (named keyword or cubic-bezier()). */
+  private isTimingFunctionName(name: string): boolean {
+    return name === 'cubic-bezier' || name === 'steps';
+  }
+
+  /** Resolve a timing-function FunctionValue (cubic-bezier(), steps()). */
+  private timingFromFunction(v: FunctionValue): TimingFunction {
+    if (v.name === 'cubic-bezier') return this.parseCubicBezierFunction(v);
+    if (v.name === 'steps') return this.parseStepsFunction(v);
+    return 'ease';
+  }
+
+  /**
+   * Parse `steps(<count>, <position>?)`. Position defaults to jump-end; the CSS
+   * `start`/`end` aliases map to jump-start/jump-end. The parser flattens the
+   * function args, so they arrive as [<number count>, <keyword position>?].
+   */
+  private parseStepsFunction(func: FunctionValue): TimingFunction {
+    let count = 1;
+    let position: StepPosition = 'jump-end';
+    for (const arg of func.args) {
+      if (isNumberValue(arg)) count = Math.max(1, Math.round(arg.value));
+      else if (isKeywordValue(arg)) {
+        const p = arg.value;
+        if (p === 'start') position = 'jump-start';
+        else if (p === 'end') position = 'jump-end';
+        else if (p === 'jump-start' || p === 'jump-end' || p === 'jump-none' || p === 'jump-both') position = p;
+      }
+    }
+    return { type: 'steps', count, position };
+  }
+
+  /**
+   * Resolve any timing-function value (named keyword or a function). One path
+   * shared by the `animation` shorthand, the `animation-timing-function`
+   * longhand, and per-keyframe easing, so the DSL accepts the same easing syntax
+   * everywhere.
+   */
   private timingFromValue(v: Value): TimingFunction {
-    if (isFunctionValue(v) && v.name === 'cubic-bezier') return this.parseCubicBezierFunction(v);
-    if (isKeywordValue(v) && (v.value === 'linear' || v.value === 'ease' || v.value === 'ease-in' || v.value === 'ease-out' || v.value === 'ease-in-out' || v.value === 'step-end')) {
+    if (isFunctionValue(v) && this.isTimingFunctionName(v.name)) return this.timingFromFunction(v);
+    if (isKeywordValue(v) && (v.value === 'linear' || v.value === 'ease' || v.value === 'ease-in' || v.value === 'ease-out' || v.value === 'ease-in-out' || v.value === 'step-start' || v.value === 'step-end')) {
       return v.value;
     }
     return 'ease';
@@ -1013,9 +1050,11 @@ export class SceneBuilder {
         properties: this.buildKeyframeProperties(block),
       };
 
-      // Add per-keyframe easing if specified
+      // Add per-keyframe easing if specified (resolved through the one shared
+      // timing-function path, so keyframes accept the same easing syntax as the
+      // animation shorthand/longhand).
       if (block.easing) {
-        keyframeData.easing = this.parseTimingFunction(block.easing);
+        keyframeData.easing = this.timingFromValue(block.easing);
       }
 
       return keyframeData;
@@ -1330,34 +1369,6 @@ export class SceneBuilder {
     }
 
     return false;
-  }
-
-  /**
-   * Parse a timing function string into a TimingFunction type
-   * Handles both named keywords and cubic-bezier() strings
-   */
-  private parseTimingFunction(easingStr: string): TimingFunction {
-    // Check for named timing functions
-    if (easingStr === 'linear' || easingStr === 'ease' ||
-        easingStr === 'ease-in' || easingStr === 'ease-out' ||
-        easingStr === 'ease-in-out' || easingStr === 'step-end') {
-      return easingStr;
-    }
-
-    // Check for cubic-bezier()
-    const cubicBezierMatch = easingStr.match(/^cubic-bezier\(\s*([^,]+),\s*([^,]+),\s*([^,]+),\s*([^)]+)\)$/);
-    if (cubicBezierMatch) {
-      return {
-        type: 'cubic-bezier',
-        x1: parseFloat(cubicBezierMatch[1]),
-        y1: parseFloat(cubicBezierMatch[2]),
-        x2: parseFloat(cubicBezierMatch[3]),
-        y2: parseFloat(cubicBezierMatch[4]),
-      };
-    }
-
-    // Default to ease
-    return 'ease';
   }
 
   /**

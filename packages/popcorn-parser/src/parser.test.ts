@@ -131,8 +131,19 @@ test('keyframes multi-selector 0%, 100%', () => {
 
 test('per-keyframe easing hoisted off declarations', () => {
   const block = parse('@keyframes k { 0% { opacity: 0; animation-timing-function: ease-in; } }').keyframes[0].blocks[0];
-  expect(block.easing).toBe('ease-in');
+  expect(block.easing).toEqual({ type: 'keyword', value: 'ease-in' });
   expect(block.declarations.map((d) => d.property)).toEqual(['opacity']);
+});
+
+test('per-keyframe easing keeps steps()/linear() verbatim', () => {
+  const s = parse('@keyframes k { 0% { opacity: 0; animation-timing-function: steps(3, jump-end); } 50% { opacity: 1; animation-timing-function: linear(0, 0.5 50%, 1); } }').keyframes[0];
+  expect(s.blocks[0].easing).toEqual({
+    type: 'function',
+    name: 'steps',
+    args: [{ type: 'number', value: 3 }, { type: 'keyword', value: 'jump-end' }],
+  });
+  const lin = s.blocks[1].easing;
+  expect(lin && lin.type === 'function' && lin.name).toBe('linear');
 });
 
 test('nested child rule', () => {

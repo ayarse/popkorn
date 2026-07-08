@@ -153,7 +153,7 @@ function keyframeBlock(b: KeyframeBlock, min: boolean): string {
   const sel = b.selectors.map((s) => num(s) + '%').join(min ? ',' : ', ');
   const decls = b.declarations.slice();
   if (b.easing) {
-    decls.push({ type: 'declaration', property: 'animation-timing-function', value: { type: 'keyword', value: b.easing } });
+    decls.push({ type: 'declaration', property: 'animation-timing-function', value: b.easing });
   }
   if (min) {
     const body = decls.map((d) => fmtDecl(d, true)).join(';');

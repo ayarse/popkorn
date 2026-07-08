@@ -346,8 +346,10 @@ export type TimingFunction =
   | 'ease-in'
   | 'ease-out'
   | 'ease-in-out'
+  | 'step-start'
   | 'step-end'
-  | CubicBezier;
+  | CubicBezier
+  | StepsEasing;
 
 export interface CubicBezier {
   type: 'cubic-bezier';
@@ -355,6 +357,18 @@ export interface CubicBezier {
   y1: number;
   x2: number;
   y2: number;
+}
+
+// CSS steps() easing (Easing Level 1). `count` is the number of intervals; the
+// jump position controls whether the stair jumps at the start/end/both/neither
+// of the [0,1] domain. `step-start`/`step-end` keywords are steps(1, jump-start)
+// / steps(1, jump-end).
+export type StepPosition = 'jump-start' | 'jump-end' | 'jump-none' | 'jump-both';
+
+export interface StepsEasing {
+  type: 'steps';
+  count: number;
+  position: StepPosition;
 }
 
 // One stop of a `time-remap` curve: at inherited time `input` (ms) the local

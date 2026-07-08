@@ -120,6 +120,23 @@ test('animation shorthand: 1s duration + nonzero delay parses exactly', () => {
   expect(node.animations[0].delay).toBe(2000);
 });
 
+// --- steps() / step-start easing --------------------------------------------
+
+test('steps() parses in shorthand, longhand, and per-keyframe', () => {
+  const src = `
+@keyframes k {
+  from { opacity: 0; animation-timing-function: steps(3, jump-start); }
+  to { opacity: 1; }
+}
+#a { type: rect; width: 10px; animation: k 1s steps(4, jump-none); }
+#b { type: rect; width: 10px; animation-name: k; animation-timing-function: step-start; }
+`;
+  const [a, b] = build(src).children;
+  expect(a.animations[0].timingFunction).toEqual({ type: 'steps', count: 4, position: 'jump-none' });
+  expect(a.animations[0].keyframes[0].easing).toEqual({ type: 'steps', count: 3, position: 'jump-start' });
+  expect(b.animations[0].timingFunction).toBe('step-start');
+});
+
 // --- polystar (star / polygon) ----------------------------------------------
 
 test('star: declarations populate PolystarData', () => {

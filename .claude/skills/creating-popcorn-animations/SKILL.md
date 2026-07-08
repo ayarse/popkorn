@@ -35,8 +35,8 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Transform | `transform: translate(x,y) rotate(45deg) scale(1.2)` · `transform-origin: center` (**no skew**) |
 | Animate | `animation: <name> <dur> <easing> <count> <dir> <delay>` e.g. `pulse 1.5s ease-in-out infinite` |
 | Keyframes | `@keyframes n { 0% {…} 50% {…} 100% {…} }` (`transform:` decomposes & merges) |
-| Per-kf easing / hold | `animation-timing-function: ease-out` (or `step-end`) **inside** a keyframe block — eases the segment *from that keyframe to the next* |
-| Easings | `linear ease ease-in ease-out ease-in-out step-end cubic-bezier(…)` (**no `steps()`**) |
+| Per-kf easing / hold | `animation-timing-function: ease-out` (or `step-end`, `steps(3, jump-end)`) **inside** a keyframe block — eases the segment *from that keyframe to the next* |
+| Easings | `linear ease ease-in ease-out ease-in-out step-start step-end cubic-bezier(…) steps(<n>, <pos>)` |
 | Symbols | `@define name {…}` then `#x { use: name; cx: …; fill: … }` (use-site overrides) |
 | Nesting | `> #child { … }` inside a rule body |
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |

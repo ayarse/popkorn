@@ -379,8 +379,8 @@ animation: fade 1s;  animation-duration: 2s;   /* duration → 2s (later wins) *
 | Token | Effect | Default |
 |---|---|---|
 | keyword matching a `@keyframes` name | animation `name` | required |
-| `linear`/`ease`/`ease-in`/`ease-out`/`ease-in-out`/`step-end` | timing fn | `ease` |
-| `cubic-bezier(x1,y1,x2,y2)` | timing fn | |
+| `linear`/`ease`/`ease-in`/`ease-out`/`ease-in-out`/`step-start`/`step-end` | timing fn | `ease` |
+| `cubic-bezier(x1,y1,x2,y2)` / `steps(n, pos)` | timing fn | |
 | `infinite` | iteration count ∞ | `1` |
 | bare integer `0 < n < 100` | iteration count | `1` |
 | `normal`/`reverse`/`alternate`/`alternate-reverse` | direction | `normal` |
@@ -471,10 +471,16 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 | `ease-in` | cubic-bezier(0.42, 0, 1, 1) |
 | `ease-out` | cubic-bezier(0, 0, 0.58, 1) |
 | `ease-in-out` | cubic-bezier(0.42, 0, 0.58, 1) |
-| `step-end` | hold 0 until t=1, then 1 |
+| `step-start` | jump to 1 at t=0, hold (= `steps(1, jump-start)`) |
+| `step-end` | hold 0 until t=1, then 1 (= `steps(1, jump-end)`) |
 | `cubic-bezier(x1,y1,x2,y2)` | custom (Newton-Raphson solve) |
+| `steps(<n>, <position>?)` | staircase of `n` intervals |
 
-**`steps()` NOT supported** — only `step-end`.
+**`steps(<n>, <position>?)`** — CSS Easing L1 step function. `position` is one of
+`jump-start`/`jump-end` (default)/`jump-none`/`jump-both`, plus the aliases
+`start` (= jump-start) and `end` (= jump-end). `step-start`/`step-end` are the
+one-step shorthands. Works in the `animation` shorthand, the
+`animation-timing-function` longhand, and per-keyframe (inside a keyframe block).
 
 Direction semantics: `normal` → progress; `reverse` → 1−progress; `alternate` → forward on even iterations, back on odd; `alternate-reverse` → opposite parity. The held final frame under `forwards`/`both` accounts for direction and iteration parity.
 

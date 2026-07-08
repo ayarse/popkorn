@@ -269,26 +269,21 @@ function parseKeyframe(c: Cursor): KeyframeBlock {
   return block;
 }
 
-/** Parse `{ decl; decl; }`, hoisting `animation-timing-function` out as `easing`. */
-function parseDeclBlock(c: Cursor): { declarations: Declaration[]; easing?: string } {
+/** Parse `{ decl; decl; }`, hoisting `animation-timing-function` out as `easing`.
+ * The easing keeps its parsed {@link Value} verbatim (keyword, cubic-bezier(),
+ * steps(), linear()) so the scene builder can resolve it through the one shared
+ * timing-function path — the AST stays a faithful mirror and knows no easing
+ * semantics. */
+function parseDeclBlock(c: Cursor): { declarations: Declaration[]; easing?: Value } {
   c.expect('{');
   const declarations: Declaration[] = [];
-  let easing: string | undefined;
+  let easing: Value | undefined;
   while (!c.eat('}')) {
     const d = parseDeclaration(c);
-    if (d.property === 'animation-timing-function') easing = extractEasing(d.value);
+    if (d.property === 'animation-timing-function') easing = d.value;
     else declarations.push(d);
   }
   return { declarations, easing };
-}
-
-function extractEasing(value: Value): string {
-  if (value.type === 'keyword') return value.value;
-  if (value.type === 'function' && value.name === 'cubic-bezier') {
-    const args = value.args.map((a) => (a.type === 'number' || a.type === 'length' ? a.value.toString() : '0'));
-    return `cubic-bezier(${args.join(', ')})`;
-  }
-  return 'ease';
 }
 
 /**

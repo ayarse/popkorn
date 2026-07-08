@@ -127,7 +127,7 @@ export interface KeyframeBlock {
   type: 'keyframe-block';
   selectors: number[]; // Percentages: [0, 100] or [50]
   declarations: Declaration[];
-  easing?: string;  // Per-keyframe easing (animation-timing-function value)
+  easing?: Value;  // Per-keyframe easing (animation-timing-function value, verbatim)
 }
 
 // Helper type guards

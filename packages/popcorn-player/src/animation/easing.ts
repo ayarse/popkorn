@@ -1,4 +1,4 @@
-import type { TimingFunction, CubicBezier } from '../scene/types';
+import type { TimingFunction, CubicBezier, StepPosition } from '../scene/types';
 
 /**
  * Easing functions for animations
@@ -22,11 +22,16 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
     return t;
   }
 
-  // step-end holds at the start value until the segment completes (CSS steps(1,
-  // jump-end)). The keyframe interpolator special-cases this before dispatch, so
-  // this is only a fallback for direct callers.
+  // step-end / step-start are steps(1, jump-end) / steps(1, jump-start). step-end
+  // holds at the start value until the segment completes; the keyframe
+  // interpolator special-cases step-end before dispatch, so that path is only a
+  // fallback for direct callers.
   if (timingFunction === 'step-end') {
-    return t < 1 ? 0 : 1;
+    return stepEasing(t, 1, 'jump-end');
+  }
+
+  if (timingFunction === 'step-start') {
+    return stepEasing(t, 1, 'jump-start');
   }
 
   if (timingFunction === 'ease') {
@@ -45,11 +50,34 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
     return cubicBezier(t, EASE_IN_OUT_BEZIER);
   }
 
-  if (typeof timingFunction === 'object' && timingFunction.type === 'cubic-bezier') {
-    return cubicBezier(t, timingFunction);
+  if (typeof timingFunction === 'object') {
+    if (timingFunction.type === 'cubic-bezier') return cubicBezier(t, timingFunction);
+    if (timingFunction.type === 'steps') {
+      return stepEasing(t, timingFunction.count, timingFunction.position);
+    }
   }
 
   return t;
+}
+
+/**
+ * CSS steps() easing (Easing Level 1). Produces a staircase of `count` intervals
+ * whose jumps sit at the domain edges per `position`. Returns a value in [0, 1].
+ */
+export function stepEasing(t: number, count: number, position: StepPosition): number {
+  if (count < 1) return t;
+  let currentStep = Math.floor(t * count);
+  if (position === 'jump-start' || position === 'jump-both') currentStep += 1;
+  if (t >= 0 && currentStep < 0) currentStep = 0;
+
+  // Number of distinct output levels minus one (the denominator).
+  const jumps =
+    position === 'jump-none' ? count - 1 :
+    position === 'jump-both' ? count + 1 :
+    count;
+  if (t <= 1 && currentStep > jumps) currentStep = jumps;
+  if (jumps <= 0) return 0; // steps(1, jump-none): single level, always 0
+  return currentStep / jumps;
 }
 
 /**
