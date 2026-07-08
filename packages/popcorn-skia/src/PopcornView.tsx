@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import { View, type GestureResponderEvent } from 'react-native';
 import { Skia, SkiaPictureView } from '@shopify/react-native-skia';
 import type { ISkiaViewApi } from '@shopify/react-native-skia';
 import {
@@ -8,7 +9,11 @@ import {
   computeViewport,
   viewportMatrix,
 } from '@popcorn/player';
+import type { Viewport } from '@popcorn/player';
 import { SkiaRenderer } from './skia-renderer';
+import { createHostApi, makeMachineEventCallback, touchToScene, type PopcornViewRef } from './interop';
+
+export type { PopcornViewRef } from './interop';
 
 // SkiaViewApi is a native-injected global (not a package export) — the same seam
 // SkiaPictureView uses internally to push its `picture` prop. We read it off
@@ -28,6 +33,10 @@ export interface PopcornViewProps {
   loop?: boolean;
   /** Freeze the timeline without tearing down the loop (e.g. behind a modal). */
   paused?: boolean;
+  /** A state machine transitioned (fires per `@machine` transition). */
+  onStateChange?: (e: { machine: string; from: string; to: string }) => void;
+  /** A state emitted an event (`emit: name` on entry). */
+  onMachineEvent?: (e: { machine: string; name: string }) => void;
 }
 
 /**
@@ -38,10 +47,30 @@ export interface PopcornViewProps {
  * IMPERATIVELY (SkiaViewApi.setJsiProperty + requestRedraw) — never through React
  * state, so React re-renders only when `source`/`width`/`height` change. This is
  * the same seam SkiaPictureView uses internally for its own `picture` prop.
+ *
+ * Touches feed the shared cursor input state (mapped to scene space), which lights
+ * up `click()`/`pointerdown`/`pointerup` machine triggers and `input(cursor.*)`
+ * bindings; the `ref` exposes `setVariable`/`getVariable`/`fire` for host-driven
+ * state, and `onStateChange`/`onMachineEvent` report transitions back out.
  */
-export function PopcornView({ source, width, height, autoplay = true, loop = false, paused }: PopcornViewProps) {
+export const PopcornView = forwardRef<PopcornViewRef, PopcornViewProps>(function PopcornView(
+  { source, width, height, autoplay = true, loop = false, paused, onStateChange, onMachineEvent },
+  ref
+) {
   const viewRef = useRef<SkiaPictureView>(null);
   const loopRef = useRef<RenderLoop | null>(null);
+  // The active viewport (scene<-device inverse) for mapping touches; set with the
+  // scene so a touch handler never reimplements the fit/DPR math.
+  const vpRef = useRef<Viewport | null>(null);
+  // Breaks the frame loop's dormancy (see `wake` below) after a touch / host call.
+  const pokeRef = useRef<(() => void) | null>(null);
+
+  // Latest event-out handlers, read through refs so changing them never rebuilds
+  // the scene (the loop wires one stable callback that dereferences these).
+  const onStateChangeRef = useRef(onStateChange);
+  const onMachineEventRef = useRef(onMachineEvent);
+  onStateChangeRef.current = onStateChange;
+  onMachineEventRef.current = onMachineEvent;
 
   // Freeze the timeline (default) unless the caller is actively playing. `paused`
   // wins when given; otherwise `autoplay: false` starts paused.
@@ -58,9 +87,19 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
     rl.setScene(sceneRoot);
     rl.setSceneSize(sceneW, sceneH);
     rl.setLoop(loop);
-    rl.setViewport(viewportMatrix(computeViewport(sceneW, sceneH, width, height, 1, 'contain')));
+    const vp = computeViewport(sceneW, sceneH, width, height, 1, 'contain');
+    vpRef.current = vp;
+    rl.setViewport(viewportMatrix(vp));
     rl.getVariableResolver().setVariables(ast.variables);
     if (ast.canvas?.background) rl.setBackgroundColor(ast.canvas.background);
+    // Machine transitions/emits -> host props (same detail shapes as the web
+    // component's statechange / machine-event events).
+    rl.setMachineEventCallback(
+      makeMachineEventCallback(() => ({
+        onStateChange: onStateChangeRef.current,
+        onMachineEvent: onMachineEventRef.current,
+      }))
+    );
     loopRef.current = rl;
 
     const bounds = Skia.XYWHRect(0, 0, width, height);
@@ -90,6 +129,17 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
     // frozen, so every tick would otherwise re-record an identical picture).
     let frozenAt: number | null = null;
 
+    // Break dormancy after input: rebind the canvas so the next rAF *live* tick
+    // (which evaluates machines + input edges — redraw() does not) paints and
+    // pushes the result. The rAF loop keeps running while paused, so we only need
+    // to reopen the canvas; we deliberately do NOT redraw() here, which would
+    // re-freeze before the live tick processes the pending pointer/machine event.
+    const wake = () => {
+      if (settled) { settled = false; bind(); }
+      else if (frozenAt !== null) { frozenAt = null; bind(); }
+    };
+    pokeRef.current = wake;
+
     bind();
     rl.setFrameCallback(() => {
       const isStatic = rl.isStatic();
@@ -116,13 +166,11 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
 
       // Paused (dynamic scene, so isStatic is false): the timeline is frozen.
       // Deliver one frame at the frozen instant, then unbind and stay dormant
-      // until time moves again (resume or seek). Keying on currentTime means a
-      // seek-while-paused wakes it; touch input is deferred in this PoC, so a
-      // frozen scene has nothing else that could change.
+      // until time moves again (resume/seek) or a touch/host call wakes us.
       if (rl.paused) {
         const t = rl.currentTime;
         if (frozenAt === t) return;          // dormant, nothing changed
-        if (frozenAt !== null) {             // dormant, but time moved (seek): rebind, deliver next tick
+        if (frozenAt !== null) {             // dormant, but time moved (seek/wake): rebind, deliver next tick
           frozenAt = null;
           bind();
           return;
@@ -148,6 +196,8 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
     return () => {
       rl.stop();
       loopRef.current = null;
+      vpRef.current = null;
+      pokeRef.current = null;
     };
     // wantPaused is read for the initial state only; runtime toggles go through
     // the pause effect below so a pause never rebuilds the scene.
@@ -155,7 +205,7 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
   }, [source, width, height, loop]);
 
   // Pause/resume without tearing down the loop — the loop keeps its rAF so a
-  // settled frame and (future) touch input stay live while frozen.
+  // settled frame, touch input, and machine transitions stay live while frozen.
   useEffect(() => {
     const rl = loopRef.current;
     if (!rl) return;
@@ -163,9 +213,51 @@ export function PopcornView({ source, width, height, autoplay = true, loop = fal
     else rl.resume();
   }, [wantPaused]);
 
-  // ponytail: touch input deferred. The seam is renderLoop.getInputTracker()
-  // .getState().cursor (mutable) — map a touch via deviceToScene into it — but
-  // wiring RN responder props cleanly needs react-native's types, out of scope
-  // for this types-light PoC.
-  return <SkiaPictureView ref={viewRef} style={{ width, height }} />;
-}
+  // Host API (setVariable / getVariable / fire). getLoop/wake are read lazily
+  // through refs, so the handle is stable and works regardless of when the loop
+  // is created relative to this commit.
+  useImperativeHandle(
+    ref,
+    () => createHostApi(() => loopRef.current, () => pokeRef.current?.()),
+    []
+  );
+
+  // Touch -> shared cursor input state (scene space). The running loop turns the
+  // isDown edges into click/pointerdown/pointerup machine triggers via its own
+  // hit-tester, and resolves input(cursor.*) bindings; `wake` breaks dormancy so
+  // a frozen scene repaints. hoverstart/hoverend can't fire on touch — that's
+  // what media.hover is for.
+  const onTouch = (e: GestureResponderEvent) => {
+    const rl = loopRef.current;
+    const vp = vpRef.current;
+    if (!rl || !vp) return;
+    const { locationX, locationY } = e.nativeEvent;
+    const p = touchToScene(vp, locationX, locationY);
+    const cursor = rl.getInputTracker().getState().cursor;
+    cursor.x = p.x;
+    cursor.y = p.y;
+    cursor.isDown = true;
+    pokeRef.current?.();
+  };
+
+  const onTouchEnd = () => {
+    const rl = loopRef.current;
+    if (!rl) return;
+    rl.getInputTracker().getState().cursor.isDown = false;
+    pokeRef.current?.();
+  };
+
+  return (
+    <View
+      style={{ width, height }}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderGrant={onTouch}
+      onResponderMove={onTouch}
+      onResponderRelease={onTouchEnd}
+      onResponderTerminate={onTouchEnd}
+    >
+      <SkiaPictureView ref={viewRef} style={{ width, height }} />
+    </View>
+  );
+});
