@@ -95,6 +95,9 @@
   ::-webkit-scrollbar-corner {
     background: transparent;
   }
+  .npm__react-simple-code-editor__textarea:focus {
+    outline: none;
+  }
   html,
   body,
   #root {
