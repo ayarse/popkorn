@@ -1,8 +1,9 @@
 # @popcorn/expo-demo
 
 Minimal Expo app to test the `@popcorn/skia` renderer on a real device. One
-screen: a `PopcornView` on top, a paste-in `TextInput` for Popcorn CSS, and a
-**Load** button that swaps the scene (parse errors show in red, no crash).
+screen: a full-screen `PopcornView`, a floating **Edit CSS** button that opens
+a bottom-sheet editor (syntax-highlighted CSS input + Load/Cancel), swapping
+the scene on Load (parse errors show inline in the sheet, no crash).
 
 The default scene is the Thanksgiving turkey
 (`examples/lottie/thanksgiving-turkey.json`, converted to Popcorn CSS and
@@ -47,3 +48,8 @@ the resulting build, then `bunx expo start --dev-client`.
   **rebuild the dev client**: `bunx expo run:ios` (or `run:android`).
 - To sanity-check bundling without a device:
   `bunx expo export --platform ios`.
+- Safe areas use `react-native-safe-area-context` (adds native code — rebuild
+  the dev client after pulling this in, same as above). The CSS editor uses
+  `@rivascva/react-native-code-editor`, which is pure JS (a `TextInput`
+  overlaid on `react-syntax-highlighter`) — no native module, no rebuild
+  needed for that one.
