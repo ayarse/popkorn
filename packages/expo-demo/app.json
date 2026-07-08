@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Popcorn Skia Demo",
+    "slug": "popcorn-skia-demo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "dev.popcorn.skiademo"
+    },
+    "android": {
+      "package": "dev.popcorn.skiademo"
+    }
+  }
+}

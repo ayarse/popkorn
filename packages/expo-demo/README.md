@@ -1,0 +1,43 @@
+# @popcorn/expo-demo
+
+Minimal Expo app to test the `@popcorn/skia` renderer on a real device. One
+screen: a `PopcornView` on top, a paste-in `TextInput` for Popcorn CSS, and a
+**Load** button that swaps the scene (parse errors show in red, no crash).
+
+The default scene is the Thanksgiving turkey
+(`examples/lottie/thanksgiving-turkey.json`, converted to Popcorn CSS and
+inlined in `turkey.ts`) — pure shapes and paths, so it renders fully on the
+Skia PoC (which defers text/images).
+
+## Running on a physical device
+
+`@shopify/react-native-skia` ships native code that **is not bundled in Expo
+Go**, so a **development build is required** — Expo Go will error on the missing
+native module. Use `expo run:*` (a local dev build):
+
+```sh
+bun install                       # once, from the repo root
+
+cd packages/expo-demo
+bunx expo run:ios      # builds + installs on a connected iPhone / simulator
+# or
+bunx expo run:android  # builds + installs on a connected Android device
+```
+
+`expo run:*` compiles the native project, installs the app, and starts Metro.
+Reconnect later with `bunx expo start --dev-client` and open the installed app.
+
+For a device build without Xcode/Android Studio locally, use EAS:
+`bunx eas build --profile development --platform ios` (or `android`), install
+the resulting build, then `bunx expo start --dev-client`.
+
+> Expo Go (`bunx expo start`, scan the QR) will **not** work here because of the
+> native Skia dependency.
+
+## Notes
+
+- Monorepo Metro resolution is set in `metro.config.js` (watch the repo root,
+  resolve hoisted deps from both node_modules). `@popcorn/skia` and
+  `@popcorn/player` ship raw TS from `src/`; `babel-preset-expo` transpiles it.
+- To sanity-check bundling without a device:
+  `bunx expo export --platform ios`.
