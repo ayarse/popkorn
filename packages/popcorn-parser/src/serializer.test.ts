@@ -31,6 +31,14 @@ test('minify: nested child (>) and pseudo-state (&:) survive', () => {
   expect(out).toBe('#p{type:group;>#c{r:20px}&:hover{fill:#f00}}');
 });
 
+test('state-block child rule (&:hover > #c) round-trips both modes', () => {
+  const src = '#card { fill: #111; &:hover { fill: #2a2a4a; > #icon { transform: rotate(15deg); } } }';
+  const min = serialize(parse(src), { minify: true });
+  expect(parse(min)).toEqual(parse(src));
+  expect(min).toBe('#card{fill:#111;&:hover{fill:#2a2a4a;>#icon{transform:rotate(15deg)}}}');
+  expect(parse(serialize(parse(src)))).toEqual(parse(src));
+});
+
 const examplesDir = fileURLToPath(new URL('../../../examples', import.meta.url));
 function collectCss(dir: string, prefix = ''): string[] {
   const out: string[] = [];

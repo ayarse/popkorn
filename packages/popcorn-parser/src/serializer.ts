@@ -101,7 +101,7 @@ function block(prelude: string, body: Body, min: boolean, depth: number): string
       items.push(fmtDecl(d, true) + (last ? '' : ';'));
     });
     for (const ch of children) items.push('>' + ruleBlock(ch, true, 0));
-    for (const st of states) items.push(`&:${st.state}` + block('', { declarations: st.declarations, children: [], states: [] }, true, 0));
+    for (const st of states) items.push(`&:${st.state}` + block('', { declarations: st.declarations, children: st.children, states: [] }, true, 0));
     return `${prelude}{${items.join('')}}`;
   }
 
@@ -115,7 +115,7 @@ function block(prelude: string, body: Body, min: boolean, depth: number): string
   }
   for (const st of body.states) {
     lines.push('');
-    lines.push(inner + block(`&:${st.state}`, { declarations: st.declarations, children: [], states: [] }, false, depth + 1).slice(inner.length));
+    lines.push(inner + block(`&:${st.state}`, { declarations: st.declarations, children: st.children, states: [] }, false, depth + 1).slice(inner.length));
   }
   return `${pad}${prelude} {\n${lines.join('\n')}\n${pad}}`;
 }

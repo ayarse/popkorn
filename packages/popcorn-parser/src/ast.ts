@@ -34,10 +34,13 @@ export interface CanvasConfig {
 // Pseudo-class states for interactive elements
 export type PseudoState = 'hover' | 'active';
 
-// State-specific style rules
+// State-specific style rules. `children` holds `> #id { ... }` rules written
+// inside the state block: they style a parent's direct descendant when the
+// parent enters this interaction state (DSL spelling of `#p:hover > #c {…}`).
 export interface StateRule {
   state: PseudoState;
   declarations: Declaration[];
+  children: Rule[];
 }
 
 export interface Rule {

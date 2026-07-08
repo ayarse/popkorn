@@ -158,6 +158,17 @@ test('pseudo hover + active with transform', () => {
   expect(states[0].declarations).toHaveLength(2);
 });
 
+test('state block with child rule (&:hover > #c)', () => {
+  const state = parse(
+    '#card { fill: #111; &:hover { fill: #2a2a4a; > #icon { transform: rotate(15deg); } } }'
+  ).rules[0].states[0];
+  expect(state.state).toBe('hover');
+  expect(state.declarations.map((d) => d.property)).toEqual(['fill']);
+  expect(state.children).toHaveLength(1);
+  expect(state.children[0].selector).toEqual({ type: 'id', name: 'icon' });
+  expect(state.children[0].declarations[0].property).toBe('transform');
+});
+
 test('@define: declarations + nested child + state', () => {
   const ast = parse(`@define spark {
     type: circle; r: 5px; fill: #fbbf24;

@@ -568,6 +568,34 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 - `active` falls back to `hover` styles if no `&:active` block.
 - **Transform overrides layer on top of running animations:** `translate`/`rotate` additive, `scale` multiplicative.
 
+**Styling a child on the parent's state** — put a `> #child` rule inside the
+state block (the DSL spelling of CSS `#card:hover > #icon { … }`):
+
+```css
+#card {
+  type: rect; width: 200px; height: 120px; fill: #1a1a2e;
+  > #icon { type: circle; cx: 100px; cy: 60px; r: 20px; fill: #888; }
+  &:hover {
+    fill: #2a2a4a;                          /* the card itself */
+    > #icon { fill: #fff; transform: rotate(15deg); }  /* that child */
+  }
+}
+```
+
+- Targets a **direct child** by `#id`/`.class`; consumes the same subset as any
+  state block (`fill`, `stroke`, `stroke-width`, `opacity`, `transform`, plus
+  standalone `translate`/`rotate`/`scale`). Overrides apply/unapply exactly when
+  the parent's own do (same frame-walk point, same additive/multiplicative
+  transform composition), and `&:active` falls back to `&:hover` for children too.
+- Being targeted does **not** make the child hit-testable — only the parent
+  reacts to the pointer; the child rides the parent's state.
+- **Transition fallback for a targeted child:** its own node-level `transition:`
+  (declared in its normal `> #child` body) wins; else the `transition:` declared
+  inside the parent's state block governs the children it lists; else the change
+  snaps. Either way the tween is anchored on the *parent's* state flip.
+- One level is the supported depth: a child driven this way does not re-cascade
+  its own state-child rules.
+
 ### Transitions
 
 `transition` makes a state flip **tween** its overridable properties (`fill`,

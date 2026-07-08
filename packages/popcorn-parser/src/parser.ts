@@ -136,15 +136,31 @@ function parseRuleBody(c: Cursor): { declarations: Declaration[]; children: Rule
       // Nested child rule: `> #child { ... }`
       children.push(parseRule(c));
     } else if (c.eat('&')) {
-      // Pseudo-class state: `&:hover { ... }` / `&:active { ... }`
+      // Pseudo-class state: `&:hover { ... }` / `&:active { ... }`. The block
+      // may contain `> #child { ... }` rules that style a direct descendant
+      // while the parent is in that state.
       c.expect(':');
       const state = c.ident() as PseudoState;
-      states.push({ state, declarations: parseDeclBlock(c).declarations });
+      states.push({ state, ...parseStateBlock(c) });
     } else {
       declarations.push(parseDeclaration(c));
     }
   }
   return { declarations, children, states };
+}
+
+/** Parse a `&:state { decls, > children }` block. Same shape as a rule body but
+ * without nested `&:state` — a state block styles the node and, via `>` rules,
+ * its direct descendants; it does not carry states of its own. */
+function parseStateBlock(c: Cursor): { declarations: Declaration[]; children: Rule[] } {
+  c.expect('{');
+  const declarations: Declaration[] = [];
+  const children: Rule[] = [];
+  while (!c.eat('}')) {
+    if (c.eat('>')) children.push(parseRule(c));
+    else declarations.push(parseDeclaration(c));
+  }
+  return { declarations, children };
 }
 
 function parseDeclaration(c: Cursor): Declaration {

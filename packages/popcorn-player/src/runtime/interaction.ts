@@ -268,17 +268,35 @@ export class InteractionManager {
   /**
    * Record a node's interaction state. When the state flips and a transition
    * governs the change, snapshot the currently displayed values and anchor a
-   * tween; otherwise the change snaps.
+   * tween; otherwise the change snaps. The flip also propagates to any DSL
+   * state-children (`#p:hover > #c`), whose overrides are anchored on THIS flip.
    */
   private setNodeState(node: SceneNode, state: InteractionState, now: number): void {
     if (node.interactionState === state) return;
-    const specs = this.effectiveSpecs(node, state);
+    this.startTween(node, this.effectiveSpecs(node, state), now);
+    node.interactionState = state;
+    for (const child of node.stateChildren) {
+      this.setChildState(child, node, state, now);
+    }
+  }
+
+  // Flip a state-child alongside its parent. The child mirrors the parent's
+  // state so its own (parent-authored) hover/activeStyles resolve in the normal
+  // per-node override pass — including active-falls-back-to-hover.
+  private setChildState(child: SceneNode, parent: SceneNode, state: InteractionState, now: number): void {
+    if (child.interactionState === state) return;
+    this.startTween(child, this.childSpecs(child, parent, state), now);
+    child.interactionState = state;
+  }
+
+  // Anchor (or clear) a node's transition tween: non-empty specs snapshot the
+  // currently displayed values; empty specs snap (delete any running tween).
+  private startTween(node: SceneNode, specs: TransitionSpec[], now: number): void {
     if (specs.length > 0) {
       this.transitions.set(node, { startTime: now, from: liveSnapshot(node), specs });
     } else {
       this.transitions.delete(node);
     }
-    node.interactionState = state;
   }
 
   // The transition list governing a change: the entered state's own transitions
@@ -290,6 +308,17 @@ export class InteractionManager {
       if (s?.length) return s;
     }
     return node.transitions;
+  }
+
+  // A state-child's tween fallback: its own node-level `transition:` if it has
+  // one, else the `transition:` declared inside the parent's state block (which
+  // governs the children it lists; active falls back to hover), else snap.
+  private childSpecs(child: SceneNode, parent: SceneNode, state: InteractionState): TransitionSpec[] {
+    if (child.transitions.length) return child.transitions;
+    const block = state === 'active'
+      ? (parent.activeStyles?.transitions ?? parent.hoverStyles?.transitions)
+      : parent.hoverStyles?.transitions;
+    return block ?? [];
   }
 
   /**

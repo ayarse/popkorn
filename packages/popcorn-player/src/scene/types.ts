@@ -231,6 +231,12 @@ export interface SceneNode {
   // and exit). Empty = state overrides snap. Runtime tween state is held in the
   // InteractionManager, so the timeline stays a pure function of time.
   transitions: TransitionSpec[];
+  // Direct children this node's &:state blocks target (`#p:hover > #c {…}`).
+  // When this node's interaction state flips, each child's hover/activeStyles
+  // apply/unapply too, anchored on THIS node's flip (see interaction.ts). The
+  // children stay non-`interactive` — being targeted doesn't make them
+  // independently hit-testable.
+  stateChildren: SceneNode[];
 }
 
 // Complete authored snapshot of a node's animatable render state.
@@ -601,6 +607,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     activeStyles: null,
     interactive: false,
     transitions: [],
+    stateChildren: [],
   };
 }
 

@@ -359,6 +359,93 @@ test('transform transition tweens scale on hover', () => {
   expect(btn.transform.scaleX).toBe(2);
 });
 
+// --- state-child rules (`#p:hover > #c`) ------------------------------------
+
+// A card whose hover state restyles a specific direct child (the icon).
+const CARD = `#card {
+  type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111111;
+  > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; fill: #888888; }
+  &:hover { fill: #2a2a4a; > #icon { fill: #ffffff; transform: rotate(15deg); } }
+}`;
+const OVER = { cursor: { x: 50, y: 50, isDown: false } };
+const OUT = { cursor: { x: 500, y: 500, isDown: false } };
+
+test('state-child: parent hover applies/unapplies the child override', () => {
+  const root = build(CARD);
+  const card = root.children[0];
+  const icon = card.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  const paint = (node: typeof card, now: number) => { resetNodeToBase(node); mgr.applyOverrides(node, now); };
+
+  // Being targeted by an ancestor doesn't make the child hit-testable itself.
+  expect(card.interactive).toBe(true);
+  expect(icon.interactive).toBe(false);
+
+  mgr.update(OVER, 0);
+  paint(card, 0); paint(icon, 0);
+  expect(card.fill).toBe('#2a2a4a');
+  expect(icon.fill).toBe('#ffffff');
+  expect(icon.transform.rotate).toBe(15); // transform delta composes on the child
+
+  mgr.update(OUT, 100);
+  paint(card, 100); paint(icon, 100);
+  expect(card.fill).toBe('#111111');
+  expect(icon.fill).toBe('#888888');
+  expect(icon.transform.rotate).toBe(0);
+});
+
+test('state-child transition: own node-level transition wins over parent block', () => {
+  const src = `#card {
+    type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111;
+    > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; transition: transform 100ms linear; }
+    &:hover { transition: transform 999ms linear; > #icon { transform: rotate(20deg); } }
+  }`;
+  const root = build(src);
+  const ic = root.children[0].children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  const paint = (now: number) => { resetNodeToBase(ic); mgr.applyOverrides(ic, now); };
+  mgr.update(OVER, 0);
+  paint(50);
+  expect(ic.transform.rotate).toBe(10); // child's own 100ms curve (not the parent's 999ms)
+  paint(100);
+  expect(ic.transform.rotate).toBe(20);
+});
+
+test('state-child transition: falls back to the parent state block transition', () => {
+  const src = `#card {
+    type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111;
+    > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; }
+    &:hover { transition: transform 100ms linear; > #icon { transform: rotate(20deg); } }
+  }`;
+  const root = build(src);
+  const ic = root.children[0].children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  const paint = (now: number) => { resetNodeToBase(ic); mgr.applyOverrides(ic, now); };
+  mgr.update(OVER, 0);
+  paint(50);
+  expect(ic.transform.rotate).toBe(10); // parent block's 100ms governs the child
+  paint(100);
+  expect(ic.transform.rotate).toBe(20);
+});
+
+test('state-child: active falls back to hover overrides', () => {
+  const src = `#card {
+    type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111;
+    > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; fill: #888888; }
+    &:hover { > #icon { fill: #ffffff; } }
+  }`;
+  const root = build(src);
+  const ic = root.children[0].children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  mgr.update({ cursor: { x: 50, y: 50, isDown: true } }, 0); // press over the card
+  resetNodeToBase(ic); mgr.applyOverrides(ic, 0);
+  expect(ic.fill).toBe('#ffffff'); // no &:active block -> child uses its hover override
+});
+
 // --- polystar (star / polygon) ----------------------------------------------
 
 test('star: declarations populate PolystarData', () => {

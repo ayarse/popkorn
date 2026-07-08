@@ -1,4 +1,4 @@
-import type { StyleSheet, Rule, Declaration, Value, FunctionValue, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule } from '@popcorn/parser';
+import type { StyleSheet, Rule, Declaration, Value, FunctionValue, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule, Selector } from '@popcorn/parser';
 import {
   isLengthValue,
   isColorValue,
@@ -254,14 +254,20 @@ export class SceneBuilder {
     // Node-level transitions (apply to interaction state changes).
     node.transitions = this.resolveTransitions(rule.declarations);
 
-    // Extract state-specific styles from pseudo rules
+    // Extract state-specific styles from pseudo rules. Child rules nested inside
+    // a state block (`&:hover > #c {…}`) are deferred until this node's own
+    // children exist, then resolved against them below.
+    const stateChildRules: { rule: Rule; state: 'hover' | 'active' }[] = [];
     if (rule.states && rule.states.length > 0) {
       for (const stateRule of rule.states) {
-        const stateStyles = this.buildStateStyles(stateRule);
+        const stateStyles = this.buildStateStyles(stateRule.declarations);
         if (stateRule.state === 'hover') {
           node.hoverStyles = stateStyles;
         } else if (stateRule.state === 'active') {
           node.activeStyles = stateStyles;
+        }
+        for (const childRule of stateRule.children) {
+          stateChildRules.push({ rule: childRule, state: stateRule.state });
         }
       }
       // Mark node as interactive if it has any state styles
@@ -273,6 +279,23 @@ export class SceneBuilder {
       const childNode = this.buildNode(childRule);
       childNode.parent = node;
       node.children.push(childNode);
+    }
+
+    // Resolve deferred state-child rules: attach each state block's overrides to
+    // the targeted direct child, and record the child so this node's state flip
+    // drives it (see interaction.ts). The child stays non-interactive.
+    for (const { rule: childRule, state } of stateChildRules) {
+      const target = findDirectChild(node, childRule.selector);
+      if (!target) {
+        console.warn(
+          `&:${state} > ${childRule.selector.type === 'class' ? '.' : '#'}${childRule.selector.name} in '${node.id}' targets no direct child; ignored.`
+        );
+        continue;
+      }
+      const styles = this.buildStateStyles(childRule.declarations);
+      if (state === 'hover') target.hoverStyles = styles;
+      else target.activeStyles = styles;
+      if (!node.stateChildren.includes(target)) node.stateChildren.push(target);
     }
 
     // Capture the authored render state as the immutable base for the
@@ -331,12 +354,14 @@ export class SceneBuilder {
   }
 
   /**
-   * Build state-specific styles from a StateRule
+   * Build state-specific styles from a state block's declarations. Shared by a
+   * node's own &:hover/&:active block and by a state-child rule (`&:hover > #c`),
+   * both of which consume the same property subset.
    */
-  private buildStateStyles(stateRule: StateRule): StateStyles {
+  private buildStateStyles(declarations: Declaration[]): StateStyles {
     const styles: StateStyles = {};
 
-    for (const decl of stateRule.declarations) {
+    for (const decl of declarations) {
       const { property, value } = decl;
 
       switch (property) {
@@ -393,7 +418,7 @@ export class SceneBuilder {
     }
 
     // Transitions declared inside the state block govern entering that state.
-    const transitions = this.resolveTransitions(stateRule.declarations);
+    const transitions = this.resolveTransitions(declarations);
     if (transitions.length > 0) styles.transitions = transitions;
 
     return styles;
@@ -1626,6 +1651,19 @@ function namespaceChild(rule: Rule, prefix: string): Rule {
     children: rule.children.map((c) => namespaceChild(c, name)),
     states: rule.states,
   };
+}
+
+// Find the direct child a state-child selector targets, by id or class. Ids
+// built under a @define instance are namespaced (`inst.child`), so an id
+// selector also matches the un-namespaced tail — a `&:hover > #child` inside a
+// symbol still resolves after instantiation.
+function findDirectChild(parent: SceneNode, selector: Selector): SceneNode | undefined {
+  if (selector.type === 'class') {
+    return parent.children.find((c) => c.className === selector.name);
+  }
+  return parent.children.find(
+    (c) => c.id === selector.name || c.id.endsWith('.' + selector.name)
+  );
 }
 
 // Merge state blocks: a use-site block replaces the definition's for the same pseudo.
