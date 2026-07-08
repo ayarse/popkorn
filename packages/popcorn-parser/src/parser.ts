@@ -10,6 +10,7 @@
 import type {
   StyleSheet, Rule, Selector, Declaration, Value, KeyframeRule, KeyframeBlock,
   CanvasConfig, VariableDefinition, PseudoState, DefinitionRule, StateRule,
+  MachineRule, MachineState, MachineTransition, MachineTrigger, MachineGuard,
 } from './ast';
 
 const IDENT = /[a-zA-Z_][a-zA-Z0-9_\-]*/y;
@@ -76,7 +77,7 @@ class Cursor {
 /** Parse Popcorn DSL source into a {@link StyleSheet} AST. */
 export function parse(source: string): StyleSheet {
   const c = new Cursor(source);
-  const sheet: StyleSheet = { type: 'stylesheet', rules: [], keyframes: [], definitions: [], variables: [] };
+  const sheet: StyleSheet = { type: 'stylesheet', rules: [], keyframes: [], definitions: [], machines: [], variables: [] };
 
   while (!c.eof()) {
     if (c.eat('@keyframes')) {
@@ -85,6 +86,10 @@ export function parse(source: string): StyleSheet {
     }
     if (c.eat('@define')) {
       sheet.definitions.push(parseDefine(c));
+      continue;
+    }
+    if (c.eat('@machine')) {
+      sheet.machines.push(parseMachine(c));
       continue;
     }
     const rule = parseRule(c);
@@ -124,6 +129,150 @@ function parseDefine(c: Cursor): DefinitionRule {
   return { type: 'definition', name, ...parseRuleBody(c) };
 }
 
+// `@machine <name> { initial: <s>; state <s> { ... } }`. Concurrent machines,
+// one at-rule each. Body is `initial:` plus `state` blocks; a state block holds
+// only `to:` transitions and `emit:` events.
+function parseMachine(c: Cursor): MachineRule {
+  const name = c.ident();
+  c.expect('{');
+  let initial = '';
+  const states: MachineState[] = [];
+  while (!c.eat('}')) {
+    if (c.eat('state')) {
+      states.push(parseMachineState(c));
+    } else {
+      // The only non-`state` line is `initial: <name>;`.
+      const prop = c.ident();
+      c.expect(':');
+      const value = c.ident();
+      c.eat(';');
+      if (prop !== 'initial') throw new Error(c.errorAt(`unexpected '${prop}' in @machine body (want 'initial' or 'state')`));
+      initial = value;
+    }
+  }
+  return { type: 'machine', name, initial, states };
+}
+
+// `state <name> { to: ...; emit: ...; }` — `state *` is the any-state block.
+function parseMachineState(c: Cursor): MachineState {
+  const name = c.eat('*') ? '*' : c.ident();
+  c.expect('{');
+  const transitions: MachineTransition[] = [];
+  const emits: string[] = [];
+  while (!c.eat('}')) {
+    const prop = c.ident();
+    c.expect(':');
+    if (prop === 'to') transitions.push(parseTransition(c));
+    else if (prop === 'emit') { emits.push(c.ident()); c.eat(';'); }
+    else throw new Error(c.errorAt(`unexpected '${prop}' in state block (want 'to' or 'emit')`));
+  }
+  return { name, transitions, emits };
+}
+
+// `<state> [on <trigger>] [when style(<g>) [and style(<g>)]*] [mix <dur> [<easing>]];`
+// The leading `to:` has already been consumed. Clause order is fixed by the grammar.
+function parseTransition(c: Cursor): MachineTransition {
+  const to = c.ident();
+  let trigger: MachineTrigger | null = null;
+  const guards: MachineGuard[] = [];
+  let mix: { duration: number; easing: string | null } | null = null;
+
+  if (c.eat('on')) trigger = parseTrigger(c);
+  if (c.eat('when')) {
+    do {
+      c.expect('style');
+      c.expect('(');
+      guards.push(parseGuard(c));
+      c.expect(')');
+    } while (c.eat('and'));
+  }
+  if (c.eat('mix')) {
+    const duration = readTime(c);
+    c.ws();
+    // Optional easing: slurp verbatim to the terminator (handles `ease-in-out`,
+    // `linear`, `cubic-bezier(...)`, `steps(...)`). `mix` is the last clause.
+    const start = c.pos;
+    while (c.pos < c.src.length && c.src[c.pos] !== ';' && c.src[c.pos] !== '}') c.pos++;
+    const raw = c.src.slice(start, c.pos).trim();
+    mix = { duration, easing: raw.length ? raw : null };
+  }
+  c.eat(';');
+  return { to, trigger, guards, mix };
+}
+
+// `click(#id)` / `pointerup(:root)` / `complete` / `event(name)`.
+function parseTrigger(c: Cursor): MachineTrigger {
+  const name = c.ident();
+  if (name === 'complete') return { kind: 'complete' };
+  c.expect('(');
+  if (name === 'event') {
+    const evName = c.ident();
+    c.expect(')');
+    return { kind: 'event', name: evName };
+  }
+  let target: { type: 'id' | 'root'; name: string };
+  if (c.eat('#')) target = { type: 'id', name: c.ident() };
+  else if (c.eat(':')) {
+    const kw = c.ident();
+    if (kw !== 'root') throw new Error(`unknown pointer target ':${kw}'`);
+    target = { type: 'root', name: 'root' };
+  } else throw new Error(c.errorAt('expected #id or :root pointer target'));
+  c.expect(')');
+  return { kind: 'pointer', event: name as (MachineTrigger & { kind: 'pointer' })['event'], target };
+}
+
+// A single flat comparison: `<operand> <op> <value>`. `:` reads as equality.
+function parseGuard(c: Cursor): MachineGuard {
+  const left = parseGuardOperand(c);
+  const op = parseGuardOp(c);
+  const right = parseGuardValue(c);
+  return { left, op, right };
+}
+
+function parseGuardOperand(c: Cursor): MachineGuard['left'] {
+  const custom = c.match(CUSTOM);
+  if (custom) return { kind: 'var', name: custom };
+  const name = c.ident();
+  if (name === 'input') {
+    c.expect('(');
+    let path = c.ident();
+    while (c.eat('.')) path += '.' + c.ident();
+    c.expect(')');
+    return { kind: 'input', path };
+  }
+  if (name === 'state-time') return { kind: 'state-time' };
+  throw new Error(c.errorAt(`expected --var, input(...), or state-time, got '${name}'`));
+}
+
+function parseGuardOp(c: Cursor): MachineGuard['op'] {
+  if (c.eat('<=')) return '<=';
+  if (c.eat('>=')) return '>=';
+  if (c.eat('!=')) return '!=';
+  if (c.eat('<')) return '<';
+  if (c.eat('>')) return '>';
+  if (c.eat('=')) return '=';
+  if (c.eat(':')) return '=';  // CSS style() equality form: `style(--mood: happy)`
+  throw new Error(c.errorAt('expected a comparison operator'));
+}
+
+function parseGuardValue(c: Cursor): number | boolean | string {
+  const ch = c.peek();
+  if (isNumberStart(c, ch)) return readTime(c);
+  const kw = c.ident();
+  if (kw === 'true') return true;
+  if (kw === 'false') return false;
+  return kw;
+}
+
+// Read a number with an optional time unit, normalizing to milliseconds
+// (`500ms` → 500, `2s` → 2000). Unitless is returned as-is.
+function readTime(c: Cursor): number {
+  const n = parseFloat(c.match(NUMBER)!);
+  if (c.src.startsWith('ms', c.pos)) { c.pos += 2; return n; }
+  if (c.src[c.pos] === 's') { c.pos++; return n * 1000; }
+  return n;
+}
+
 /** Parse `{ decls, > children, &:state blocks }` shared by rules and @define. */
 function parseRuleBody(c: Cursor): { declarations: Declaration[]; children: Rule[]; states: StateRule[] } {
   c.expect('{');
@@ -136,12 +285,23 @@ function parseRuleBody(c: Cursor): { declarations: Declaration[]; children: Rule
       // Nested child rule: `> #child { ... }`
       children.push(parseRule(c));
     } else if (c.eat('&')) {
-      // Pseudo-class state: `&:hover { ... }` / `&:active { ... }`. The block
-      // may contain `> #child { ... }` rules that style a direct descendant
-      // while the parent is in that state.
+      // Pseudo-class state: `&:hover` / `&:active`, or a machine `&:state(name)`
+      // / `&:state(machine.name)` block. The block may contain `> #child { ... }`
+      // rules that style a direct descendant while the parent is in that state.
       c.expect(':');
-      const state = c.ident() as PseudoState;
-      states.push({ state, ...parseStateBlock(c) });
+      const kw = c.ident();
+      if (kw === 'state') {
+        c.expect('(');
+        const first = c.ident();
+        // `:state(machine.name)` namespaces the state; `:state(name)` doesn't.
+        const machineState = c.eat('.')
+          ? { machine: first, name: c.ident() }
+          : { machine: null, name: first };
+        c.expect(')');
+        states.push({ state: 'state', machineState, ...parseStateBlock(c) });
+      } else {
+        states.push({ state: kw as PseudoState, ...parseStateBlock(c) });
+      }
     } else {
       declarations.push(parseDeclaration(c));
     }

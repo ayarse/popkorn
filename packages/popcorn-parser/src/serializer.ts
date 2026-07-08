@@ -16,6 +16,7 @@
 import type {
   StyleSheet, Rule, Declaration, Value, KeyframeRule, KeyframeBlock,
   DefinitionRule, StateRule, Selector, VariableDefinition, CanvasConfig,
+  MachineRule, MachineState, MachineTransition, MachineTrigger, MachineGuard,
 } from './ast';
 
 export interface SerializeOptions {
@@ -29,6 +30,7 @@ export function serialize(sheet: StyleSheet, opts: SerializeOptions = {}): strin
   if (sheet.canvas || sheet.variables.length) blocks.push(rootBlock(sheet.canvas, sheet.variables, min));
   for (const kf of sheet.keyframes) blocks.push(keyframesBlock(kf, min));
   for (const def of sheet.definitions) blocks.push(defineBlock(def, min));
+  for (const m of sheet.machines) blocks.push(machineBlock(m, min));
   for (const rule of sheet.rules) blocks.push(ruleBlock(rule, min, 0));
 
   return min ? blocks.join('') : blocks.join('\n\n') + '\n';
@@ -82,6 +84,15 @@ function fmtSelector(sel: Selector): string {
   }
 }
 
+// `&:hover` / `&:active`, or a machine `&:state(name)` / `&:state(machine.name)`.
+function stateSelector(st: StateRule): string {
+  if (st.state === 'state' && st.machineState) {
+    const { machine, name } = st.machineState;
+    return `&:state(${machine ? `${machine}.${name}` : name})`;
+  }
+  return `&:${st.state}`;
+}
+
 // --- blocks ---------------------------------------------------------------
 
 interface Body {
@@ -101,7 +112,7 @@ function block(prelude: string, body: Body, min: boolean, depth: number): string
       items.push(fmtDecl(d, true) + (last ? '' : ';'));
     });
     for (const ch of children) items.push('>' + ruleBlock(ch, true, 0));
-    for (const st of states) items.push(`&:${st.state}` + block('', { declarations: st.declarations, children: st.children, states: [] }, true, 0));
+    for (const st of states) items.push(stateSelector(st) + block('', { declarations: st.declarations, children: st.children, states: [] }, true, 0));
     return `${prelude}{${items.join('')}}`;
   }
 
@@ -115,7 +126,7 @@ function block(prelude: string, body: Body, min: boolean, depth: number): string
   }
   for (const st of body.states) {
     lines.push('');
-    lines.push(inner + block(`&:${st.state}`, { declarations: st.declarations, children: st.children, states: [] }, false, depth + 1).slice(inner.length));
+    lines.push(inner + block(stateSelector(st), { declarations: st.declarations, children: st.children, states: [] }, false, depth + 1).slice(inner.length));
   }
   return `${pad}${prelude} {\n${lines.join('\n')}\n${pad}}`;
 }
@@ -161,4 +172,64 @@ function keyframeBlock(b: KeyframeBlock, min: boolean): string {
   }
   const body = decls.map((d) => fmtDecl(d, false) + ';').join(' ');
   return `${sel} { ${body} }`;
+}
+
+// --- state machines (@machine) --------------------------------------------
+
+function machineBlock(m: MachineRule, min: boolean): string {
+  const states = m.states.map((s) => machineState(s, min));
+  if (min) return `@machine ${m.name}{initial:${m.initial};${states.join('')}}`;
+  const body = [`  initial: ${m.initial};`, ...states.map((s) => '\n' + indent(s))].join('\n');
+  return `@machine ${m.name} {\n${body}\n}`;
+}
+
+function machineState(s: MachineState, min: boolean): string {
+  const header = s.name === '*' ? '*' : s.name;
+  const items: string[] = [];
+  for (const t of s.transitions) items.push('to: ' + transition(t));
+  for (const e of s.emits) items.push('emit: ' + e);
+  if (min) return `state ${header}{${items.join(';')}}`;
+  const inner = items.map((i) => '  ' + i + ';').join('\n');
+  return `state ${header} {\n${inner}\n}`;
+}
+
+// `<state> [on <trigger>] [when style(<g>) [and style(<g>)]*] [mix <dur> [<easing>]]`.
+// Clauses are space-joined in both modes: keyword boundaries need the whitespace
+// (`to:Xon` would tokenize as one ident), and the round-trip is value-, not
+// byte-preserving.
+function transition(t: MachineTransition): string {
+  let s = t.to;
+  if (t.trigger) s += ' on ' + trigger(t.trigger);
+  if (t.guards.length) s += ' when ' + t.guards.map((g) => `style(${guard(g)})`).join(' and ');
+  if (t.mix) s += ` mix ${num(t.mix.duration)}ms` + (t.mix.easing ? ' ' + t.mix.easing : '');
+  return s;
+}
+
+function trigger(tr: MachineTrigger): string {
+  if (tr.kind === 'complete') return 'complete';
+  if (tr.kind === 'event') return `event(${tr.name})`;
+  const target = tr.target.type === 'root' ? ':root' : '#' + tr.target.name;
+  return `${tr.event}(${target})`;
+}
+
+function guard(g: MachineGuard): string {
+  return `${guardOperand(g.left)} ${g.op} ${guardValue(g.right, g.left.kind === 'state-time')}`;
+}
+
+function guardOperand(l: MachineGuard['left']): string {
+  if (l.kind === 'var') return l.name;      // `--name`, dashes included
+  if (l.kind === 'input') return `input(${l.path})`;
+  return 'state-time';
+}
+
+// `state-time` right-values are milliseconds; re-suffix so they read naturally
+// (bare numbers also re-parse identically, so this is cosmetic).
+function guardValue(v: number | boolean | string, isTime: boolean): string {
+  if (typeof v === 'number') return isTime ? num(v) + 'ms' : num(v);
+  if (typeof v === 'boolean') return String(v);
+  return v;
+}
+
+function indent(block: string): string {
+  return block.split('\n').map((l) => '  ' + l).join('\n');
 }

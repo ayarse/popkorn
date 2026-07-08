@@ -5,6 +5,7 @@ export interface StyleSheet {
   rules: Rule[];
   keyframes: KeyframeRule[];
   definitions: DefinitionRule[];  // Reusable symbols (@define)
+  machines: MachineRule[];        // Interactive state machines (@machine)
   canvas?: CanvasConfig;
   variables: VariableDefinition[];
 }
@@ -31,14 +32,18 @@ export interface CanvasConfig {
   background?: string;
 }
 
-// Pseudo-class states for interactive elements
+// Pseudo-class states for interactive elements. `'state'` is the discriminator
+// for a machine `:state(name)` block; `machineState` then carries the details.
 export type PseudoState = 'hover' | 'active';
 
 // State-specific style rules. `children` holds `> #id { ... }` rules written
 // inside the state block: they style a parent's direct descendant when the
 // parent enters this interaction state (DSL spelling of `#p:hover > #c {…}`).
+// When `state === 'state'` the block is a machine `&:state(name)` selector and
+// `machineState` is set (machine null = un-namespaced `:state(idle)`).
 export interface StateRule {
-  state: PseudoState;
+  state: PseudoState | 'state';
+  machineState?: { machine: string | null; name: string };
   declarations: Declaration[];
   children: Rule[];
 }
@@ -131,6 +136,47 @@ export interface KeyframeBlock {
   selectors: number[]; // Percentages: [0, 100] or [50]
   declarations: Declaration[];
   easing?: Value;  // Per-keyframe easing (animation-timing-function value, verbatim)
+}
+
+// --- State machines (@machine) -------------------------------------------
+//
+// One `@machine <name> { initial: <s>; state <s> { ... } }` at-rule. Multiple
+// machines run concurrently. The AST is a faithful mirror of the source and
+// knows no runtime semantics — the player owns transition evaluation.
+
+export interface MachineRule {
+  type: 'machine';
+  name: string;
+  initial: string;        // name of the entry state
+  states: MachineState[]; // in document order
+}
+
+export interface MachineState {
+  name: string;           // '*' for the any-state block (checked before current)
+  transitions: MachineTransition[]; // `to:` decls, in declaration = priority order
+  emits: string[];        // `emit: <name>;` events fired on entry
+}
+
+// A `to: <state> [on <trigger>] [when style(<guard>) [and style(<guard>)]*]
+//  [mix <duration> [<easing>]];` transition.
+export interface MachineTransition {
+  to: string;
+  trigger: MachineTrigger | null;
+  guards: MachineGuard[];                 // ANDed; empty = unconditional
+  mix: { duration: number; easing: string | null } | null; // duration in ms
+}
+
+export type MachineTrigger =
+  | { kind: 'pointer'; event: 'click' | 'pointerdown' | 'pointerup' | 'hoverstart' | 'hoverend'; target: { type: 'id' | 'root'; name: string } }
+  | { kind: 'complete' }
+  | { kind: 'event'; name: string };
+
+// A single flat comparison inside `style(...)`. Time values on the right
+// (`500ms`, `2s`) are normalized to milliseconds.
+export interface MachineGuard {
+  left: { kind: 'var'; name: string } | { kind: 'input'; path: string } | { kind: 'state-time' };
+  op: '=' | '!=' | '<' | '<=' | '>' | '>=';
+  right: number | boolean | string;
 }
 
 // Helper type guards

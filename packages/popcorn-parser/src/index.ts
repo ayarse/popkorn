@@ -22,6 +22,11 @@ export type {
   PseudoState,
   StateRule,
   DefinitionRule,
+  MachineRule,
+  MachineState,
+  MachineTransition,
+  MachineTrigger,
+  MachineGuard,
 } from './ast';
 export {
   isLengthValue,

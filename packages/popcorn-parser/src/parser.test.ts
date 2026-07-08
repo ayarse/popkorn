@@ -7,7 +7,7 @@ import { parse } from './parser';
 
 test('id rule: dimension + color', () => {
   expect(parse('#box { width: 100px; fill: #ff0000; }')).toEqual({
-    type: 'stylesheet', keyframes: [], definitions: [], variables: [],
+    type: 'stylesheet', keyframes: [], definitions: [], machines: [], variables: [],
     rules: [{
       type: 'rule', selector: { type: 'id', name: 'box' }, children: [], states: [],
       declarations: [
@@ -214,6 +214,189 @@ test('comment ignored', () => {
 test('string value (path d)', () => {
   expect(parse('#p { type: path; d: "M 10 10 L 50 50 Z"; }').rules[0].declarations[1].value)
     .toEqual({ type: 'string', value: 'M 10 10 L 50 50 Z' });
+});
+
+// --- @machine state machines ---------------------------------------------
+
+test('@machine: full cat example — structure, initial, states, any-state', () => {
+  const ast = parse(`@machine cat {
+    initial: idle;
+    state idle {
+      to: excited on click(#hitbox);
+      to: hyper when style(--energy > 80) mix 300ms ease-in-out;
+    }
+    state excited { to: idle on complete; }
+    state hyper {
+      to: idle when style(--energy <= 80) mix 300ms;
+      emit: overheat;
+    }
+    state * { to: idle on event(reset); }
+  }`);
+  expect(ast.rules).toHaveLength(0);
+  expect(ast.machines).toHaveLength(1);
+  const m = ast.machines[0];
+  expect(m.type).toBe('machine');
+  expect(m.name).toBe('cat');
+  expect(m.initial).toBe('idle');
+  expect(m.states.map((s) => s.name)).toEqual(['idle', 'excited', 'hyper', '*']);
+  // Declaration order == transition priority order.
+  expect(m.states[0].transitions.map((t) => t.to)).toEqual(['excited', 'hyper']);
+  expect(m.states[2].emits).toEqual(['overheat']);
+});
+
+test('@machine: pointer trigger on #id', () => {
+  const t = parse('@machine m { initial: a; state a { to: b on click(#hitbox); } }')
+    .machines[0].states[0].transitions[0];
+  expect(t).toEqual({
+    to: 'b',
+    trigger: { kind: 'pointer', event: 'click', target: { type: 'id', name: 'hitbox' } },
+    guards: [],
+    mix: null,
+  });
+});
+
+test('@machine: pointer trigger on :root (tap anywhere)', () => {
+  const t = parse('@machine m { initial: a; state a { to: b on pointerdown(:root); } }')
+    .machines[0].states[0].transitions[0];
+  expect(t.trigger).toEqual({ kind: 'pointer', event: 'pointerdown', target: { type: 'root', name: 'root' } });
+});
+
+test('@machine: all pointer event kinds parse', () => {
+  const events = ['click', 'pointerdown', 'pointerup', 'hoverstart', 'hoverend'];
+  for (const ev of events) {
+    const t = parse(`@machine m { initial: a; state a { to: b on ${ev}(#x); } }`)
+      .machines[0].states[0].transitions[0];
+    expect(t.trigger).toEqual({ kind: 'pointer', event: ev, target: { type: 'id', name: 'x' } });
+  }
+});
+
+test('@machine: complete and event(name) triggers', () => {
+  const done = parse('@machine m { initial: a; state a { to: b on complete; } }')
+    .machines[0].states[0].transitions[0];
+  expect(done.trigger).toEqual({ kind: 'complete' });
+  const ev = parse('@machine m { initial: a; state a { to: b on event(reset); } }')
+    .machines[0].states[0].transitions[0];
+  expect(ev.trigger).toEqual({ kind: 'event', name: 'reset' });
+});
+
+test('@machine: numeric guard on --var', () => {
+  const t = parse('@machine m { initial: a; state a { to: b when style(--energy > 80); } }')
+    .machines[0].states[0].transitions[0];
+  expect(t.guards).toEqual([{ left: { kind: 'var', name: '--energy' }, op: '>', right: 80 }]);
+});
+
+test('@machine: colon guard reads as equality; keyword right side', () => {
+  const t = parse('@machine m { initial: a; state a { to: b when style(--mood: happy); } }')
+    .machines[0].states[0].transitions[0];
+  expect(t.guards).toEqual([{ left: { kind: 'var', name: '--mood' }, op: '=', right: 'happy' }]);
+});
+
+test('@machine: input() path guard', () => {
+  const t = parse('@machine m { initial: a; state a { to: b when style(input(cursor.x) < 400); } }')
+    .machines[0].states[0].transitions[0];
+  expect(t.guards).toEqual([{ left: { kind: 'input', path: 'cursor.x' }, op: '<', right: 400 }]);
+});
+
+test('@machine: state-time guard normalizes time to ms (2s -> 2000, 500ms -> 500)', () => {
+  const s = parse('@machine m { initial: a; state a { to: b when style(state-time > 2s); } }')
+    .machines[0].states[0].transitions[0];
+  expect(s.guards).toEqual([{ left: { kind: 'state-time' }, op: '>', right: 2000 }]);
+  const ms = parse('@machine m { initial: a; state a { to: b when style(state-time > 500ms); } }')
+    .machines[0].states[0].transitions[0];
+  expect(ms.guards[0].right).toBe(500);
+});
+
+test('@machine: all comparison operators', () => {
+  const cases: Array<[string, string]> = [
+    ['=', '='], ['!=', '!='], ['<', '<'], ['<=', '<='], ['>', '>'], ['>=', '>='],
+  ];
+  for (const [src, op] of cases) {
+    const t = parse(`@machine m { initial: a; state a { to: b when style(--e ${src} 5); } }`)
+      .machines[0].states[0].transitions[0];
+    expect(t.guards[0].op).toBe(op);
+  }
+});
+
+test('@machine: boolean guard right side', () => {
+  const t = parse('@machine m { initial: a; state a { to: b when style(--pressed = true); } }')
+    .machines[0].states[0].transitions[0];
+  expect(t.guards[0].right).toBe(true);
+});
+
+test('@machine: on + when combined, and chained guards preserve order', () => {
+  const t = parse(`@machine m { initial: a; state a {
+    to: b on click(#x) when style(--energy > 80) and style(input(cursor.x) < 400);
+  } }`).machines[0].states[0].transitions[0];
+  expect(t.trigger).toEqual({ kind: 'pointer', event: 'click', target: { type: 'id', name: 'x' } });
+  expect(t.guards).toEqual([
+    { left: { kind: 'var', name: '--energy' }, op: '>', right: 80 },
+    { left: { kind: 'input', path: 'cursor.x' }, op: '<', right: 400 },
+  ]);
+});
+
+test('@machine: mix with easing and without', () => {
+  const withEasing = parse('@machine m { initial: a; state a { to: b when style(--e > 1) mix 300ms ease-in-out; } }')
+    .machines[0].states[0].transitions[0];
+  expect(withEasing.mix).toEqual({ duration: 300, easing: 'ease-in-out' });
+  const bare = parse('@machine m { initial: a; state a { to: b when style(--e > 1) mix 300ms; } }')
+    .machines[0].states[0].transitions[0];
+  expect(bare.mix).toEqual({ duration: 300, easing: null });
+  const secs = parse('@machine m { initial: a; state a { to: b mix 2s; } }')
+    .machines[0].states[0].transitions[0];
+  expect(secs.mix).toEqual({ duration: 2000, easing: null });
+});
+
+test('@machine: bare unconditional transition (no trigger/guards/mix)', () => {
+  const t = parse('@machine m { initial: a; state a { to: b; } }')
+    .machines[0].states[0].transitions[0];
+  expect(t).toEqual({ to: 'b', trigger: null, guards: [], mix: null });
+});
+
+test('@machine: multiple machines collected in order, run concurrently', () => {
+  const ast = parse('@machine blink { initial: on; state on { to: off; } } @machine btn { initial: up; state up { } }');
+  expect(ast.machines.map((m) => m.name)).toEqual(['blink', 'btn']);
+});
+
+test('@machine: minified (whitespace-stripped) parses identically', () => {
+  const src = `@machine cat {
+    initial: idle;
+    state idle { to: excited on click(#hitbox); to: hyper when style(--energy > 80) mix 300ms ease-in-out; }
+    state * { to: idle on event(reset); }
+  }`;
+  expect(parse(stripWs(src))).toEqual(parse(src));
+});
+
+// --- :state() pseudo blocks ----------------------------------------------
+
+test(':state(name) block — un-namespaced', () => {
+  const st = parse('#cat { fill: #111; &:state(idle) { fill: #f44; } }').rules[0].states[0];
+  expect(st.state).toBe('state');
+  expect(st.machineState).toEqual({ machine: null, name: 'idle' });
+  expect(st.declarations.map((d) => d.property)).toEqual(['fill']);
+});
+
+test(':state(machine.name) namespaced block with nested > child', () => {
+  const st = parse('#cat { &:state(cat.excited) { fill: #f44; > #eye { r: 3px; } } }').rules[0].states[0];
+  expect(st.machineState).toEqual({ machine: 'cat', name: 'excited' });
+  expect(st.children).toHaveLength(1);
+  expect(st.children[0].selector).toEqual({ type: 'id', name: 'eye' });
+  expect(st.children[0].declarations[0].property).toBe('r');
+});
+
+test(':state() coexists with &:hover; hover unchanged and still present', () => {
+  const states = parse('#c { &:hover { fill: #0f0; } &:state(idle) { fill: #00f; } }').rules[0].states;
+  expect(states.map((s) => s.state)).toEqual(['hover', 'state']);
+  expect(states[0].machineState).toBeUndefined();
+  expect(states[1].machineState).toEqual({ machine: null, name: 'idle' });
+});
+
+test('--tap: trigger; is a normal keyword variable declaration', () => {
+  const ast = parse(':root { --tap: trigger; --energy: 0; --pressed: false; }');
+  expect(ast.variables).toEqual([
+    { name: '--tap', value: { type: 'keyword', value: 'trigger' } },
+    { name: '--energy', value: { type: 'number', value: 0 } },
+    { name: '--pressed', value: { type: 'keyword', value: 'false' } },
+  ]);
 });
 
 // The real example scenes must parse end-to-end (recursing into subdirs like
