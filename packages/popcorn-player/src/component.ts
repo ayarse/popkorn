@@ -28,7 +28,14 @@ import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewpor
  * The player is responsive: the canvas fills the host, whose default size comes
  * from the scene's `:root` aspect ratio but can be constrained by the parent.
  */
-export class PopcornPlayer extends HTMLElement {
+// Degrade the base class to an inert stub when there's no DOM (RN, bun tests),
+// so importing the package barrel stays headless-safe; it's the real HTMLElement
+// in a browser. The class is only ever instantiated by `customElements`, which
+// only exists where HTMLElement does.
+const HTMLElementBase: typeof HTMLElement =
+  typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown as typeof HTMLElement);
+
+export class PopcornPlayer extends HTMLElementBase {
   private canvas: HTMLCanvasElement;
   private renderer: Canvas2DRenderer | null = null;
   private renderLoop: RenderLoop | null = null;

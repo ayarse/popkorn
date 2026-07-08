@@ -8,7 +8,17 @@ export { PopcornPlayer, registerPopcornPlayer } from './component';
 // Renderer
 export { Canvas2DRenderer } from './renderer/canvas2d';
 export type { Renderer } from './renderer/interface';
-export type { Color, RGBAColor, PathCommand, Matrix3x3 } from './renderer/types';
+export type {
+  Color,
+  RGBAColor,
+  PathCommand,
+  Matrix3x3,
+  GradientData,
+  LinearGradientData,
+  RadialGradientData,
+  ResolvedClip,
+  TrimDescriptor,
+} from './renderer/types';
 export {
   colorToCSS,
   parseColor,
@@ -49,8 +59,17 @@ export {
   snapshotNode,
   resetNodeToBase,
 } from './scene/types';
+export type {
+  StrokeLineCap,
+  StrokeLineJoin,
+  TextAnchor,
+  FillRule,
+  MaskMode,
+  PaintOrder,
+} from './scene/types';
 export { SceneBuilder, buildSceneGraph } from './scene/builder';
-export { parsePath } from './scene/path-parser';
+export { parsePath, applyCommandsToPath, computePathBounds } from './scene/path-parser';
+export type { PathSink } from './scene/path-parser';
 export {
   computeLocalMatrix,
   computeWorldMatrix,
