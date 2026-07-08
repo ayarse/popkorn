@@ -349,7 +349,8 @@ export type TimingFunction =
   | 'step-start'
   | 'step-end'
   | CubicBezier
-  | StepsEasing;
+  | StepsEasing
+  | LinearEasing;
 
 export interface CubicBezier {
   type: 'cubic-bezier';
@@ -369,6 +370,21 @@ export interface StepsEasing {
   type: 'steps';
   count: number;
   position: StepPosition;
+}
+
+// CSS linear() easing (Easing Level 2): a piecewise-linear curve through
+// control points. `input` positions are normalized to [0,1] and sorted
+// ascending (with equal inputs allowed for flat/discontinuous segments) at
+// build time; `output` values are unclamped so a linear() can overshoot 1 to
+// approximate springs/bounces. The `linear` keyword (a string) stays distinct.
+export interface LinearEasingPoint {
+  input: number;
+  output: number;
+}
+
+export interface LinearEasing {
+  type: 'linear';
+  points: LinearEasingPoint[];
 }
 
 // One stop of a `time-remap` curve: at inherited time `input` (ms) the local

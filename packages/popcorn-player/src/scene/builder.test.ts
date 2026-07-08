@@ -137,6 +137,35 @@ test('steps() parses in shorthand, longhand, and per-keyframe', () => {
   expect(b.animations[0].timingFunction).toBe('step-start');
 });
 
+test('linear() parses and distributes missing inputs per CSS L2', () => {
+  const src = `
+@keyframes k { from { opacity: 0; } to { opacity: 1; } }
+#a { type: rect; width: 10px; animation: k 1s linear(0, 0.25, 1); }
+#b { type: rect; width: 10px; animation: k 1s linear(0, 0.5 25% 75%, 1); }
+`;
+  const [a, b] = build(src).children;
+  const ea = a.animations[0].timingFunction;
+  expect(ea).toEqual({
+    type: 'linear',
+    points: [
+      { input: 0, output: 0 },
+      { input: 0.5, output: 0.25 }, // missing input distributed to the midpoint
+      { input: 1, output: 1 },
+    ],
+  });
+  // Two-percentage stop expands to two points sharing the output (flat segment).
+  const eb = b.animations[0].timingFunction;
+  expect(eb).toEqual({
+    type: 'linear',
+    points: [
+      { input: 0, output: 0 },
+      { input: 0.25, output: 0.5 },
+      { input: 0.75, output: 0.5 },
+      { input: 1, output: 1 },
+    ],
+  });
+});
+
 // --- polystar (star / polygon) ----------------------------------------------
 
 test('star: declarations populate PolystarData', () => {

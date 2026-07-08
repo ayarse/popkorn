@@ -380,7 +380,7 @@ animation: fade 1s;  animation-duration: 2s;   /* duration → 2s (later wins) *
 |---|---|---|
 | keyword matching a `@keyframes` name | animation `name` | required |
 | `linear`/`ease`/`ease-in`/`ease-out`/`ease-in-out`/`step-start`/`step-end` | timing fn | `ease` |
-| `cubic-bezier(x1,y1,x2,y2)` / `steps(n, pos)` | timing fn | |
+| `cubic-bezier(x1,y1,x2,y2)` / `steps(n, pos)` / `linear(stops)` | timing fn | |
 | `infinite` | iteration count ∞ | `1` |
 | bare integer `0 < n < 100` | iteration count | `1` |
 | `normal`/`reverse`/`alternate`/`alternate-reverse` | direction | `normal` |
@@ -475,12 +475,22 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 | `step-end` | hold 0 until t=1, then 1 (= `steps(1, jump-end)`) |
 | `cubic-bezier(x1,y1,x2,y2)` | custom (Newton-Raphson solve) |
 | `steps(<n>, <position>?)` | staircase of `n` intervals |
+| `linear(<stop-list>)` | piecewise-linear (springs/bounces) |
 
 **`steps(<n>, <position>?)`** — CSS Easing L1 step function. `position` is one of
 `jump-start`/`jump-end` (default)/`jump-none`/`jump-both`, plus the aliases
 `start` (= jump-start) and `end` (= jump-end). `step-start`/`step-end` are the
-one-step shorthands. Works in the `animation` shorthand, the
-`animation-timing-function` longhand, and per-keyframe (inside a keyframe block).
+one-step shorthands.
+
+**`linear(<stop-list>)`** — CSS Easing L2 piecewise-linear curve. Comma-separated
+control points, each `<number>` (the output) with optional 1–2 `<percentage>`
+input positions; two percentages make a flat segment. Missing input positions
+distribute evenly between neighbours. Outputs may exceed 1 to overshoot, so
+linear() is the way to approximate a spring or bounce with two plain keyframes,
+e.g. `animation-timing-function: linear(0, 1 33%, 0.55 46%, 1 62%, 0.78 74%, 1)`.
+
+All easings work in the `animation` shorthand, the `animation-timing-function`
+longhand, and per-keyframe (inside a keyframe block).
 
 Direction semantics: `normal` → progress; `reverse` → 1−progress; `alternate` → forward on even iterations, back on odd; `alternate-reverse` → opposite parity. The held final frame under `forwards`/`both` accounts for direction and iteration parity.
 

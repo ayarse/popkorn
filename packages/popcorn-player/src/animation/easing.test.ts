@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test';
-import { applyEasing, stepEasing } from './easing';
-import type { StepsEasing } from '../scene/types';
+import { applyEasing, stepEasing, linearEasing } from './easing';
+import type { StepsEasing, LinearEasing } from '../scene/types';
 
 const approx = (a: number, b: number) => Math.abs(a - b) < 1e-9;
 
@@ -59,5 +59,58 @@ describe('steps() easing (CSS Easing L1 value tables)', () => {
     expect(applyEasing(0.5, 'step-end')).toBe(0);
     expect(applyEasing(0.999, 'step-end')).toBe(0);
     expect(applyEasing(1, 'step-end')).toBe(1);
+  });
+});
+
+describe('linear() easing (CSS Easing L2)', () => {
+  // linear(0, 0.25, 1): evenly distributed inputs at 0, 0.5, 1.
+  test('evenly distributed inputs', () => {
+    const pts = [
+      { input: 0, output: 0 },
+      { input: 0.5, output: 0.25 },
+      { input: 1, output: 1 },
+    ];
+    expect(linearEasing(0, pts)).toBe(0);
+    expect(linearEasing(0.25, pts)).toBe(0.125); // halfway 0->0.25
+    expect(linearEasing(0.5, pts)).toBe(0.25);
+    expect(linearEasing(0.75, pts)).toBe(0.625); // halfway 0.25->1
+    expect(linearEasing(1, pts)).toBe(1);
+  });
+
+  // linear(0, 0.5 50%, 1) is identity-like: the 50% is redundant.
+  test('explicit input percentage', () => {
+    const pts = [
+      { input: 0, output: 0 },
+      { input: 0.5, output: 0.5 },
+      { input: 1, output: 1 },
+    ];
+    expect(linearEasing(0.3, pts)).toBeCloseTo(0.3, 10);
+  });
+
+  // Flat segment (two inputs, same output): linear(0, 0.5 25% 75%, 1) holds 0.5
+  // across [0.25, 0.75].
+  test('flat segment holds', () => {
+    const pts = [
+      { input: 0, output: 0 },
+      { input: 0.25, output: 0.5 },
+      { input: 0.75, output: 0.5 },
+      { input: 1, output: 1 },
+    ];
+    expect(linearEasing(0.5, pts)).toBe(0.5);
+    expect(linearEasing(0.25, pts)).toBe(0.5);
+    expect(linearEasing(0.75, pts)).toBe(0.5);
+  });
+
+  // Overshoot: outputs may exceed 1 (spring/bounce enabler).
+  test('overshoot output not clamped', () => {
+    const pts = [
+      { input: 0, output: 0 },
+      { input: 0.5, output: 1.4 },
+      { input: 1, output: 1 },
+    ];
+    expect(linearEasing(0.5, pts)).toBe(1.4);
+    const e: LinearEasing = { type: 'linear', points: pts };
+    expect(applyEasing(0.5, e)).toBe(1.4);
+    expect(applyEasing(0.25, e)).toBe(0.7);
   });
 });

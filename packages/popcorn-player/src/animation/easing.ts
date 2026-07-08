@@ -1,4 +1,4 @@
-import type { TimingFunction, CubicBezier, StepPosition } from '../scene/types';
+import type { TimingFunction, CubicBezier, StepPosition, LinearEasingPoint } from '../scene/types';
 
 /**
  * Easing functions for animations
@@ -55,9 +55,34 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
     if (timingFunction.type === 'steps') {
       return stepEasing(t, timingFunction.count, timingFunction.position);
     }
+    if (timingFunction.type === 'linear') {
+      return linearEasing(t, timingFunction.points);
+    }
   }
 
   return t;
+}
+
+/**
+ * CSS linear() easing (Easing Level 2). Evaluate the piecewise-linear curve at
+ * input `t`; `points` are pre-normalized (input ascending in [0,1]). The output
+ * is NOT clamped, so overshoot control points (> 1) produce spring/bounce
+ * curves. Equal-input points create a flat/discontinuous step (first bracket
+ * wins).
+ */
+export function linearEasing(t: number, points: LinearEasingPoint[]): number {
+  if (points.length === 0) return t;
+  if (points.length === 1) return points[0].output;
+  for (let i = 1; i < points.length; i++) {
+    if (t <= points[i].input) {
+      const a = points[i - 1];
+      const b = points[i];
+      const span = b.input - a.input;
+      if (span <= 0) return b.output;
+      return a.output + (b.output - a.output) * ((t - a.input) / span);
+    }
+  }
+  return points[points.length - 1].output;
 }
 
 /**

@@ -36,7 +36,8 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Animate | `animation: <name> <dur> <easing> <count> <dir> <delay>` e.g. `pulse 1.5s ease-in-out infinite` |
 | Keyframes | `@keyframes n { 0% {…} 50% {…} 100% {…} }` (`transform:` decomposes & merges) |
 | Per-kf easing / hold | `animation-timing-function: ease-out` (or `step-end`, `steps(3, jump-end)`) **inside** a keyframe block — eases the segment *from that keyframe to the next* |
-| Easings | `linear ease ease-in ease-out ease-in-out step-start step-end cubic-bezier(…) steps(<n>, <pos>)` |
+| Easings | `linear ease ease-in ease-out ease-in-out step-start step-end cubic-bezier(…) steps(<n>, <pos>) linear(<stops>)` |
+| Spring/bounce | `linear(0, 1 33%, 0.55 46%, 1 62%, 0.78 74%, 1)` — overshoot control points fake physics with 2 keyframes |
 | Symbols | `@define name {…}` then `#x { use: name; cx: …; fill: … }` (use-site overrides) |
 | Nesting | `> #child { … }` inside a rule body |
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |

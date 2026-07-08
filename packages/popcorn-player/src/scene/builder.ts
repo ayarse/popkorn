@@ -19,6 +19,7 @@ import type {
   AnimatableValue,
   TimingFunction,
   StepPosition,
+  LinearEasingPoint,
   AnimationDirection,
   AnimationFillMode,
   RectData,
@@ -999,14 +1000,41 @@ export class SceneBuilder {
   }
 
   private isTimingFunctionName(name: string): boolean {
-    return name === 'cubic-bezier' || name === 'steps';
+    return name === 'cubic-bezier' || name === 'steps' || name === 'linear';
   }
 
-  /** Resolve a timing-function FunctionValue (cubic-bezier(), steps()). */
+  /** Resolve a timing-function FunctionValue (cubic-bezier(), steps(), linear()). */
   private timingFromFunction(v: FunctionValue): TimingFunction {
     if (v.name === 'cubic-bezier') return this.parseCubicBezierFunction(v);
     if (v.name === 'steps') return this.parseStepsFunction(v);
+    if (v.name === 'linear') return this.parseLinearFunction(v);
     return 'ease';
+  }
+
+  /**
+   * Parse `linear(<stop-list>)` (CSS Easing L2). The parser flattens the args,
+   * so each `<number>` starts a control point (its output) and the following
+   * `<percentage>` lengths are that point's input position(s) — two percentages
+   * expand to two points sharing the output (a flat segment). Missing inputs are
+   * distributed per spec (see normalizeLinearPoints). Degenerate lists fall back
+   * to the plain `linear` keyword.
+   */
+  private parseLinearFunction(func: FunctionValue): TimingFunction {
+    const raw: { output: number; inputs: number[] }[] = [];
+    for (const arg of func.args) {
+      if (isNumberValue(arg)) raw.push({ output: arg.value, inputs: [] });
+      else if (isLengthValue(arg) && arg.unit === '%' && raw.length > 0) {
+        raw[raw.length - 1].inputs.push(arg.value / 100);
+      }
+    }
+    const pts: { input: number | null; output: number }[] = [];
+    for (const s of raw) {
+      if (s.inputs.length === 0) pts.push({ input: null, output: s.output });
+      else for (const input of s.inputs) pts.push({ input, output: s.output });
+    }
+    const points = normalizeLinearPoints(pts);
+    if (points.length < 2) return 'linear';
+    return { type: 'linear', points };
   }
 
   /**
@@ -1456,6 +1484,35 @@ function mergeStates(defStates: StateRule[], useStates: StateRule[]): StateRule[
   for (const s of defStates) byPseudo.set(s.state, s);
   for (const s of useStates) byPseudo.set(s.state, s);
   return [...byPseudo.values()];
+}
+
+// Distribute missing input positions of a linear() control-point list per the
+// CSS Easing L2 algorithm: the first/last default to the domain edges (0/1),
+// each defined input is clamped non-decreasing, then runs of missing inputs are
+// filled by linear interpolation between their bounding neighbours. Mutates and
+// returns the list (inputs now all defined, ascending).
+function normalizeLinearPoints(pts: { input: number | null; output: number }[]): LinearEasingPoint[] {
+  const n = pts.length;
+  if (n === 0) return [];
+  if (pts[0].input == null) pts[0].input = 0;
+  if (pts[n - 1].input == null) pts[n - 1].input = 1;
+  let largest = pts[0].input as number;
+  for (const p of pts) {
+    if (p.input != null) { largest = Math.max(largest, p.input); p.input = largest; }
+  }
+  let i = 0;
+  while (i < n) {
+    if (pts[i].input == null) {
+      let j = i;
+      while (j < n && pts[j].input == null) j++;
+      const prev = pts[i - 1].input as number;
+      const next = pts[j].input as number;
+      const span = j - i + 1;
+      for (let k = i; k < j; k++) pts[k].input = prev + ((next - prev) * (k - i + 1)) / span;
+      i = j;
+    } else i++;
+  }
+  return pts as LinearEasingPoint[];
 }
 
 // A percentage (50%) becomes 0.5; a bare number (0.5) is taken as-is. Used for
