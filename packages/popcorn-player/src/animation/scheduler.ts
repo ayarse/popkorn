@@ -66,6 +66,15 @@ export class AnimationScheduler {
   /**
    * Apply the animation layer for a single node at timeline time `t`.
    * Assumes the node has already been reset to base and had bindings applied.
+   *
+   * Entry-time anchoring (state machines): a state animation that must play as
+   * if it started at the state's entry time is sampled with `sampleNode(node,
+   * t - entryTime)`. Because sampling is a pure function of time, subtracting
+   * the entry time simply shifts timeline zero — `delay`, `direction`, and
+   * `fillMode` all resolve relative to that shifted origin. Before entry the
+   * shifted time is negative, which lands in the pre-start branch below:
+   * `backwards`/`both` hold the first keyframe, `none`/`forwards` leave the node
+   * at base. No separate anchoring machinery is needed.
    */
   sampleNode(node: SceneNode, t: number): void {
     for (const animation of node.animations) {
@@ -174,4 +183,63 @@ export function computeSceneDuration(root: SceneNode): number {
   };
   visit(root);
   return max;
+}
+
+/**
+ * Local time at which every instance in `instances` has finished, i.e.
+ * `max(delay + duration * iterationCount)`. Returns `Infinity` if any instance
+ * loops forever (`iterationCount === Infinity`) OR the list is empty.
+ *
+ * Powers the `on complete` state-machine trigger: a state completes when
+ * `localTime - entryTime >= animationsEndTime(stateInstances)`. The empty-list
+ * case returns `Infinity` deliberately — a state with no animations has no
+ * completion moment, so `on complete` from it never fires (an empty state is a
+ * terminal/idle state, not an instantly-completing one). This differs from
+ * `computeSceneDuration`, which treats an infinite animation as ONE iteration
+ * to get a finite wrap period; completion detection must instead never fire for
+ * an animation that never ends.
+ */
+export function animationsEndTime(instances: AnimationInstance[]): number {
+  if (instances.length === 0) return Infinity;
+  let max = 0;
+  for (const a of instances) {
+    if (a.iterationCount === Infinity) return Infinity;
+    const end = a.delay + a.duration * a.iterationCount;
+    if (end > max) max = end;
+  }
+  return max;
+}
+
+/**
+ * Scrub one animation instance to a normalized `progress` (for
+ * `animation-timeline`), writing the animation layer onto an already-reset node.
+ *
+ * Semantics (per the state-machines spec): `progress` is the playhead, not the
+ * clock. It clamps to [0,1] and maps across exactly ONE iteration of the
+ * keyframes. `delay`, `iterationCount`, and fill modes are all ignored — there
+ * is no timeline, so nothing to delay, repeat, or fill. `direction` is still
+ * respected: `reverse`/`alternate-reverse` mirror progress (iteration 0), while
+ * `normal`/`alternate` pass it through. Per-keyframe easing and
+ * `animation-composition` apply exactly as in clock-driven sampling because we
+ * reuse `interpolateKeyframes`, the shared interpolation core.
+ */
+export function sampleInstanceAtProgress(
+  node: SceneNode,
+  instance: AnimationInstance,
+  progress: number
+): void {
+  const { keyframes, timingFunction, composition, direction } = instance;
+  if (keyframes.length === 0) return;
+  const p = Math.max(0, Math.min(1, progress));
+  // Single iteration (iteration 0): normal/alternate keep p; reverse and
+  // alternate-reverse mirror it. Matches AnimationScheduler.applyDirection(p, 0, …).
+  const directed = direction === 'reverse' || direction === 'alternate-reverse' ? 1 - p : p;
+  interpolateKeyframes(node, keyframes, directed, timingFunction, composition);
+}
+
+/** Scrub every animation on a node to `progress`. See sampleInstanceAtProgress. */
+export function sampleNodeAtProgress(node: SceneNode, progress: number): void {
+  for (const instance of node.animations) {
+    sampleInstanceAtProgress(node, instance, progress);
+  }
 }

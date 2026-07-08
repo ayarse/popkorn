@@ -7,7 +7,7 @@ import { AnimationScheduler } from '../animation/scheduler';
 import { resetNodeToBase } from './types';
 import type { TextData, CircleData, PolystarData, ImageData, PathData } from './types';
 import { hitTest } from '../runtime/hit-test';
-import { createInteractionManager } from '../runtime/interaction';
+import { createInteractionManager, applyStateStyles } from '../runtime/interaction';
 
 const build = (src: string) => buildSceneGraph(parse(src));
 
@@ -734,4 +734,134 @@ test('var: reactive input() binding is preserved, not statically resolved', () =
 
 test('var: an unknown var() is left as-is and does not crash the build', () => {
   expect(() => build('#p { type: path; d: var(--missing); }')).not.toThrow();
+});
+
+// --- state-animation fill mode -----------------------------------------------
+
+// A one-shot `:state()` animation should hold its end frame for as long as the
+// state stays active (stateful-runtime convention), so it defaults to `both`
+// rather than the node-level `forwards` — never the CSS `none` that snaps back.
+test('state-animation fill mode defaults to `both`', () => {
+  const root = build(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: idle; state idle {} }
+    #dot { type: circle; r: 5; &:state(idle) { animation: slide 1s linear; } }
+    @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
+  `);
+  const dot = root.children.find((c) => c.id === 'dot')!;
+  expect(dot.stateStyles[0].animations[0].fillMode).toBe('both');
+});
+
+test('state-animation: an explicit longhand fill mode wins over the `both` default', () => {
+  const root = build(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: idle; state idle {} }
+    #dot { type: circle; r: 5;
+      &:state(idle) { animation: slide 1s linear; animation-fill-mode: none; } }
+    @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
+  `);
+  const dot = root.children.find((c) => c.id === 'dot')!;
+  expect(dot.stateStyles[0].animations[0].fillMode).toBe('none');
+});
+
+test('state-animation: an explicit shorthand fill token wins over the `both` default', () => {
+  const root = build(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: idle; state idle {} }
+    #dot { type: circle; r: 5; &:state(idle) { animation: slide 1s linear forwards; } }
+    @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
+  `);
+  const dot = root.children.find((c) => c.id === 'dot')!;
+  expect(dot.stateStyles[0].animations[0].fillMode).toBe('forwards');
+});
+
+// The `both` default is scoped to :state() animations; node-level animations
+// keep the codebase's `forwards` default.
+test('base (node-level) animation keeps the `forwards` fill default', () => {
+  const [node] = build(
+    '@keyframes k { 0% { cx: 0 } 100% { cx: 10 } } #a { type: circle; r: 5; animation: k 1s linear; }'
+  ).children;
+  expect(node.animations[0].fillMode).toBe('forwards');
+});
+
+// --- state-block gradient paint ----------------------------------------------
+
+// The lamp-toggle repro: a `:state()` block that swaps a base radial-gradient
+// fill for a warmer one. The gradient must survive build (captured as
+// structured GradientData, not silently dropped like a solid `fill` string) and
+// win over the base gradient when the state applies.
+test(':state() gradient fill is captured as structured GradientData', () => {
+  const root = build(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: off; state off {} state on {} }
+    #b { type: circle; cx: 50px; cy: 50px; r: 40px;
+      fill: radial-gradient(circle 30px at 40px 40px, #101010 0%, #202020 100%);
+      &:state(on) { fill: radial-gradient(circle 30px at 40px 40px, #fff6d8 0%, #ffb64a 100%); } }
+  `);
+  const b = root.children.find((c) => c.id === 'b')!;
+  const styles = b.stateStyles.find((s) => s.name === 'on')!.styles;
+  expect(styles.fillGradient?.type).toBe('radial-gradient');
+  expect(styles.fillGradient?.stops[0].color).toBe('#fff6d8');
+  expect(styles.fill).toBeUndefined();     // not miscaptured as a solid
+});
+
+test('applyStateStyles: a :state() gradient fill overrides the base gradient, deep-copied', () => {
+  const root = build(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: off; state off {} state on {} }
+    #b { type: circle; cx: 50px; cy: 50px; r: 40px;
+      fill: radial-gradient(circle 30px at 40px 40px, #101010 0%, #202020 100%);
+      &:state(on) { fill: radial-gradient(circle 30px at 40px 40px, #fff6d8 0%, #ffb64a 100%); } }
+  `);
+  const b = root.children.find((c) => c.id === 'b')!;
+  const entry = b.stateStyles.find((s) => s.name === 'on')!;
+  resetNodeToBase(b);
+  expect(b.fillGradient?.stops[0].color).toBe('#101010');   // base dark gradient
+  applyStateStyles(b, entry.styles);
+  expect(b.fillGradient?.stops[0].color).toBe('#fff6d8');    // warm on-state gradient wins
+  expect(b.fill).toBeNull();
+  // The node must not alias the shared StateStyles gradient (a later in-place
+  // interpolation would otherwise corrupt the authored state stops).
+  expect(b.fillGradient).not.toBe(entry.styles.fillGradient);
+});
+
+// A solid `:state()` fill must clear a base GRADIENT, else the base gradient
+// (which the renderer prefers over a solid) would keep winning.
+test('applyStateStyles: a solid :state() fill clears a base gradient so the solid wins', () => {
+  const root = build(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: off; state off {} state on {} }
+    #b { type: circle; cx: 50px; cy: 50px; r: 40px;
+      fill: radial-gradient(circle 30px at 40px 40px, #101010 0%, #202020 100%);
+      &:state(on) { fill: #ff0000; } }
+  `);
+  const b = root.children.find((c) => c.id === 'b')!;
+  const entry = b.stateStyles.find((s) => s.name === 'on')!;
+  resetNodeToBase(b);
+  applyStateStyles(b, entry.styles);
+  expect(b.fill).toBe('#ff0000');
+  expect(b.fillGradient).toBeNull();
+});
+
+// Non-regression: a plain solid :hover fill still applies (the fill/stroke
+// capture was refactored through parsePaint; hover shares the same builder).
+test('hover: a solid fill override still applies (no regression)', () => {
+  const b = build('#b { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #222; &:hover { fill: #f00; } }').children[0];
+  resetNodeToBase(b);
+  applyStateStyles(b, b.hoverStyles!);
+  expect(b.fill).toBe('#f00');
+  expect(b.fillGradient).toBeNull();
+});
+
+// Hover gains gradient support for free on the instant-snap path (no transition
+// tween declared), since it shares applyStateStyles with machine states.
+test('hover: a gradient fill override applies on the instant-snap path', () => {
+  const b = build(`
+    #b { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #222;
+      &:hover { fill: radial-gradient(circle 30px at 40px 40px, #0f0 0%, #00f 100%); } }
+  `).children[0];
+  resetNodeToBase(b);
+  applyStateStyles(b, b.hoverStyles!);
+  expect(b.fillGradient?.stops[0].color).toBe('#0f0');
+  expect(b.fill).toBeNull();
 });

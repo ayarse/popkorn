@@ -5,8 +5,13 @@ import {
   isNumberValue,
   isLengthValue,
   isKeywordValue,
+  isStringValue,
+  isColorValue,
 } from '@popcorn/parser';
 import type { InputState } from './inputs';
+
+/** Primitive a host reads/writes through the variable API. */
+export type VariableValue = number | boolean | string;
 
 /**
  * Variable resolution system
@@ -15,6 +20,11 @@ import type { InputState } from './inputs';
 export class VariableResolver {
   private staticVariables: Map<string, Value> = new Map();
   private dynamicVariables: Map<string, () => number> = new Map();
+  // Host-set overrides (setVariable), authored triggers (`--x: trigger`), and
+  // the triggers fired this frame (fire → read `true` once → endFrame resets).
+  private hostOverrides: Map<string, number | boolean> = new Map();
+  private triggers: Set<string> = new Set();
+  private firedTriggers: Set<string> = new Set();
 
   constructor() {
     // Set up built-in input bindings
@@ -26,6 +36,8 @@ export class VariableResolver {
    */
   setVariables(variables: VariableDefinition[]): void {
     this.staticVariables.clear();
+    this.dynamicVariables.clear();
+    this.triggers.clear();
 
     for (const v of variables) {
       // Check if the value is an input() function
@@ -35,6 +47,9 @@ export class VariableResolver {
         if (inputPath) {
           this.dynamicVariables.set(v.name, () => this.resolveInputPath(inputPath));
         }
+      } else if (isKeywordValue(v.value) && v.value.value === 'trigger') {
+        // `--x: trigger` — a momentary event var, false until fired.
+        this.triggers.add(v.name);
       } else {
         // Static variable
         this.staticVariables.set(v.name, v.value);
@@ -42,12 +57,57 @@ export class VariableResolver {
     }
   }
 
+  // --- Host-writable variable API --------------------------------------------
+  // `setVariable`/`getVariable`/`fire` operate only on author-declared
+  // `--variables`; `input()` paths are read-only and never routed here.
+
+  /**
+   * Set a variable's value from the host, overriding the authored value.
+   * Accepts the name with or without the leading `--`.
+   */
+  setVariable(name: string, value: number | boolean): void {
+    this.hostOverrides.set(normalizeVarName(name), value);
+  }
+
+  /**
+   * Read a variable's current resolved value (host override, trigger, input
+   * binding, or authored default). Returns undefined for unknown names.
+   */
+  getVariable(name: string): VariableValue | undefined {
+    const key = normalizeVarName(name);
+    if (
+      !this.hostOverrides.has(key) &&
+      !this.triggers.has(key) &&
+      !this.dynamicVariables.has(key) &&
+      !this.staticVariables.has(key)
+    ) {
+      return undefined;
+    }
+    return valueToPrimitive(this.resolveVariable(key));
+  }
+
+  /**
+   * Fire a trigger variable: it reads as `true` for exactly one frame, then
+   * `endFrame()` resets it. Accepts the name with or without the leading `--`.
+   */
+  fire(name: string): void {
+    this.firedTriggers.add(normalizeVarName(name));
+  }
+
+  /**
+   * Reset triggers fired this frame. The render loop MUST call this once per
+   * frame, after resolving the node walk, so triggers are momentary.
+   */
+  endFrame(): void {
+    if (this.firedTriggers.size > 0) this.firedTriggers.clear();
+  }
+
   /**
    * Update input state for dynamic variables
    */
   private inputState: InputState = {
     cursor: { x: 0, y: 0, isDown: false },
-    scroll: { x: 0, y: 0 },
+    scroll: { x: 0, y: 0, progress: 0 },
     time: 0,
   };
 
@@ -69,6 +129,16 @@ export class VariableResolver {
    * Resolve a variable by name
    */
   resolveVariable(name: string, fallback?: Value): Value {
+    // Host override wins over the authored value (setVariable).
+    if (this.hostOverrides.has(name)) {
+      return primitiveToValue(this.hostOverrides.get(name)!);
+    }
+
+    // Trigger vars read `true` only on the frame they were fired.
+    if (this.triggers.has(name)) {
+      return { type: 'keyword', value: this.firedTriggers.has(name) ? 'true' : 'false' };
+    }
+
     // Check dynamic variables first (input bindings)
     if (this.dynamicVariables.has(name)) {
       const resolver = this.dynamicVariables.get(name)!;
@@ -102,6 +172,11 @@ export class VariableResolver {
     if (isLengthValue(resolved)) {
       return resolved.value;
     }
+    // Booleans (host/trigger vars) coerce to 1/0 in a numeric binding.
+    if (isKeywordValue(resolved)) {
+      if (resolved.value === 'true') return 1;
+      if (resolved.value === 'false') return 0;
+    }
     return 0;
   }
 
@@ -120,6 +195,16 @@ export class VariableResolver {
 
   private setupBuiltinInputs(): void {
     // These are resolved directly without needing variable definitions
+  }
+
+  /**
+   * Resolve a single `input(path)` to a number against the current input state.
+   * Same path set the `--var: input(...)` bindings use — cursor.*, scroll.*
+   * (incl. scroll.progress), time, and media.* with headless fallbacks. Unknown
+   * paths resolve to 0. Public entry for machine guards and animation-timeline.
+   */
+  resolveInput(path: string): number {
+    return this.resolveInputPath(path);
   }
 
   private getInputPath(args: Value[]): string | null {
@@ -142,10 +227,60 @@ export class VariableResolver {
       case 'cursor.isDown': return this.inputState.cursor.isDown ? 1 : 0;
       case 'scroll.x': return this.inputState.scroll.x;
       case 'scroll.y': return this.inputState.scroll.y;
+      // ponytail: headless fallback is the InputState default (0); the tracker
+      // only computes real progress from DOM scroll events in a browser.
+      case 'scroll.progress': return this.inputState.scroll.progress;
       case 'time': return this.inputState.time;
-      default: return 0;
+      default:
+        if (path.startsWith('media.')) return resolveMedia(path);
+        return 0;
     }
   }
+}
+
+/**
+ * Read a `media.*` built-in input straight from the environment. Static reads
+ * per resolve (no subscription) — the values change rarely and lazily.
+ * ponytail: headless (no matchMedia/window) falls back to 0 / sensible defaults.
+ */
+function resolveMedia(path: string): number {
+  const mm = typeof matchMedia !== 'undefined' ? matchMedia : undefined;
+  switch (path) {
+    case 'media.prefers-reduced-motion':
+      return mm && mm('(prefers-reduced-motion: reduce)').matches ? 1 : 0;
+    case 'media.hover':
+      return mm && mm('(hover: hover)').matches ? 1 : 0;
+    case 'media.width':
+      return typeof window !== 'undefined' ? window.innerWidth : 0;
+    case 'media.height':
+      return typeof window !== 'undefined' ? window.innerHeight : 0;
+    default:
+      return 0;
+  }
+}
+
+/** Normalize a host-supplied variable name to the authored `--name` form. */
+function normalizeVarName(name: string): string {
+  return name.startsWith('--') ? name : `--${name}`;
+}
+
+/** A host primitive as an AST Value (booleans become `true`/`false` keywords). */
+function primitiveToValue(v: number | boolean): Value {
+  return typeof v === 'boolean'
+    ? { type: 'keyword', value: v ? 'true' : 'false' }
+    : { type: 'number', value: v };
+}
+
+/** A resolved Value as a host primitive (`true`/`false` keywords → booleans). */
+function valueToPrimitive(v: Value): VariableValue {
+  if (isNumberValue(v) || isLengthValue(v)) return v.value;
+  if (isKeywordValue(v)) {
+    if (v.value === 'true') return true;
+    if (v.value === 'false') return false;
+    return v.value;
+  }
+  if (isStringValue(v) || isColorValue(v)) return v.value;
+  return 0;
 }
 
 export function createVariableResolver(): VariableResolver {

@@ -338,6 +338,44 @@ export class PopcornPlayer extends HTMLElementBase {
     this.renderLoop?.seek(ms);
   }
 
+  // --- Host variable API (state-machine inputs) ------------------------------
+  // Set before the scene loads is remembered and applied on init; fire/get
+  // before load no-op / return undefined (a momentary trigger has no meaning
+  // without a running loop), matching how seek() tolerates the not-loaded case.
+  private pendingVariables: Map<string, number | boolean> = new Map();
+
+  /** Set an author-declared `--variable` (number or boolean) from the host. */
+  setVariable(name: string, value: number | boolean): void {
+    const resolver = this.renderLoop?.getVariableResolver();
+    if (resolver) {
+      resolver.setVariable(name, value);
+      this.renderLoop?.redraw();
+    } else {
+      this.pendingVariables.set(name, value);
+    }
+  }
+
+  /** Read an author-declared `--variable`'s current value (undefined if unknown). */
+  getVariable(name: string): number | boolean | string | undefined {
+    return this.renderLoop?.getVariableResolver().getVariable(name);
+  }
+
+  /**
+   * Fire an event into the scene. If `name` resolves to an author-declared
+   * `trigger` variable it is fired as one (reads `true` for one frame); any
+   * other name is enqueued as a machine `on event(name)` occurrence. This one
+   * method covers both `--tap` trigger vars and opaque host event names.
+   */
+  fire(name: string): void {
+    if (!this.renderLoop) return;
+    const resolver = this.renderLoop.getVariableResolver();
+    if (resolver.getVariable(name) !== undefined) {
+      resolver.fire(name);
+    } else {
+      this.renderLoop.enqueueMachineEvent(name);
+    }
+  }
+
   /**
    * Current timeline position in milliseconds.
    */
@@ -389,6 +427,14 @@ export class PopcornPlayer extends HTMLElementBase {
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
       this.renderLoop.setLoop(this.boolAttr('loop'));
       this.renderLoop.setFrameCallback((t) => this.onFrame(t));
+      // Machine transitions/emits -> DOM events for the host.
+      this.renderLoop.setMachineEventCallback((o) => {
+        if (o.type === 'statechange') {
+          this.dispatchEvent(new CustomEvent('statechange', { detail: { machine: o.machine, from: o.from, to: o.to } }));
+        } else {
+          this.dispatchEvent(new CustomEvent('machine-event', { detail: { machine: o.machine, name: o.name } }));
+        }
+      });
 
       // Background: explicit attr wins, else the authored `:root` background.
       const bg = this.getAttribute('background') ?? ast.canvas?.background ?? null;
@@ -398,6 +444,12 @@ export class PopcornPlayer extends HTMLElementBase {
 
       const variableResolver = this.renderLoop.getVariableResolver();
       variableResolver.setVariables(ast.variables);
+
+      // Apply any host setVariable() calls made before the scene loaded.
+      for (const [name, value] of this.pendingVariables) {
+        variableResolver.setVariable(name, value);
+      }
+      this.pendingVariables.clear();
 
       const inputTracker = this.renderLoop.getInputTracker();
       inputTracker.attach(this.canvas);

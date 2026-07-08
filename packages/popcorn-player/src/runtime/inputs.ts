@@ -14,6 +14,9 @@ export interface InputState {
   scroll: {
     x: number;
     y: number;
+    // Page scroll normalized to 0..1 by the scrollable range; the raw offset
+    // stays available as x/y. Feeds input(scroll.progress) for scrubbing.
+    progress: number;
   };
   time: number;
 }
@@ -21,7 +24,7 @@ export interface InputState {
 export class InputTracker {
   private state: InputState = {
     cursor: { x: 0, y: 0, isDown: false },
-    scroll: { x: 0, y: 0 },
+    scroll: { x: 0, y: 0, progress: 0 },
     time: 0,
   };
 
@@ -101,7 +104,25 @@ export class InputTracker {
   private handleScroll(_e: Event): void {
     this.state.scroll.x = window.scrollX;
     this.state.scroll.y = window.scrollY;
+    this.state.scroll.progress = scrollProgress(
+      window.scrollY,
+      document.documentElement?.scrollHeight ?? 0,
+      window.innerHeight,
+    );
   }
+}
+
+/**
+ * Page scroll normalized to 0..1: scrollY / max(1, scrollHeight - innerHeight).
+ * The max(1,…) guards the zero-range case (content shorter than the viewport)
+ * so progress stays 0 rather than NaN/Infinity.
+ */
+export function scrollProgress(
+  scrollY: number,
+  scrollHeight: number,
+  innerHeight: number,
+): number {
+  return scrollY / Math.max(1, scrollHeight - innerHeight);
 }
 
 export function createInputTracker(): InputTracker {

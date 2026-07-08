@@ -1,7 +1,7 @@
 import type { PathCommand, GradientData } from '../renderer/types';
 import { cloneGradient } from '../renderer/types';
 import type { MotionPath } from './path-parser';
-import type { Value } from '@popcorn/parser';
+import type { Value, MachineRule } from '@popcorn/parser';
 
 // CSS Motion Path offset-rotate: `auto` follows the path tangent; `angle` adds a
 // fixed offset (auto + angle) or a fixed orientation (angle only, auto = false).
@@ -62,10 +62,29 @@ export interface TransitionSpec {
   delay: number;            // ms
 }
 
-// State-specific styles for interactive elements
+// A machine `:state()` conditional declaration set attached to a node. While the
+// referenced machine is in the named state, `styles` (static declarations) apply
+// and `animations` sample entry-anchored (see the StateMachineRunner + loop).
+// `machine: null` = un-namespaced `:state(name)`, matching that state in ANY
+// machine; a set name only matches its own machine.
+export interface NodeStateStyle {
+  machine: string | null;
+  name: string;
+  styles: StateStyles;
+  animations: AnimationInstance[];
+}
+
+// State-specific styles for interactive elements. Paint comes in two mutually
+// exclusive forms per channel: a solid `fill`/`stroke` string, OR a
+// `fillGradient`/`strokeGradient` when the state declares a gradient. Whichever
+// is present replaces the base paint outright (a gradient override clears the
+// solid channel and vice-versa; see applyStateStyles). `undefined` = not
+// declared by this state, leave the base paint alone.
 export interface StateStyles {
   fill?: string | null;
   stroke?: string | null;
+  fillGradient?: GradientData | null;
+  strokeGradient?: GradientData | null;
   strokeWidth?: number;
   opacity?: number;
   transform?: Partial<Transform>;
@@ -250,6 +269,20 @@ export interface SceneNode {
   // children stay non-`interactive` — being targeted doesn't make them
   // independently hit-testable.
   stateChildren: SceneNode[];
+
+  // Machine `:state()` conditional declaration sets targeting this node (its own
+  // `&:state(...)` blocks plus any parent's `&:state(...) > #this`). Merged in
+  // during the resolve walk when the owning machine is in the matching state.
+  stateStyles: NodeStateStyle[];
+
+  // `animation-timeline: var(--x) | input(path)` reference (a 0..1 value source).
+  // When set, this node's own `animation:`s scrub to that progress via
+  // sampleNodeAtProgress instead of playing on the clock. Null = clock-driven.
+  animationTimeline: Value | null;
+
+  // Scene-level interactive state machines. Populated on the ROOT node only
+  // (empty elsewhere); consumed by the StateMachineRunner.
+  machines: MachineRule[];
 }
 
 // Complete authored snapshot of a node's animatable render state.
@@ -622,6 +655,9 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     interactive: false,
     transitions: [],
     stateChildren: [],
+    stateStyles: [],
+    animationTimeline: null,
+    machines: [],
   };
 }
 

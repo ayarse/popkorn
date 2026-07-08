@@ -1,4 +1,4 @@
-import type { StyleSheet, Rule, Declaration, Value, FunctionValue, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule, Selector } from '@popcorn/parser';
+import type { StyleSheet, Rule, Declaration, Value, FunctionValue, KeyframeRule, KeyframeBlock, StateRule, DefinitionRule, Selector, MachineRule } from '@popcorn/parser';
 import {
   isLengthValue,
   isColorValue,
@@ -38,6 +38,7 @@ import type {
   ImageData,
   MaskMode,
   TimeRemapStop,
+  AnimationInstance,
 } from './types';
 import type { PathCommand } from '../renderer/types';
 import type { GradientData, GradientStop } from '../renderer/types';
@@ -198,7 +199,38 @@ export class SceneBuilder {
 
     this.resolveMasks(root);
 
+    // Attach state machines to the root and flag their pointer-trigger targets
+    // as interactive so the shared hit-tester credits them (see loop pointer
+    // detection). Done after the whole tree exists, like mask resolution.
+    root.machines = stylesheet.machines;
+    this.markPointerTargets(root, stylesheet.machines);
+
     return root;
+  }
+
+  /**
+   * Flag every node named by a `on <pointer>(#id)` machine trigger as
+   * `interactive`, so the existing hit-tester (which only credits interactive
+   * nodes) returns it. Ids namespaced under a @define instance (`inst.child`)
+   * are matched by their trailing segment too, mirroring findDirectChild.
+   */
+  private markPointerTargets(root: SceneNode, machines: MachineRule[]): void {
+    const ids = new Set<string>();
+    for (const m of machines) {
+      for (const s of m.states) {
+        for (const tr of s.transitions) {
+          if (tr.trigger && tr.trigger.kind === 'pointer' && tr.trigger.target.type === 'id') {
+            ids.add(tr.trigger.target.name);
+          }
+        }
+      }
+    }
+    if (ids.size === 0) return;
+    const visit = (n: SceneNode): void => {
+      if (ids.has(n.id) || [...ids].some((id) => n.id.endsWith('.' + id))) n.interactive = true;
+      n.children.forEach(visit);
+    };
+    visit(root);
   }
 
   /**
@@ -255,11 +287,28 @@ export class SceneBuilder {
     node.transitions = this.resolveTransitions(rule.declarations);
 
     // Extract state-specific styles from pseudo rules. Child rules nested inside
-    // a state block (`&:hover > #c {…}`) are deferred until this node's own
-    // children exist, then resolved against them below.
+    // a state block (`&:hover > #c {…}` or `&:state(s) > #c {…}`) are deferred
+    // until this node's own children exist, then resolved against them below.
     const stateChildRules: { rule: Rule; state: 'hover' | 'active' }[] = [];
+    const machineChildRules: { rule: Rule; machineState: { machine: string | null; name: string } }[] = [];
     if (rule.states && rule.states.length > 0) {
       for (const stateRule of rule.states) {
+        if (stateRule.state === 'state') {
+          // Machine `:state(name)` / `:state(machine.name)` block. Unlike
+          // hover/active it may carry `animation:`, resolved (per node) through
+          // the same path as node-level animations.
+          const ms = stateRule.machineState!;
+          node.stateStyles.push({
+            machine: ms.machine,
+            name: ms.name,
+            styles: this.buildStateStyles(stateRule.declarations),
+            animations: this.buildAnimations(stateRule.declarations, true),
+          });
+          for (const childRule of stateRule.children) {
+            machineChildRules.push({ rule: childRule, machineState: ms });
+          }
+          continue;
+        }
         const stateStyles = this.buildStateStyles(stateRule.declarations);
         if (stateRule.state === 'hover') {
           node.hoverStyles = stateStyles;
@@ -269,9 +318,10 @@ export class SceneBuilder {
         for (const childRule of stateRule.children) {
           stateChildRules.push({ rule: childRule, state: stateRule.state });
         }
+        // A hover/active block makes the node hit-testable. `:state()` alone
+        // does not (machine state is global, not pointer-driven).
+        node.interactive = true;
       }
-      // Mark node as interactive if it has any state styles
-      node.interactive = true;
     }
 
     // Process children
@@ -296,6 +346,26 @@ export class SceneBuilder {
       if (state === 'hover') target.hoverStyles = styles;
       else target.activeStyles = styles;
       if (!node.stateChildren.includes(target)) node.stateChildren.push(target);
+    }
+
+    // Resolve deferred machine-state child rules (`&:state(s) > #c {…}`). Unlike
+    // hover children these don't ride a parent flip — machine state is global —
+    // so the set is attached straight to the child's own stateStyles and merged
+    // in the walk exactly like the child's own `&:state` blocks.
+    for (const { rule: childRule, machineState } of machineChildRules) {
+      const target = findDirectChild(node, childRule.selector);
+      if (!target) {
+        console.warn(
+          `&:state(${machineState.name}) > ${childRule.selector.type === 'class' ? '.' : '#'}${childRule.selector.name} in '${node.id}' targets no direct child; ignored.`
+        );
+        continue;
+      }
+      target.stateStyles.push({
+        machine: machineState.machine,
+        name: machineState.name,
+        styles: this.buildStateStyles(childRule.declarations),
+        animations: this.buildAnimations(childRule.declarations, true),
+      });
     }
 
     // Capture the authored render state as the immutable base for the
@@ -365,33 +435,29 @@ export class SceneBuilder {
       const { property, value } = decl;
 
       switch (property) {
-        case 'fill':
-          if (isColorValue(value)) {
-            styles.fill = value.value;
-          } else if (isKeywordValue(value)) {
-            if (value.value === 'none') {
-              styles.fill = null;
-            } else {
-              styles.fill = value.value;
-            }
-          } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
-            styles.fill = this.buildColorString(value);
+        case 'fill': {
+          // Same paint resolution as a plain declaration: a gradient function
+          // becomes structured GradientData (invalid => null => no fill), any
+          // color/keyword/rgb() becomes a solid string. The two channels are
+          // mutually exclusive; applyStateStyles clears the other on apply.
+          const paint = this.parsePaint(value);
+          if (paint?.type === 'gradient') {
+            styles.fillGradient = paint.gradient;
+          } else if (paint) {
+            styles.fill = paint.color;
           }
           break;
+        }
 
-        case 'stroke':
-          if (isColorValue(value)) {
-            styles.stroke = value.value;
-          } else if (isKeywordValue(value)) {
-            if (value.value === 'none') {
-              styles.stroke = null;
-            } else {
-              styles.stroke = value.value;
-            }
-          } else if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
-            styles.stroke = this.buildColorString(value);
+        case 'stroke': {
+          const paint = this.parsePaint(value);
+          if (paint?.type === 'gradient') {
+            styles.strokeGradient = paint.gradient;
+          } else if (paint) {
+            styles.stroke = paint.color;
           }
           break;
+        }
 
         case 'stroke-width':
           styles.strokeWidth = getNumericValue(value);
@@ -456,6 +522,16 @@ export class SceneBuilder {
     // `clip-path:`/`content:` value flows through normal parsing below. Reactive
     // var()/input() refs are left intact for the numeric binding path.
     const value = this.resolveStaticVars(decl.value);
+
+    // animation-timeline holds a live 0..1 value SOURCE (var()/input()), not a
+    // property binding — it scrubs the node's animations rather than writing a
+    // field. Store the UNRESOLVED value (decl.value, not `value`) so a var()
+    // pointing at a static :root default stays host-overridable; resolved fresh
+    // each frame by the loop.
+    if (property === 'animation-timeline') {
+      node.animationTimeline = decl.value;
+      return;
+    }
 
     // Check if this value contains a variable reference
     if (this.hasVariableReference(value)) {
@@ -977,6 +1053,23 @@ export class SceneBuilder {
    * resets the whole list; a longhand mutates only its own sub-property.
    */
   private resolveAnimations(node: SceneNode, declarations: Declaration[]): void {
+    for (const a of this.buildAnimations(declarations)) node.animations.push(a);
+  }
+
+  /**
+   * Compose a declaration set's `animation`/`animation-*` into concrete
+   * AnimationInstance[] (the shared logic behind node-level animations and a
+   * `:state()` block's own animations). See resolveAnimations for the CSS
+   * composition rules.
+   *
+   * `stateDefault` is set for `:state()` animations: when the author didn't
+   * write a fill mode, they default to `both` (hold the first frame before the
+   * entry delay and the last frame after completion) rather than the node-level
+   * `forwards`. That matches how stateful runtimes (Rive/dotLottie) treat a
+   * one-shot state animation — it holds its end frame for as long as the state
+   * stays active, instead of snapping back to base.
+   */
+  private buildAnimations(declarations: Declaration[], stateDefault = false): AnimationInstance[] {
     let slots: AnimSlot[] | null = null;
     // Grow (creating default slots) so a longhand seen before any shorthand can
     // still define animations positionally.
@@ -1037,6 +1130,7 @@ export class SceneBuilder {
           eachSlot(decl.value, (slot, v) => {
             if (isKeywordValue(v) && (v.value === 'none' || v.value === 'forwards' || v.value === 'backwards' || v.value === 'both')) {
               slot.fillMode = v.value;
+              slot.fillModeSet = true;
             }
           });
           break;
@@ -1051,22 +1145,24 @@ export class SceneBuilder {
       }
     }
 
-    if (!slots) return;
+    if (!slots) return [];
+    const out: AnimationInstance[] = [];
     for (const slot of slots) {
       if (slot.name && this.keyframesMap.has(slot.name)) {
-        node.animations.push({
+        out.push({
           name: slot.name,
           duration: slot.duration,
           timingFunction: slot.timingFunction,
           iterationCount: slot.iterationCount,
           direction: slot.direction,
           delay: slot.delay,
-          fillMode: slot.fillMode,
+          fillMode: stateDefault && !slot.fillModeSet ? 'both' : slot.fillMode,
           composition: slot.composition,
           keyframes: this.buildKeyframes(this.keyframesMap.get(slot.name)!),
         });
       }
     }
+    return out;
   }
 
   /**
@@ -1151,7 +1247,7 @@ export class SceneBuilder {
         else if (kw === 'linear' || kw === 'ease' || kw === 'ease-in' || kw === 'ease-out' || kw === 'ease-in-out' || kw === 'step-start' || kw === 'step-end') slot.timingFunction = kw;
         else if (kw === 'infinite') slot.iterationCount = Infinity;
         else if (kw === 'normal' || kw === 'reverse' || kw === 'alternate' || kw === 'alternate-reverse') slot.direction = kw;
-        else if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') slot.fillMode = kw;
+        else if (kw === 'none' || kw === 'forwards' || kw === 'backwards' || kw === 'both') { slot.fillMode = kw; slot.fillModeSet = true; }
       } else if (isFunctionValue(v) && this.isTimingFunctionName(v.name)) {
         slot.timingFunction = this.timingFromFunction(v);
       } else if (isLengthValue(v)) {
@@ -1763,6 +1859,7 @@ interface AnimSlot {
   direction: AnimationDirection;
   delay: number;
   fillMode: AnimationFillMode;
+  fillModeSet: boolean;
   composition: CompositeOperation;
 }
 
@@ -1786,7 +1883,7 @@ function defaultAnimSlot(): AnimSlot {
   return {
     name: '', duration: 1000, durationSet: false, timingFunction: 'ease',
     iterationCount: 1, direction: 'normal', delay: 0, fillMode: 'forwards',
-    composition: 'replace',
+    fillModeSet: false, composition: 'replace',
   };
 }
 

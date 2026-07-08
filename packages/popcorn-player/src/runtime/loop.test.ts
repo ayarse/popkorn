@@ -4,8 +4,10 @@ import type { Color, PathCommand, GradientData, ResolvedClip, TrimDescriptor, Ma
 import { IDENTITY_MATRIX } from '../renderer/types';
 import type { StrokeLineCap, TextAnchor, FillRule, MaskMode } from '../scene/types';
 import { createSceneNode, snapshotNode } from '../scene/types';
-import type { AnimationInstance, SceneNode } from '../scene/types';
+import type { AnimationInstance, SceneNode, CircleData } from '../scene/types';
 import { RenderLoop } from './loop';
+import { parse } from '@popcorn/parser';
+import { buildSceneGraph } from '../scene/builder';
 
 // A dot whose opacity ramps 0 -> 1 over one 3s iteration, forever. sceneDuration
 // is that single iteration (3000). The recording renderer captures the sampled
@@ -179,4 +181,80 @@ test('loop on: time past duration wraps', () => {
   loop.pause();
   loop.seek(8000);
   expect(loop.currentTime).toBe(3000);
+});
+
+// --- state-machine scenes are unbounded --------------------------------------
+
+// A machine scene has a base animation (#bg) giving sceneDuration = 1000, plus a
+// one-shot state animation on #dot that ends at 1000 and holds (default `both`).
+// The machine's initial state is active from setScene, so #dot's slide is live.
+function machineScene(dotFill = ''): SceneNode {
+  return buildSceneGraph(parse(`
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: a; state a {} }
+    #bg  { type: circle; r: 5; animation: pulse 1000ms linear; }
+    #dot { type: circle; r: 5; &:state(a) { animation: slide 1000ms linear${dotFill}; } }
+    @keyframes pulse { 0% { cx: 0 } 100% { cx: 10 } }
+    @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
+  `));
+}
+const nodeCx = (root: SceneNode, id: string): number => {
+  const find = (n: SceneNode): SceneNode | undefined =>
+    n.id === id ? n : n.children.map(find).find(Boolean);
+  return (find(root)!.shapeData as CircleData).cx;
+};
+
+// The loop attribute is inert for a machine scene: the clock is monotonic (no
+// wrap), so the state animation's entry anchor never folds negative and replays.
+// Without the fix, seeking to 2000 would wrap to 0 and re-run the slide.
+test('machine scene: loop enabled does not wrap past sceneDuration', () => {
+  const root = machineScene();
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root);
+  loop.setLoop(true);
+
+  loop.seek(2000);                       // past sceneDuration (1000)
+  expect(loop.currentTime).toBeCloseTo(2000, 0); // monotonic — NOT folded to 1000/0
+  expect(nodeCx(root, 'dot')).toBeCloseTo(100); // slide held at end, not replayed
+});
+
+// isStatic (the "finished/settled" signal) is never true for a machine scene —
+// it can always still transition — even well past the base duration.
+test('machine scene: isStatic never becomes true (never finishes)', () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(machineScene());
+  loop.seek(5000);
+  expect(loop.isStatic()).toBe(false);
+});
+
+// Contrast (regression guard for task 1's fence): a plain scene with no machine
+// still wraps exactly as before — proven by the existing 'loop on: time past
+// duration wraps' test above; this one just pins the non-loop clamp still holds.
+test('non-machine scene still clamps past duration (unchanged)', () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(fadingDot());            // no machine, sceneDuration 3000
+  loop.pause();
+  loop.seek(9000);
+  expect(loop.currentTime).toBe(3000);   // still clamped, not free-running
+});
+
+// A one-shot state animation with the default (unwritten) fill holds its final
+// keyframe after completion for as long as the state stays active — loop OFF, so
+// the hold comes from `both`, not from wrapping.
+test('state animation with default fill holds its final frame after completion', () => {
+  const root = machineScene();
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root);                    // loop off
+  loop.seek(3000);                        // slide ended at 1000; state still `a`
+  expect(nodeCx(root, 'dot')).toBeCloseTo(100);
+});
+
+// An explicit `animation-fill-mode: none` in a state block is respected: the
+// state animation snaps back to base (cx 0) on completion.
+test('state animation with explicit fill:none snaps back to base on completion', () => {
+  const root = machineScene('; animation-fill-mode: none');
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root);
+  loop.seek(3000);                        // past the 1000ms end
+  expect(nodeCx(root, 'dot')).toBeCloseTo(0);
 });

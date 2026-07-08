@@ -7,12 +7,15 @@ import { computeLocalMatrix, computeWorldMatrixFromRoot, clamp01 } from '../scen
 import { outlineLength } from '../scene/path-parser';
 import { polystarCommands } from '../scene/polystar';
 import { resolveClip } from '../scene/clip';
-import { AnimationScheduler, computeSceneDuration } from '../animation/scheduler';
+import { AnimationScheduler, computeSceneDuration, sampleNodeAtProgress } from '../animation/scheduler';
 import { applyEasing } from '../animation/easing';
 import { getPropHandler } from '../animation/registry';
 import { InputTracker, createInputTracker } from './inputs';
 import { VariableResolver, createVariableResolver } from './variables';
-import { InteractionManager, createInteractionManager } from './interaction';
+import { InteractionManager, createInteractionManager, applyStateStyles } from './interaction';
+import { StateMachineRunner, createStateMachineRunner, type PointerTriggerEvent, type MachineOutput } from './state-machine';
+import { hitTest } from './hit-test';
+import { isFunctionValue, isKeywordValue, type Value } from '@popcorn/parser';
 
 /**
  * Main render loop.
@@ -33,6 +36,16 @@ export class RenderLoop {
   private inputTracker: InputTracker;
   private variableResolver: VariableResolver;
   private interactionManager: InteractionManager;
+  // State-machine runner: evaluated once per LIVE frame before the walk. Its
+  // state lives off the timeline, so seek() never touches it.
+  private machineRunner: StateMachineRunner = createStateMachineRunner();
+  // Forwarded to the host (component) as statechange / machine-event DOM events.
+  private machineEventCallback: ((output: MachineOutput) => void) | null = null;
+  // Pointer-edge state for machine triggers (wall-clock/input driven, off the
+  // timeline — like the InteractionManager's hover tracking).
+  private prevIsDown: boolean = false;
+  private prevHit: SceneNode | null = null;
+  private downHit: SceneNode | null = null;
   // Fit-to-container: root transform (scene -> device px) applied each frame, plus
   // the scene box size the background fills. Default identity = 1:1, no fit.
   private viewport: Matrix3x3 = IDENTITY_MATRIX;
@@ -50,6 +63,13 @@ export class RenderLoop {
   // end times measured in each subtree's LOCAL time) is not the scene's end on
   // the root timeline, so the play-once clamp below can't trust it and stays off.
   private sceneTimeScoped: boolean = false;
+  // Cached at setScene: does the scene have a state machine (or any `:state()`
+  // set, which can be authored without a machine)? Such a scene is not a finite
+  // clip — machine state lives off the timeline, so there's no end to hold, wrap,
+  // or finish at. The clock free-runs monotonically; `sceneDuration` (a max of
+  // BASE animation ends) is not a bound, and wrapping it would fold the clock
+  // back BEFORE a later state's entry time, replaying that state's animation.
+  private sceneUnbounded: boolean = false;
   // Fires once per rendered frame with the current timeline time (drives the
   // controls scrubber off the existing loop tick — no extra rAF).
   private frameCallback: ((time: number) => void) | null = null;
@@ -83,9 +103,30 @@ export class RenderLoop {
   setScene(root: SceneNode): void {
     this.sceneRoot = root;
     this.interactionManager.setScene(root);
+    // Machines start at their initial states, anchored at timeline zero.
+    this.machineRunner.setScene(root, 0);
+    this.prevIsDown = false;
+    this.prevHit = null;
+    this.downHit = null;
     this.sceneDuration = computeSceneDuration(root);
     this.sceneDynamic = sceneHasDynamicContent(root);
     this.sceneTimeScoped = sceneHasTimeScoping(root);
+    this.sceneUnbounded = sceneIsUnbounded(root);
+  }
+
+  /** The scene's state-machine runner (host events, tests). */
+  getStateMachineRunner(): StateMachineRunner {
+    return this.machineRunner;
+  }
+
+  /** Register a callback for machine transitions/emits (component wiring). */
+  setMachineEventCallback(cb: ((output: MachineOutput) => void) | null): void {
+    this.machineEventCallback = cb;
+  }
+
+  /** Enqueue an external `on event(name)` occurrence for the next live frame. */
+  enqueueMachineEvent(name: string): void {
+    this.machineRunner.enqueueEvent(name);
   }
 
   setBackgroundColor(color: string | null): void {
@@ -137,7 +178,9 @@ export class RenderLoop {
    */
   isStatic(): boolean {
     if (!this.sceneRoot) return true;
-    if (this.looping || this.sceneDynamic) return false;
+    // An unbounded (state-machine) scene never finishes — it can always still
+    // transition — so it's never static regardless of the clock.
+    if (this.looping || this.sceneDynamic || this.sceneUnbounded) return false;
     return this.currentTime >= this.sceneDuration;
   }
 
@@ -205,28 +248,36 @@ export class RenderLoop {
     // transition a state flip starts.
     this.interactionManager.update(this.inputTracker.getState(), timestamp);
 
-    // Resolve the whole scene at the current timeline time, then paint.
-    this.drawFrame(timestamp);
+    // Resolve the whole scene at the current timeline time, then paint. `live`
+    // gates the parts that must run only on a real rAF tick — machine evaluation
+    // and momentary-trigger reset — so seek()/redraw() stay pure functions of
+    // (time, machineState).
+    this.drawFrame(timestamp, true);
 
     // Schedule next frame
     this.animationFrameId = requestAnimationFrame(this.loop);
   };
 
   /** Resolve every node's live values at the current timeline time and render. */
-  private drawFrame(now: number): void {
+  private drawFrame(now: number, live: boolean = false): void {
     if (this.sceneRoot) {
       let t = this.scheduler.time(now);
       // Looping: once the timeline runs past the scene's duration, fold it back
       // into [0, duration) and re-anchor the scheduler. Re-anchoring (rather than
       // just sampling the wrapped t) resets fill-forward states cleanly and keeps
       // currentTime bounded. Skipped while paused so scrubbing to the end holds.
-      if (this.looping && !this.scheduler.isPaused()) {
+      // Unbounded (state-machine) scenes opt out of BOTH the wrap and the
+      // play-once clamp: the clock is monotonic so state-animation entry anchors
+      // (machineTime - entryTime) never fold negative and replay. The `loop`
+      // attribute is inert for them. (Sits alongside the sceneTimeScoped opt-out
+      // below — same "sceneDuration isn't a root-timeline bound" reasoning.)
+      if (this.looping && !this.scheduler.isPaused() && !this.sceneUnbounded) {
         const wrapped = wrapTime(t, this.sceneDuration, true);
         if (wrapped !== t) {
           this.scheduler.seek(wrapped, now);
           t = wrapped;
         }
-      } else if (!this.looping && !this.sceneTimeScoped && this.sceneDuration > 0 && t > this.sceneDuration) {
+      } else if (!this.looping && !this.sceneTimeScoped && !this.sceneUnbounded && this.sceneDuration > 0 && t > this.sceneDuration) {
         // Not looping: hold at the end of one full pass ("play once and stop").
         // Without this, t free-runs past duration and any infinite animation
         // keeps cycling. Re-anchor (like the wrap above) so currentTime stays
@@ -237,17 +288,35 @@ export class RenderLoop {
         this.scheduler.seek(this.sceneDuration, now);
         t = this.sceneDuration;
       }
-      this.resolveNode(this.sceneRoot, t, now);
+
+      // Machines evaluate once per LIVE frame, BEFORE the node walk. `t` (the
+      // wrapped/clamped timeline time) is the machine time base — the same value
+      // the walk anchors state animations against. Pointer triggers come from
+      // the shared hit-tester; the outputs are forwarded to the host.
+      if (live && this.machineRunner.hasMachines()) {
+        const outputs = this.machineRunner.evaluate(t, {
+          variableResolver: this.variableResolver,
+          pointerEvents: this.detectPointerEvents(),
+        });
+        if (this.machineEventCallback) for (const o of outputs) this.machineEventCallback(o);
+      }
+
+      this.resolveNode(this.sceneRoot, t, now, t);
     }
     this.render();
+    // Momentary triggers (fire()) read `true` for exactly this frame; reset them
+    // after the whole walk so both machine guards and node bindings saw them.
+    if (live) this.variableResolver.endFrame();
     this.frameCallback?.(this.currentTime);
   }
 
   /**
    * Value-resolution pipeline for one node:
-   * base -> bindings -> animation -> interaction overrides.
+   * base -> bindings -> machine :state() merge -> animation -> interaction.
+   * `machineTime` is the global timeline time (threaded unchanged) used to
+   * anchor state animations; `t` is this node's inherited (scoped) time.
    */
-  private resolveNode(node: SceneNode, t: number, now: number): void {
+  private resolveNode(node: SceneNode, t: number, now: number, machineTime: number): void {
     // Visibility window: a node outside [from, until) is hidden this frame, and
     // the render walk / hit-testing skip it and its subtree. Evaluated against
     // the INCOMING time `t` (this node's containing scope) — not the local time
@@ -267,12 +336,57 @@ export class RenderLoop {
 
     resetNodeToBase(node);
     this.applyBindings(node);
-    this.scheduler.sampleNode(node, local);
+    // Machine :state() sets merge in here (static decls + entry-anchored state
+    // animations), between bindings and the node's own animation sampling.
+    if (node.stateStyles.length > 0) this.applyMachineStates(node, machineTime);
+    // Base (node-level) animations: scrub to a 0..1 timeline reference when the
+    // node declares animation-timeline, else sample on the clock at local time.
+    if (node.animationTimeline && node.animations.length > 0) {
+      sampleNodeAtProgress(node, clamp01(this.resolveTimelineProgress(node.animationTimeline)));
+    } else {
+      this.scheduler.sampleNode(node, local);
+    }
     this.interactionManager.applyOverrides(node, now);
 
     for (const child of node.children) {
-      this.resolveNode(child, local, now);
+      this.resolveNode(child, local, now, machineTime);
     }
+  }
+
+  /**
+   * Merge every active `:state()` set on a node: apply its static declarations,
+   * then sample its animations entry-anchored on the global machine clock
+   * (`machineTime - entryTime`). Reuses the scheduler's clock sampling by
+   * temporarily pointing node.animations at the state's instances — the
+   * scheduler's documented `sampleNode(node, t - entryTime)` anchoring, with the
+   * state's set as `node.animations`.
+   */
+  private applyMachineStates(node: SceneNode, machineTime: number): void {
+    for (const entry of node.stateStyles) {
+      if (!this.machineRunner.isStateActive(entry.machine, entry.name)) continue;
+      applyStateStyles(node, entry.styles);
+      if (entry.animations.length > 0) {
+        const entryTime = this.machineRunner.entryTimeFor(entry.machine, entry.name);
+        const saved = node.animations;
+        node.animations = entry.animations;
+        this.scheduler.sampleNode(node, machineTime - entryTime);
+        node.animations = saved;
+      }
+    }
+  }
+
+  /**
+   * Resolve an `animation-timeline` value source to a raw 0..1 progress.
+   * `var(--x)` (and literals) go through the variable resolver; `input(path)`
+   * uses its public per-path input reader (kept in sync via updateInputState).
+   */
+  private resolveTimelineProgress(value: Value): number {
+    if (isFunctionValue(value) && value.name === 'input') {
+      const arg = value.args[0];
+      if (arg && isKeywordValue(arg)) return this.variableResolver.resolveInput(arg.value);
+      return 0;
+    }
+    return this.variableResolver.resolveNumeric(value);
   }
 
   private applyBindings(node: SceneNode): void {
@@ -282,6 +396,41 @@ export class RenderLoop {
       if (!handler || handler.kind !== 'number') continue;
       handler.apply(node, this.variableResolver.resolveNumeric(binding.value));
     }
+  }
+
+  /**
+   * Detect this frame's pointer events for machine triggers, reusing the shared
+   * hit-tester (invariant: no reimplemented hit-testing). Returns hover
+   * enter/leave, down/up, and a synthetic click (down+up crediting the same top
+   * node). The credited node is the nearest interactive ancestor — machine
+   * pointer targets are flagged interactive at build time so they qualify. Edge
+   * state is wall-clock/input driven and lives off the timeline.
+   */
+  private detectPointerEvents(): PointerTriggerEvent[] {
+    const events: PointerTriggerEvent[] = [];
+    if (!this.sceneRoot) return events;
+    const st = this.inputTracker.getState();
+    const hit = hitTest(this.sceneRoot, { x: st.cursor.x, y: st.cursor.y });
+
+    if (hit !== this.prevHit) {
+      if (this.prevHit) events.push({ event: 'hoverend', node: this.prevHit });
+      if (hit) events.push({ event: 'hoverstart', node: hit });
+    }
+
+    const down = st.cursor.isDown;
+    if (down && !this.prevIsDown) {
+      events.push({ event: 'pointerdown', node: hit });
+      this.downHit = hit;
+    }
+    if (!down && this.prevIsDown) {
+      events.push({ event: 'pointerup', node: hit });
+      if (hit && hit === this.downHit) events.push({ event: 'click', node: hit });
+      this.downHit = null;
+    }
+
+    this.prevHit = hit;
+    this.prevIsDown = down;
+    return events;
   }
 
   private render(): void {
@@ -435,12 +584,17 @@ export class RenderLoop {
 
 /**
  * Does any node in the tree keep the scene changing beyond a one-shot timeline —
- * an infinite (looping) animation, a var()/input() binding, or an interactive
- * :hover/:active style? Scanned once at setScene so `isStatic` stays O(1).
+ * an infinite (looping) animation, a var()/input() binding, an interactive
+ * :hover/:active style, a state machine that could still transition, a
+ * conditional `:state()` set, or an animation-timeline scrub binding? Scanned
+ * once at setScene so `isStatic` stays O(1).
  */
 function sceneHasDynamicContent(root: SceneNode): boolean {
+  // Any machine (root only) keeps the loop live so it can still transition.
+  if (root.machines.length > 0) return true;
   if (root.bindings.length > 0) return true;
   if (root.hoverStyles || root.activeStyles || root.interactive) return true;
+  if (root.stateStyles.length > 0 || root.animationTimeline) return true;
   for (const a of root.animations) if (a.iterationCount === Infinity) return true;
   for (const child of root.children) if (sceneHasDynamicContent(child)) return true;
   return false;
@@ -455,6 +609,23 @@ function sceneHasDynamicContent(root: SceneNode): boolean {
 function sceneHasTimeScoping(root: SceneNode): boolean {
   if (root.timeRemap || root.timeOffset !== 0 || root.timeScale !== 1) return true;
   for (const child of root.children) if (sceneHasTimeScoping(child)) return true;
+  return false;
+}
+
+/**
+ * Is this scene driven by a state machine — a `@machine` on the root, or any
+ * `:state()` set on a node (which the parser allows even without a machine, in
+ * which case it simply never activates)? Such a scene is unbounded: it has no
+ * clip end to hold, wrap, or finish at. Scanned once at setScene.
+ */
+function sceneIsUnbounded(root: SceneNode): boolean {
+  if (root.machines.length > 0) return true;
+  return subtreeHasStateStyles(root);
+}
+
+function subtreeHasStateStyles(node: SceneNode): boolean {
+  if (node.stateStyles.length > 0) return true;
+  for (const child of node.children) if (subtreeHasStateStyles(child)) return true;
   return false;
 }
 

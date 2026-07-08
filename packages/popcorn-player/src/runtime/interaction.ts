@@ -23,6 +23,7 @@ import type { InputState } from './inputs';
 import { lerp, clamp01 } from '../scene/transform';
 import { applyEasing } from '../animation/easing';
 import { interpolateColor } from '../animation/registry';
+import { cloneGradient } from '../renderer/types';
 
 // Absolute (already-composed) values of every transitionable property. Transform
 // channels are flattened, so a snapshot captures the exact displayed pose.
@@ -147,10 +148,49 @@ export function applyInteractionOverrides(node: SceneNode): void {
   const state = node.interactionState;
   if (state === 'normal') return;
   const styles = stateStylesFor(node, state);
-  if (!styles) return;
+  if (styles) applyStateStyles(node, styles);
+}
+
+/**
+ * Layer a StateStyles set onto a node's current live fields (paint/opacity/
+ * stroke-width absolute, transform channels as deltas) with no tween. Shared by
+ * interaction (:hover/:active) and machine `:state()` merging so both use the
+ * same override semantics.
+ */
+export function applyStateStyles(node: SceneNode, styles: StateStyles): void {
   const vals = liveSnapshot(node);
   applyStateDeltas(vals, styles);
   writeLive(node, vals);
+  applyStatePaint(node, styles);
+}
+
+/**
+ * Apply a state's gradient/solid paint override, replacing whatever paint the
+ * base carries. A gradient override wins over any solid channel (and vice
+ * versa), so entering a state with a gradient fill clears node.fill and setting
+ * a solid fill clears node.fillGradient — otherwise a base gradient would keep
+ * winning (the renderer prefers gradient when both are set). The gradient is
+ * DEEP-COPIED so this shared StateStyles object is never aliased onto the node:
+ * resolveNode re-applies fresh each frame and a later in-place gradient
+ * interpolation must not corrupt the authored state stops (same discipline as
+ * the base-snapshot gradient clone). NOTE: this instant-snap path is what
+ * :state() and non-transitioning :hover/:active use; the transition-tween path
+ * (LiveValues) carries only solid colors, so gradients are not interpolated
+ * across a hover transition — they snap when the tween settles.
+ */
+function applyStatePaint(node: SceneNode, styles: StateStyles): void {
+  if (styles.fillGradient !== undefined) {
+    node.fillGradient = cloneGradient(styles.fillGradient);
+    node.fill = null;
+  } else if (styles.fill !== undefined) {
+    node.fillGradient = null;
+  }
+  if (styles.strokeGradient !== undefined) {
+    node.strokeGradient = cloneGradient(styles.strokeGradient);
+    node.stroke = null;
+  } else if (styles.stroke !== undefined) {
+    node.strokeGradient = null;
+  }
 }
 
 /**
