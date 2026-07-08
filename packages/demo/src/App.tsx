@@ -60,6 +60,13 @@ import { exportGifInWorker, downloadGif } from "@/lib/gif";
 const enc = new TextEncoder();
 const bytes = (s: string) => enc.encode(s).length;
 
+async function gzipBytes(s: string): Promise<number> {
+  const stream = new Blob([s])
+    .stream()
+    .pipeThrough(new CompressionStream("gzip"));
+  return (await new Response(stream).arrayBuffer()).byteLength;
+}
+
 function humanBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -84,6 +91,7 @@ type ImportResult = {
   blocked: string[];
   raw: SizePair;
   min?: SizePair;
+  gz?: SizePair;
 };
 
 function buildImportResult(
@@ -102,6 +110,23 @@ function buildImportResult(
     // Degrade to unminified sizes only rather than breaking the import.
   }
   return { label, warnings: [], blocked: [], raw, min };
+}
+
+// Gzipped transfer size of the minified forms (what actually ships over the
+// wire). Async because CompressionStream is; the row fills in once resolved.
+async function gzipSizes(
+  rawLottie: string,
+  css: string,
+): Promise<SizePair | undefined> {
+  try {
+    const [lottie, popcorn] = await Promise.all([
+      gzipBytes(JSON.stringify(JSON.parse(rawLottie))),
+      gzipBytes(serialize(parse(css), { minify: true })),
+    ]);
+    return { lottie, popcorn };
+  } catch {
+    return undefined;
+  }
 }
 
 const PLAYER_BACKGROUNDS = [
@@ -195,6 +220,9 @@ function App() {
       result.warnings = warnings;
       result.blocked = blocked;
       setImportResult(result);
+      void gzipSizes(text, css).then((gz) =>
+        setImportResult((prev) => (prev === result ? { ...prev, gz } : prev)),
+      );
       return true;
     } catch (e: any) {
       setError(`Lottie conversion failed: ${e.message}`);
@@ -559,10 +587,11 @@ function ImportStatusChip({
   result: ImportResult;
   onDismiss: () => void;
 }) {
-  const { label, warnings, blocked, raw, min } = result;
+  const { label, warnings, blocked, raw, min, gz } = result;
   const hasIssues = warnings.length > 0 || blocked.length > 0;
   const deltaPct = pct(raw.lottie, raw.popcorn);
   const minDeltaPct = min ? pct(min.lottie, min.popcorn) : 0;
+  const gzDeltaPct = gz ? pct(gz.lottie, gz.popcorn) : 0;
 
   return (
     <div className="flex items-center overflow-hidden rounded-md border border-border">
@@ -652,6 +681,22 @@ function ImportStatusChip({
                     className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
                   >
                     {fmtPct(minDeltaPct)}
+                  </span>
+                </div>
+              )}
+              {gz && (
+                <div className="flex items-center gap-2 font-mono">
+                  <span className="w-2/5 text-muted-foreground">Gzipped</span>
+                  <span className="flex-1 whitespace-nowrap text-center">
+                    {humanBytes(gz.lottie)}
+                  </span>
+                  <span className="flex-1 whitespace-nowrap text-center">
+                    {humanBytes(gz.popcorn)}
+                  </span>
+                  <span
+                    className={`w-12 whitespace-nowrap text-center ${gzDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
+                  >
+                    {fmtPct(gzDeltaPct)}
                   </span>
                 </div>
               )}
