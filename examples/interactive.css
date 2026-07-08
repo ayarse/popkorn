@@ -1,37 +1,123 @@
-/* Interactive — a giant eye that watches your cursor. One idea: the iris tracks
-   the pointer through input()/var() bindings; the same iris dilates on hover and
-   constricts when you press it (:hover / :active). Move around, then poke it. */
+/* Interactive — Sprout, a mochi creature, and the firefly that chases your
+   cursor. The firefly rides input(cursor.x/y) and flares when you hold the
+   mouse down (input(cursor.isDown)); Sprout idles with layered keyframes
+   (breathing + an added flutter) and springs when you poke it (:hover/:active
+   tweened by transition). Move the light around, then give Sprout a poke. */
 :root {
   width: 800px;
   height: 600px;
-  background: #0f0f23;
+  background: #0a1622;
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
+  --down: input(cursor.isDown);
 }
 
-/* A slow idle breath so the eye feels alive even before you touch it */
-@keyframes breathe {
-  0%, 100% { transform: scale(1);    }
-  50%      { transform: scale(1.05); }
+/* ---- ambient life (runs before you ever touch the scene) ---- */
+
+/* Main idle: a slow breath (squash/stretch) with a gentle rock */
+@keyframes idle {
+  0%, 100% { transform: translateY(0px)  scale(1, 1)       rotate(-1.6deg); }
+  50%      { transform: translateY(-9px) scale(0.98, 1.05) rotate(1.6deg); }
+}
+/* A faster, smaller bob ADDED on top of the idle bob — layered motion */
+@keyframes flutter {
+  0%, 100% { translate: 0px 0px; }
+  50%      { translate: 0px -4px; }
+}
+/* Eyes blink on their own quick cycle */
+@keyframes blink {
+  0%, 92%, 100% { scale: 1 1; }
+  96%           { scale: 1 0.08; }
+}
+/* Firefly breathes its glow so it feels alive even parked in a corner */
+@keyframes flicker {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
 }
 
-/* Full-bleed sclera; the two dark lids carve it into an almond eye */
-#sclera    { type: ellipse; cx: 400px; cy: 300px; rx: 400px; ry: 260px;
-             fill: radial-gradient(#fdf6e9 0%, #e9d4b0 100%); }
-#lidTop    { type: ellipse; cx: 400px; cy: -80px; rx: 520px; ry: 210px; fill: #0f0f23; }
-#lidBottom { type: ellipse; cx: 400px; cy: 680px; rx: 520px; ry: 210px; fill: #0f0f23; }
-
-/* The iris follows the cursor; hover dilates it, pressing constricts it */
-#iris {
-  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 72px;
-  fill: radial-gradient(#5eead4 0%, #0f766e 100%);
-  stroke: #134e4a; stroke-width: 4px;
-  transform-origin: center;
-  animation: breathe 3.4s ease-in-out infinite;
-  &:hover  { transform: scale(1.14); }
-  &:active { fill: radial-gradient(#2dd4bf 0%, #063f39 100%); transform: scale(0.6); }
+/* ---- backdrop ---- */
+#sky {
+  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  fill: linear-gradient(#12314a 0%, #0a1622 70%, #071019 100%);
+}
+/* soft vignette to focus the middle */
+#vignette {
+  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  fill: radial-gradient(circle 520px at 400px 300px, #00000000 45%, #050d16 100%);
+}
+/* contact shadow that keeps Sprout grounded */
+#shadow {
+  type: ellipse; cx: 400px; cy: 452px; rx: 118px; ry: 20px;
+  fill: radial-gradient(#00000066 0%, #00000000 72%);
 }
 
-/* Pupil + glint carry no pseudo-state, so they never intercept the iris's hits */
-#pupil { type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 30px; fill: #0a0a12; }
-#glint { type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 9px;  fill: #ffffff; opacity: 0.9; }
+/* ---- Sprout ---- the body shape carries the hover/active reaction, and its
+   face rides along as children (they have no pseudo-state, so they never steal
+   the hit; a poke anywhere on the body springs the whole creature) */
+#sprout {
+  type: ellipse; cx: 400px; cy: 330px; rx: 108px; ry: 96px;
+  fill: radial-gradient(circle 150px at 356px 272px, #b7f0dd 0%, #5cc6ac 58%, #348d78 100%);
+  transform-origin: 50% 100%;
+  animation: idle 3.8s ease-in-out infinite, flutter 0.95s ease-in-out infinite;
+  animation-composition: replace, add;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:hover  { transform: translateY(-10px) scale(1.06); }
+  &:active { transform: scale(1.15, 0.8); }
+
+  /* little sprout leaf on top */
+  > #stem {
+    type: path; d: "M 400 238 C 398 214 402 200 400 184";
+    fill: none; stroke: #3f9d84; stroke-width: 6px; stroke-linecap: round;
+  }
+  > #leaf {
+    type: ellipse; cx: 413px; cy: 184px; rx: 18px; ry: 11px;
+    fill: #7fd8b0; transform: rotate(-28deg); transform-origin: 400px 184px;
+  }
+
+  /* tummy highlight */
+  > #belly {
+    type: ellipse; cx: 400px; cy: 356px; rx: 74px; ry: 60px;
+    fill: #ddf8ee; opacity: 0.35;
+  }
+
+  /* eyes (blink) with glossy glints */
+  > #eyeL {
+    type: ellipse; cx: 366px; cy: 318px; rx: 15px; ry: 19px;
+    fill: #203a44; transform-origin: 366px 318px;
+    animation: blink 4.2s ease-in-out infinite;
+  }
+  > #eyeR {
+    type: ellipse; cx: 434px; cy: 318px; rx: 15px; ry: 19px;
+    fill: #203a44; transform-origin: 434px 318px;
+    animation: blink 4.2s ease-in-out infinite;
+  }
+  > #glintL { type: circle; cx: 371px; cy: 311px; r: 5px; fill: #ffffff; }
+  > #glintR { type: circle; cx: 439px; cy: 311px; r: 5px; fill: #ffffff; }
+
+  /* rosy cheeks */
+  > #cheekL { type: ellipse; cx: 344px; cy: 348px; rx: 13px; ry: 8px; fill: #ff96ab; opacity: 0.5; }
+  > #cheekR { type: ellipse; cx: 456px; cy: 348px; rx: 13px; ry: 8px; fill: #ff96ab; opacity: 0.5; }
+
+  /* smile */
+  > #mouth {
+    type: path; d: "M 386 344 Q 400 356 414 344";
+    fill: none; stroke: #2c5059; stroke-width: 4px; stroke-linecap: round;
+  }
+}
+
+/* ---- firefly ---- follows the cursor; the outer flare only shows while the
+   mouse is held down (opacity bound to cursor.isDown) */
+#fireflyGlow {
+  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 46px;
+  fill: radial-gradient(#ffd97a55 0%, #ffb70300 68%);
+  animation: flicker 2.4s ease-in-out infinite;
+}
+#flare {
+  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 132px;
+  fill: radial-gradient(#ffe6a800 40%, #ffdc7aaa 56%, #ffcf4d00 72%);
+  opacity: var(--down);
+}
+#firefly {
+  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 9px;
+  fill: radial-gradient(#ffffff 0%, #ffd166 55%, #ffab00 100%);
+}
