@@ -74,7 +74,7 @@ export class AnimationScheduler {
   }
 
   private sampleAnimation(node: SceneNode, animation: AnimationInstance, t: number): void {
-    const { keyframes, delay, duration, iterationCount, timingFunction, fillMode } = animation;
+    const { keyframes, delay, duration, iterationCount, timingFunction, fillMode, composition } = animation;
     if (keyframes.length === 0) return;
 
     const local = t - delay;
@@ -84,7 +84,7 @@ export class AnimationScheduler {
     if (local < 0) {
       // Delay period: `backwards`/`both` hold the first-keyframe value.
       if (fillMode === 'backwards' || fillMode === 'both') {
-        interpolateKeyframes(node, keyframes, this.startProgress(animation), timingFunction);
+        interpolateKeyframes(node, keyframes, this.startProgress(animation), timingFunction, composition);
       }
       return;
     }
@@ -93,13 +93,13 @@ export class AnimationScheduler {
       // After the active interval: `forwards`/`both` hold the final value;
       // `none`/`backwards` revert to base (leave the node untouched here).
       if (fillMode === 'forwards' || fillMode === 'both') {
-        interpolateKeyframes(node, keyframes, this.endProgress(animation), timingFunction);
+        interpolateKeyframes(node, keyframes, this.endProgress(animation), timingFunction, composition);
       }
       return;
     }
 
     const progress = this.calculateProgress(animation, local);
-    interpolateKeyframes(node, keyframes, progress, timingFunction);
+    interpolateKeyframes(node, keyframes, progress, timingFunction, composition);
   }
 
   private calculateProgress(animation: AnimationInstance, elapsed: number): number {

@@ -215,6 +215,78 @@ test('individual transform properties in :hover state block', () => {
   expect(a.hoverStyles?.transform?.rotate).toBe(10);
 });
 
+// --- animation-composition --------------------------------------------------
+
+test('animation-composition: add composes onto the value already written', () => {
+  const src = `
+@keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
+#a { type: rect; width: 10px; transform: translateX(100px); animation: shift 1s linear; animation-composition: add; }
+`;
+  const [a] = build(src).children;
+  expect(a.animations[0].composition).toBe('add');
+  const sched = new AnimationScheduler();
+  resetNodeToBase(a);
+  sched.sampleNode(a, 500); // progress 0.5 -> +25 on top of base 100
+  expect(a.transform.translateX).toBe(125);
+});
+
+test('animation-composition: accumulate == add for plain numbers', () => {
+  const src = `
+@keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
+#a { type: rect; width: 10px; transform: translateX(100px); animation: shift 1s linear; animation-composition: accumulate; }
+`;
+  const [a] = build(src).children;
+  const sched = new AnimationScheduler();
+  resetNodeToBase(a);
+  sched.sampleNode(a, 500);
+  expect(a.transform.translateX).toBe(125);
+});
+
+test('animation-composition: replace (default) overwrites', () => {
+  const src = `
+@keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
+#a { type: rect; width: 10px; transform: translateX(100px); animation: shift 1s linear; }
+`;
+  const [a] = build(src).children;
+  expect(a.animations[0].composition).toBe('replace');
+  const sched = new AnimationScheduler();
+  resetNodeToBase(a);
+  sched.sampleNode(a, 500);
+  expect(a.transform.translateX).toBe(25);
+});
+
+test('animation-composition is NOT part of the shorthand (shorthand resets it)', () => {
+  const src = `
+@keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
+#a { type: rect; width: 10px; animation-composition: add; animation: shift 1s linear; }
+`;
+  const [a] = build(src).children;
+  expect(a.animations[0].composition).toBe('replace');
+});
+
+test('animation-composition: comma-list positional against animation-name', () => {
+  const src = `
+@keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
+@keyframes grow { from { transform: scale(1); } to { transform: scale(2); } }
+#a { type: rect; width: 10px; animation: shift 1s linear, grow 1s linear; animation-composition: add, replace; }
+`;
+  const [a] = build(src).children;
+  expect(a.animations[0].composition).toBe('add');
+  expect(a.animations[1].composition).toBe('replace');
+});
+
+test('animation-composition: color falls back to replace', () => {
+  const src = `
+@keyframes fadeCol { from { fill: #000000; } to { fill: #ffffff; } }
+#a { type: rect; width: 10px; fill: #ff0000; animation: fadeCol 1s linear; animation-composition: add; }
+`;
+  const [a] = build(src).children;
+  const sched = new AnimationScheduler();
+  resetNodeToBase(a);
+  sched.sampleNode(a, 500); // mid grey, not "added" onto red
+  expect(a.fill).toBe('rgb(128, 128, 128)');
+});
+
 // --- polystar (star / polygon) ----------------------------------------------
 
 test('star: declarations populate PolystarData', () => {

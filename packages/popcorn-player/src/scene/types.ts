@@ -331,10 +331,17 @@ export interface AnimationInstance {
   direction: AnimationDirection;
   delay: number;
   fillMode: AnimationFillMode;
+  // CSS animation-composition: how this animation's sampled value composites with
+  // the value already written this frame (base + bindings + prior animations).
+  // 'add'/'accumulate' add numeric channels; color/gradient/path fall back to
+  // 'replace' (see interpolateKeyframes). Not part of the `animation` shorthand.
+  composition: CompositeOperation;
 
   // Keyframe data
   keyframes: KeyframeData[];
 }
+
+export type CompositeOperation = 'replace' | 'add' | 'accumulate';
 
 export type AnimationDirection = 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
 

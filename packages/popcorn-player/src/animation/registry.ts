@@ -27,6 +27,11 @@ export interface PropHandler {
   readBase(base: NodeBase): PropValue | null;
   // Write a resolved value into the node's live render fields.
   apply(node: SceneNode, value: PropValue): void;
+  // Read the current LIVE value (this frame's accumulated result). Only present
+  // on numeric handlers; used by animation-composition add/accumulate to add a
+  // sampled value onto what earlier layers already wrote. Object-valued
+  // properties (color/gradient/path) omit it and fall back to replace.
+  readLive?(node: SceneNode): number;
 }
 
 // --- transform components (all plain-number lerp; rotate is direct, matching
@@ -35,6 +40,7 @@ function transformNumber(key: 'translateX' | 'translateY' | 'rotate' | 'scaleX' 
   return {
     kind: 'number',
     readBase: (base) => base.transform[key],
+    readLive: (node) => node.transform[key],
     apply: (node, value) => {
       node.transform[key] = value as number;
     },
@@ -46,6 +52,7 @@ function geometryNumber(key: string): PropHandler {
   return {
     kind: 'number',
     readBase: (base) => ((base.shapeData as unknown as Record<string, unknown>)[key] as number) ?? 0,
+    readLive: (node) => ((node.shapeData as unknown as Record<string, unknown>)[key] as number) ?? 0,
     apply: (node, value) => {
       // Geometry keys only exist on the shapes that declare them; the renderer
       // reads type-specific fields, so a stray assignment is inert.
@@ -66,6 +73,7 @@ function trimNumber(key: 'trimStart' | 'trimEnd' | 'trimOffset'): PropHandler {
   return {
     kind: 'number',
     readBase: (base) => base[key],
+    readLive: (node) => node[key],
     apply: (node, value) => {
       node[key] = value as number;
     },
@@ -84,6 +92,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   opacity: {
     kind: 'number',
     readBase: (base) => base.opacity,
+    readLive: (node) => node.opacity,
     apply: (node, value) => {
       node.opacity = value as number;
     },
@@ -110,6 +119,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   'stroke-width': {
     kind: 'number',
     readBase: (base) => base.strokeWidth,
+    readLive: (node) => node.strokeWidth,
     apply: (node, value) => {
       node.strokeWidth = value as number;
     },
@@ -164,6 +174,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   'stroke-dashoffset': {
     kind: 'number',
     readBase: (base) => base.strokeDashOffset,
+    readLive: (node) => node.strokeDashOffset,
     apply: (node, value) => {
       node.strokeDashOffset = value as number;
     },
@@ -178,6 +189,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   'offset-distance': {
     kind: 'number',
     readBase: (base) => base.offsetDistance,
+    readLive: (node) => node.offsetDistance,
     apply: (node, value) => {
       node.offsetDistance = value as number;
     },
@@ -188,6 +200,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   'font-size': {
     kind: 'number',
     readBase: (base) => ((base.shapeData as unknown as Record<string, unknown>).fontSize as number) ?? 16,
+    readLive: (node) => ((node.shapeData as unknown as Record<string, unknown>).fontSize as number) ?? 16,
     apply: (node, value) => {
       const sd = node.shapeData as unknown as Record<string, unknown>;
       if ('fontSize' in sd) {

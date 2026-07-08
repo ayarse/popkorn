@@ -414,6 +414,28 @@ Defaults to **`forwards`** (CSS defaults to `none`) so scenes hold their final f
 #node { animation: fade 1s ease; animation-fill-mode: both; }  /* → both */
 ```
 
+### animation-composition
+
+`animation-composition: replace | add | accumulate` — how an animation's sampled
+value composites with what earlier layers already wrote this frame (base +
+`var()`/`input()` bindings + earlier animations). **Longhand only — NOT part of
+the `animation` shorthand** (which resets it to `replace`), and matched
+positionally against the animation list like the other longhands.
+
+```css
+#node { animation: shake 0.4s linear infinite; animation-composition: add; }
+```
+
+- `add` / `accumulate` — numeric channels (`translateX/Y`, `rotate`, `scaleX/Y`,
+  `opacity`, `stroke-width`, geometry, trim, …) are **added** onto the underlying
+  value, so an `add` animation reads as a delta on top of the base pose. For
+  plain `<number>`/`<length>` the two are identical (Popcorn doesn't model
+  cross-iteration accumulation). A keyframe that omits an additive property
+  contributes `0` (the additive identity), never the base.
+- `replace` (default) — overwrite, the classic behaviour.
+- **Color / gradient / path** properties fall back to `replace` under `add`/
+  `accumulate` (no meaningful numeric sum).
+
 ### No duration sentinel
 
 `1000ms` is a real, author-reachable duration — not an "unset" marker. The builder tracks assignment with a `durationSet` boolean, so `animation: spin 1s linear 1 2s` → duration `1000`, delay `2000`. `iterationCount = Infinity` is the genuine value for `infinite`.

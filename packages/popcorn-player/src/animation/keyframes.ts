@@ -1,4 +1,4 @@
-import type { SceneNode, KeyframeData, TimingFunction, AnimatableValue } from '../scene/types';
+import type { SceneNode, KeyframeData, TimingFunction, AnimatableValue, CompositeOperation } from '../scene/types';
 import { getPropHandler, interpolateProp } from './registry';
 import type { PropValue } from './registry';
 import { applyEasing } from './easing';
@@ -22,9 +22,16 @@ export function interpolateKeyframes(
   node: SceneNode,
   keyframes: KeyframeData[],
   progress: number,
-  defaultEasing?: TimingFunction
+  defaultEasing?: TimingFunction,
+  composite: CompositeOperation = 'replace'
 ): void {
   if (keyframes.length === 0) return;
+
+  // animation-composition add/accumulate: numeric channels are added onto the
+  // value already written this frame (base + bindings + earlier animations)
+  // instead of replacing it. accumulate == add for plain numbers/lengths. Only
+  // numeric handlers (with readLive) compose; color/gradient/path replace.
+  const additive = composite !== 'replace';
 
   // Keyframes are sorted by offset once at build time (scene/builder
   // buildKeyframes) — this runs per animation per node per frame, so no
@@ -71,15 +78,26 @@ export function interpolateKeyframes(
     const handler = getPropHandler(property);
     if (!handler) continue;
 
+    // Additive numeric channel: a missing endpoint is the additive identity (0),
+    // not the base value, so an omitted keyframe contributes no delta (rather
+    // than double-counting the base). Non-numeric (or replace) keep base.
+    const numericAdditive = additive && handler.kind === 'number' && !!handler.readLive;
+    const missing: PropValue | null = numericAdditive ? 0 : handler.readBase(node.base);
+
     const from = property in prev.properties
       ? (prev.properties[property] as PropValue)
-      : handler.readBase(node.base);
+      : missing;
     const to = property in next.properties
       ? (next.properties[property] as PropValue)
-      : handler.readBase(node.base);
+      : missing;
 
     const value = interpolateProp(handler, from, to, localProgress);
-    if (value !== null) handler.apply(node, value);
+    if (value === null) continue;
+    if (numericAdditive && typeof value === 'number') {
+      handler.apply(node, handler.readLive!(node) + value);
+    } else {
+      handler.apply(node, value);
+    }
   }
 }
 

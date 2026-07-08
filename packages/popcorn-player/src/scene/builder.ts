@@ -22,6 +22,7 @@ import type {
   LinearEasingPoint,
   AnimationDirection,
   AnimationFillMode,
+  CompositeOperation,
   RectData,
   CircleData,
   EllipseData,
@@ -1004,6 +1005,14 @@ export class SceneBuilder {
             }
           });
           break;
+        // Not part of the `animation` shorthand (which resets it to 'replace').
+        case 'animation-composition':
+          eachSlot(decl.value, (slot, v) => {
+            if (isKeywordValue(v) && (v.value === 'replace' || v.value === 'add' || v.value === 'accumulate')) {
+              slot.composition = v.value;
+            }
+          });
+          break;
       }
     }
 
@@ -1018,6 +1027,7 @@ export class SceneBuilder {
           direction: slot.direction,
           delay: slot.delay,
           fillMode: slot.fillMode,
+          composition: slot.composition,
           keyframes: this.buildKeyframes(this.keyframesMap.get(slot.name)!),
         });
       }
@@ -1593,6 +1603,7 @@ interface AnimSlot {
   direction: AnimationDirection;
   delay: number;
   fillMode: AnimationFillMode;
+  composition: CompositeOperation;
 }
 
 // fill-mode defaults to 'forwards' (not CSS's 'none') so scenes hold their final
@@ -1601,6 +1612,7 @@ function defaultAnimSlot(): AnimSlot {
   return {
     name: '', duration: 1000, durationSet: false, timingFunction: 'ease',
     iterationCount: 1, direction: 'normal', delay: 0, fillMode: 'forwards',
+    composition: 'replace',
   };
 }
 
