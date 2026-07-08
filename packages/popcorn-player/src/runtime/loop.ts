@@ -175,7 +175,12 @@ export class RenderLoop {
   seek(ms: number): void {
     const now = performance.now();
     this.scheduler.seek(ms, now);
-    if (!this.isRunning) this.drawFrame(now);
+    // Render exactly one frame at the seeked instant, synchronously. seek is a
+    // pure function of time (invariant 4) and that includes the canvas: a paused
+    // loop may never get another rAF tick (a backgrounded tab throttles rAF to
+    // nothing), so relying on the next frame leaves the displayed frame stale.
+    // While playing, this one extra draw is idempotent and the loop continues.
+    this.drawFrame(now);
   }
 
   /** Current timeline time in milliseconds. */
