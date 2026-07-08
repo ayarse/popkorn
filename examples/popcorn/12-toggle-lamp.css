@@ -1,0 +1,174 @@
+/* Toggle — an incandescent bulb wired to a two-state @machine. Click the glass
+   to flip it; each state has its own look AND its own motion:
+
+     off  cold frosted glass, a grey filament, a metal screw base
+     on   a warm glow stack — halo, spinning rays, hot glass, white-hot
+          filament — plus a warm room wash and a brass-warmed base
+
+   The whole recipe is the canonical toggle from the spec — two states, each
+   pointing at the other `on click(#bulb)` — with :state() rules supplying the
+   distinct styling and entry-anchored glow animations for each.
+
+   The bulb is drawn in an unscaled ~200x260 "recipe" space inside #lamp, which
+   translates + scales it to the centre of the 800x600 stage; every glass/base
+   coordinate below is in that local recipe space (globe centre 100,98). */
+:root {
+  width: 800px;
+  height: 600px;
+  background: #171d2a;
+}
+
+@machine lamp {
+  initial: off;
+  state off { to: on  on click(#bulb); }
+  state on  { to: off on click(#bulb); }
+}
+
+/* ---- glow choreography (restarts each time the bulb is switched on) ----
+   fade-in and loop are split onto DISJOINT channels so they never fight:
+   glowIn owns opacity, haloBreathe owns scale, raySpin owns rotate. */
+@keyframes glowIn {
+  0%   { opacity: 0; animation-timing-function: ease-out; }
+  100% { opacity: 1; }
+}
+@keyframes haloBreathe {
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.09); }
+}
+@keyframes raysIn {
+  0%   { opacity: 0; transform: scale(0.7); animation-timing-function: ease-out; }
+  100% { opacity: 1; transform: scale(1);   }
+}
+@keyframes raySpin {
+  0%   { transform: rotate(0deg);   }
+  100% { transform: rotate(360deg); }
+}
+@keyframes roomOn {
+  0%   { opacity: 0;    animation-timing-function: ease-out; }
+  100% { opacity: 0.55; }
+}
+
+/* ---- room ---- warm wash that only exists while the lamp is on ---- */
+#room {
+  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  fill: radial-gradient(circle 430px at 400px 232px, #ffce8a 0%, #ffce8a00 72%);
+  opacity: 0;
+  &:state(lamp.on) { animation: roomOn 800ms ease-out; }
+}
+
+/* ---- cord ---- the flex the bulb hangs from (stage coords) ---- */
+#cord   { type: rect; x: 397px; y: 0px;   width: 6px; height: 118px; fill: #262b3d; }
+#canopy { type: rect; x: 388px; y: 112px; width: 24px; height: 12px; rx: 4px; fill: #2f3550; }
+
+/* ---- the bulb assembly, authored in local recipe space, scaled to centre ---- */
+#lamp {
+  type: group;
+  transform: translate(210px, 44px) scale(1.9);
+
+  /* 1. outer halo — soft bloom behind the glass, breathes while lit ---- */
+  > #outerHalo {
+    type: circle; cx: 100px; cy: 98px; r: 110px;
+    fill: radial-gradient(circle 110px at 100px 98px, #ffdf8ed9 0%, #ffce6659 45%, #ffc14d00 100%);
+    transform-origin: center; opacity: 0;
+    &:state(lamp.on) { animation: glowIn 650ms ease-out, haloBreathe 3.2s ease-in-out infinite; }
+  }
+
+  /* 2. rays — a spoke burst that fades/spins in, never below the base ---- */
+  > #rays {
+    type: group; transform-origin: 100px 98px; opacity: 0;
+    &:state(lamp.on) { animation: raysIn 550ms ease-out, raySpin 24s linear infinite; }
+    > #ry1 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; }
+    > #ry2 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(45deg);   }
+    > #ry3 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-45deg);  }
+    > #ry4 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(80deg);   }
+    > #ry5 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-80deg);  }
+    > #ry6 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(135deg);  }
+    > #ry7 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-135deg); }
+  }
+
+  /* 3. inner glow — the bright core inside the glass ---- */
+  > #innerGlow {
+    type: circle; cx: 100px; cy: 98px; r: 77px;
+    fill: radial-gradient(circle 77px at 100px 98px, #fff7d6e6 0%, #ffe9a873 70%, #ffe9a800 100%);
+    opacity: 0;
+    &:state(lamp.on) { animation: glowIn 720ms ease-out; }
+  }
+
+  /* ---- screw base ---- metal off, brass-warmed on (fill swaps per state) ---- */
+  > #collar {
+    type: rect; x: 80px; y: 186px; width: 40px; height: 9px; rx: 3px; fill: #6e7684;
+    &:state(lamp.on) { fill: #7d6f52; }
+  }
+  > #thread1 {
+    type: rect; x: 76px; y: 197px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-4deg);
+    fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+    &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+  }
+  > #thread2 {
+    type: rect; x: 76px; y: 208px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-6.5deg);
+    fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+    &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+  }
+  > #thread3 {
+    type: rect; x: 76px; y: 219px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-9deg);
+    fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+    &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+  }
+  > #taper {
+    type: path; d: 'M 82 228 L 118 228 L 110 240 L 90 240 Z'; fill: #6e7684;
+    &:state(lamp.on) { fill: #7d6f52; }
+  }
+  > #tip {
+    type: ellipse; cx: 100px; cy: 243px; rx: 9px; ry: 6px; fill: #4d5563;
+    &:state(lamp.on) { fill: #5c5138; }
+  }
+
+  /* ---- glass silhouette ---- THE click target: click(#bulb) toggles the
+     machine. Cold frosted gradient always; #hotGlass fades over it when on. */
+  > #bulb {
+    type: path;
+    d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
+    fill: linear-gradient(135deg, #eef2f7 0%, #d7dee8 55%, #b9c4d4 100%);
+    opacity: 0.9;
+  }
+
+  /* hot glass — same silhouette, lit radial; fades in over the cold glass ---- */
+  > #hotGlass {
+    type: path;
+    d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
+    fill: radial-gradient(circle 86px at 100px 100px, #fffdf2 0%, #fff3c4 35%, #ffd873 70%, #ffb64a 100%);
+    opacity: 0; pointer-events: none;
+    &:state(lamp.on) { animation: glowIn 700ms ease-out; }
+  }
+
+  /* ---- filament ---- grey when off, white-hot when on; a bloom underlay
+     brightens the whole squiggle while lit ---- */
+  > #filamentGlow {
+    type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
+    fill: none; stroke: #ff9d2e; stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round;
+    opacity: 0; pointer-events: none;
+    &:state(lamp.on) { animation: glowIn 700ms ease-out; }
+  }
+  > #supports {
+    type: path; d: 'M 91 184 V 148 M 109 184 V 148';
+    fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round;
+    &:state(lamp.on) { stroke: #fff7d6; }
+  }
+  > #filament {
+    type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
+    fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round; stroke-linejoin: round;
+    &:state(lamp.on) { stroke: #fff7d6; }
+  }
+
+  /* specular crescent — the glass reads as glass in both states ---- */
+  > #specular {
+    type: path; d: 'M 66 70 C 74 56 88 50 99 49 C 88 56 80 64 74 76 C 70 84 68 92 68 100 C 62 92 62 79 66 70 Z';
+    fill: #ffffff; opacity: 0.72; pointer-events: none;
+    &:state(lamp.on) { opacity: 0.85; }
+  }
+}
+
+#hint {
+  type: text; content: "click the bulb"; x: 400px; y: 565px;
+  font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
+}
