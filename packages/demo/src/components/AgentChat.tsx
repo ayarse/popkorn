@@ -9,6 +9,7 @@ import {
   AlertCircle,
   ChevronDown,
   LoaderCircle,
+  Check,
   type LucideIcon,
 } from "lucide-react";
 import { parse } from "@popcorn/parser";
@@ -26,7 +27,13 @@ import skillMd from "../../../../.claude/skills/creating-popcorn-animations/SKIL
 import referenceMd from "../../../../.claude/skills/creating-popcorn-animations/reference.md?raw";
 
 type Role = "user" | "agent";
-type Message = { id: number; role: Role; text: string; parseError?: string };
+type Message = {
+  id: number;
+  role: Role;
+  text: string;
+  parseError?: string;
+  applied?: boolean;
+};
 
 type Provider = "openai" | "openrouter";
 
@@ -198,6 +205,18 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
   const idRef = useRef(1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const fitInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, []);
+
+  useEffect(() => {
+    fitInput();
+  }, [input, fitInput]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -267,10 +286,15 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
           setMessages((m) =>
             m.map((x) => (x.id === agentId ? { ...x, parseError: msg } : x)),
           );
+        const markApplied = () =>
+          setMessages((m) =>
+            m.map((x) => (x.id === agentId ? { ...x, applied: true } : x)),
+          );
         const applyScene = (css: string) => {
           try {
             parse(css);
             onApplySource(css);
+            markApplied();
           } catch (e: any) {
             fail(`Generated scene failed to parse: ${e?.message ?? String(e)}`);
           }
@@ -305,8 +329,8 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
   if (!open) return null;
 
   return (
-    <aside className="flex w-[336px] shrink-0 flex-col border-l border-border bg-popover text-popover-foreground animate-in fade-in-0 slide-in-from-right-2">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
+    <aside className="flex w-[384px] shrink-0 flex-col border-l border-border bg-popover text-popover-foreground animate-in fade-in-0 slide-in-from-right-2">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
         <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
           <Sparkles className="size-4" />
         </div>
@@ -352,15 +376,23 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
 
       <form
         onSubmit={handleSubmit}
-        className="flex shrink-0 items-center gap-1.5 border-t border-border p-2"
+        className="flex shrink-0 items-end gap-1.5 border-t border-border p-2"
       >
-        <input
+        <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              send(input);
+            }
+          }}
+          rows={1}
           placeholder="Edit the live scene…"
           spellCheck={false}
           disabled={typing}
-          className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className="max-h-40 min-h-9 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring disabled:opacity-50"
         />
         <button
           type="button"
@@ -457,6 +489,12 @@ function Bubble({ message }: { message: Message }) {
           {isUser ? message.text : <MessageBody text={message.text} />}
         </div>
       </div>
+      {!isUser && message.applied && (
+        <div className="ml-8 flex items-center gap-1 text-[11px] font-medium text-emerald-500">
+          <Check className="size-3" />
+          <span>Applied to editor</span>
+        </div>
+      )}
       {message.parseError && (
         <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-destructive">
           <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
