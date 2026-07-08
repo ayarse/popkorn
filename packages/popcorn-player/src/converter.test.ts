@@ -123,14 +123,18 @@ test('converter: an animated mask emits a keyframed clip-path (not baked)', () =
   expect(c.warnings.join('\n')).not.toContain('baked to first frame');
   expect([...c.blocked]).toEqual([]);
 
-  // A static base clip plus a @keyframes whose blocks carry clip-path path()s.
-  expect(css).toContain('clip-path: path(');
-  expect(css).toMatch(/\d+%\s*\{[^}]*clip-path: path\(/);
+  // A static base clip plus a @keyframes whose blocks carry a clip-path. The
+  // clip value may be a literal path() or a hoisted var() (path dedup collapses
+  // the base + 0% keyframe, which share t=0 geometry, into one :root var).
+  expect(css).toMatch(/clip-path: (path\(|var\()/);
+  expect(css).toMatch(/\d+%\s*\{[^}]*clip-path: (path\(|var\()/);
 
-  // The morphing endpoint's x grows 10 -> 20 across the two keyframes.
-  const clips = css.match(/clip-path: path\('([^']*)'\)/g) ?? [];
-  expect(clips.length).toBeGreaterThanOrEqual(2);
+  // Two distinct clip endpoints survive (the morph): x grows 10 -> 20, so the
+  // t=0 and t=30 shapes are different tokens even after dedup.
+  const clips = new Set(css.match(/clip-path: (path\('[^']*'\)|var\(--\w+\))/g) ?? []);
+  expect(clips.size).toBeGreaterThanOrEqual(2);
 
+  // The hoisted var() must resolve to a real command list, not an empty morph.
   expect(() => buildSceneGraph(parse(css))).not.toThrow();
 });
 

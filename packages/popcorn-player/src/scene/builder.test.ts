@@ -5,7 +5,7 @@ import { getShapeBounds } from './transform';
 import { getPropHandler } from '../animation/registry';
 import { AnimationScheduler } from '../animation/scheduler';
 import { resetNodeToBase } from './types';
-import type { TextData, CircleData, PolystarData, ImageData } from './types';
+import type { TextData, CircleData, PolystarData, ImageData, PathData } from './types';
 import { hitTest } from '../runtime/hit-test';
 import { createInteractionManager } from '../runtime/interaction';
 
@@ -678,4 +678,60 @@ test('image: props map with a default-0 box until natural size is known', () => 
 test('image: x/y/width/height populate the box', () => {
   const [n] = build("#i { type: image; content: url('a.png'); x: 10px; y: 20px; width: 40px; height: 30px; }").children;
   expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 10, y: 20, width: 40, height: 30, src: 'a.png' });
+});
+
+// --- static :root var() resolution (path dedup) ------------------------------
+// The Lottie converter hoists repeated path geometry into `:root { --pN: … }`
+// and rewrites uses to `var(--pN)`. These must resolve at build time, in both
+// static declarations and @keyframes, while reactive input() bindings survive.
+
+test('var: static `d: var(--p)` resolves to a real command list', () => {
+  const [n] = build(`
+    :root { --p: 'M 0 0 L 10 0 L 10 10 Z'; }
+    #p { type: path; d: var(--p); }
+  `).children;
+  const sd = n.shapeData as PathData;
+  expect(sd.commands.length).toBeGreaterThan(0);
+  expect(n.bindings).toHaveLength(0); // resolved statically, not a binding
+});
+
+test('var: `offset-path: var(--p)` builds a motion path', () => {
+  const [n] = build(`
+    :root { --p: path('M 0 0 L 100 0'); }
+    #m { type: rect; width: 10px; height: 10px; offset-path: var(--p); }
+  `).children;
+  expect(n.offsetPath).toBeTruthy();
+});
+
+test('var: compound `clip-path: var(--a) var(--b)` resolves each path', () => {
+  const [n] = build(`
+    :root { --a: path('M0 0 H10 V10 H0 Z'); --b: path('M2 2 H8 V8 H2 Z'); }
+    #c { type: rect; width: 10px; height: 10px; clip-path: var(--a) var(--b); }
+  `).children;
+  expect(n.clipPath?.type).toBe('path');
+  expect(n.clipPath?.commands.length).toBeGreaterThan(0);
+});
+
+test('var: animated `d:` keyframes via var() morph carry commands, not empties', () => {
+  const [n] = build(`
+    :root { --a: 'M 0 0 L 10 0 L 10 10 Z'; --b: 'M 0 0 L 20 0 L 20 20 Z'; }
+    @keyframes morph { 0% { d: var(--a); } 100% { d: var(--b); } }
+    #p { type: path; d: var(--a); animation: morph 1s; }
+  `).children;
+  const kf = n.animations[0].keyframes;
+  expect((kf[0].properties.d as unknown[]).length).toBeGreaterThan(0);
+  expect((kf[kf.length - 1].properties.d as unknown[]).length).toBeGreaterThan(0);
+});
+
+test('var: reactive input() binding is preserved, not statically resolved', () => {
+  const [n] = build(`
+    :root { --x: input(cursor.x); }
+    #c { type: circle; r: 10px; cx: var(--x); }
+  `).children;
+  // A var() whose :root def is reactive stays a binding (numeric, per-frame).
+  expect(n.bindings.some((b) => b.property === 'cx')).toBe(true);
+});
+
+test('var: an unknown var() is left as-is and does not crash the build', () => {
+  expect(() => build('#p { type: path; d: var(--missing); }')).not.toThrow();
 });

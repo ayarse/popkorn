@@ -393,34 +393,35 @@ export class Converter {
     // Hoist any data URI used by more than one node into a shared :root var.
     const rootVars = this.dedupeImages();
 
-    // Serialize.
-    const out: string[] = [];
-    out.push(`/* Generated from Lottie by tools/lottie2popcorn.ts */`);
-    out.push(`/* comp ${w}x${h} @ ${this.fr}fps, duration ${num(durSec)}s */`);
-    out.push('');
-    // Stage config and hoisted image custom properties share one `:root`.
-    out.push(`:root {`);
-    out.push(`  width: ${num(w)}px;`);
-    out.push(`  height: ${num(h)}px;`);
-    out.push(...rootVars);
-    out.push(`}`);
-    out.push('');
-
+    // Serialize the body (keyframes + rules), then hoist repeated path geometry
+    // into shared :root vars — a d-string reused at N sites is N-1 duplicate
+    // copies of a large token. Runs on the assembled text so static geometry and
+    // keyframe morph targets dedupe together (same spirit as image dedup above).
     const keyframeBlocks: string[] = [];
     const collectKf = (r: Rule) => {
       if (r.anims) for (const a of r.anims) keyframeBlocks.push(serializeKeyframes(a));
       r.children.forEach(collectKf);
     };
     topRules.forEach(collectKf);
-    if (keyframeBlocks.length) {
-      out.push(keyframeBlocks.join('\n\n'));
-      out.push('');
-    }
+    const bodyParts: string[] = [];
+    if (keyframeBlocks.length) bodyParts.push(keyframeBlocks.join('\n\n'));
+    for (const r of topRules) bodyParts.push(serializeRule(r, 0, true));
+    const { body, vars: pathVars } = dedupePaths(bodyParts.join('\n\n'));
 
-    for (const r of topRules) {
-      out.push(serializeRule(r, 0, true));
-      out.push('');
-    }
+    // Serialize.
+    const out: string[] = [];
+    out.push(`/* Generated from Lottie by tools/lottie2popcorn.ts */`);
+    out.push(`/* comp ${w}x${h} @ ${this.fr}fps, duration ${num(durSec)}s */`);
+    out.push('');
+    // Stage config and hoisted image/path custom properties share one `:root`.
+    out.push(`:root {`);
+    out.push(`  width: ${num(w)}px;`);
+    out.push(`  height: ${num(h)}px;`);
+    out.push(...rootVars);
+    out.push(...pathVars);
+    out.push(`}`);
+    out.push('');
+    out.push(body);
 
     return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
   }
@@ -1854,6 +1855,68 @@ function serializeKeyframes(anim: AnimSpec): string {
   }
   lines.push(`}`);
   return lines.join('\n');
+}
+
+/**
+ * Hoist repeated path geometry into shared `:root` custom properties. A path
+ * d-string emitted at N>1 sites — bare `d: '…'`, or wrapped in `path('…')` for
+ * offset-path / clip-path, across both rules and @keyframes — is N-1 duplicate
+ * copies of a large token. Replace each net-positive one with `var(--pN)` and
+ * return the `:root` decls that define it once. `--pN` names can't collide with
+ * the image-dedup `--img-*` convention. Shortest names go to the most-frequent
+ * tokens; ordering is deterministic so output stays diffable. Beats gzip on
+ * real files (the d-strings are long and highly repetitive).
+ */
+function dedupePaths(body: string): { body: string; vars: string[] } {
+  interface M { start: number; end: number; token: string; }
+  const matches: M[] = [];
+  // path('…') / path("…") wherever it appears (offset-path, clip-path, compound
+  // clips) — token is the whole function call.
+  for (const m of body.matchAll(/path\((["'])(?:(?!\1).)*\1\)/g)) {
+    const start = m.index!;
+    matches.push({ start, end: start + m[0].length, token: m[0] });
+  }
+  // bare `d: '…'` — token is the quoted string only, so the `d:` prefix stays.
+  for (const m of body.matchAll(/\bd:\s*((["'])(?:(?!\2).)*\2)/g)) {
+    const start = m.index! + m[0].indexOf(m[1]);
+    matches.push({ start, end: start + m[1].length, token: m[1] });
+  }
+  if (matches.length === 0) return { body, vars: [] };
+
+  const freq = new Map<string, number>();
+  for (const m of matches) freq.set(m.token, (freq.get(m.token) || 0) + 1);
+  // Deterministic: most frequent first, then longest, then lexical.
+  const cands = [...freq.entries()]
+    .filter(([, occ]) => occ >= 2)
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length || (a[0] < b[0] ? -1 : 1));
+
+  // Net bytes saved hoisting `occ` uses of a token of length L under a name of
+  // length nl:  occ*(L − len("var(--name)")) − len("--name: token;")
+  //           = occ*(L − (7 + nl)) − (nl + L + 5)   ["-- : ;" = 5 incl. one space]
+  const nameOf = new Map<string, string>();
+  const vars: string[] = [];
+  let idx = 0;
+  for (const [token, occ] of cands) {
+    const name = `p${idx}`;
+    const nl = name.length;
+    const net = occ * (token.length - (7 + nl)) - (nl + token.length + 5);
+    if (net <= 0) continue;
+    nameOf.set(token, name);
+    vars.push(`  --${name}: ${token};`);
+    idx++;
+  }
+  if (nameOf.size === 0) return { body, vars: [] };
+
+  // Substitute in one left-to-right pass over the (disjoint) match spans.
+  const sel = matches.filter((m) => nameOf.has(m.token)).sort((a, b) => a.start - b.start);
+  let out = '';
+  let pos = 0;
+  for (const m of sel) {
+    out += body.slice(pos, m.start) + `var(--${nameOf.get(m.token)})`;
+    pos = m.end;
+  }
+  out += body.slice(pos);
+  return { body: out, vars };
 }
 
 function serializeRule(rule: Rule, depth: number, top: boolean): string {

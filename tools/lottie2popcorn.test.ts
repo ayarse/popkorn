@@ -292,7 +292,9 @@ test('legacy animated `sh` with no `a` flag still morphs (d channel, not an empt
   const css = c.convert(shapeLayer([sh, { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 0, k: 100 } }]));
   expect(css).toContain('@keyframes');
   expect(css).toContain('animation:');
-  expect(css).toMatch(/d:\s*'M/); // a real path, never d: ''
+  // A real path exists — inline or hoisted into a :root `--pN` by path dedup —
+  // and it is never the empty `d: ''` that a frozen shape would emit.
+  expect(css).toMatch(/(d:|--p\d+:)\s*'M/);
   expect(css).not.toMatch(/d:\s*''/);
 });
 
