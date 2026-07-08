@@ -1027,7 +1027,7 @@ export class Converter {
     // seam between adjacent filled shapes) shows. Emit `paint-order: stroke` for
     // those so the player draws the stroke behind the fill instead of on top (a
     // 16px outline over every small segment otherwise reads as a thick ribbon).
-    const hasLocalStroke = items.some((it) => it.ty === 'st');
+    const hasLocalStroke = items.some((it) => it.ty === 'st' || it.ty === 'gs');
 
     for (const it of items) {
       switch (it.ty) {
@@ -1070,8 +1070,21 @@ export class Converter {
           }
           break;
         }
-        case 'gf':
         case 'gs': {
+          // Gradient stroke: a stroked outline painted with a gradient, NOT a
+          // fill. The player supports `stroke: <gradient>` (strokeGradient); the
+          // outline width/cap/join come off the `gs` exactly like a plain `st`.
+          // Animated width/stops bake to their first value (matching `st`).
+          stroke = this.buildGradient(it);
+          const w = prop(it.w);
+          if (w) strokeWidth = w.at(0)[0] ?? 0;
+          lineCap = it.lc === 2 ? 'round' : it.lc === 3 ? 'square' : 'butt';
+          lineJoin = it.lj === 2 ? 'round' : it.lj === 3 ? 'bevel' : 'miter';
+          miterLimit = typeof it.ml === 'number' ? it.ml : null;
+          if (it.g && it.g.k && it.g.k.a === 1) this.warnOnce('animated gradient stroke stops baked to first value');
+          break;
+        }
+        case 'gf': {
           gradientFill = this.buildGradient(it);
           // Animated stops OR geometry (s/e center-endpoint, h/a highlight) -> a
           // fill channel of gradient() strings per keyframe (Popcorn interpolates

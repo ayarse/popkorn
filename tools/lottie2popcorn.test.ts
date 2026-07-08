@@ -266,6 +266,24 @@ test('linear gradient emits exact from/to endpoints (not a bbox angle)', () => {
   expect(fillOf(css)).toMatch(/^linear-gradient\(from 0px 0px to 100px 50px,/);
 });
 
+test('gradient stroke (gs) becomes a stroke gradient + width/cap, not a fill', () => {
+  // A `gs` is a stroked outline painted with a gradient (see the "Hello (apple)"
+  // scene: a gradient-stroked path drawn on by a trim). It must map to
+  // `stroke: <gradient>` + stroke-width/cap/join — NOT `fill: <gradient>`.
+  const gs = {
+    ty: 'gs', t: 1, o: { a: 0, k: 100 }, w: { a: 0, k: 9 }, lc: 2, lj: 2,
+    s: { a: 0, k: [0, 0] }, e: { a: 0, k: [10, 0] }, h: { a: 0, k: 0 }, a: { a: 0, k: 0 },
+    g: { p: 2, k: { a: 0, k: [0, 1, 0, 0, 1, 0, 0, 1] } },
+  };
+  const css = new Converter().convert(gradComp(gs));
+  expect(css).toContain('stroke: linear-gradient(from 0px 0px to 10px 0px,');
+  expect(css).toContain('stroke-width: 9px');
+  expect(css).toContain('stroke-linecap: round');
+  expect(css).toContain('stroke-linejoin: round');
+  expect(css).toContain('fill: none');
+  expect(css).not.toMatch(/fill:\s*linear-gradient/);
+});
+
 // --- legacy (v4) shape / mask quirks: absent `a` flag, non-'a' mask modes ----
 
 /** A closed triangle bezier shape (the value carried by an `sh`/mask keyframe). */
