@@ -30,6 +30,6 @@
   y: 180px;
   width: 240px;
   height: 260px;
-  fill: #ffffff;
+  fill: linear-gradient(90deg, #000000 0%, #ffffff 50%, #000000 100%);
   animation: sweep 3s ease-in-out infinite alternate;
 }
