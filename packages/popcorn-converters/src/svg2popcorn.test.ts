@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { Converter, convertSvg, validate } from "./svg2popcorn.ts";
+import { Converter, convertSvg, validate } from "./svg2popcorn";
 
 /** Convert and assert the emitted CSS parses + builds a scene graph clean. */
 function conv(svg: string) {

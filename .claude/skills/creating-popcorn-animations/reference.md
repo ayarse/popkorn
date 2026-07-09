@@ -863,4 +863,4 @@ player.source = myDslCode;   // parse + build + play
 - Animation: `packages/popcorn-player/src/animation/{easing,keyframes,scheduler,registry}.ts`
 - Runtime & component: `packages/popcorn-player/src/runtime/{loop,inputs,variables,interaction,hit-test,state-machine}.ts`, `component.ts`
 - Examples: `examples/*.css`, `examples/lottie/*.css`
-- Lottie converter: `tools/lottie2popcorn.ts`
+- Lottie converter: `packages/popcorn-converters/src/lottie2popcorn.ts`

@@ -11,7 +11,7 @@
  * stderr either way.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { parse, serialize } from "../packages/popcorn-parser/src/index.ts";
+import { format, minify } from "../packages/popcorn-parser/src/index.ts";
 
 const args = process.argv.slice(2);
 let input: string | undefined;
@@ -37,7 +37,7 @@ if (!input) {
 }
 
 const src = readFileSync(input, "utf8");
-const out = serialize(parse(src), { minify: !pretty });
+const out = pretty ? format(src) : minify(src);
 
 const before = Buffer.byteLength(src);
 const after = Buffer.byteLength(out);

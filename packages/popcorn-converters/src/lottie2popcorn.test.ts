@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Converter, validate } from "./lottie2popcorn.ts";
+import { Converter, validate } from "./lottie2popcorn";
 
 const IDENTITY_TR = {
   ty: "tr",

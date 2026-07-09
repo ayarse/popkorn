@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { format, minify } from "./index";
 import { parse } from "./parser";
 import { serialize } from "./serializer";
 
@@ -69,3 +70,10 @@ for (const file of collectCss(examplesDir)) {
     });
   }
 }
+
+test("minify()/format() sugar round-trips through the same AST", () => {
+  const src = "#box { width: 100px; fill: #ff0000; }";
+  expect(parse(minify(src))).toEqual(parse(src));
+  expect(parse(format(src))).toEqual(parse(src));
+  expect(minify(src).length).toBeLessThanOrEqual(format(src).length);
+});

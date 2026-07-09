@@ -1,8 +1,8 @@
 // Thanksgiving turkey — converted from examples/lottie/thanksgiving-turkey.json
-// via tools/lottie2popcorn-cli.ts. Pure shapes/paths (no text or images), so it
+// via packages/popcorn-converters/src/cli.ts. Pure shapes/paths (no text or images), so it
 // renders fully on the Skia PoC. Inlined as a TS string because Metro cannot
 // import raw .css text without extra config.
-export const TURKEY_SCENE = `/* Generated from Lottie by tools/lottie2popcorn.ts */
+export const TURKEY_SCENE = `/* Generated from Lottie by packages/popcorn-converters/src/lottie2popcorn.ts */
 /* comp 512x512 @ 60fps, duration 1s */
 
 :root {

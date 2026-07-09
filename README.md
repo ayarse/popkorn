@@ -14,9 +14,9 @@ the CSS property and its semantics (`offset-path` for motion paths, `step-end`
 for holds, negative `animation-delay` for staggering, `z-index` for layering)
 rather than inventing syntax. Interactivity is declarative — `var()` and
 `input(cursor.x)` bindings — not a scripting engine. Real Lottie files convert
-into the DSL via the bundled converter (`tools/lottie2popcorn-cli.ts`, or the
+into the DSL via the bundled converter (`packages/popcorn-converters/src/cli.ts`, or the
 demo's Import button), validated continuously against the LottieFiles
-conformance corpus. Static SVG imports too, via `tools/svg2popcorn-cli.ts` (same
+conformance corpus. Static SVG imports too, via `packages/popcorn-converters/src/cli.ts` (same
 Import button) — phase 1 brings in the artwork; animated SVG is a later phase.
 
 ## Packages

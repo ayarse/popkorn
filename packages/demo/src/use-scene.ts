@@ -1,3 +1,4 @@
+import { convertLottie, convertSvg } from "@popcorn/converters";
 import { parse, serialize } from "@popcorn/parser";
 import { useState } from "react";
 import { examples } from "@/examples";
@@ -8,8 +9,6 @@ import {
   type ImportResult,
   type SizeDelta,
 } from "@/lib/import-size";
-import { convertLottie } from "../../../tools/lottie2popcorn";
-import { convertSvg } from "../../../tools/svg2popcorn";
 
 // Detects pasted SVG markup (vs Lottie JSON) — leading xml decl / comments then <svg.
 const SVG_RE =

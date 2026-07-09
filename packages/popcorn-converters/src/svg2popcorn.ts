@@ -3,7 +3,7 @@
  *
  * Pure conversion logic — no Node builtins (fs/path/process), so this module is
  * importable from both a CLI wrapper and browser code (the demo's "Import SVG"
- * tool). It mirrors `tools/lottie2popcorn.ts` in spirit: a small normalization
+ * tool). It mirrors `packages/popcorn-converters/src/lottie2popcorn.ts` in spirit: a small normalization
  * layer over real-world SVG quirks, a warning/blocked-feature ledger, and a
  * self-contained emitter that produces CSS the `@popcorn/parser` can parse.
  *
@@ -18,10 +18,9 @@
  *
  * Phase 1 is static: SMIL and `<style>` @keyframes are skipped with a warning.
  */
-import { parse } from "../packages/popcorn-parser/src/index.ts";
-import { buildSceneGraph } from "../packages/popcorn-player/src/scene/builder.ts";
-import { parsePath } from "../packages/popcorn-player/src/scene/path-parser.ts";
-import { parseXml, type SvgNode } from "./svg-xml.ts";
+import { parse } from "@popcorn/parser";
+import { buildSceneGraph, parsePath } from "@popcorn/player";
+import { parseXml, type SvgNode } from "./svg-xml";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -873,7 +872,9 @@ export class Converter {
     for (const md of this.maskDefs.values()) top.push(md);
 
     const out: string[] = [];
-    out.push("/* Generated from SVG by tools/svg2popcorn.ts */");
+    out.push(
+      "/* Generated from SVG by packages/popcorn-converters/src/svg2popcorn.ts */",
+    );
     out.push(`:root {`);
     out.push(`  width: ${num(w)}px;`);
     out.push(`  height: ${num(h)}px;`);

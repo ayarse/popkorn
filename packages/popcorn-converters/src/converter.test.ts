@@ -1,13 +1,13 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popcorn/parser";
+import { buildSceneGraph } from "@popcorn/player";
 import {
   Converter,
   normalizeDoc,
   normalizeKfs,
   prop,
   splitProp,
-} from "../../../tools/lottie2popcorn";
-import { buildSceneGraph } from "./scene/builder";
+} from "./lottie2popcorn";
 
 // A closed triangle bezier shape (matching vertex/tangent counts guaranteed).
 const shape = (v: number[][]) => ({

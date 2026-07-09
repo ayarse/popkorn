@@ -153,7 +153,7 @@ player-facing prop:
 
 `Import Lottie` opens `ImportModal` (a `Dialog` with a dropzone + paste textarea).
 On submit, `importLottie(text, label)` runs `convertLottie(lottie)` (from
-`../../../tools/lottie2popcorn`) and builds an `ImportResult`:
+`@popcorn/converters`) and builds an `ImportResult`:
 
 ```ts
 type ImportResult = {
@@ -219,7 +219,7 @@ After any UI change: `bun --filter @popcorn/demo build` green (runs `tsc -b` +
 Vite) and a browser eyeball of the affected surface. Screenshots lie less than
 tests here — several real bugs were only visible on canvas. After any
 player/converter change, also run the LottieFiles corpus batch
-(`tools/lottie2popcorn-cli.ts --batch`) and confirm the clean/warn/blocked
+(`packages/popcorn-converters/src/cli.ts --batch`) and confirm the clean/warn/blocked
 counts are unchanged-or-better.
 
 ## Commits

@@ -1,40 +1,74 @@
 #!/usr/bin/env bun
 /**
- * CLI wrapper around svg2popcorn.ts's pure conversion core.
+ * Unified CLI over the lottie/svg conversion cores. Format is picked from the
+ * file extension (.json → lottie, .svg → svg) — same dispatch the demo's Import
+ * button uses — so there's no --from flag to restate what the extension says.
  *
- *   bun tools/svg2popcorn-cli.ts <in.svg> [-o out.css] [--validate]
- *   bun tools/svg2popcorn-cli.ts --batch <dir> [--validate]
+ *   bun packages/popcorn-converters/src/cli.ts <in.json|in.svg> [-o out.css] [--validate]
+ *   bun packages/popcorn-converters/src/cli.ts --batch <dir> [--validate]   # walks by extension
  *
- * Node/Bun-only (fs, path, process) — kept out of svg2popcorn.ts so that
- * module stays importable from browser code (e.g. the demo's SVG import).
+ * Node/Bun-only (fs, path, process) — kept out of the *2popcorn.ts cores so they
+ * stay importable from browser code (the demo's Lottie/SVG import).
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { Converter, validate } from "./svg2popcorn.ts";
+import { extname, join } from "node:path";
+import * as lottie from "./lottie2popcorn";
+import * as svg from "./svg2popcorn";
+
+// Registry keyed by extension. Both cores share the Converter/validate contract
+// shape, so a format is just: which module, how to parse input, which files to
+// pick up in --batch.
+const FORMATS: Record<
+  string,
+  {
+    mod: { Converter: new () => any; validate: (css: string) => string[] };
+    parse: (raw: string) => unknown;
+    take: (name: string) => boolean;
+  }
+> = {
+  ".json": {
+    mod: lottie,
+    parse: (raw) => JSON.parse(raw),
+    take: (name) => name.endsWith(".json") && !name.endsWith("-meta.json"),
+  },
+  ".svg": {
+    mod: svg,
+    parse: (raw) => raw,
+    take: (name) => name.endsWith(".svg"),
+  },
+};
+
+function formatFor(path: string) {
+  const fmt = FORMATS[extname(path).toLowerCase()];
+  if (!fmt) {
+    console.error(`unsupported input: ${path} (expected .json or .svg)`);
+    process.exit(1);
+  }
+  return fmt;
+}
 
 function convertFile(path: string): {
   css: string;
   warnings: string[];
   blocked: Set<string>;
 } {
-  const svg = readFileSync(path, "utf8");
-  const c = new Converter();
-  const css = c.convert(svg);
+  const fmt = formatFor(path);
+  const c = new fmt.mod.Converter();
+  const css = c.convert(fmt.parse(readFileSync(path, "utf8")));
   return { css, warnings: c.warnings, blocked: c.blocked };
 }
 
-function walkSvg(dir: string, out: string[] = []): string[] {
+function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
-    const st = statSync(p);
-    if (st.isDirectory()) walkSvg(p, out);
-    else if (name.endsWith(".svg")) out.push(p);
+    if (statSync(p).isDirectory()) walk(p, out);
+    else if (FORMATS[extname(name).toLowerCase()]?.take(name)) out.push(p);
   }
   return out;
 }
 
 function runBatch(dir: string) {
-  const files = walkSvg(dir).sort();
+  const files = walk(dir).sort();
   let clean = 0,
     warn = 0,
     blockedCount = 0,
@@ -52,7 +86,7 @@ function runBatch(dir: string) {
       rows.push(`  FAIL      ${rel}  (${e.message})`);
       continue;
     }
-    const errors = validate(res.css);
+    const errors = formatFor(f).mod.validate(res.css);
     const blocked = [...res.blocked];
     for (const b of blocked)
       blockerTally.set(b, (blockerTally.get(b) || 0) + 1);
@@ -107,10 +141,10 @@ function main() {
   const input = positional[0];
   if (!input) {
     console.error(
-      "usage: bun tools/svg2popcorn-cli.ts <in.svg> [-o out.css] [--validate]",
+      "usage: bun packages/popcorn-converters/src/cli.ts <in.json|in.svg> [-o out.css] [--validate]",
     );
     console.error(
-      "       bun tools/svg2popcorn-cli.ts --batch <dir> [--validate]",
+      "       bun packages/popcorn-converters/src/cli.ts --batch <dir> [--validate]",
     );
     process.exit(1);
   }
@@ -126,7 +160,7 @@ function main() {
   for (const w of warnings) console.error(`warning: ${w}`);
   for (const b of blocked) console.error(`blocked: ${b}`);
   if (doValidate) {
-    const errors = validate(css);
+    const errors = formatFor(input).mod.validate(css);
     if (errors.length) {
       for (const e of errors) console.error(`validate error: ${e}`);
       process.exit(1);
@@ -135,5 +169,5 @@ function main() {
   }
 }
 
-// Only run the CLI when executed directly, so tests can import the Converter.
+// Only run the CLI when executed directly, so tests can import helpers.
 if (import.meta.main) main();

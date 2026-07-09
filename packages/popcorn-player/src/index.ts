@@ -94,8 +94,10 @@ export type { PathSink } from "./scene/path-parser";
 export {
   applyCommandsToPath,
   computePathBounds,
+  computePathLength,
   parsePath,
 } from "./scene/path-parser";
+export { polystarToCommands } from "./scene/polystar";
 export {
   computeAllWorldTransforms,
   computeLocalMatrix,

@@ -9,15 +9,15 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "dev": "bun --filter @popcorn/demo dev",
     "build": "bun --filter @popcorn/demo build",
-    "test": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia test && bun test tools/",
-    "build:packages": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia build",
+    "test": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia --filter @popcorn/converters test && bun test tools/",
+    "build:packages": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia --filter @popcorn/converters build",
     "changeset": "changeset",
     "version-packages": "changeset version && bun install",
     "release": "bun run build:packages && bun scripts/publish.ts",
     "lint": "biome check",
     "format": "biome check --write",
-    "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/demo typecheck",
-    "lottie": "./tools/lottie2popcorn-cli.ts"
+    "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/demo --filter @popcorn/converters typecheck",
+    "convert": "./packages/popcorn-converters/src/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",

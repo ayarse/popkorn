@@ -69,8 +69,8 @@ have actually happened here:
 
 ## Lottie converter
 
-`tools/lottie2popcorn.ts` (browser-safe core, used by the demo's Import
-button) + `tools/lottie2popcorn-cli.ts` (CLI: `--validate`, `--batch`).
+`packages/popcorn-converters/src/lottie2popcorn.ts` (browser-safe core, used by the demo's Import
+button) + `packages/popcorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`).
 Structure: a **normalization layer** canonicalizes real-world/minified
 bodymovin quirks (inferred `a` flags, legacy `e` keyframes, split position,
 0-255 color arrays, missing names/inds) before mapping. Hard-won mapping
@@ -89,8 +89,8 @@ checks live in the sticker/demo files under `examples/lottie/`.
 
 ## SVG converter
 
-`tools/svg2popcorn.ts` (browser-safe core; `tools/svg-xml.ts` is its dependency-
-free XML reader) + `tools/svg2popcorn-cli.ts` (CLI: `--validate`, `--batch`,
+`packages/popcorn-converters/src/svg2popcorn.ts` (browser-safe core; `packages/popcorn-converters/src/svg-xml.ts` is its dependency-
+free XML reader) + `packages/popcorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`,
 raw-string input, matches `.svg`). Shares the same `Converter`/`convertSvg`/
 `validate` contract shape as the Lottie converter, so the demo's **Import**
 button branches on file type into either. **Phase 1 is static import only** — the

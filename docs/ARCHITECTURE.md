@@ -70,8 +70,8 @@ their rationale in `CLAUDE.md` — read that before changing the engine):
 
 ### Lottie converter
 
-`tools/lottie2popcorn.ts` is the conversion core (browser-safe; the demo
-imports it), `tools/lottie2popcorn-cli.ts` the CLI (`--validate` runs the
+`packages/popcorn-converters/src/lottie2popcorn.ts` is the conversion core (browser-safe; the demo
+imports it), `packages/popcorn-converters/src/cli.ts` the CLI (`--validate` runs the
 output through parse + buildSceneGraph; `--batch <dir>` converts a tree and
 prints a clean/warn/blocked table). A normalization layer canonicalizes
 real-world bodymovin output (legacy v4 keyframes, split positions, 0-255

@@ -425,7 +425,7 @@ their hit-testing and clipping): `nonzero` (default) or `evenodd`. With
 }
 ```
 
-The Lottie converter (`tools/lottie2popcorn.ts`) leans on this for **union-only
+The Lottie converter (`packages/popcorn-converters/src/lottie2popcorn.ts`) leans on this for **union-only
 merge paths**: Lottie merge modes 1/2 (normal/add) become a single `nonzero`
 path with one subpath per merged shape (a Canvas2D union of fills). Modes 3/4/5
 (subtract/intersect/exclude) stay blocked. Fills union exactly; a **stroke** on a
@@ -846,8 +846,8 @@ scrollable range (the raw offset stays available as `scroll.y`).
 
 ## Importing SVG
 
-Alongside the Lottie converter, `tools/svg2popcorn.ts` (CLI:
-`tools/svg2popcorn-cli.ts`, or the demo's **Import** button) turns a static SVG
+Alongside the Lottie converter, `packages/popcorn-converters/src/svg2popcorn.ts` (CLI:
+`packages/popcorn-converters/src/cli.ts`, or the demo's **Import** button) turns a static SVG
 into Popcorn DSL. The mapping is the natural one:
 
 - `<rect>`/`<circle>`/`<ellipse>`/`<line>`/`<polyline>`/`<polygon>`/`<path>` →

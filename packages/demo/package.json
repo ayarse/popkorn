@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.2.8",
+    "@popcorn/converters": "workspace:*",
     "@popcorn/parser": "workspace:*",
     "@popcorn/player": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.19",

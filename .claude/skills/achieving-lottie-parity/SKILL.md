@@ -86,7 +86,7 @@ dropping them needs no warning.
 Always in this order; each step is cheap and eliminates guesswork.
 
 1. **Convert with validation** (quote filenames — many have spaces/parens):
-   `bun tools/lottie2popcorn-cli.ts "examples/lottie/<file>.json" --validate`
+   `bun packages/popcorn-converters/src/cli.ts "examples/lottie/<file>.json" --validate`
    Capture warnings and blocked features. `validate: ok` does NOT mean
    correct — the worst bugs are silent visual wrongness.
 2. **Feature inventory via jq.** Grep the JSON for markers:
@@ -136,7 +136,7 @@ Every one of these shipped at least once. Cheap to check, likely culprits:
 
 ## Fix protocols
 
-**Converter fix** (`tools/lottie2popcorn.ts` + `tools/lottie2popcorn.test.ts`):
+**Converter fix** (`packages/popcorn-converters/src/lottie2popcorn.ts` + `packages/popcorn-converters/src/lottie2popcorn.test.ts`):
 - Reuse existing patterns, don't invent: `lottieColor(rgb, a)` folds alpha
   (emits `rgba()` when a<1); `warnOnce(msg)` deduplicates warnings into the
   result's warning list (tests assert on that list). The **grid-union
@@ -206,7 +206,7 @@ shipped bug; the serializer was forgotten once and broke round-trip):
 
 ## Multi-agent etiquette (if orchestrating)
 
-- Fence agents to disjoint files. `tools/lottie2popcorn.ts` is a
+- Fence agents to disjoint files. `packages/popcorn-converters/src/lottie2popcorn.ts` is a
   serialization point — most converter fixes touch the same case blocks, so
   concurrent edits clobber each other: **diagnose in parallel (read-only,
   snapshot the converter into the scratchpad), fix serially.**

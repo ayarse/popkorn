@@ -2,7 +2,7 @@
  * Lottie JSON -> Popcorn DSL converter core.
  *
  * Pure conversion logic — no Node builtins (fs/path/process), so this module
- * is importable from both the `lottie2popcorn-cli.ts` CLI wrapper and browser
+ * is importable from both the `convert-cli.ts` CLI wrapper and browser
  * code (e.g. the demo's "Import Lottie" tool). The mapping is documented
  * inline where it earns comment; the high-level model: a Lottie comp becomes
  * a :root stage block plus one top-level rule per layer (emitted in REVERSE layer order
@@ -11,13 +11,13 @@
  * properties become one @keyframes per node on the union of keyframe times;
  * spatial position keyframes become a CSS motion path.
  */
-import { parse } from "../packages/popcorn-parser/src/index.ts";
-import { buildSceneGraph } from "../packages/popcorn-player/src/scene/builder.ts";
+import { parse } from "@popcorn/parser";
 import {
+  buildSceneGraph,
   computePathLength,
   parsePath,
-} from "../packages/popcorn-player/src/scene/path-parser.ts";
-import { polystarToCommands } from "../packages/popcorn-player/src/scene/polystar.ts";
+  polystarToCommands,
+} from "@popcorn/player";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
@@ -524,7 +524,9 @@ export class Converter {
 
     // Serialize.
     const out: string[] = [];
-    out.push(`/* Generated from Lottie by tools/lottie2popcorn.ts */`);
+    out.push(
+      `/* Generated from Lottie by packages/popcorn-converters/src/lottie2popcorn.ts */`,
+    );
     out.push(`/* comp ${w}x${h} @ ${this.fr}fps, duration ${num(durSec)}s */`);
     out.push("");
     // Stage config and hoisted image/path custom properties share one `:root`.
