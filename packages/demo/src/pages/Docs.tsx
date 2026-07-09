@@ -1,155 +1,159 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import Prism from 'prismjs'
-import 'prismjs/themes/prism-tomorrow.css'
-import 'prismjs/components/prism-clike'
-import 'prismjs/components/prism-javascript'
-import 'prismjs/components/prism-css'
-import { marked } from 'marked'
-import { ArrowLeft, BookOpen, ListTree } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { BrandMark } from '@/components/BrandMark'
-import { cn } from '@/lib/utils'
+import { useNavigate } from "@tanstack/react-router";
+import Prism from "prismjs";
+import { useEffect, useMemo, useRef, useState } from "react";
+import "prismjs/themes/prism-tomorrow.css";
+import "prismjs/components/prism-clike";
+import "prismjs/components/prism-javascript";
+import "prismjs/components/prism-css";
+import { ArrowLeft, BookOpen, ListTree } from "lucide-react";
+import { marked } from "marked";
+import { BrandMark } from "@/components/BrandMark";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const DOCS = [
-  { key: 'CONCEPT', label: 'Concept', file: 'CONCEPT.md' },
-  { key: 'DSL', label: 'DSL Reference', file: 'DSL.md' },
-  { key: 'STATE-MACHINES', label: 'State Machines', file: 'STATE-MACHINES.md' },
-  { key: 'ARCHITECTURE', label: 'Architecture', file: 'ARCHITECTURE.md' },
-] as const
+  { key: "CONCEPT", label: "Concept", file: "CONCEPT.md" },
+  { key: "DSL", label: "DSL Reference", file: "DSL.md" },
+  { key: "STATE-MACHINES", label: "State Machines", file: "STATE-MACHINES.md" },
+  { key: "ARCHITECTURE", label: "Architecture", file: "ARCHITECTURE.md" },
+] as const;
 
-const files = import.meta.glob('../../../../docs/*.md', {
-  query: '?raw',
-  import: 'default',
+const files = import.meta.glob("../../../../docs/*.md", {
+  query: "?raw",
+  import: "default",
   eager: true,
-}) as Record<string, string>
+}) as Record<string, string>;
 
 function docSource(file: string): string {
-  const path = Object.keys(files).find((p) => p.endsWith(`/${file}`))
-  return path ? files[path] : `# ${file}\n\n.Source file not found.`
+  const path = Object.keys(files).find((p) => p.endsWith(`/${file}`));
+  return path ? files[path] : `# ${file}\n\n.Source file not found.`;
 }
 
 function slugify(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 }
 
-type TocItem = { id: string; text: string; indent: number }
+type TocItem = { id: string; text: string; indent: number };
 
-marked.use({ gfm: true, breaks: false })
+marked.use({ gfm: true, breaks: false });
 
 export default function Docs() {
-  const navigate = useNavigate()
-  const [active, setActive] = useState<(typeof DOCS)[number]['key']>('CONCEPT')
-  const activeDoc = DOCS.find((d) => d.key === active)!
+  const navigate = useNavigate();
+  const [active, setActive] = useState<(typeof DOCS)[number]["key"]>("CONCEPT");
+  const activeDoc = DOCS.find((d) => d.key === active)!;
   const html = useMemo(
     () => marked.parse(docSource(activeDoc.file)) as string,
     [active],
-  )
-  const scrollRef = useRef<HTMLElement>(null)
-  const proseRef = useRef<HTMLDivElement>(null)
-  const [toc, setToc] = useState<TocItem[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
+  );
+  const scrollRef = useRef<HTMLElement>(null);
+  const proseRef = useRef<HTMLDivElement>(null);
+  const [toc, setToc] = useState<TocItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   // Assign stable ids to headings + build the on-this-page outline. Heading
   // levels vary per doc (DSL uses h3, others h2), so indentation is relative
   // to the shallowest collected level.
   useEffect(() => {
-    const prose = proseRef.current
-    if (!prose) return
+    const prose = proseRef.current;
+    if (!prose) return;
     const heads = Array.from(
-      prose.querySelectorAll<HTMLHeadingElement>('h2, h3, h4'),
-    )
-    const counts = new Map<string, number>()
-    let minLevel = Infinity
-    const items: TocItem[] = []
+      prose.querySelectorAll<HTMLHeadingElement>("h2, h3, h4"),
+    );
+    const counts = new Map<string, number>();
+    let minLevel = Infinity;
+    const items: TocItem[] = [];
     for (const h of heads) {
-      minLevel = Math.min(minLevel, Number(h.tagName.slice(1)))
+      minLevel = Math.min(minLevel, Number(h.tagName.slice(1)));
     }
     heads.forEach((h, i) => {
-      const base = slugify(h.textContent || '') || `heading-${i}`
-      const n = (counts.get(base) ?? 0) + 1
-      counts.set(base, n)
-      const id = n === 1 ? base : `${base}-${n}`
-      h.id = id
-      const level = Number(h.tagName.slice(1))
+      const base = slugify(h.textContent || "") || `heading-${i}`;
+      const n = (counts.get(base) ?? 0) + 1;
+      counts.set(base, n);
+      const id = n === 1 ? base : `${base}-${n}`;
+      h.id = id;
+      const level = Number(h.tagName.slice(1));
       items.push({
         id,
-        text: h.textContent || '',
+        text: h.textContent || "",
         indent: Math.max(0, level - minLevel),
-      })
-    })
-    setToc(items)
-    setActiveId(items[0]?.id ?? null)
-  }, [html])
+      });
+    });
+    setToc(items);
+    setActiveId(items[0]?.id ?? null);
+  }, [html]);
 
   // Scroll the content to top when switching sections.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 })
-  }, [active])
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [active]);
 
   // Highlight code blocks.
   useEffect(() => {
-    if (scrollRef.current) Prism.highlightAllUnder(scrollRef.current)
-  }, [html])
+    if (scrollRef.current) Prism.highlightAllUnder(scrollRef.current);
+  }, [html]);
 
   // Scrollspy: the current section is the last heading sitting at or above the
   // top of the scroll viewport.
   useEffect(() => {
-    const root = scrollRef.current
-    const prose = proseRef.current
-    if (!root || !prose || toc.length === 0) return
+    const root = scrollRef.current;
+    const prose = proseRef.current;
+    if (!root || !prose || toc.length === 0) return;
     const heads = Array.from(
-      prose.querySelectorAll<HTMLHeadingElement>('h2, h3, h4'),
-    )
-    let raf = 0
+      prose.querySelectorAll<HTMLHeadingElement>("h2, h3, h4"),
+    );
+    let raf = 0;
     const update = () => {
-      raf = 0
-      const rootTop = root.getBoundingClientRect().top
-      const offset = 80
-      let current = heads[0]?.id ?? null
+      raf = 0;
+      const rootTop = root.getBoundingClientRect().top;
+      const offset = 80;
+      let current = heads[0]?.id ?? null;
       for (const h of heads) {
-        const top = h.getBoundingClientRect().top - rootTop
-        if (top <= offset) current = h.id
-        else break
+        const top = h.getBoundingClientRect().top - rootTop;
+        if (top <= offset) current = h.id;
+        else break;
       }
-      setActiveId(current)
-    }
+      setActiveId(current);
+    };
     const onScroll = () => {
-      if (raf) return
-      raf = requestAnimationFrame(update)
-    }
-    root.addEventListener('scroll', onScroll, { passive: true })
-    update()
+      if (raf) return;
+      raf = requestAnimationFrame(update);
+    };
+    root.addEventListener("scroll", onScroll, { passive: true });
+    update();
     return () => {
-      root.removeEventListener('scroll', onScroll)
-      if (raf) cancelAnimationFrame(raf)
-    }
-  }, [toc])
+      root.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [toc]);
 
   function scrollToHeading(id: string) {
-    const root = scrollRef.current
-    if (!root) return
-    const el = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`)
-    setActiveId(id)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const root = scrollRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
+    setActiveId(id);
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
       {/* Header — mirrors the playground shell */}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-        <BrandMark suffix={<span className="text-[15px] text-muted-foreground/70">/ Docs</span>} />
+        <BrandMark
+          suffix={
+            <span className="text-[15px] text-muted-foreground/70">/ Docs</span>
+          }
+        />
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             className="gap-1.5"
-            onClick={() => navigate({ to: '/' })}
+            onClick={() => navigate({ to: "/" })}
           >
             <ArrowLeft className="size-3.5" />
             Playground
@@ -170,10 +174,10 @@ export default function Docs() {
                 key={d.key}
                 onClick={() => setActive(d.key)}
                 className={cn(
-                  'flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors',
+                  "flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors",
                   active === d.key
-                    ? 'bg-secondary/70 font-medium text-foreground'
-                    : 'text-muted-foreground hover:bg-secondary/40 hover:text-foreground',
+                    ? "bg-secondary/70 font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-secondary/40 hover:text-foreground",
                 )}
               >
                 {d.label}
@@ -206,10 +210,10 @@ export default function Docs() {
                   key={t.id}
                   onClick={() => scrollToHeading(t.id)}
                   className={cn(
-                    'block w-full truncate border-l-2 py-1 pr-2 text-left text-[12.5px] leading-5 transition-colors',
+                    "block w-full truncate border-l-2 py-1 pr-2 text-left text-[12.5px] leading-5 transition-colors",
                     activeId === t.id
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
                   style={{ paddingLeft: `${0.75 + t.indent * 0.75}rem` }}
                   title={t.text}
@@ -222,5 +226,5 @@ export default function Docs() {
         )}
       </div>
     </div>
-  )
+  );
 }

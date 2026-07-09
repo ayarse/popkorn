@@ -3,8 +3,8 @@
 // mapping, the imperative host API, the machine-event fan-out — run under
 // `bun test` where the native modules can't load.
 
-import { deviceToScene } from '@popcorn/player';
-import type { RenderLoop, Viewport, VariableResolver } from '@popcorn/player';
+import type { RenderLoop, VariableResolver, Viewport } from "@popcorn/player";
+import { deviceToScene } from "@popcorn/player";
 
 /** Imperative handle exposed via `ref` — mirrors the web component's host API. */
 export interface PopcornViewRef {
@@ -29,7 +29,7 @@ export function touchToScene(
   vp: Viewport,
   x: number,
   y: number,
-  dpr = 1
+  dpr = 1,
 ): { x: number; y: number } {
   return deviceToScene(vp, x * dpr, y * dpr);
 }
@@ -43,9 +43,10 @@ export function touchToScene(
  */
 export function createHostApi(
   getLoop: () => RenderLoop | null,
-  wake: () => void
+  wake: () => void,
 ): PopcornViewRef {
-  const resolverOf = (): VariableResolver | null => getLoop()?.getVariableResolver() ?? null;
+  const resolverOf = (): VariableResolver | null =>
+    getLoop()?.getVariableResolver() ?? null;
   return {
     setVariable(name, value) {
       const resolver = resolverOf();
@@ -70,8 +71,8 @@ export function createHostApi(
 // The runner's output union isn't re-exported from the barrel; redeclare the
 // shape we consume (statechange + emit) so this stays import-light.
 type MachineOutput =
-  | { type: 'statechange'; machine: string; from: string; to: string }
-  | { type: 'emit'; machine: string; name: string };
+  | { type: "statechange"; machine: string; from: string; to: string }
+  | { type: "emit"; machine: string; name: string };
 
 export interface MachineEventHandlers {
   onStateChange?: (e: { machine: string; from: string; to: string }) => void;
@@ -85,11 +86,15 @@ export interface MachineEventHandlers {
  * `handlers` is a getter so prop changes are picked up without rebuilding the loop.
  */
 export function makeMachineEventCallback(
-  handlers: () => MachineEventHandlers
+  handlers: () => MachineEventHandlers,
 ): (o: MachineOutput) => void {
   return (o) => {
-    if (o.type === 'statechange') {
-      handlers().onStateChange?.({ machine: o.machine, from: o.from, to: o.to });
+    if (o.type === "statechange") {
+      handlers().onStateChange?.({
+        machine: o.machine,
+        from: o.from,
+        to: o.to,
+      });
     } else {
       handlers().onMachineEvent?.({ machine: o.machine, name: o.name });
     }

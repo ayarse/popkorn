@@ -1,5 +1,19 @@
-import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MaskMode, PaintOrder } from '../scene/types';
+import type {
+  FillRule,
+  MaskMode,
+  PaintOrder,
+  StrokeLineCap,
+  StrokeLineJoin,
+  TextAnchor,
+} from "../scene/types";
+import type {
+  Color,
+  GradientData,
+  Matrix3x3,
+  PathCommand,
+  ResolvedClip,
+  TrimDescriptor,
+} from "./types";
 
 /**
  * Abstract renderer interface (ThorVG-style)
@@ -19,11 +33,26 @@ export interface Renderer {
   endNode?(): void;
 
   // Shape rendering
-  drawRect(x: number, y: number, w: number, h: number, rx?: number, ry?: number): void;
+  drawRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    rx?: number,
+    ry?: number,
+  ): void;
   drawCircle(cx: number, cy: number, r: number): void;
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;
   drawPath(commands: PathCommand[]): void;
-  drawText(text: string, x: number, y: number, fontSize: number, fontFamily: string, fontWeight: string, anchor: TextAnchor): void;
+  drawText(
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number,
+    fontFamily: string,
+    fontWeight: string,
+    anchor: TextAnchor,
+  ): void;
   // Draw a cached image (by src) into the x/y/w/h box. w/h <= 0 means natural
   // size. Loading/caching is the renderer's concern; nothing paints until the
   // image decodes (the running loop repaints it in naturally).
@@ -40,7 +69,11 @@ export interface Renderer {
   // buffers (each closure sets its own world transform and draws a subtree),
   // masks the content by the mask per `mode`, and blits the result to the main
   // canvas. Degrades to drawing the content alone when offscreen isn't available.
-  compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void;
+  compositeMask(
+    mode: MaskMode,
+    drawContent: () => void,
+    drawMask: () => void,
+  ): void;
 
   // CSS filter compositing. Optional so backends without a filter concept (or
   // where the platform ctx.filter is unsupported) simply omit it and the loop

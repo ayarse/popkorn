@@ -3,7 +3,7 @@
  * This is for Phase 3 (stretch goal) but we set up the structure now.
  */
 
-import { IDENTITY_VIEWPORT, type Viewport } from './viewport';
+import { IDENTITY_VIEWPORT, type Viewport } from "./viewport";
 
 export interface InputState {
   cursor: {
@@ -51,18 +51,24 @@ export class InputTracker {
       scroll: this.handleScroll.bind(this),
     };
 
-    canvas.addEventListener('mousemove', this.boundHandlers.mouseMove);
-    canvas.addEventListener('mousedown', this.boundHandlers.mouseDown);
-    canvas.addEventListener('mouseup', this.boundHandlers.mouseUp);
-    window.addEventListener('scroll', this.boundHandlers.scroll);
+    canvas.addEventListener("mousemove", this.boundHandlers.mouseMove);
+    canvas.addEventListener("mousedown", this.boundHandlers.mouseDown);
+    canvas.addEventListener("mouseup", this.boundHandlers.mouseUp);
+    window.addEventListener("scroll", this.boundHandlers.scroll);
   }
 
   detach(): void {
     if (this.canvas && this.boundHandlers) {
-      this.canvas.removeEventListener('mousemove', this.boundHandlers.mouseMove);
-      this.canvas.removeEventListener('mousedown', this.boundHandlers.mouseDown);
-      this.canvas.removeEventListener('mouseup', this.boundHandlers.mouseUp);
-      window.removeEventListener('scroll', this.boundHandlers.scroll);
+      this.canvas.removeEventListener(
+        "mousemove",
+        this.boundHandlers.mouseMove,
+      );
+      this.canvas.removeEventListener(
+        "mousedown",
+        this.boundHandlers.mouseDown,
+      );
+      this.canvas.removeEventListener("mouseup", this.boundHandlers.mouseUp);
+      window.removeEventListener("scroll", this.boundHandlers.scroll);
     }
     this.canvas = null;
     this.boundHandlers = null;
@@ -89,8 +95,10 @@ export class InputTracker {
     // viewport). getBoundingClientRect is CSS px regardless of backing-store size.
     const deviceX = (e.clientX - rect.left) * this.dpr;
     const deviceY = (e.clientY - rect.top) * this.dpr;
-    this.state.cursor.x = (deviceX - this.viewport.offsetX) / this.viewport.scaleX;
-    this.state.cursor.y = (deviceY - this.viewport.offsetY) / this.viewport.scaleY;
+    this.state.cursor.x =
+      (deviceX - this.viewport.offsetX) / this.viewport.scaleX;
+    this.state.cursor.y =
+      (deviceY - this.viewport.offsetY) / this.viewport.scaleY;
   }
 
   private handleMouseDown(_e: MouseEvent): void {

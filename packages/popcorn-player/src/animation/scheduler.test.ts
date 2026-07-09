@@ -1,34 +1,39 @@
-import { test, expect } from 'bun:test';
-import type { AnimationInstance, SceneNode, KeyframeData, CircleData } from '../scene/types';
-import { createSceneNode, snapshotNode, resetNodeToBase } from '../scene/types';
+import { expect, test } from "bun:test";
+import type {
+  AnimationInstance,
+  CircleData,
+  KeyframeData,
+  SceneNode,
+} from "../scene/types";
+import { createSceneNode, resetNodeToBase, snapshotNode } from "../scene/types";
 import {
   AnimationScheduler,
   animationsEndTime,
   sampleInstanceAtProgress,
   sampleNodeAtProgress,
-} from './scheduler';
+} from "./scheduler";
 
 // --- helpers -----------------------------------------------------------------
 
 function makeAnim(partial: Partial<AnimationInstance>): AnimationInstance {
   return {
-    name: 'a',
+    name: "a",
     duration: 100,
-    timingFunction: 'linear',
+    timingFunction: "linear",
     iterationCount: 1,
-    direction: 'normal',
+    direction: "normal",
     delay: 0,
-    fillMode: 'forwards',
-    composition: 'replace',
+    fillMode: "forwards",
+    composition: "replace",
     keyframes: [],
     ...partial,
   };
 }
 
 function circleNode(): SceneNode {
-  const n = createSceneNode('c', 'circle');
-  n.shapeData = { type: 'circle', cx: 0, cy: 0, r: 10 };
-  n.fill = '#000000';
+  const n = createSceneNode("c", "circle");
+  n.shapeData = { type: "circle", cx: 0, cy: 0, r: 10 };
+  n.fill = "#000000";
   n.strokeWidth = 1;
   n.base = snapshotNode(n);
   return n;
@@ -38,20 +43,24 @@ const r = (n: SceneNode) => (n.shapeData as CircleData).r;
 
 // --- (1) animationsEndTime ---------------------------------------------------
 
-test('endTime: single finite instance = delay + duration * iterations', () => {
-  expect(animationsEndTime([makeAnim({ duration: 200, iterationCount: 3, delay: 50 })])).toBe(650);
+test("endTime: single finite instance = delay + duration * iterations", () => {
+  expect(
+    animationsEndTime([
+      makeAnim({ duration: 200, iterationCount: 3, delay: 50 }),
+    ]),
+  ).toBe(650);
 });
 
-test('endTime: multi-instance takes the latest end', () => {
+test("endTime: multi-instance takes the latest end", () => {
   const insts = [
-    makeAnim({ duration: 100, iterationCount: 1 }),          // 100
+    makeAnim({ duration: 100, iterationCount: 1 }), // 100
     makeAnim({ duration: 200, iterationCount: 2, delay: 30 }), // 430
-    makeAnim({ duration: 500, iterationCount: 1 }),          // 500
+    makeAnim({ duration: 500, iterationCount: 1 }), // 500
   ];
   expect(animationsEndTime(insts)).toBe(500);
 });
 
-test('endTime: any infinite instance => Infinity', () => {
+test("endTime: any infinite instance => Infinity", () => {
   const insts = [
     makeAnim({ duration: 100, iterationCount: 1 }),
     makeAnim({ duration: 100, iterationCount: Infinity }),
@@ -59,13 +68,13 @@ test('endTime: any infinite instance => Infinity', () => {
   expect(animationsEndTime(insts)).toBe(Infinity);
 });
 
-test('endTime: empty list => Infinity (a state with no animations never completes)', () => {
+test("endTime: empty list => Infinity (a state with no animations never completes)", () => {
   expect(animationsEndTime([])).toBe(Infinity);
 });
 
 // --- (2) entry-time anchoring: sampleNode(node, t - entryTime) ----------------
 
-test('anchoring: sampling at t-entryTime equals sampling a state that began at 0', () => {
+test("anchoring: sampling at t-entryTime equals sampling a state that began at 0", () => {
   const kf: KeyframeData[] = [
     { offset: 0, properties: { r: 0 } },
     { offset: 1, properties: { r: 100 } },
@@ -88,12 +97,17 @@ test('anchoring: sampling at t-entryTime equals sampling a state that began at 0
   expect(r(anchored)).toBe(40);
 });
 
-test('anchoring: before entry (negative shifted time), none/forwards => base', () => {
+test("anchoring: before entry (negative shifted time), none/forwards => base", () => {
   const node = circleNode(); // base r = 10
-  node.animations = [makeAnim({ fillMode: 'none', keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] })];
+  node.animations = [
+    makeAnim({
+      fillMode: "none",
+      keyframes: [
+        { offset: 0, properties: { r: 0 } },
+        { offset: 1, properties: { r: 100 } },
+      ],
+    }),
+  ];
   const sched = new AnimationScheduler();
 
   const entryTime = 1000;
@@ -102,12 +116,17 @@ test('anchoring: before entry (negative shifted time), none/forwards => base', (
   expect(r(node)).toBe(10); // untouched -> base
 });
 
-test('anchoring: before entry (negative shifted time), backwards fill => first keyframe', () => {
+test("anchoring: before entry (negative shifted time), backwards fill => first keyframe", () => {
   const node = circleNode(); // base r = 10, distinct from first keyframe
-  node.animations = [makeAnim({ fillMode: 'backwards', keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] })];
+  node.animations = [
+    makeAnim({
+      fillMode: "backwards",
+      keyframes: [
+        { offset: 0, properties: { r: 0 } },
+        { offset: 1, properties: { r: 100 } },
+      ],
+    }),
+  ];
   const sched = new AnimationScheduler();
 
   const entryTime = 1000;
@@ -118,11 +137,14 @@ test('anchoring: before entry (negative shifted time), backwards fill => first k
 
 // --- (3) progress sampling (animation-timeline) ------------------------------
 
-test('progress: 0 / 0.5 / 1 map across one iteration', () => {
-  const anim = makeAnim({ duration: 100, keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] });
+test("progress: 0 / 0.5 / 1 map across one iteration", () => {
+  const anim = makeAnim({
+    duration: 100,
+    keyframes: [
+      { offset: 0, properties: { r: 0 } },
+      { offset: 1, properties: { r: 100 } },
+    ],
+  });
 
   const at = (p: number) => {
     const n = circleNode();
@@ -136,11 +158,14 @@ test('progress: 0 / 0.5 / 1 map across one iteration', () => {
   expect(at(1)).toBe(100);
 });
 
-test('progress: clamps out-of-range values to [0,1]', () => {
-  const anim = makeAnim({ duration: 100, keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] });
+test("progress: clamps out-of-range values to [0,1]", () => {
+  const anim = makeAnim({
+    duration: 100,
+    keyframes: [
+      { offset: 0, properties: { r: 0 } },
+      { offset: 1, properties: { r: 100 } },
+    ],
+  });
 
   const at = (p: number) => {
     const n = circleNode();
@@ -149,40 +174,54 @@ test('progress: clamps out-of-range values to [0,1]', () => {
     return r(n);
   };
 
-  expect(at(-2)).toBe(0);   // clamps low
-  expect(at(3)).toBe(100);  // clamps high
+  expect(at(-2)).toBe(0); // clamps low
+  expect(at(3)).toBe(100); // clamps high
 });
 
-test('progress: delay and iterationCount are ignored (progress is the playhead)', () => {
+test("progress: delay and iterationCount are ignored (progress is the playhead)", () => {
   // A 5000ms delay and 10 iterations would matter on the clock; under progress
   // they are irrelevant — 0.25 maps to a quarter of ONE iteration.
-  const anim = makeAnim({ duration: 100, delay: 5000, iterationCount: 10, keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] });
+  const anim = makeAnim({
+    duration: 100,
+    delay: 5000,
+    iterationCount: 10,
+    keyframes: [
+      { offset: 0, properties: { r: 0 } },
+      { offset: 1, properties: { r: 100 } },
+    ],
+  });
   const n = circleNode();
   resetNodeToBase(n);
   sampleInstanceAtProgress(n, anim, 0.25);
   expect(r(n)).toBe(25);
 });
 
-test('progress: direction reverse mirrors progress', () => {
-  const anim = makeAnim({ duration: 100, direction: 'reverse', keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] });
+test("progress: direction reverse mirrors progress", () => {
+  const anim = makeAnim({
+    duration: 100,
+    direction: "reverse",
+    keyframes: [
+      { offset: 0, properties: { r: 0 } },
+      { offset: 1, properties: { r: 100 } },
+    ],
+  });
   const n = circleNode();
   resetNodeToBase(n);
   sampleInstanceAtProgress(n, anim, 0.25);
   expect(r(n)).toBe(75); // 1 - 0.25
 });
 
-test('progress: sampleNodeAtProgress scrubs every animation on the node', () => {
+test("progress: sampleNodeAtProgress scrubs every animation on the node", () => {
   const n = circleNode();
-  n.animations = [makeAnim({ duration: 100, keyframes: [
-    { offset: 0, properties: { r: 0 } },
-    { offset: 1, properties: { r: 100 } },
-  ] })];
+  n.animations = [
+    makeAnim({
+      duration: 100,
+      keyframes: [
+        { offset: 0, properties: { r: 0 } },
+        { offset: 1, properties: { r: 100 } },
+      ],
+    }),
+  ];
   resetNodeToBase(n);
   sampleNodeAtProgress(n, 0.5);
   expect(r(n)).toBe(50);

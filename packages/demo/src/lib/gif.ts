@@ -1,11 +1,11 @@
 import { parse } from "@popcorn/parser";
 import {
+  AnimationScheduler,
   buildSceneGraph,
   Canvas2DRenderer,
   RenderLoop,
-  AnimationScheduler,
 } from "@popcorn/player";
-import { quantize, GIFEncoder, type Palette } from "gifenc";
+import { GIFEncoder, type Palette, quantize } from "gifenc";
 import { planGif } from "./gif-plan";
 
 export { planGif } from "./gif-plan";
@@ -98,14 +98,18 @@ export function quantizeFrame(
         j++;
       }
       // Reserve one slot for transparency (255 opaque colors + 1).
-      palette = quantize(opaque, 255, { format: "rgb565" }).map((c) => c.slice(0, 3));
+      palette = quantize(opaque, 255, { format: "rgb565" }).map((c) =>
+        c.slice(0, 3),
+      );
     } else {
       palette = [];
     }
     transparentIndex = palette.length;
     palette.push([0, 0, 0]);
   } else {
-    palette = quantize(rgba, 256, { format: "rgb565" }).map((c) => c.slice(0, 3));
+    palette = quantize(rgba, 256, { format: "rgb565" }).map((c) =>
+      c.slice(0, 3),
+    );
     if (palette.length === 0) palette.push([0, 0, 0]);
     transparentIndex = -1;
   }
@@ -124,7 +128,9 @@ export function quantizeFrame(
         index[i] = transparentIndex;
         continue;
       }
-      const r = rgba[i * 4], g = rgba[i * 4 + 1], b = rgba[i * 4 + 2];
+      const r = rgba[i * 4],
+        g = rgba[i * 4 + 1],
+        b = rgba[i * 4 + 2];
       const key = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
       let idx = cache[key];
       if (idx < 0) idx = cache[key] = nearestIndex(palette, r, g, b, skip);
@@ -141,7 +147,14 @@ export function quantizeFrame(
     buf[i * 3 + 2] = rgba[i * 4 + 2];
   }
 
-  const diffuse = (x: number, y: number, er: number, eg: number, eb: number, w: number) => {
+  const diffuse = (
+    x: number,
+    y: number,
+    er: number,
+    eg: number,
+    eb: number,
+    w: number,
+  ) => {
     if (x < 0 || x >= width || y >= height) return;
     const j = y * width + x;
     if (mask && mask[j]) return;
@@ -158,8 +171,10 @@ export function quantizeFrame(
         continue;
       }
       const r = buf[i * 3] < 0 ? 0 : buf[i * 3] > 255 ? 255 : buf[i * 3];
-      const g = buf[i * 3 + 1] < 0 ? 0 : buf[i * 3 + 1] > 255 ? 255 : buf[i * 3 + 1];
-      const b = buf[i * 3 + 2] < 0 ? 0 : buf[i * 3 + 2] > 255 ? 255 : buf[i * 3 + 2];
+      const g =
+        buf[i * 3 + 1] < 0 ? 0 : buf[i * 3 + 1] > 255 ? 255 : buf[i * 3 + 1];
+      const b =
+        buf[i * 3 + 2] < 0 ? 0 : buf[i * 3 + 2] > 255 ? 255 : buf[i * 3 + 2];
       const key = ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
       let idx = cache[key];
       if (idx < 0) idx = cache[key] = nearestIndex(palette, r, g, b, skip);
@@ -233,9 +248,14 @@ export async function exportGif(
     loop.seek(t);
 
     const { data } = ctx.getImageData(0, 0, width, height);
-    const { index, palette, transparentIndex } = quantizeFrame(data, width, height, {
-      transparent: true,
-    });
+    const { index, palette, transparentIndex } = quantizeFrame(
+      data,
+      width,
+      height,
+      {
+        transparent: true,
+      },
+    );
 
     gif.writeFrame(index, width, height, {
       palette,
@@ -250,7 +270,8 @@ export async function exportGif(
     onProgress?.((i + 1) / plan.frameCount);
     // Yield so the main-thread progress label can repaint between frames; in a
     // worker there's no UI to repaint, so skip the yield.
-    if (typeof document !== "undefined") await new Promise((r) => setTimeout(r, 0));
+    if (typeof document !== "undefined")
+      await new Promise((r) => setTimeout(r, 0));
   }
 
   gif.finish();

@@ -1,7 +1,11 @@
-import type { SceneNode, NodeBase, FilterOp } from '../scene/types';
-import type { GradientData, RadialGradientData, PathCommand } from '../renderer/types';
-import { parseColor, isGradientData } from '../renderer/types';
-import { lerp } from '../scene/transform';
+import type {
+  GradientData,
+  PathCommand,
+  RadialGradientData,
+} from "../renderer/types";
+import { isGradientData, parseColor } from "../renderer/types";
+import { lerp } from "../scene/transform";
+import type { FilterOp, NodeBase, SceneNode } from "../scene/types";
 
 /**
  * Property registry.
@@ -16,7 +20,7 @@ import { lerp } from '../scene/transform';
 // 'gradient' and 'path' properties (fill/stroke, `d`) carry object values;
 // interpolateProp dispatches those by value type (a fill can also be a plain
 // color), so the kind is a hint — number/color drive the scalar fast path.
-export type PropKind = 'number' | 'color' | 'gradient' | 'path';
+export type PropKind = "number" | "color" | "gradient" | "path";
 
 // A resolved/authored value for any animatable property.
 export type PropValue = number | string | GradientData | PathCommand[];
@@ -36,9 +40,11 @@ export interface PropHandler {
 
 // --- transform components (all plain-number lerp; rotate is direct, matching
 // the existing full-turn animation behaviour) --------------------------------
-function transformNumber(key: 'translateX' | 'translateY' | 'rotate' | 'scaleX' | 'scaleY'): PropHandler {
+function transformNumber(
+  key: "translateX" | "translateY" | "rotate" | "scaleX" | "scaleY",
+): PropHandler {
   return {
-    kind: 'number',
+    kind: "number",
     readBase: (base) => base.transform[key],
     readLive: (node) => node.transform[key],
     apply: (node, value) => {
@@ -50,9 +56,13 @@ function transformNumber(key: 'translateX' | 'translateY' | 'rotate' | 'scaleX' 
 // --- geometry (numeric fields living on shapeData) ---------------------------
 function geometryNumber(key: string): PropHandler {
   return {
-    kind: 'number',
-    readBase: (base) => ((base.shapeData as unknown as Record<string, unknown>)[key] as number) ?? 0,
-    readLive: (node) => ((node.shapeData as unknown as Record<string, unknown>)[key] as number) ?? 0,
+    kind: "number",
+    readBase: (base) =>
+      ((base.shapeData as unknown as Record<string, unknown>)[key] as number) ??
+      0,
+    readLive: (node) =>
+      ((node.shapeData as unknown as Record<string, unknown>)[key] as number) ??
+      0,
     apply: (node, value) => {
       // Geometry keys only exist on the shapes that declare them; the renderer
       // reads type-specific fields, so a stray assignment is inert.
@@ -69,9 +79,9 @@ function geometryNumber(key: string): PropHandler {
 }
 
 // --- trim paths (fractions 0..1 of the outline; render clamps to range) ------
-function trimNumber(key: 'trimStart' | 'trimEnd' | 'trimOffset'): PropHandler {
+function trimNumber(key: "trimStart" | "trimEnd" | "trimOffset"): PropHandler {
   return {
-    kind: 'number',
+    kind: "number",
     readBase: (base) => base[key],
     readLive: (node) => node[key],
     apply: (node, value) => {
@@ -82,15 +92,15 @@ function trimNumber(key: 'trimStart' | 'trimEnd' | 'trimOffset'): PropHandler {
 
 export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   // transform components
-  translateX: transformNumber('translateX'),
-  translateY: transformNumber('translateY'),
-  rotate: transformNumber('rotate'),
-  scaleX: transformNumber('scaleX'),
-  scaleY: transformNumber('scaleY'),
+  translateX: transformNumber("translateX"),
+  translateY: transformNumber("translateY"),
+  rotate: transformNumber("rotate"),
+  scaleX: transformNumber("scaleX"),
+  scaleY: transformNumber("scaleY"),
 
   // opacity
   opacity: {
-    kind: 'number',
+    kind: "number",
     readBase: (base) => base.opacity,
     readLive: (node) => node.opacity,
     apply: (node, value) => {
@@ -101,7 +111,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   // colors / gradients. A fill endpoint is either a color string (solid) or a
   // GradientData (animated gradient stops); apply routes by value type.
   fill: {
-    kind: 'color',
+    kind: "color",
     readBase: (base) => base.fillGradient ?? base.fill,
     apply: (node, value) => {
       if (isGradientData(value)) node.fillGradient = value;
@@ -109,15 +119,15 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
   stroke: {
-    kind: 'color',
+    kind: "color",
     readBase: (base) => base.strokeGradient ?? base.stroke,
     apply: (node, value) => {
       if (isGradientData(value)) node.strokeGradient = value;
       else node.stroke = value as string;
     },
   },
-  'stroke-width': {
-    kind: 'number',
+  "stroke-width": {
+    kind: "number",
     readBase: (base) => base.strokeWidth,
     readLive: (node) => node.strokeWidth,
     apply: (node, value) => {
@@ -126,26 +136,26 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   },
 
   // geometry
-  x: geometryNumber('x'),
-  y: geometryNumber('y'),
-  width: geometryNumber('width'),
-  height: geometryNumber('height'),
-  rx: geometryNumber('rx'),
-  ry: geometryNumber('ry'),
-  cx: geometryNumber('cx'),
-  cy: geometryNumber('cy'),
-  r: geometryNumber('r'),
+  x: geometryNumber("x"),
+  y: geometryNumber("y"),
+  width: geometryNumber("width"),
+  height: geometryNumber("height"),
+  rx: geometryNumber("rx"),
+  ry: geometryNumber("ry"),
+  cx: geometryNumber("cx"),
+  cy: geometryNumber("cy"),
+  r: geometryNumber("r"),
 
   // path morphing: `d` is the command list. Interpolated pairwise when the two
   // endpoints share a command sequence (see interpolatePath); applying it swaps
   // in the morphed commands and invalidates the geometry-keyed caches. Bounds
   // and hit-test read node.shapeData.commands directly, so they follow for free.
   d: {
-    kind: 'path',
+    kind: "path",
     readBase: (base) =>
-      base.shapeData.type === 'path' ? base.shapeData.commands : null,
+      base.shapeData.type === "path" ? base.shapeData.commands : null,
     apply: (node, value) => {
-      if (node.shapeData.type !== 'path' || !Array.isArray(value)) return;
+      if (node.shapeData.type !== "path" || !Array.isArray(value)) return;
       node.shapeData.commands = value as PathCommand[];
       node.outlineLengthDirty = true; // trim window keys off the outline length
     },
@@ -155,24 +165,24 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   // Only the path() clip variant is animatable — its commands morph pairwise
   // (Lottie animated masks). No cache keys off the clip region: resolveClip and
   // the renderer read node.clipPath live each frame, so no dirty flag is needed.
-  'clip-path': {
-    kind: 'path',
+  "clip-path": {
+    kind: "path",
     readBase: (base) =>
-      base.clipPath?.type === 'path' ? base.clipPath.commands : null,
+      base.clipPath?.type === "path" ? base.clipPath.commands : null,
     apply: (node, value) => {
-      if (node.clipPath?.type !== 'path' || !Array.isArray(value)) return;
+      if (node.clipPath?.type !== "path" || !Array.isArray(value)) return;
       node.clipPath.commands = value as PathCommand[];
     },
   },
 
   // star / polygon geometry (sides is static, so not registered)
-  'outer-radius': geometryNumber('outerRadius'),
-  'inner-radius': geometryNumber('innerRadius'),
-  rotation: geometryNumber('rotation'),
+  "outer-radius": geometryNumber("outerRadius"),
+  "inner-radius": geometryNumber("innerRadius"),
+  rotation: geometryNumber("rotation"),
 
   // stroke dashing
-  'stroke-dashoffset': {
-    kind: 'number',
+  "stroke-dashoffset": {
+    kind: "number",
     readBase: (base) => base.strokeDashOffset,
     readLive: (node) => node.strokeDashOffset,
     apply: (node, value) => {
@@ -181,13 +191,13 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   },
 
   // trim paths
-  'trim-start': trimNumber('trimStart'),
-  'trim-end': trimNumber('trimEnd'),
-  'trim-offset': trimNumber('trimOffset'),
+  "trim-start": trimNumber("trimStart"),
+  "trim-end": trimNumber("trimEnd"),
+  "trim-offset": trimNumber("trimOffset"),
 
   // motion path: position along offset-path, 0..1 of arc length
-  'offset-distance': {
-    kind: 'number',
+  "offset-distance": {
+    kind: "number",
     readBase: (base) => base.offsetDistance,
     readLive: (node) => node.offsetDistance,
     apply: (node, value) => {
@@ -199,7 +209,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   // null when there's no blur op so the scheduler skips it (a drop-shadow-only
   // filter isn't animatable here). apply mutates the live per-frame filter copy.
   filter: {
-    kind: 'number',
+    kind: "number",
     readBase: (base) => {
       const b = base.filter?.find(isBlur);
       return b ? b.radius : null;
@@ -216,13 +226,17 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
 
   // text: font-size lives on shapeData under a different key than its property
   // name, and animating it invalidates the cached text metrics.
-  'font-size': {
-    kind: 'number',
-    readBase: (base) => ((base.shapeData as unknown as Record<string, unknown>).fontSize as number) ?? 16,
-    readLive: (node) => ((node.shapeData as unknown as Record<string, unknown>).fontSize as number) ?? 16,
+  "font-size": {
+    kind: "number",
+    readBase: (base) =>
+      ((base.shapeData as unknown as Record<string, unknown>)
+        .fontSize as number) ?? 16,
+    readLive: (node) =>
+      ((node.shapeData as unknown as Record<string, unknown>)
+        .fontSize as number) ?? 16,
     apply: (node, value) => {
       const sd = node.shapeData as unknown as Record<string, unknown>;
-      if ('fontSize' in sd) {
+      if ("fontSize" in sd) {
         sd.fontSize = value;
         node.textBoundsDirty = true;
       }
@@ -230,8 +244,8 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   },
 };
 
-type BlurOp = Extract<FilterOp, { type: 'blur' }>;
-const isBlur = (f: FilterOp): f is BlurOp => f.type === 'blur';
+type BlurOp = Extract<FilterOp, { type: "blur" }>;
+const isBlur = (f: FilterOp): f is BlurOp => f.type === "blur";
 
 export function getPropHandler(property: string): PropHandler | undefined {
   return PROPERTY_REGISTRY[property];
@@ -249,11 +263,15 @@ export function interpolateProp(
   handler: PropHandler,
   from: PropValue | null,
   to: PropValue | null,
-  t: number
+  t: number,
 ): PropValue | null {
   // Gradient endpoints.
   if (isGradientData(from) || isGradientData(to)) {
-    if (isGradientData(from) && isGradientData(to) && gradientsCompatible(from, to)) {
+    if (
+      isGradientData(from) &&
+      isGradientData(to) &&
+      gradientsCompatible(from, to)
+    ) {
       return interpolateGradient(from, to, t);
     }
     return from ?? to; // step: hold the departing gradient
@@ -267,8 +285,8 @@ export function interpolateProp(
     return from ?? to; // step: hold the departing path
   }
 
-  if (handler.kind === 'color') {
-    if (typeof from !== 'string' || typeof to !== 'string') return to ?? from;
+  if (handler.kind === "color") {
+    if (typeof from !== "string" || typeof to !== "string") return to ?? from;
     return interpolateColor(from, to, t);
   }
   return lerp((from as number) ?? 0, (to as number) ?? 0, t);
@@ -281,41 +299,53 @@ export function interpolateProp(
 export function gradientsCompatible(a: GradientData, b: GradientData): boolean {
   if (a.type !== b.type || a.stops.length !== b.stops.length) return false;
   // Explicit geometry must be present on both (or neither) so fields pair up.
-  if (a.type === 'linear-gradient' && b.type === 'linear-gradient') {
+  if (a.type === "linear-gradient" && b.type === "linear-gradient") {
     return !!a.from === !!b.from && !!a.to === !!b.to;
   }
-  if (a.type === 'radial-gradient' && b.type === 'radial-gradient') {
+  if (a.type === "radial-gradient" && b.type === "radial-gradient") {
     return !!a.at === !!b.at && !!a.focal === !!b.focal;
   }
   return true;
 }
 
-const lerpPt = (a: { x: number; y: number }, b: { x: number; y: number }, t: number) => ({
+const lerpPt = (
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  t: number,
+) => ({
   x: lerp(a.x, b.x, t),
   y: lerp(a.y, b.y, t),
 });
 
 // Lerp each stop's offset and color (and the linear angle / explicit geometry).
 // Caller guarantees compatibility. Returns a fresh GradientData; never mutates.
-export function interpolateGradient(a: GradientData, b: GradientData, t: number): GradientData {
+export function interpolateGradient(
+  a: GradientData,
+  b: GradientData,
+  t: number,
+): GradientData {
   const stops = a.stops.map((s, i) => ({
     offset: lerp(s.offset, b.stops[i].offset, t),
     color: interpolateColor(s.color, b.stops[i].color, t),
   }));
-  if (a.type === 'linear-gradient' && b.type === 'linear-gradient') {
+  if (a.type === "linear-gradient" && b.type === "linear-gradient") {
     return {
-      type: 'linear-gradient',
+      type: "linear-gradient",
       angle: lerp(a.angle, b.angle, t),
       stops,
       from: a.from && b.from ? lerpPt(a.from, b.from, t) : undefined,
       to: a.to && b.to ? lerpPt(a.to, b.to, t) : undefined,
     };
   }
-  const ra = a as RadialGradientData, rb = b as RadialGradientData;
+  const ra = a as RadialGradientData,
+    rb = b as RadialGradientData;
   return {
-    type: 'radial-gradient',
+    type: "radial-gradient",
     stops,
-    radius: ra.radius != null && rb.radius != null ? lerp(ra.radius, rb.radius, t) : undefined,
+    radius:
+      ra.radius != null && rb.radius != null
+        ? lerp(ra.radius, rb.radius, t)
+        : undefined,
     at: ra.at && rb.at ? lerpPt(ra.at, rb.at, t) : undefined,
     focal: ra.focal && rb.focal ? lerpPt(ra.focal, rb.focal, t) : undefined,
   };
@@ -336,16 +366,20 @@ export function pathsCompatible(a: PathCommand[], b: PathCommand[]): boolean {
 // sequences match. Allocates a fresh command list per call.
 // ponytail: path morph isn't a many-instance hot path, so we allocate rather
 // than thread a per-node scratch buffer through the registry's apply signature.
-export function interpolatePath(a: PathCommand[], b: PathCommand[], t: number): PathCommand[] {
+export function interpolatePath(
+  a: PathCommand[],
+  b: PathCommand[],
+  t: number,
+): PathCommand[] {
   const out: PathCommand[] = new Array(a.length);
   for (let i = 0; i < a.length; i++) {
     const from = a[i] as Record<string, unknown>;
     const to = b[i] as Record<string, unknown>;
     const cmd: Record<string, unknown> = { type: from.type };
     for (const key of Object.keys(from)) {
-      if (key === 'type') continue;
+      if (key === "type") continue;
       const fv = from[key];
-      cmd[key] = typeof fv === 'number' ? lerp(fv, to[key] as number, t) : fv;
+      cmd[key] = typeof fv === "number" ? lerp(fv, to[key] as number, t) : fv;
     }
     out[i] = cmd as unknown as PathCommand;
   }
@@ -355,7 +389,11 @@ export function interpolatePath(a: PathCommand[], b: PathCommand[], t: number): 
 /**
  * Interpolate between two colors.
  */
-export function interpolateColor(color1: string, color2: string, t: number): string {
+export function interpolateColor(
+  color1: string,
+  color2: string,
+  t: number,
+): string {
   const c1 = parseColor(color1);
   const c2 = parseColor(color2);
 

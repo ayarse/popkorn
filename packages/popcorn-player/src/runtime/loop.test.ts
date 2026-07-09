@@ -1,30 +1,44 @@
-import { test, expect } from 'bun:test';
-import type { Renderer } from '../renderer/interface';
-import type { Color, PathCommand, GradientData, ResolvedClip, TrimDescriptor, Matrix3x3 } from '../renderer/types';
-import { IDENTITY_MATRIX } from '../renderer/types';
-import type { StrokeLineCap, TextAnchor, FillRule, MaskMode } from '../scene/types';
-import { createSceneNode, snapshotNode } from '../scene/types';
-import type { AnimationInstance, SceneNode, CircleData } from '../scene/types';
-import { RenderLoop } from './loop';
-import { parse } from '@popcorn/parser';
-import { buildSceneGraph } from '../scene/builder';
+import { expect, test } from "bun:test";
+import { parse } from "@popcorn/parser";
+import type { Renderer } from "../renderer/interface";
+import type {
+  Color,
+  GradientData,
+  Matrix3x3,
+  PathCommand,
+  ResolvedClip,
+  TrimDescriptor,
+} from "../renderer/types";
+import { IDENTITY_MATRIX } from "../renderer/types";
+import { buildSceneGraph } from "../scene/builder";
+import type {
+  AnimationInstance,
+  CircleData,
+  FillRule,
+  MaskMode,
+  SceneNode,
+  StrokeLineCap,
+  TextAnchor,
+} from "../scene/types";
+import { createSceneNode, snapshotNode } from "../scene/types";
+import { RenderLoop } from "./loop";
 
 // A dot whose opacity ramps 0 -> 1 over one 3s iteration, forever. sceneDuration
 // is that single iteration (3000). The recording renderer captures the sampled
 // opacity as the first (only) setOpacity call per frame.
 function fadingDot(): SceneNode {
-  const node = createSceneNode('dot', 'circle');
-  node.shapeData = { type: 'circle', cx: 0, cy: 0, r: 10 };
+  const node = createSceneNode("dot", "circle");
+  node.shapeData = { type: "circle", cx: 0, cy: 0, r: 10 };
   node.opacity = 0;
   node.base = snapshotNode(node);
   const fade: AnimationInstance = {
-    name: 'fade',
+    name: "fade",
     duration: 3000,
-    timingFunction: 'linear',
+    timingFunction: "linear",
     iterationCount: Infinity,
-    direction: 'normal',
+    direction: "normal",
     delay: 0,
-    fillMode: 'forwards',
+    fillMode: "forwards",
     keyframes: [
       { offset: 0, properties: { opacity: 0 } },
       { offset: 1, properties: { opacity: 1 } },
@@ -36,12 +50,17 @@ function fadingDot(): SceneNode {
 
 // Minimal no-op renderer that records setOpacity calls (in draw order) and
 // counts frames (beginFrame calls) so tests can assert that a repaint happened.
-function createRecordingRenderer(): Renderer & { opacities: number[]; frames: number } {
+function createRecordingRenderer(): Renderer & {
+  opacities: number[];
+  frames: number;
+} {
   return {
     opacities: [],
     frames: 0,
     clear() {},
-    beginFrame() { this.frames++; },
+    beginFrame() {
+      this.frames++;
+    },
     endFrame() {},
     drawRect() {},
     drawCircle() {},
@@ -75,18 +94,22 @@ function createRecordingRenderer(): Renderer & { opacities: number[]; frames: nu
     scale() {},
     transform() {},
     setTransform(_m: Matrix3x3) {},
-    getWidth() { return 100; },
-    getHeight() { return 100; },
+    getWidth() {
+      return 100;
+    },
+    getHeight() {
+      return 100;
+    },
   };
 }
 
-test('render walk: group opacity cascades multiplicatively to children', () => {
-  const parent = createSceneNode('parent', 'group');
+test("render walk: group opacity cascades multiplicatively to children", () => {
+  const parent = createSceneNode("parent", "group");
   parent.opacity = 0.5;
   parent.base = snapshotNode(parent);
 
-  const child = createSceneNode('child', 'circle');
-  child.shapeData = { type: 'circle', cx: 0, cy: 0, r: 10 };
+  const child = createSceneNode("child", "circle");
+  child.shapeData = { type: "circle", cx: 0, cy: 0, r: 10 };
   child.opacity = 0.6;
   child.base = snapshotNode(child);
   child.parent = parent;
@@ -108,23 +131,25 @@ test('render walk: group opacity cascades multiplicatively to children', () => {
 // throttles rAF to nothing, so seek can't defer the repaint to the next frame —
 // the displayed frame would stay stale (invariant 4: seek is a pure function of
 // time, and that includes what's on the canvas).
-test('seek repaints synchronously while paused (does not wait for the next rAF)', () => {
+test("seek repaints synchronously while paused (does not wait for the next rAF)", () => {
   // Stub rAF so start() can flip the loop to "running" without ever delivering a
   // real frame afterwards — modelling a throttled/backgrounded tab.
-  const g = globalThis as unknown as { requestAnimationFrame?: (cb: (t: number) => void) => number };
+  const g = globalThis as unknown as {
+    requestAnimationFrame?: (cb: (t: number) => void) => number;
+  };
   const prevRaf = g.requestAnimationFrame;
   g.requestAnimationFrame = () => 0; // schedule, but never call back
 
   try {
-    const node = createSceneNode('dot', 'circle');
-    node.shapeData = { type: 'circle', cx: 0, cy: 0, r: 10 };
+    const node = createSceneNode("dot", "circle");
+    node.shapeData = { type: "circle", cx: 0, cy: 0, r: 10 };
     node.base = snapshotNode(node);
 
     const renderer = createRecordingRenderer();
     const loop = new RenderLoop(renderer);
     loop.setScene(node);
-    loop.start();   // one synchronous frame, then a rAF that never fires
-    loop.pause();   // frozen, but still "running"
+    loop.start(); // one synchronous frame, then a rAF that never fires
+    loop.pause(); // frozen, but still "running"
     expect(loop.paused).toBe(true);
     expect(loop.running).toBe(true);
 
@@ -142,7 +167,7 @@ test('seek repaints synchronously while paused (does not wait for the next rAF)'
 // pass ("play once and stop") — an infinite animation must NOT keep cycling.
 // (Paused first, mirroring the demo's scrub flow, so currentTime is exact rather
 // than free-running by wall clock.)
-test('loop off: time past duration clamps to sceneDuration', () => {
+test("loop off: time past duration clamps to sceneDuration", () => {
   const renderer = createRecordingRenderer();
   const loop = new RenderLoop(renderer);
   loop.setScene(fadingDot()); // sceneDuration = 3000, loop defaults off
@@ -166,7 +191,7 @@ test('loop off: time past duration clamps to sceneDuration', () => {
 
 // `complete` fires exactly once when a play-once timeline first passes its end,
 // stays latched across held-at-end frames, and re-arms after a seek back inside.
-test('complete fires once at end, re-fires after seek-back', () => {
+test("complete fires once at end, re-fires after seek-back", () => {
   const loop = new RenderLoop(createRecordingRenderer());
   loop.setScene(fadingDot()); // sceneDuration = 3000, loop off
   loop.pause();
@@ -189,7 +214,7 @@ test('complete fires once at end, re-fires after seek-back', () => {
 });
 
 // A looping scene never "completes" — the timeline wraps instead of ending.
-test('complete never fires while looping', () => {
+test("complete never fires while looping", () => {
   const loop = new RenderLoop(createRecordingRenderer());
   loop.setScene(fadingDot());
   loop.setLoop(true);
@@ -204,7 +229,7 @@ test('complete never fires while looping', () => {
 
 // Loop ON: past the duration the timeline wraps back into [0, duration) so the
 // animation keeps cycling. (Not paused — the wrap only runs on a live timeline.)
-test('loop on: time past duration wraps', () => {
+test("loop on: time past duration wraps", () => {
   const renderer = createRecordingRenderer();
   const loop = new RenderLoop(renderer);
   loop.setScene(fadingDot());
@@ -226,15 +251,17 @@ test('loop on: time past duration wraps', () => {
 // A machine scene has a base animation (#bg) giving sceneDuration = 1000, plus a
 // one-shot state animation on #dot that ends at 1000 and holds (default `both`).
 // The machine's initial state is active from setScene, so #dot's slide is live.
-function machineScene(dotFill = ''): SceneNode {
-  return buildSceneGraph(parse(`
+function machineScene(dotFill = ""): SceneNode {
+  return buildSceneGraph(
+    parse(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: a; state a {} }
     #bg  { type: circle; r: 5; animation: pulse 1000ms linear; }
     #dot { type: circle; r: 5; &:state(a) { animation: slide 1000ms linear${dotFill}; } }
     @keyframes pulse { 0% { cx: 0 } 100% { cx: 10 } }
     @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
-  `));
+  `),
+  );
 }
 const nodeCx = (root: SceneNode, id: string): number => {
   const find = (n: SceneNode): SceneNode | undefined =>
@@ -245,20 +272,20 @@ const nodeCx = (root: SceneNode, id: string): number => {
 // The loop attribute is inert for a machine scene: the clock is monotonic (no
 // wrap), so the state animation's entry anchor never folds negative and replays.
 // Without the fix, seeking to 2000 would wrap to 0 and re-run the slide.
-test('machine scene: loop enabled does not wrap past sceneDuration', () => {
+test("machine scene: loop enabled does not wrap past sceneDuration", () => {
   const root = machineScene();
   const loop = new RenderLoop(createRecordingRenderer());
   loop.setScene(root);
   loop.setLoop(true);
 
-  loop.seek(2000);                       // past sceneDuration (1000)
+  loop.seek(2000); // past sceneDuration (1000)
   expect(loop.currentTime).toBeCloseTo(2000, 0); // monotonic — NOT folded to 1000/0
-  expect(nodeCx(root, 'dot')).toBeCloseTo(100); // slide held at end, not replayed
+  expect(nodeCx(root, "dot")).toBeCloseTo(100); // slide held at end, not replayed
 });
 
 // isStatic (the "finished/settled" signal) is never true for a machine scene —
 // it can always still transition — even well past the base duration.
-test('machine scene: isStatic never becomes true (never finishes)', () => {
+test("machine scene: isStatic never becomes true (never finishes)", () => {
   const loop = new RenderLoop(createRecordingRenderer());
   loop.setScene(machineScene());
   loop.seek(5000);
@@ -268,33 +295,33 @@ test('machine scene: isStatic never becomes true (never finishes)', () => {
 // Contrast (regression guard for task 1's fence): a plain scene with no machine
 // still wraps exactly as before — proven by the existing 'loop on: time past
 // duration wraps' test above; this one just pins the non-loop clamp still holds.
-test('non-machine scene still clamps past duration (unchanged)', () => {
+test("non-machine scene still clamps past duration (unchanged)", () => {
   const loop = new RenderLoop(createRecordingRenderer());
-  loop.setScene(fadingDot());            // no machine, sceneDuration 3000
+  loop.setScene(fadingDot()); // no machine, sceneDuration 3000
   loop.pause();
   loop.seek(9000);
-  expect(loop.currentTime).toBe(3000);   // still clamped, not free-running
+  expect(loop.currentTime).toBe(3000); // still clamped, not free-running
 });
 
 // A one-shot state animation with the default (unwritten) fill holds its final
 // keyframe after completion for as long as the state stays active — loop OFF, so
 // the hold comes from `both`, not from wrapping.
-test('state animation with default fill holds its final frame after completion', () => {
+test("state animation with default fill holds its final frame after completion", () => {
   const root = machineScene();
   const loop = new RenderLoop(createRecordingRenderer());
-  loop.setScene(root);                    // loop off
-  loop.seek(3000);                        // slide ended at 1000; state still `a`
-  expect(nodeCx(root, 'dot')).toBeCloseTo(100);
+  loop.setScene(root); // loop off
+  loop.seek(3000); // slide ended at 1000; state still `a`
+  expect(nodeCx(root, "dot")).toBeCloseTo(100);
 });
 
 // An explicit `animation-fill-mode: none` in a state block is respected: the
 // state animation snaps back to base (cx 0) on completion.
-test('state animation with explicit fill:none snaps back to base on completion', () => {
-  const root = machineScene('; animation-fill-mode: none');
+test("state animation with explicit fill:none snaps back to base on completion", () => {
+  const root = machineScene("; animation-fill-mode: none");
   const loop = new RenderLoop(createRecordingRenderer());
   loop.setScene(root);
-  loop.seek(3000);                        // past the 1000ms end
-  expect(nodeCx(root, 'dot')).toBeCloseTo(0);
+  loop.seek(3000); // past the 1000ms end
+  expect(nodeCx(root, "dot")).toBeCloseTo(0);
 });
 
 // Chained track matte: a masked content whose matte SOURCE is itself masked.
@@ -303,7 +330,7 @@ test('state animation with explicit fill:none snaps back to base on completion',
 // and the content spills far past its intended region (the Mail Box regression:
 // a matte source's shape flooded the canvas). Two composites must run: the outer
 // content->source, and the nested source->source2.
-test('chained matte: a matte source with its own mask composites nested, not solid', () => {
+test("chained matte: a matte source with its own mask composites nested, not solid", () => {
   const sheet = parse(`
     :root { width: 100px; height: 100px; }
     #wrap {
@@ -316,7 +343,11 @@ test('chained matte: a matte source with its own mask composites nested, not sol
   const root = buildSceneGraph(sheet);
   let composites = 0;
   const renderer = createRecordingRenderer();
-  renderer.compositeMask = function (_m: MaskMode, drawContent: () => void, drawMask: () => void) {
+  renderer.compositeMask = (
+    _m: MaskMode,
+    drawContent: () => void,
+    drawMask: () => void,
+  ) => {
     composites++;
     drawContent();
     drawMask();

@@ -1,8 +1,8 @@
-import type { PathCommand, GradientData } from '../renderer/types';
-import { cloneGradient } from '../renderer/types';
-import type { MotionPath } from './path-parser';
-import type { PropValue } from '../animation/registry';
-import type { Value, MachineRule } from '@popcorn/parser';
+import type { MachineRule, Value } from "@popcorn/parser";
+import type { PropValue } from "../animation/registry";
+import type { GradientData, PathCommand } from "../renderer/types";
+import { cloneGradient } from "../renderer/types";
+import type { MotionPath } from "./path-parser";
 
 // CSS Motion Path offset-rotate: `auto` follows the path tangent; `angle` adds a
 // fixed offset (auto + angle) or a fixed orientation (angle only, auto = false).
@@ -14,61 +14,80 @@ export interface OffsetRotate {
 // Authored clip-path. Insets are stored relative to the node's bounding box and
 // resolved to concrete geometry at render/hit-test time (see scene/clip.ts).
 export type ClipPathData =
-  | { type: 'circle'; r: number; x: number; y: number }
-  | { type: 'inset'; top: number; right: number; bottom: number; left: number }
-  | { type: 'path'; commands: PathCommand[] };
+  | { type: "circle"; r: number; x: number; y: number }
+  | { type: "inset"; top: number; right: number; bottom: number; left: number }
+  | { type: "path"; commands: PathCommand[] };
 
 // Scene node types
-export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path' | 'text' | 'star' | 'polygon' | 'image';
+export type ShapeType =
+  | "group"
+  | "rect"
+  | "circle"
+  | "ellipse"
+  | "path"
+  | "text"
+  | "star"
+  | "polygon"
+  | "image";
 
 // Track-mask modes (Lottie tt): the mask source's alpha or luminance drives
 // the masked node's visibility; the *-invert variants flip it.
-export type MaskMode = 'alpha' | 'alpha-invert' | 'luminance' | 'luminance-invert';
+export type MaskMode =
+  | "alpha"
+  | "alpha-invert"
+  | "luminance"
+  | "luminance-invert";
 
 // CSS `filter` functions (the supported subset). Lengths are authored in the
 // node's LOCAL space; the renderer scales them by the node's world scale so a
 // scaled element's blur/shadow scales with it (CSS semantics). The blur radius
 // is animatable via the registry's `filter` handler; drop-shadow is static.
 export type FilterOp =
-  | { type: 'blur'; radius: number }
-  | { type: 'drop-shadow'; dx: number; dy: number; blur: number; color: string };
+  | { type: "blur"; radius: number }
+  | {
+      type: "drop-shadow";
+      dx: number;
+      dy: number;
+      blur: number;
+      color: string;
+    };
 
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
-export type FillRule = 'nonzero' | 'evenodd';
+export type FillRule = "nonzero" | "evenodd";
 
 // Text alignment; maps to CanvasRenderingContext2D.textAlign (left/center/right).
-export type TextAnchor = 'start' | 'middle' | 'end';
+export type TextAnchor = "start" | "middle" | "end";
 
 // Stroke line cap, maps straight to CanvasRenderingContext2D.lineCap.
-export type StrokeLineCap = 'butt' | 'round' | 'square';
+export type StrokeLineCap = "butt" | "round" | "square";
 
 // Stroke line join, maps straight to CanvasRenderingContext2D.lineJoin.
-export type StrokeLineJoin = 'miter' | 'round' | 'bevel';
+export type StrokeLineJoin = "miter" | "round" | "bevel";
 
 // Paint order for a shape's own fill/stroke. 'normal' paints fill then stroke
 // (stroke on top); 'stroke' paints stroke then fill (stroke behind the fill),
 // matching SVG `paint-order: stroke`. Used when a Lottie group stroke sits below
 // the fills it covers, so only the exposed edge (a seam) shows.
-export type PaintOrder = 'normal' | 'stroke';
+export type PaintOrder = "normal" | "stroke";
 
 // CSS pointer-events (subset). `none` excludes a node's geometry from hit-testing
 // AND removes its whole subtree from consideration — its descendants can't hit or
 // bubble either. Static: not animatable, not state-block-overridable. Unlike CSS
 // we do NOT support re-enabling: `pointer-events: auto` on a descendant of a
 // `none` node is ignored (the subtree stays excluded).
-export type PointerEvents = 'auto' | 'none';
+export type PointerEvents = "auto" | "none";
 
 // Interaction state types
-export type InteractionState = 'normal' | 'hover' | 'active';
+export type InteractionState = "normal" | "hover" | "active";
 
 // One resolved CSS transition: property `all` or a transitionable group name
 // ('fill' | 'stroke' | 'stroke-width' | 'opacity' | 'transform'); duration/delay
 // in ms. Governs how the property tweens when interaction state flips.
 export interface TransitionSpec {
   property: string;
-  duration: number;         // ms
+  duration: number; // ms
   easing: TimingFunction;
-  delay: number;            // ms
+  delay: number; // ms
 }
 
 // A machine `:state()` conditional declaration set attached to a node. While the
@@ -109,7 +128,7 @@ export interface StateStyles {
 }
 
 // Transform origin types
-export type TransformOriginUnit = 'px' | '%';
+export type TransformOriginUnit = "px" | "%";
 
 export interface TransformOriginValue {
   value: number;
@@ -123,17 +142,17 @@ export interface TransformOrigin {
 
 // Property binding - stores a variable reference for dynamic resolution
 export interface PropertyBinding {
-  property: string;  // e.g., 'cx', 'cy', 'r', 'opacity'
-  value: Value;      // The variable reference or input() function
+  property: string; // e.g., 'cx', 'cy', 'r', 'opacity'
+  value: Value; // The variable reference or input() function
 }
 
 export interface Transform {
   translateX: number;
   translateY: number;
-  rotate: number;       // degrees
+  rotate: number; // degrees
   scaleX: number;
   scaleY: number;
-  transformOrigin: TransformOrigin;  // CSS transform-origin
+  transformOrigin: TransformOrigin; // CSS transform-origin
 }
 
 export interface SceneNode {
@@ -278,7 +297,7 @@ export interface SceneNode {
   interactionState: InteractionState;
   hoverStyles: StateStyles | null;
   activeStyles: StateStyles | null;
-  interactive: boolean;  // Whether this node responds to mouse events
+  interactive: boolean; // Whether this node responds to mouse events
   // Node-level CSS transitions (apply to interaction state changes, both enter
   // and exit). Empty = state overrides snap. Runtime tween state is held in the
   // InteractionManager, so the timeline stays a pure function of time.
@@ -344,7 +363,7 @@ export type ShapeData =
 // Image node: draws `src` into the x/y/width/height box. width/height of 0 mean
 // "use the loaded image's natural size" (resolved in the renderer once decoded).
 export interface ImageData {
-  type: 'image';
+  type: "image";
   x: number;
   y: number;
   width: number;
@@ -357,11 +376,11 @@ export interface ImageData {
 // at render/hit-test time (see scene/polystar.ts), so it reuses the whole path
 // pipeline (trim, bounds, fill-rule, hit-test). Geometry matches lottie/AE.
 export interface PolystarData {
-  type: 'star' | 'polygon';
-  sides: number;          // vertex count (static)
+  type: "star" | "polygon";
+  sides: number; // vertex count (static)
   outerRadius: number;
-  innerRadius: number;    // star only
-  rotation: number;       // degrees; 0 points up (matches Lottie/AE)
+  innerRadius: number; // star only
+  rotation: number; // degrees; 0 points up (matches Lottie/AE)
   cx: number;
   cy: number;
   outerRoundness: number; // percent (Lottie os); 0 => straight edges
@@ -369,22 +388,22 @@ export interface PolystarData {
 }
 
 export interface TextData {
-  type: 'text';
+  type: "text";
   x: number;
   y: number;
   content: string;
   fontSize: number;
   fontFamily: string;
-  fontWeight: string;   // keyword ('bold') or numeric weight as a string ('700')
+  fontWeight: string; // keyword ('bold') or numeric weight as a string ('700')
   anchor: TextAnchor;
 }
 
 export interface GroupData {
-  type: 'group';
+  type: "group";
 }
 
 export interface RectData {
-  type: 'rect';
+  type: "rect";
   x: number;
   y: number;
   width: number;
@@ -394,14 +413,14 @@ export interface RectData {
 }
 
 export interface CircleData {
-  type: 'circle';
+  type: "circle";
   cx: number;
   cy: number;
   r: number;
 }
 
 export interface EllipseData {
-  type: 'ellipse';
+  type: "ellipse";
   cx: number;
   cy: number;
   rx: number;
@@ -409,17 +428,17 @@ export interface EllipseData {
 }
 
 export interface PathData {
-  type: 'path';
+  type: "path";
   commands: PathCommand[];
-  d: string;  // Original SVG path string
+  d: string; // Original SVG path string
 }
 
 // Animation types
 export interface AnimationInstance {
   name: string;
-  duration: number;         // ms
+  duration: number; // ms
   timingFunction: TimingFunction;
-  iterationCount: number;   // Infinity for infinite
+  iterationCount: number; // Infinity for infinite
   direction: AnimationDirection;
   delay: number;
   fillMode: AnimationFillMode;
@@ -433,26 +452,30 @@ export interface AnimationInstance {
   keyframes: KeyframeData[];
 }
 
-export type CompositeOperation = 'replace' | 'add' | 'accumulate';
+export type CompositeOperation = "replace" | "add" | "accumulate";
 
-export type AnimationDirection = 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
+export type AnimationDirection =
+  | "normal"
+  | "reverse"
+  | "alternate"
+  | "alternate-reverse";
 
-export type AnimationFillMode = 'none' | 'forwards' | 'backwards' | 'both';
+export type AnimationFillMode = "none" | "forwards" | "backwards" | "both";
 
 export type TimingFunction =
-  | 'linear'
-  | 'ease'
-  | 'ease-in'
-  | 'ease-out'
-  | 'ease-in-out'
-  | 'step-start'
-  | 'step-end'
+  | "linear"
+  | "ease"
+  | "ease-in"
+  | "ease-out"
+  | "ease-in-out"
+  | "step-start"
+  | "step-end"
   | CubicBezier
   | StepsEasing
   | LinearEasing;
 
 export interface CubicBezier {
-  type: 'cubic-bezier';
+  type: "cubic-bezier";
   x1: number;
   y1: number;
   x2: number;
@@ -463,10 +486,14 @@ export interface CubicBezier {
 // jump position controls whether the stair jumps at the start/end/both/neither
 // of the [0,1] domain. `step-start`/`step-end` keywords are steps(1, jump-start)
 // / steps(1, jump-end).
-export type StepPosition = 'jump-start' | 'jump-end' | 'jump-none' | 'jump-both';
+export type StepPosition =
+  | "jump-start"
+  | "jump-end"
+  | "jump-none"
+  | "jump-both";
 
 export interface StepsEasing {
-  type: 'steps';
+  type: "steps";
   count: number;
   position: StepPosition;
 }
@@ -482,7 +509,7 @@ export interface LinearEasingPoint {
 }
 
 export interface LinearEasing {
-  type: 'linear';
+  type: "linear";
   points: LinearEasingPoint[];
 }
 
@@ -496,21 +523,26 @@ export interface TimeRemapStop {
 }
 
 export interface KeyframeData {
-  offset: number;  // 0-1
+  offset: number; // 0-1
   properties: Record<string, AnimatableValue>;
-  easing?: TimingFunction;  // Per-keyframe easing (controls transition FROM this keyframe to the next)
+  easing?: TimingFunction; // Per-keyframe easing (controls transition FROM this keyframe to the next)
 }
 
 // A keyframe endpoint value. Beyond scalars/colors/transforms, gradients
 // (fill/stroke) and path command lists (`d`, morphing) are animatable; the
 // registry dispatches interpolation by value type.
-export type AnimatableValue = number | string | Transform | GradientData | PathCommand[];
+export type AnimatableValue =
+  | number
+  | string
+  | Transform
+  | GradientData
+  | PathCommand[];
 
 // Default transform origin (0 0, matching CSS behavior)
 export function createDefaultTransformOrigin(): TransformOrigin {
   return {
-    x: { value: 0, unit: 'px' },
-    y: { value: 0, unit: 'px' },
+    x: { value: 0, unit: "px" },
+    y: { value: 0, unit: "px" },
   };
 }
 
@@ -561,7 +593,8 @@ export function cloneShapeData(sd: ShapeData): ShapeData {
 // base; circle/inset carry only numbers.
 export function cloneClipPath(clip: ClipPathData | null): ClipPathData | null {
   if (!clip) return null;
-  if (clip.type === 'path') return { type: 'path', commands: clip.commands.slice() };
+  if (clip.type === "path")
+    return { type: "path", commands: clip.commands.slice() };
   return { ...clip };
 }
 
@@ -634,14 +667,14 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     trimStart: 0,
     trimEnd: 1,
     trimOffset: 0,
-    strokeLineCap: 'butt',
-    strokeLineJoin: 'miter',
+    strokeLineCap: "butt",
+    strokeLineJoin: "miter",
     strokeMiterLimit: 4,
     strokeDashArray: [],
     strokeDashOffset: 0,
-    fillRule: 'nonzero',
-    paintOrder: 'normal',
-    pointerEvents: 'auto',
+    fillRule: "nonzero",
+    paintOrder: "normal",
+    pointerEvents: "auto",
     cachedOutlineLength: null,
     outlineLengthDirty: true,
     cachedTextBounds: null,
@@ -664,7 +697,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     visibleFrom: -Infinity,
     visibleUntil: Infinity,
     hidden: false,
-    shapeData: { type: 'group' },
+    shapeData: { type: "group" },
     animations: [],
     base: {
       transform: cloneTransform(transform),
@@ -677,14 +710,14 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       trimOffset: 0,
       strokeDashOffset: 0,
       offsetDistance: 0,
-      shapeData: { type: 'group' },
+      shapeData: { type: "group" },
       fillGradient: null,
       strokeGradient: null,
       clipPath: null,
       filter: null,
     },
     bindings: [],
-    interactionState: 'normal',
+    interactionState: "normal",
     hoverStyles: null,
     activeStyles: null,
     interactive: false,

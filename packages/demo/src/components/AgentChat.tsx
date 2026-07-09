@@ -1,37 +1,37 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { parse } from "@popcorn/parser";
 import {
-  Sparkles,
-  Send,
-  X,
-  Settings,
+  AlertCircle,
+  Check,
+  ChevronDown,
   Eye,
   EyeOff,
-  AlertCircle,
-  ChevronDown,
   LoaderCircle,
-  Check,
   type LucideIcon,
+  Send,
+  Settings,
+  Sparkles,
+  X,
 } from "lucide-react";
-import { parse } from "@popcorn/parser";
-import { cn } from "@/lib/utils";
-import { extractEdits, applyEdits } from "@/lib/edits";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
-  CommandInput,
-  CommandList,
   CommandGroup,
+  CommandInput,
   CommandItem,
+  CommandList,
 } from "@/components/ui/command";
-import skillMd from "../../../../.claude/skills/creating-popcorn-animations/SKILL.md?raw";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { applyEdits, extractEdits } from "@/lib/edits";
+import { cn } from "@/lib/utils";
 import referenceMd from "../../../../.claude/skills/creating-popcorn-animations/reference.md?raw";
+import skillMd from "../../../../.claude/skills/creating-popcorn-animations/SKILL.md?raw";
 
 type Role = "user" | "agent";
 type Message = {
@@ -275,7 +275,10 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
         if (ac.signal.aborted) return;
         if (agentId === -1) {
           agentId = idRef.current++;
-          setMessages((m) => [...m, { id: agentId, role: "agent", text: reply }]);
+          setMessages((m) => [
+            ...m,
+            { id: agentId, role: "agent", text: reply },
+          ]);
         }
         const fail = (msg: string) =>
           setMessages((m) =>
@@ -330,7 +333,9 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
           <Sparkles className="size-4" />
         </div>
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[13px] font-semibold">Popcorn Copilot</div>
+          <div className="truncate text-[13px] font-semibold">
+            Popcorn Copilot
+          </div>
           <div className="truncate text-[11px] text-muted-foreground">
             {config ? `${config.model}` : "Not configured"}
           </div>
@@ -343,7 +348,10 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
         <HeaderIconButton icon={X} label="Close chat" onClick={onClose} />
       </div>
 
-      <div ref={scrollRef} className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
+      <div
+        ref={scrollRef}
+        className="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
+      >
         {messages.map((m) => (
           <Bubble key={m.id} message={m} />
         ))}
@@ -378,7 +386,11 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
               e.preventDefault();
               send(input);
             }
@@ -466,7 +478,12 @@ function MessageBody({ text }: { text: string }) {
 function Bubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   return (
-    <div className={cn("flex flex-col gap-1", isUser ? "items-end" : "items-start")}>
+    <div
+      className={cn(
+        "flex flex-col gap-1",
+        isUser ? "items-end" : "items-start",
+      )}
+    >
       <div className={cn("flex items-end gap-2", isUser && "flex-row-reverse")}>
         {!isUser && (
           <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
@@ -582,7 +599,7 @@ function ModelCombobox({
         <ChevronDown
           className={cn(
             "size-4 shrink-0 opacity-60 transition-transform",
-            open && "rotate-180"
+            open && "rotate-180",
           )}
         />
       </button>
@@ -603,25 +620,18 @@ function ModelCombobox({
               )}
               <CommandGroup>
                 {filtered.map((p) => (
-                  <CommandItem
-                    key={p}
-                    value={p}
-                    onSelect={() => pick(p)}
-                  >
+                  <CommandItem key={p} value={p} onSelect={() => pick(p)}>
                     <Check
                       className={cn(
                         "size-4 shrink-0",
-                        value === p ? "opacity-100" : "opacity-0"
+                        value === p ? "opacity-100" : "opacity-0",
                       )}
                     />
                     {p}
                   </CommandItem>
                 ))}
                 {showCustom && (
-                  <CommandItem
-                    value={trimmed}
-                    onSelect={() => pick(trimmed)}
-                  >
+                  <CommandItem value={trimmed} onSelect={() => pick(trimmed)}>
                     <Sparkles className="size-4 shrink-0 text-primary" />
                     <span className="truncate">Use “{trimmed}”</span>
                   </CommandItem>
@@ -658,12 +668,20 @@ function SettingsDialog({
   }, [onClose]);
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Agent settings</DialogTitle>
           <DialogDescription>
-            Bring your own key. Stored locally in your browser, never sent anywhere except the endpoint. Any OpenAI-compatible chat completions endpoint works; defaults to OpenRouter, switch the base URL for OpenAI or others.
+            Bring your own key. Stored locally in your browser, never sent
+            anywhere except the endpoint. Any OpenAI-compatible chat completions
+            endpoint works; defaults to OpenRouter, switch the base URL for
+            OpenAI or others.
           </DialogDescription>
         </DialogHeader>
 
@@ -684,7 +702,11 @@ function SettingsDialog({
                 aria-label={showKey ? "Hide key" : "Show key"}
                 className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
               >
-                {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {showKey ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
               </button>
             </div>
           </Field>
@@ -731,7 +753,13 @@ function SettingsDialog({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">

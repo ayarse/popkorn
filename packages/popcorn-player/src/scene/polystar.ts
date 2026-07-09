@@ -1,5 +1,5 @@
-import type { PathCommand } from '../renderer/types';
-import type { SceneNode, PolystarData } from './types';
+import type { PathCommand } from "../renderer/types";
+import type { PolystarData, SceneNode } from "./types";
 
 /**
  * Synthesize a star or polygon into absolute-coordinate PathCommand[], matching
@@ -12,7 +12,7 @@ import type { SceneNode, PolystarData } from './types';
  * (perpendicular to the radius), giving Lottie's rounded corners.
  */
 export function polystarToCommands(sd: PolystarData): PathCommand[] {
-  const isStar = sd.type === 'star';
+  const isStar = sd.type === "star";
   const pts = Math.max(2, Math.floor(sd.sides));
   const numPts = isStar ? pts * 2 : pts;
   const angle = (Math.PI * 2) / numPts;
@@ -21,7 +21,8 @@ export function polystarToCommands(sd: PolystarData): PathCommand[] {
   const outerRad = sd.outerRadius;
   const innerRad = isStar ? sd.innerRadius : outerRad;
   const outerRound = (sd.outerRoundness || 0) / 100;
-  const innerRound = (isStar ? sd.innerRoundness || 0 : sd.outerRoundness || 0) / 100;
+  const innerRound =
+    (isStar ? sd.innerRoundness || 0 : sd.outerRoundness || 0) / 100;
   // Polygons divide by 4 (one segment per edge); stars by 2 (two per pair).
   const denom = isStar ? numPts * 2 : numPts * 4;
   const outerPerim = (2 * Math.PI * outerRad) / denom;
@@ -29,7 +30,14 @@ export function polystarToCommands(sd: PolystarData): PathCommand[] {
 
   let currentAng = -Math.PI / 2 + (sd.rotation * Math.PI) / 180;
 
-  interface Vertex { x: number; y: number; ox: number; oy: number; ix: number; iy: number }
+  interface Vertex {
+    x: number;
+    y: number;
+    ox: number;
+    oy: number;
+    ix: number;
+    iy: number;
+  }
   const verts: Vertex[] = [];
   let rounded = false;
 
@@ -51,24 +59,35 @@ export function polystarToCommands(sd: PolystarData): PathCommand[] {
     const x = rx + sd.cx;
     const y = ry + sd.cy;
     verts.push({
-      x, y,
-      ox: x - nx * off, oy: y - ny * off, // out tangent (leaving this vertex)
-      ix: x + nx * off, iy: y + ny * off, // in tangent (arriving at this vertex)
+      x,
+      y,
+      ox: x - nx * off,
+      oy: y - ny * off, // out tangent (leaving this vertex)
+      ix: x + nx * off,
+      iy: y + ny * off, // in tangent (arriving at this vertex)
     });
     currentAng += angle * dir;
   }
 
-  const cmds: PathCommand[] = [{ type: 'M', x: verts[0].x, y: verts[0].y }];
+  const cmds: PathCommand[] = [{ type: "M", x: verts[0].x, y: verts[0].y }];
   for (let i = 0; i < numPts; i++) {
     const a = verts[i];
     const b = verts[(i + 1) % numPts];
     if (rounded) {
-      cmds.push({ type: 'C', x1: a.ox, y1: a.oy, x2: b.ix, y2: b.iy, x: b.x, y: b.y });
+      cmds.push({
+        type: "C",
+        x1: a.ox,
+        y1: a.oy,
+        x2: b.ix,
+        y2: b.iy,
+        x: b.x,
+        y: b.y,
+      });
     } else {
-      cmds.push({ type: 'L', x: b.x, y: b.y });
+      cmds.push({ type: "L", x: b.x, y: b.y });
     }
   }
-  cmds.push({ type: 'Z' });
+  cmds.push({ type: "Z" });
   return cmds;
 }
 

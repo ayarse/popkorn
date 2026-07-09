@@ -1,10 +1,14 @@
-import { parse } from '@popcorn/parser';
-import { Canvas2DRenderer } from './renderer/canvas2d';
-import { SVGRenderer } from './renderer/svg';
-import { buildSceneGraph } from './scene/builder';
-import { RenderLoop } from './runtime/loop';
-import { AnimationScheduler } from './animation/scheduler';
-import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewport';
+import { parse } from "@popcorn/parser";
+import { AnimationScheduler } from "./animation/scheduler";
+import { Canvas2DRenderer } from "./renderer/canvas2d";
+import { SVGRenderer } from "./renderer/svg";
+import { RenderLoop } from "./runtime/loop";
+import {
+  computeViewport,
+  type FitMode,
+  viewportMatrix,
+} from "./runtime/viewport";
+import { buildSceneGraph } from "./scene/builder";
 
 /**
  * PopcornPlayer Web Component
@@ -34,7 +38,9 @@ import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewpor
 // in a browser. The class is only ever instantiated by `customElements`, which
 // only exists where HTMLElement does.
 const HTMLElementBase: typeof HTMLElement =
-  typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown as typeof HTMLElement);
+  typeof HTMLElement !== "undefined"
+    ? HTMLElement
+    : (class {} as unknown as typeof HTMLElement);
 
 export class PopcornPlayer extends HTMLElementBase {
   private canvas: HTMLCanvasElement;
@@ -44,7 +50,7 @@ export class PopcornPlayer extends HTMLElementBase {
   private useSvg = false;
   private renderLoop: RenderLoop | null = null;
   private scheduler: AnimationScheduler | null = null;
-  private _source: string = '';
+  private _source: string = "";
   // Bumped on every load request (a src fetch or a .source set). A fetch that
   // resolves with a stale token has been superseded and must not clobber the
   // newer load.
@@ -65,18 +71,27 @@ export class PopcornPlayer extends HTMLElementBase {
   private wasPlaying = false;
 
   static get observedAttributes() {
-    return ['src', 'width', 'height', 'background', 'loop', 'controls', 'fit', 'autoplay'];
+    return [
+      "src",
+      "width",
+      "height",
+      "background",
+      "loop",
+      "controls",
+      "fit",
+      "autoplay",
+    ];
   }
 
   constructor() {
     super();
 
-    const shadow = this.attachShadow({ mode: 'open' });
+    const shadow = this.attachShadow({ mode: "open" });
 
     // Canvas fills the host; the ResizeObserver drives its backing store.
-    this.canvas = document.createElement('canvas');
+    this.canvas = document.createElement("canvas");
 
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.textContent = `
       :host {
         display: block;
@@ -137,26 +152,26 @@ export class PopcornPlayer extends HTMLElementBase {
     `;
 
     // Build the controls overlay (hidden unless the `controls` attr is set).
-    this.controlsEl = document.createElement('div');
-    this.controlsEl.className = 'pc-controls';
+    this.controlsEl = document.createElement("div");
+    this.controlsEl.className = "pc-controls";
 
-    this.playBtn = document.createElement('button');
-    this.playBtn.type = 'button';
-    this.playBtn.textContent = '❚❚';
-    this.playBtn.addEventListener('click', () => this.togglePlay());
+    this.playBtn = document.createElement("button");
+    this.playBtn.type = "button";
+    this.playBtn.textContent = "❚❚";
+    this.playBtn.addEventListener("click", () => this.togglePlay());
 
-    this.scrub = document.createElement('input');
-    this.scrub.type = 'range';
-    this.scrub.min = '0';
-    this.scrub.max = '0';
-    this.scrub.step = '1';
-    this.scrub.value = '0';
-    this.scrub.addEventListener('input', () => this.onScrubInput());
-    this.scrub.addEventListener('change', () => this.onScrubChange());
+    this.scrub = document.createElement("input");
+    this.scrub.type = "range";
+    this.scrub.min = "0";
+    this.scrub.max = "0";
+    this.scrub.step = "1";
+    this.scrub.value = "0";
+    this.scrub.addEventListener("input", () => this.onScrubInput());
+    this.scrub.addEventListener("change", () => this.onScrubChange());
 
-    this.timeEl = document.createElement('span');
-    this.timeEl.className = 'pc-time';
-    this.timeEl.textContent = '0:00.0 / 0:00.0';
+    this.timeEl = document.createElement("span");
+    this.timeEl.className = "pc-time";
+    this.timeEl.textContent = "0:00.0 / 0:00.0";
 
     this.controlsEl.append(this.playBtn, this.scrub, this.timeEl);
 
@@ -165,7 +180,7 @@ export class PopcornPlayer extends HTMLElementBase {
 
   connectedCallback() {
     // Responsive: repaint + resize the backing store whenever the host resizes.
-    if (typeof ResizeObserver !== 'undefined') {
+    if (typeof ResizeObserver !== "undefined") {
       this.resizeObserver = new ResizeObserver(() => this.syncSize());
       this.resizeObserver.observe(this);
     }
@@ -181,30 +196,34 @@ export class PopcornPlayer extends HTMLElementBase {
     this.stop();
   }
 
-  attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
+  attributeChangedCallback(
+    name: string,
+    _oldValue: string | null,
+    newValue: string | null,
+  ) {
     switch (name) {
-      case 'src':
+      case "src":
         if (newValue !== null) {
           this.loadFromUrl(newValue);
         }
         break;
-      case 'width':
-      case 'height':
+      case "width":
+      case "height":
         // Only a fallback scene size (used when there's no :root stage config); re-fit.
         this.syncSize();
         break;
-      case 'background':
+      case "background":
         if (this.renderLoop) {
           this.renderLoop.setBackgroundColor(newValue);
         }
         break;
-      case 'loop':
-        this.renderLoop?.setLoop(this.boolAttr('loop'));
+      case "loop":
+        this.renderLoop?.setLoop(this.boolAttr("loop"));
         break;
-      case 'controls':
+      case "controls":
         this.refreshControls();
         break;
-      case 'fit':
+      case "fit":
         this.syncSize();
         break;
       // `autoplay` only affects the initial start, handled in initializePlayer.
@@ -232,12 +251,12 @@ export class PopcornPlayer extends HTMLElementBase {
    * DSL *text*, set `.source` instead (that's the raw-text channel).
    */
   get src(): string | null {
-    return this.getAttribute('src');
+    return this.getAttribute("src");
   }
 
   set src(value: string | null) {
-    if (value === null) this.removeAttribute('src');
-    else this.setAttribute('src', value);
+    if (value === null) this.removeAttribute("src");
+    else this.setAttribute("src", value);
   }
 
   /** Fetch DSL source from a URL and load it, guarding against stale fetches. */
@@ -252,8 +271,8 @@ export class PopcornPlayer extends HTMLElementBase {
       if (this.isConnected) this.initializePlayer();
     } catch (error) {
       if (token !== this._loadToken) return;
-      console.error('PopcornPlayer: Failed to load src', error);
-      this.dispatchEvent(new CustomEvent('error', { detail: { error } }));
+      console.error("PopcornPlayer: Failed to load src", error);
+      this.dispatchEvent(new CustomEvent("error", { detail: { error } }));
     }
   }
 
@@ -265,7 +284,7 @@ export class PopcornPlayer extends HTMLElementBase {
   }
 
   set width(value: number) {
-    this.setAttribute('width', String(value));
+    this.setAttribute("width", String(value));
   }
 
   /**
@@ -276,40 +295,42 @@ export class PopcornPlayer extends HTMLElementBase {
   }
 
   set height(value: number) {
-    this.setAttribute('height', String(value));
+    this.setAttribute("height", String(value));
   }
 
   /**
    * Get or set the background color
    */
   get background(): string | null {
-    return this.getAttribute('background');
+    return this.getAttribute("background");
   }
 
   set background(value: string | null) {
     if (value) {
-      this.setAttribute('background', value);
+      this.setAttribute("background", value);
     } else {
-      this.removeAttribute('background');
+      this.removeAttribute("background");
     }
   }
 
   /** Whether the timeline loops. */
   get loop(): boolean {
-    return this.boolAttr('loop');
+    return this.boolAttr("loop");
   }
 
   set loop(value: boolean) {
-    if (value) this.setAttribute('loop', ''); else this.removeAttribute('loop');
+    if (value) this.setAttribute("loop", "");
+    else this.removeAttribute("loop");
   }
 
   /** Whether the controls overlay is shown. */
   get controls(): boolean {
-    return this.boolAttr('controls');
+    return this.boolAttr("controls");
   }
 
   set controls(value: boolean) {
-    if (value) this.setAttribute('controls', ''); else this.removeAttribute('controls');
+    if (value) this.setAttribute("controls", "");
+    else this.removeAttribute("controls");
   }
 
   /**
@@ -319,21 +340,21 @@ export class PopcornPlayer extends HTMLElementBase {
    * behavior (back-compat wins over the HTML boolean-attribute norm).
    */
   get autoplay(): boolean {
-    return this.getAttribute('autoplay') !== 'false';
+    return this.getAttribute("autoplay") !== "false";
   }
 
   set autoplay(value: boolean) {
-    this.setAttribute('autoplay', value ? 'true' : 'false');
+    this.setAttribute("autoplay", value ? "true" : "false");
   }
 
   /** How the scene is fitted into the host (contain | cover | fill | none). */
   get fit(): FitMode {
-    const v = this.getAttribute('fit');
-    return v === 'cover' || v === 'fill' || v === 'none' ? v : 'contain';
+    const v = this.getAttribute("fit");
+    return v === "cover" || v === "fill" || v === "none" ? v : "contain";
   }
 
   set fit(value: FitMode) {
-    this.setAttribute('fit', value);
+    this.setAttribute("fit", value);
   }
 
   /**
@@ -441,7 +462,7 @@ export class PopcornPlayer extends HTMLElementBase {
 
   private boolAttr(name: string): boolean {
     const v = this.getAttribute(name);
-    return v !== null && v !== 'false';
+    return v !== null && v !== "false";
   }
 
   private async initializePlayer(): Promise<void> {
@@ -456,46 +477,63 @@ export class PopcornPlayer extends HTMLElementBase {
       const ast = parse(this._source);
 
       // Intrinsic scene size: `:root` wins, else the width/height attrs.
-      this.sceneWidth = ast.canvas?.width ?? parseInt(this.getAttribute('width') || '400', 10);
-      this.sceneHeight = ast.canvas?.height ?? parseInt(this.getAttribute('height') || '300', 10);
+      this.sceneWidth =
+        ast.canvas?.width ?? parseInt(this.getAttribute("width") || "400", 10);
+      this.sceneHeight =
+        ast.canvas?.height ??
+        parseInt(this.getAttribute("height") || "300", 10);
 
       // Default host size = scene aspect (overridable by the parent's CSS).
-      this.style.setProperty('--pc-width', `${this.sceneWidth}px`);
-      this.style.setProperty('--pc-aspect', `${this.sceneWidth} / ${this.sceneHeight}`);
+      this.style.setProperty("--pc-width", `${this.sceneWidth}px`);
+      this.style.setProperty(
+        "--pc-aspect",
+        `${this.sceneWidth} / ${this.sceneHeight}`,
+      );
 
       const sceneRoot = buildSceneGraph(ast);
 
       // Backend: canvas (default) or a retained SVG surface (renderer="svg").
       // The viewport handling below is identical for both — the fit/DPR matrix
       // is folded into the transforms the loop hands the renderer.
-      this.useSvg = this.getAttribute('renderer') === 'svg';
+      this.useSvg = this.getAttribute("renderer") === "svg";
       const surface = this.useSvg ? this.ensureSvg() : this.canvas;
-      this.canvas.style.display = this.useSvg ? 'none' : 'block';
-      if (this.svg) this.svg.style.display = this.useSvg ? 'block' : 'none';
-      this.renderer = this.useSvg ? new SVGRenderer(this.svg!) : new Canvas2DRenderer(this.canvas);
+      this.canvas.style.display = this.useSvg ? "none" : "block";
+      if (this.svg) this.svg.style.display = this.useSvg ? "block" : "none";
+      this.renderer = this.useSvg
+        ? new SVGRenderer(this.svg!)
+        : new Canvas2DRenderer(this.canvas);
       this.scheduler = new AnimationScheduler();
 
       this.renderLoop = new RenderLoop(this.renderer, this.scheduler);
       this.renderLoop.setScene(sceneRoot);
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
-      this.renderLoop.setLoop(this.boolAttr('loop'));
+      this.renderLoop.setLoop(this.boolAttr("loop"));
       this.renderLoop.setFrameCallback((t) => this.onFrame(t));
       // Non-looping timeline reached its end -> notify the host once (Lottie's
       // `complete`). Looping/state-machine scenes never fire it.
       this.renderLoop.setCompleteCallback(() => {
-        this.dispatchEvent(new CustomEvent('complete'));
+        this.dispatchEvent(new CustomEvent("complete"));
       });
       // Machine transitions/emits -> DOM events for the host.
       this.renderLoop.setMachineEventCallback((o) => {
-        if (o.type === 'statechange') {
-          this.dispatchEvent(new CustomEvent('statechange', { detail: { machine: o.machine, from: o.from, to: o.to } }));
+        if (o.type === "statechange") {
+          this.dispatchEvent(
+            new CustomEvent("statechange", {
+              detail: { machine: o.machine, from: o.from, to: o.to },
+            }),
+          );
         } else {
-          this.dispatchEvent(new CustomEvent('machine-event', { detail: { machine: o.machine, name: o.name } }));
+          this.dispatchEvent(
+            new CustomEvent("machine-event", {
+              detail: { machine: o.machine, name: o.name },
+            }),
+          );
         }
       });
 
       // Background: explicit attr wins, else the authored `:root` background.
-      const bg = this.getAttribute('background') ?? ast.canvas?.background ?? null;
+      const bg =
+        this.getAttribute("background") ?? ast.canvas?.background ?? null;
       if (bg) {
         this.renderLoop.setBackgroundColor(bg);
       }
@@ -527,17 +565,21 @@ export class PopcornPlayer extends HTMLElementBase {
 
       this.refreshControls();
 
-      this.dispatchEvent(new CustomEvent('ready', { detail: { sceneRoot, duration: this.duration } }));
+      this.dispatchEvent(
+        new CustomEvent("ready", {
+          detail: { sceneRoot, duration: this.duration },
+        }),
+      );
     } catch (error) {
-      console.error('PopcornPlayer: Failed to initialize', error);
-      this.dispatchEvent(new CustomEvent('error', { detail: { error } }));
+      console.error("PopcornPlayer: Failed to initialize", error);
+      this.dispatchEvent(new CustomEvent("error", { detail: { error } }));
     }
   }
 
   /** Lazily create the SVG surface and append it into the shadow root. */
   private ensureSvg(): SVGSVGElement {
     if (!this.svg) {
-      this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       // Insert before the controls overlay so the overlay stays on top.
       this.shadowRoot!.insertBefore(this.svg, this.controlsEl);
     }
@@ -557,7 +599,7 @@ export class PopcornPlayer extends HTMLElementBase {
     const rect = surface.getBoundingClientRect();
     const elemW = rect.width || this.sceneWidth;
     const elemH = rect.height || this.sceneHeight;
-    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    const dpr = (typeof window !== "undefined" && window.devicePixelRatio) || 1;
 
     const bw = Math.max(1, Math.round(elemW * dpr));
     const bh = Math.max(1, Math.round(elemH * dpr));
@@ -565,7 +607,14 @@ export class PopcornPlayer extends HTMLElementBase {
     // each backend's resize() sizes its own surface (canvas w/h vs SVG viewBox).
     this.renderer?.resize(bw, bh);
 
-    const vp = computeViewport(this.sceneWidth, this.sceneHeight, elemW, elemH, dpr, this.fit);
+    const vp = computeViewport(
+      this.sceneWidth,
+      this.sceneHeight,
+      elemW,
+      elemH,
+      dpr,
+      this.fit,
+    );
     this.renderLoop.setViewport(viewportMatrix(vp));
     this.renderLoop.getInputTracker().setViewport(vp, dpr);
 
@@ -577,8 +626,9 @@ export class PopcornPlayer extends HTMLElementBase {
 
   private togglePlay(): void {
     if (!this.renderLoop) return;
-    if (this.renderLoop.paused) this.resume(); else this.pause();
-    this.playBtn.textContent = this.paused ? '▶' : '❚❚';
+    if (this.renderLoop.paused) this.resume();
+    else this.pause();
+    this.playBtn.textContent = this.paused ? "▶" : "❚❚";
   }
 
   private onScrubInput(): void {
@@ -595,12 +645,12 @@ export class PopcornPlayer extends HTMLElementBase {
   private onScrubChange(): void {
     this.scrubbing = false;
     if (this.wasPlaying) this.resume();
-    this.playBtn.textContent = this.paused ? '▶' : '❚❚';
+    this.playBtn.textContent = this.paused ? "▶" : "❚❚";
   }
 
   /** Per-frame tick from the loop: advance the scrubber + readout (unless dragging). */
   private onFrame(t: number): void {
-    if (!this.boolAttr('controls')) return;
+    if (!this.boolAttr("controls")) return;
     if (!this.scrubbing) {
       const d = this.duration;
       // The loop clamps the timeline to duration when not looping, but a scene
@@ -614,18 +664,18 @@ export class PopcornPlayer extends HTMLElementBase {
 
   /** Sync the controls bar to the current attr + scene state. */
   private refreshControls(): void {
-    const show = this.boolAttr('controls');
-    this.controlsEl.style.display = show ? 'flex' : 'none';
+    const show = this.boolAttr("controls");
+    this.controlsEl.style.display = show ? "flex" : "none";
     // Reserve (or release) the bar's height so the surface doesn't render under
     // it; re-fit since the surface box just changed.
-    this.style.setProperty('--pc-controls-h', show ? '32px' : '0px');
+    this.style.setProperty("--pc-controls-h", show ? "32px" : "0px");
     this.syncSize();
     if (!show) return;
     const d = this.duration;
     this.scrub.max = String(d);
     this.scrub.disabled = d <= 0;
     this.scrub.value = String(this.currentTime);
-    this.playBtn.textContent = this.paused ? '▶' : '❚❚';
+    this.playBtn.textContent = this.paused ? "▶" : "❚❚";
     this.timeEl.textContent = `${formatTime(this.currentTime)} / ${formatTime(d)}`;
   }
 }
@@ -636,16 +686,16 @@ function formatTime(ms: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
   const tenths = Math.floor((totalSeconds * 10) % 10);
-  return `${minutes}:${String(seconds).padStart(2, '0')}.${tenths}`;
+  return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
 /**
  * Register the custom element
  */
 export function registerPopcornPlayer(): void {
-  if (typeof customElements === 'undefined') return;
-  if (!customElements.get('popcorn-player')) {
-    customElements.define('popcorn-player', PopcornPlayer);
+  if (typeof customElements === "undefined") return;
+  if (!customElements.get("popcorn-player")) {
+    customElements.define("popcorn-player", PopcornPlayer);
   }
 }
 
@@ -653,6 +703,6 @@ export function registerPopcornPlayer(): void {
 // separately: RN/Hermes environments (e.g. Expo) can have a `window` global
 // polyfill without `customElements`, and this file is reachable from the
 // barrel import, so the ReferenceError would throw at module load.
-if (typeof window !== 'undefined' && typeof customElements !== 'undefined') {
+if (typeof window !== "undefined" && typeof customElements !== "undefined") {
   registerPopcornPlayer();
 }

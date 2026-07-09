@@ -49,7 +49,7 @@
 -->
 <script id="thorvgScript"></script>
 <script type="module">
-import { cellRects, regionDelta, aHash, hamming, gridDiff } from './diffmath.js';
+import { aHash, cellRects, gridDiff, hamming, regionDelta } from './diffmath.js';
 
 const q = new URLSearchParams(location.search);
 const W = +(q.get('w') || 500);

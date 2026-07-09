@@ -11,7 +11,10 @@ const CENTISECOND = 10;
 const MIN_DELAY_MS = 20;
 
 function snapDelayMs(rawDelayMs: number): number {
-  return Math.max(MIN_DELAY_MS, Math.round(rawDelayMs / CENTISECOND) * CENTISECOND);
+  return Math.max(
+    MIN_DELAY_MS,
+    Math.round(rawDelayMs / CENTISECOND) * CENTISECOND,
+  );
 }
 
 /**
@@ -42,5 +45,9 @@ export function planGif(
     frameCount = Math.max(1, Math.round(durationMs / effectiveDelayMs));
   }
 
-  return { fps: 1000 / effectiveDelayMs, frameCount, delayMs: effectiveDelayMs };
+  return {
+    fps: 1000 / effectiveDelayMs,
+    frameCount,
+    delayMs: effectiveDelayMs,
+  };
 }

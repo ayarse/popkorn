@@ -28,16 +28,24 @@ export function cellRects(width, height, cols, rows) {
 export function regionDelta(a, b, rect) {
   const { x, y, w, h } = rect;
   const width = a.width;
-  let sum = 0, n = 0, maxDelta = 0, total = 0;
+  let sum = 0,
+    n = 0,
+    maxDelta = 0,
+    total = 0;
   for (let j = 0; j < h; j++) {
     const py = y + j;
     for (let i = 0; i < w; i++) {
       const px = x + i;
       const idx = (py * width + px) * 4;
       total++;
-      const aA = a.data[idx + 3], bA = b.data[idx + 3];
-      if (aA < TRANSPARENT_ALPHA_THRESHOLD && bA < TRANSPARENT_ALPHA_THRESHOLD) continue;
-      const d = Math.abs(a.data[idx] - b.data[idx]) + Math.abs(a.data[idx + 1] - b.data[idx + 1]) + Math.abs(a.data[idx + 2] - b.data[idx + 2]);
+      const aA = a.data[idx + 3],
+        bA = b.data[idx + 3];
+      if (aA < TRANSPARENT_ALPHA_THRESHOLD && bA < TRANSPARENT_ALPHA_THRESHOLD)
+        continue;
+      const d =
+        Math.abs(a.data[idx] - b.data[idx]) +
+        Math.abs(a.data[idx + 1] - b.data[idx + 1]) +
+        Math.abs(a.data[idx + 2] - b.data[idx + 2]);
       sum += d;
       n++;
       if (d > maxDelta) maxDelta = d;
@@ -64,12 +72,17 @@ export function aHash(img, rect) {
     for (let gx = 0; gx < N; gx++) {
       const x0 = x + Math.floor((gx * w) / N);
       const x1 = Math.max(x0 + 1, x + Math.floor(((gx + 1) * w) / N));
-      let sum = 0, count = 0;
+      let sum = 0,
+        count = 0;
       for (let py = y0; py < y1; py++) {
         for (let px = x0; px < x1; px++) {
           const idx = (py * width + px) * 4;
           const alpha = img.data[idx + 3] / 255;
-          const lum = (img.data[idx] * 0.299 + img.data[idx + 1] * 0.587 + img.data[idx + 2] * 0.114) * alpha;
+          const lum =
+            (img.data[idx] * 0.299 +
+              img.data[idx + 1] * 0.587 +
+              img.data[idx + 2] * 0.114) *
+            alpha;
           sum += lum;
           count++;
         }
@@ -106,9 +119,20 @@ export function gridDiff(a, b, cols = 8, rows = 8) {
     const col = i % cols;
     const { meanDelta, maxDelta, coverage } = regionDelta(a, b, rect);
     const hashDist = hamming(aHash(a, rect), aHash(b, rect));
-    return { col, row, x: rect.x, y: rect.y, w: rect.w, h: rect.h, meanDelta, maxDelta, coverage, hashDist };
+    return {
+      col,
+      row,
+      x: rect.x,
+      y: rect.y,
+      w: rect.w,
+      h: rect.h,
+      meanDelta,
+      maxDelta,
+      coverage,
+      hashDist,
+    };
   });
-  cells.sort((p, q) => (q.hashDist - p.hashDist) || (q.meanDelta - p.meanDelta));
+  cells.sort((p, q) => q.hashDist - p.hashDist || q.meanDelta - p.meanDelta);
   const overall = regionDelta(a, b, { x: 0, y: 0, w: a.width, h: a.height });
   return { cells, meanDelta: overall.meanDelta, maxDelta: overall.maxDelta };
 }

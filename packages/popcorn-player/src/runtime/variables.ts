@@ -1,14 +1,14 @@
-import type { Value, VariableDefinition } from '@popcorn/parser';
+import type { Value, VariableDefinition } from "@popcorn/parser";
 import {
-  isVariableRefValue,
-  isFunctionValue,
-  isNumberValue,
-  isLengthValue,
-  isKeywordValue,
-  isStringValue,
   isColorValue,
-} from '@popcorn/parser';
-import type { InputState } from './inputs';
+  isFunctionValue,
+  isKeywordValue,
+  isLengthValue,
+  isNumberValue,
+  isStringValue,
+  isVariableRefValue,
+} from "@popcorn/parser";
+import type { InputState } from "./inputs";
 
 /** Primitive a host reads/writes through the variable API. */
 export type VariableValue = number | boolean | string;
@@ -41,13 +41,15 @@ export class VariableResolver {
 
     for (const v of variables) {
       // Check if the value is an input() function
-      if (isFunctionValue(v.value) && v.value.name === 'input') {
+      if (isFunctionValue(v.value) && v.value.name === "input") {
         // Register as a dynamic variable that will be resolved at runtime
         const inputPath = this.getInputPath(v.value.args);
         if (inputPath) {
-          this.dynamicVariables.set(v.name, () => this.resolveInputPath(inputPath));
+          this.dynamicVariables.set(v.name, () =>
+            this.resolveInputPath(inputPath),
+          );
         }
-      } else if (isKeywordValue(v.value) && v.value.value === 'trigger') {
+      } else if (isKeywordValue(v.value) && v.value.value === "trigger") {
         // `--x: trigger` — a momentary event var, false until fired.
         this.triggers.add(v.name);
       } else {
@@ -136,13 +138,16 @@ export class VariableResolver {
 
     // Trigger vars read `true` only on the frame they were fired.
     if (this.triggers.has(name)) {
-      return { type: 'keyword', value: this.firedTriggers.has(name) ? 'true' : 'false' };
+      return {
+        type: "keyword",
+        value: this.firedTriggers.has(name) ? "true" : "false",
+      };
     }
 
     // Check dynamic variables first (input bindings)
     if (this.dynamicVariables.has(name)) {
       const resolver = this.dynamicVariables.get(name)!;
-      return { type: 'number', value: resolver() };
+      return { type: "number", value: resolver() };
     }
 
     // Check static variables
@@ -157,7 +162,7 @@ export class VariableResolver {
       return this.resolveValue(fallback);
     }
 
-    return { type: 'number', value: 0 };
+    return { type: "number", value: 0 };
   }
 
   /**
@@ -174,8 +179,8 @@ export class VariableResolver {
     }
     // Booleans (host/trigger vars) coerce to 1/0 in a numeric binding.
     if (isKeywordValue(resolved)) {
-      if (resolved.value === 'true') return 1;
-      if (resolved.value === 'false') return 0;
+      if (resolved.value === "true") return 1;
+      if (resolved.value === "false") return 0;
     }
     return 0;
   }
@@ -187,7 +192,7 @@ export class VariableResolver {
     if (isVariableRefValue(value)) {
       return true;
     }
-    if (isFunctionValue(value) && value.name === 'input') {
+    if (isFunctionValue(value) && value.name === "input") {
       return true;
     }
     return false;
@@ -222,17 +227,24 @@ export class VariableResolver {
     // Runs per binding per frame; the path set is small and fixed, so direct
     // comparison avoids a per-call split() allocation.
     switch (path) {
-      case 'cursor.x': return this.inputState.cursor.x;
-      case 'cursor.y': return this.inputState.cursor.y;
-      case 'cursor.isDown': return this.inputState.cursor.isDown ? 1 : 0;
-      case 'scroll.x': return this.inputState.scroll.x;
-      case 'scroll.y': return this.inputState.scroll.y;
+      case "cursor.x":
+        return this.inputState.cursor.x;
+      case "cursor.y":
+        return this.inputState.cursor.y;
+      case "cursor.isDown":
+        return this.inputState.cursor.isDown ? 1 : 0;
+      case "scroll.x":
+        return this.inputState.scroll.x;
+      case "scroll.y":
+        return this.inputState.scroll.y;
       // ponytail: headless fallback is the InputState default (0); the tracker
       // only computes real progress from DOM scroll events in a browser.
-      case 'scroll.progress': return this.inputState.scroll.progress;
-      case 'time': return this.inputState.time;
+      case "scroll.progress":
+        return this.inputState.scroll.progress;
+      case "time":
+        return this.inputState.time;
       default:
-        if (path.startsWith('media.')) return resolveMedia(path);
+        if (path.startsWith("media.")) return resolveMedia(path);
         return 0;
     }
   }
@@ -244,16 +256,16 @@ export class VariableResolver {
  * ponytail: headless (no matchMedia/window) falls back to 0 / sensible defaults.
  */
 function resolveMedia(path: string): number {
-  const mm = typeof matchMedia !== 'undefined' ? matchMedia : undefined;
+  const mm = typeof matchMedia !== "undefined" ? matchMedia : undefined;
   switch (path) {
-    case 'media.prefers-reduced-motion':
-      return mm && mm('(prefers-reduced-motion: reduce)').matches ? 1 : 0;
-    case 'media.hover':
-      return mm && mm('(hover: hover)').matches ? 1 : 0;
-    case 'media.width':
-      return typeof window !== 'undefined' ? window.innerWidth : 0;
-    case 'media.height':
-      return typeof window !== 'undefined' ? window.innerHeight : 0;
+    case "media.prefers-reduced-motion":
+      return mm && mm("(prefers-reduced-motion: reduce)").matches ? 1 : 0;
+    case "media.hover":
+      return mm && mm("(hover: hover)").matches ? 1 : 0;
+    case "media.width":
+      return typeof window !== "undefined" ? window.innerWidth : 0;
+    case "media.height":
+      return typeof window !== "undefined" ? window.innerHeight : 0;
     default:
       return 0;
   }
@@ -261,22 +273,22 @@ function resolveMedia(path: string): number {
 
 /** Normalize a host-supplied variable name to the authored `--name` form. */
 function normalizeVarName(name: string): string {
-  return name.startsWith('--') ? name : `--${name}`;
+  return name.startsWith("--") ? name : `--${name}`;
 }
 
 /** A host primitive as an AST Value (booleans become `true`/`false` keywords). */
 function primitiveToValue(v: number | boolean): Value {
-  return typeof v === 'boolean'
-    ? { type: 'keyword', value: v ? 'true' : 'false' }
-    : { type: 'number', value: v };
+  return typeof v === "boolean"
+    ? { type: "keyword", value: v ? "true" : "false" }
+    : { type: "number", value: v };
 }
 
 /** A resolved Value as a host primitive (`true`/`false` keywords → booleans). */
 function valueToPrimitive(v: Value): VariableValue {
   if (isNumberValue(v) || isLengthValue(v)) return v.value;
   if (isKeywordValue(v)) {
-    if (v.value === 'true') return true;
-    if (v.value === 'false') return false;
+    if (v.value === "true") return true;
+    if (v.value === "false") return false;
     return v.value;
   }
   if (isStringValue(v) || isColorValue(v)) return v.value;

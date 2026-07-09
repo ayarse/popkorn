@@ -1,21 +1,48 @@
-import type { Renderer } from '../renderer/interface';
-import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData, TimeRemapStop, FilterOp } from '../scene/types';
-import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
-import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
-import { resetNodeToBase, childrenInPaintOrder } from '../scene/types';
-import { computeLocalMatrix, computeWorldMatrixFromRoot, clamp01 } from '../scene/transform';
-import { outlineLength } from '../scene/path-parser';
-import { polystarCommands } from '../scene/polystar';
-import { resolveClip } from '../scene/clip';
-import { AnimationScheduler, computeSceneDuration, sampleNodeAtProgress } from '../animation/scheduler';
-import { applyEasing } from '../animation/easing';
-import { getPropHandler } from '../animation/registry';
-import { InputTracker, createInputTracker } from './inputs';
-import { VariableResolver, createVariableResolver } from './variables';
-import { InteractionManager, createInteractionManager, applyStateStyles } from './interaction';
-import { StateMachineRunner, createStateMachineRunner, type PointerTriggerEvent, type MachineOutput } from './state-machine';
-import { hitTest } from './hit-test';
-import { isFunctionValue, isKeywordValue, type Value } from '@popcorn/parser';
+import { isFunctionValue, isKeywordValue, type Value } from "@popcorn/parser";
+import { applyEasing } from "../animation/easing";
+import { getPropHandler } from "../animation/registry";
+import {
+  AnimationScheduler,
+  computeSceneDuration,
+  sampleNodeAtProgress,
+} from "../animation/scheduler";
+import type { Renderer } from "../renderer/interface";
+import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
+import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
+import { resolveClip } from "../scene/clip";
+import { outlineLength } from "../scene/path-parser";
+import { polystarCommands } from "../scene/polystar";
+import {
+  clamp01,
+  computeLocalMatrix,
+  computeWorldMatrixFromRoot,
+} from "../scene/transform";
+import type {
+  CircleData,
+  EllipseData,
+  FilterOp,
+  ImageData,
+  PathData,
+  RectData,
+  SceneNode,
+  TextData,
+  TimeRemapStop,
+} from "../scene/types";
+import { childrenInPaintOrder, resetNodeToBase } from "../scene/types";
+import { hitTest } from "./hit-test";
+import { createInputTracker, type InputTracker } from "./inputs";
+import {
+  applyStateStyles,
+  createInteractionManager,
+  type InteractionManager,
+} from "./interaction";
+import {
+  createStateMachineRunner,
+  type MachineOutput,
+  type PointerTriggerEvent,
+  type StateMachineRunner,
+} from "./state-machine";
+import { createVariableResolver, type VariableResolver } from "./variables";
 
 /**
  * Flags set only on the TOP node of a mask composite pass (renderMask). Never
@@ -105,7 +132,7 @@ export class RenderLoop {
     scheduler?: AnimationScheduler,
     inputTracker?: InputTracker,
     variableResolver?: VariableResolver,
-    interactionManager?: InteractionManager
+    interactionManager?: InteractionManager,
   ) {
     this.renderer = renderer;
     this.scheduler = scheduler || new AnimationScheduler();
@@ -314,7 +341,13 @@ export class RenderLoop {
           this.scheduler.seek(wrapped, now);
           t = wrapped;
         }
-      } else if (!this.looping && !this.sceneTimeScoped && !this.sceneUnbounded && this.sceneDuration > 0 && t > this.sceneDuration) {
+      } else if (
+        !this.looping &&
+        !this.sceneTimeScoped &&
+        !this.sceneUnbounded &&
+        this.sceneDuration > 0 &&
+        t > this.sceneDuration
+      ) {
         // Not looping: hold at the end of one full pass ("play once and stop").
         // Without this, t free-runs past duration and any infinite animation
         // keeps cycling. Re-anchor (like the wrap above) so currentTime stays
@@ -339,7 +372,8 @@ export class RenderLoop {
           variableResolver: this.variableResolver,
           pointerEvents: this.detectPointerEvents(),
         });
-        if (this.machineEventCallback) for (const o of outputs) this.machineEventCallback(o);
+        if (this.machineEventCallback)
+          for (const o of outputs) this.machineEventCallback(o);
       }
 
       this.resolveNode(this.sceneRoot, t, now, t);
@@ -357,7 +391,12 @@ export class RenderLoop {
    * `machineTime` is the global timeline time (threaded unchanged) used to
    * anchor state animations; `t` is this node's inherited (scoped) time.
    */
-  private resolveNode(node: SceneNode, t: number, now: number, machineTime: number): void {
+  private resolveNode(
+    node: SceneNode,
+    t: number,
+    now: number,
+    machineTime: number,
+  ): void {
     // Visibility window: a node outside [from, until) is hidden this frame, and
     // the render walk / hit-testing skip it and its subtree. Evaluated against
     // the INCOMING time `t` (this node's containing scope) — not the local time
@@ -383,7 +422,10 @@ export class RenderLoop {
     // Base (node-level) animations: scrub to a 0..1 timeline reference when the
     // node declares animation-timeline, else sample on the clock at local time.
     if (node.animationTimeline && node.animations.length > 0) {
-      sampleNodeAtProgress(node, clamp01(this.resolveTimelineProgress(node.animationTimeline)));
+      sampleNodeAtProgress(
+        node,
+        clamp01(this.resolveTimelineProgress(node.animationTimeline)),
+      );
     } else {
       this.scheduler.sampleNode(node, local);
     }
@@ -404,10 +446,14 @@ export class RenderLoop {
    */
   private applyMachineStates(node: SceneNode, machineTime: number): void {
     for (const entry of node.stateStyles) {
-      if (!this.machineRunner.isStateActive(entry.machine, entry.name)) continue;
+      if (!this.machineRunner.isStateActive(entry.machine, entry.name))
+        continue;
       applyStateStyles(node, entry.styles);
       if (entry.animations.length > 0) {
-        const entryTime = this.machineRunner.entryTimeFor(entry.machine, entry.name);
+        const entryTime = this.machineRunner.entryTimeFor(
+          entry.machine,
+          entry.name,
+        );
         const saved = node.animations;
         node.animations = entry.animations;
         this.scheduler.sampleNode(node, machineTime - entryTime);
@@ -422,9 +468,10 @@ export class RenderLoop {
    * uses its public per-path input reader (kept in sync via updateInputState).
    */
   private resolveTimelineProgress(value: Value): number {
-    if (isFunctionValue(value) && value.name === 'input') {
+    if (isFunctionValue(value) && value.name === "input") {
       const arg = value.args[0];
-      if (arg && isKeywordValue(arg)) return this.variableResolver.resolveInput(arg.value);
+      if (arg && isKeywordValue(arg))
+        return this.variableResolver.resolveInput(arg.value);
       return 0;
     }
     return this.variableResolver.resolveNumeric(value);
@@ -434,7 +481,7 @@ export class RenderLoop {
     for (const binding of node.bindings) {
       const handler = getPropHandler(binding.property);
       // Bindings resolve to numbers; skip anything without a numeric handler.
-      if (!handler || handler.kind !== 'number') continue;
+      if (!handler || handler.kind !== "number") continue;
       handler.apply(node, this.variableResolver.resolveNumeric(binding.value));
     }
   }
@@ -454,18 +501,19 @@ export class RenderLoop {
     const hit = hitTest(this.sceneRoot, { x: st.cursor.x, y: st.cursor.y });
 
     if (hit !== this.prevHit) {
-      if (this.prevHit) events.push({ event: 'hoverend', node: this.prevHit });
-      if (hit) events.push({ event: 'hoverstart', node: hit });
+      if (this.prevHit) events.push({ event: "hoverend", node: this.prevHit });
+      if (hit) events.push({ event: "hoverstart", node: hit });
     }
 
     const down = st.cursor.isDown;
     if (down && !this.prevIsDown) {
-      events.push({ event: 'pointerdown', node: hit });
+      events.push({ event: "pointerdown", node: hit });
       this.downHit = hit;
     }
     if (!down && this.prevIsDown) {
-      events.push({ event: 'pointerup', node: hit });
-      if (hit && hit === this.downHit) events.push({ event: 'click', node: hit });
+      events.push({ event: "pointerup", node: hit });
+      if (hit && hit === this.downHit)
+        events.push({ event: "click", node: hit });
       this.downHit = null;
     }
 
@@ -503,7 +551,12 @@ export class RenderLoop {
     this.renderer.endFrame();
   }
 
-  private renderNode(node: SceneNode, opts: RenderOpts = {}, inheritedAlpha: number = 1, skipFilter: boolean = false): void {
+  private renderNode(
+    node: SceneNode,
+    opts: RenderOpts = {},
+    inheritedAlpha: number = 1,
+    skipFilter: boolean = false,
+  ): void {
     // `paintSource` and `skipMask` are set only on the TOP node of a composite
     // pass (renderMask) and must NOT propagate to descendants — a nested matte
     // still needs its source skipped and its own mask composited.
@@ -530,7 +583,9 @@ export class RenderLoop {
       // node unfiltered (preserving the normal transform discipline).
       if (!this.filterWarned) {
         this.filterWarned = true;
-        console.warn('[popcorn] filter: unsupported by this renderer; drawing unfiltered');
+        console.warn(
+          "[popcorn] filter: unsupported by this renderer; drawing unfiltered",
+        );
       }
     }
 
@@ -539,7 +594,10 @@ export class RenderLoop {
     // inside (avoids infinite recursion); a matte SOURCE that carries its own
     // mask is entered with skipMask=false so its mask composites correctly —
     // this is what stops a chained/nested matte source from painting whole.
-    if (!skipMask && node.mask) { this.renderMask(node); return; }
+    if (!skipMask && node.mask) {
+      this.renderMask(node);
+      return;
+    }
 
     // Retained-backend bracket: opens this node's element before its own
     // save/transform and closes it after its subtree. Placed on the normal draw
@@ -586,41 +644,49 @@ export class RenderLoop {
 
     // Draw shape
     switch (node.shapeData.type) {
-      case 'rect': {
+      case "rect": {
         const r = node.shapeData as RectData;
         this.renderer.drawRect(r.x, r.y, r.width, r.height, r.rx, r.ry);
         break;
       }
-      case 'circle': {
+      case "circle": {
         const c = node.shapeData as CircleData;
         this.renderer.drawCircle(c.cx, c.cy, c.r);
         break;
       }
-      case 'ellipse': {
+      case "ellipse": {
         const e = node.shapeData as EllipseData;
         this.renderer.drawEllipse(e.cx, e.cy, e.rx, e.ry);
         break;
       }
-      case 'path': {
+      case "path": {
         const p = node.shapeData as PathData;
         this.renderer.drawPath(p.commands);
         break;
       }
-      case 'star':
-      case 'polygon':
+      case "star":
+      case "polygon":
         this.renderer.drawPath(polystarCommands(node));
         break;
-      case 'text': {
+      case "text": {
         const t = node.shapeData as TextData;
-        this.renderer.drawText(t.content, t.x, t.y, t.fontSize, t.fontFamily, t.fontWeight, t.anchor);
+        this.renderer.drawText(
+          t.content,
+          t.x,
+          t.y,
+          t.fontSize,
+          t.fontFamily,
+          t.fontWeight,
+          t.anchor,
+        );
         break;
       }
-      case 'image': {
+      case "image": {
         const im = node.shapeData as ImageData;
         this.renderer.drawImage(im.src, im.x, im.y, im.width, im.height);
         break;
       }
-      case 'group':
+      case "group":
         // Groups don't render themselves, just their children
         break;
     }
@@ -638,7 +704,7 @@ export class RenderLoop {
   private nodeKey(node: SceneNode): string {
     let key = this.nodeKeys.get(node);
     if (key === undefined) {
-      key = 'n' + this.nextNodeKey++;
+      key = "n" + this.nextNodeKey++;
       this.nodeKeys.set(node, key);
     }
     return key;
@@ -654,8 +720,14 @@ export class RenderLoop {
     // Fold the viewport into each subtree's world transform: the mask closures
     // call setTransform (bypassing the render-root viewport), so without this the
     // mask would render at 1:1 while the rest of the scene is fit-scaled.
-    const contentParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
-    const maskParent = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(source.parent));
+    const contentParent = multiplyMatrices(
+      this.viewport,
+      computeWorldMatrixFromRoot(node.parent),
+    );
+    const maskParent = multiplyMatrices(
+      this.viewport,
+      computeWorldMatrixFromRoot(source.parent),
+    );
     const contentAlpha = worldAlpha(node.parent);
     const maskAlpha = worldAlpha(source.parent);
     this.renderer.compositeMask(
@@ -663,8 +735,18 @@ export class RenderLoop {
       // Content: paint it (even if it is itself a source), but skip its own mask
       // redirect — we ARE that composite. Source: paint it, but keep its own mask
       // (skipMask=false) so a chained matte composites instead of painting solid.
-      () => { this.renderer.setTransform(contentParent); this.renderNode(node, { paintSource: true, skipMask: true }, contentAlpha); },
-      () => { this.renderer.setTransform(maskParent); this.renderNode(source, { paintSource: true }, maskAlpha); }
+      () => {
+        this.renderer.setTransform(contentParent);
+        this.renderNode(
+          node,
+          { paintSource: true, skipMask: true },
+          contentAlpha,
+        );
+      },
+      () => {
+        this.renderer.setTransform(maskParent);
+        this.renderNode(source, { paintSource: true }, maskAlpha);
+      },
     );
   }
 
@@ -679,9 +761,19 @@ export class RenderLoop {
    * The re-entry passes skipFilter=true so it doesn't recurse on this same node
    * (its mask, if any, still composites inside the offscreen).
    */
-  private renderFilter(node: SceneNode, opts: RenderOpts, inheritedAlpha: number): void {
-    const parentWorld = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
-    const world = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node));
+  private renderFilter(
+    node: SceneNode,
+    opts: RenderOpts,
+    inheritedAlpha: number,
+  ): void {
+    const parentWorld = multiplyMatrices(
+      this.viewport,
+      computeWorldMatrixFromRoot(node.parent),
+    );
+    const world = multiplyMatrices(
+      this.viewport,
+      computeWorldMatrixFromRoot(node),
+    );
     // Device-space blit (Canvas): prescale by the full world scale. User-space
     // CSS filter (SVG): the wrapper sits at parentWorld, so the browser scales by
     // the parent's scale — hand it only the node's own (local) scale and the two
@@ -708,13 +800,15 @@ function matrixScale(m: Matrix3x3): number {
 function filterToCSS(ops: FilterOp[], scale: number): string {
   const parts: string[] = [];
   for (const op of ops) {
-    if (op.type === 'blur') {
+    if (op.type === "blur") {
       parts.push(`blur(${op.radius * scale}px)`);
     } else {
-      parts.push(`drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`);
+      parts.push(
+        `drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`,
+      );
     }
   }
-  return parts.join(' ');
+  return parts.join(" ");
 }
 
 /**
@@ -730,8 +824,10 @@ function sceneHasDynamicContent(root: SceneNode): boolean {
   if (root.bindings.length > 0) return true;
   if (root.hoverStyles || root.activeStyles || root.interactive) return true;
   if (root.stateStyles.length > 0 || root.animationTimeline) return true;
-  for (const a of root.animations) if (a.iterationCount === Infinity) return true;
-  for (const child of root.children) if (sceneHasDynamicContent(child)) return true;
+  for (const a of root.animations)
+    if (a.iterationCount === Infinity) return true;
+  for (const child of root.children)
+    if (sceneHasDynamicContent(child)) return true;
   return false;
 }
 
@@ -742,8 +838,10 @@ function sceneHasDynamicContent(root: SceneNode): boolean {
  * the scene's end on the root clock. Scanned once at setScene.
  */
 function sceneHasTimeScoping(root: SceneNode): boolean {
-  if (root.timeRemap || root.timeOffset !== 0 || root.timeScale !== 1) return true;
-  for (const child of root.children) if (sceneHasTimeScoping(child)) return true;
+  if (root.timeRemap || root.timeOffset !== 0 || root.timeScale !== 1)
+    return true;
+  for (const child of root.children)
+    if (sceneHasTimeScoping(child)) return true;
   return false;
 }
 
@@ -760,7 +858,8 @@ function sceneIsUnbounded(root: SceneNode): boolean {
 
 function subtreeHasStateStyles(node: SceneNode): boolean {
   if (node.stateStyles.length > 0) return true;
-  for (const child of node.children) if (subtreeHasStateStyles(child)) return true;
+  for (const child of node.children)
+    if (subtreeHasStateStyles(child)) return true;
   return false;
 }
 
@@ -793,11 +892,12 @@ export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
   if (t <= stops[0].input) return stops[0].output;
   if (t >= stops[n - 1].input) return stops[n - 1].output;
   for (let i = 0; i < n - 1; i++) {
-    const a = stops[i], b = stops[i + 1];
+    const a = stops[i],
+      b = stops[i + 1];
     if (t >= a.input && t <= b.input) {
       const range = b.input - a.input;
       let f = range > 0 ? (t - a.input) / range : 0;
-      if (a.easing === 'step-end') f = 0;
+      if (a.easing === "step-end") f = 0;
       else if (a.easing) f = applyEasing(f, a.easing);
       return a.output + (b.output - a.output) * f;
     }
@@ -827,7 +927,8 @@ export function computeTrim(node: SceneNode): TrimDescriptor | null {
   if (end <= start) return { visible: false, dashArray: [], dashOffset: 0 };
 
   // Full window (offset has no visible effect when everything is drawn).
-  if (start <= 0 && end >= 1) return { visible: true, dashArray: [], dashOffset: 0 };
+  if (start <= 0 && end >= 1)
+    return { visible: true, dashArray: [], dashOffset: 0 };
 
   const visible = (end - start) * total;
   const startPos = start + offset;

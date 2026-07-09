@@ -13,19 +13,25 @@ export interface Example {
   source: string;
 }
 
-const files = import.meta.glob('../../../examples/popcorn/*.css', {
-  query: '?raw',
-  import: 'default',
+const files = import.meta.glob("../../../examples/popcorn/*.css", {
+  query: "?raw",
+  import: "default",
   eager: true,
 }) as Record<string, string>;
 
 export const examples: Example[] = Object.keys(files)
   .sort()
   .map((path) => {
-    const name = path.split('/').pop()!.replace(/\.css$/, '').replace(/^\d+-/, '');
+    const name = path
+      .split("/")
+      .pop()!
+      .replace(/\.css$/, "")
+      .replace(/^\d+-/, "");
     const label = name
-      .split('--')
-      .map((part) => part.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()))
-      .join(': ');
+      .split("--")
+      .map((part) =>
+        part.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
+      )
+      .join(": ");
     return { key: name, label, source: files[path] };
   });

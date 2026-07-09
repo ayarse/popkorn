@@ -1,6 +1,6 @@
-import { useRef, useEffect } from 'react';
-import '@popcorn/player'; // This registers the web component
-import type { PopcornPlayer } from '@popcorn/player';
+import { useEffect, useRef } from "react";
+import "@popcorn/player"; // This registers the web component
+import type { PopcornPlayer } from "@popcorn/player";
 
 export interface MotionCanvasProps {
   /** CSS-like scene definition */
@@ -12,9 +12,9 @@ export interface MotionCanvasProps {
   /** Loop the timeline */
   loop?: boolean;
   /** How the scene fits the container */
-  fit?: 'contain' | 'cover' | 'fill' | 'none';
+  fit?: "contain" | "cover" | "fill" | "none";
   /** Rendering backend. Read once at component init — change via a key remount. */
-  renderer?: 'canvas' | 'svg';
+  renderer?: "canvas" | "svg";
   /** Called when scene is ready */
   onSceneReady?: () => void;
   /** Called on error */
@@ -33,8 +33,8 @@ export function MotionCanvas({
   backgroundColor,
   controls = true,
   loop = true,
-  fit = 'contain',
-  renderer = 'canvas',
+  fit = "contain",
+  renderer = "canvas",
   onSceneReady,
   onError,
   className,
@@ -55,9 +55,11 @@ export function MotionCanvas({
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
-    if (controls) player.setAttribute('controls', ''); else player.removeAttribute('controls');
-    if (loop) player.setAttribute('loop', ''); else player.removeAttribute('loop');
-    player.setAttribute('fit', fit);
+    if (controls) player.setAttribute("controls", "");
+    else player.removeAttribute("controls");
+    if (loop) player.setAttribute("loop", "");
+    else player.removeAttribute("loop");
+    player.setAttribute("fit", fit);
   }, [controls, loop, fit]);
 
   // Handle events
@@ -74,12 +76,12 @@ export function MotionCanvas({
       onError?.(customEvent.detail.error);
     };
 
-    player.addEventListener('ready', handleReady);
-    player.addEventListener('error', handleError);
+    player.addEventListener("ready", handleReady);
+    player.addEventListener("error", handleError);
 
     return () => {
-      player.removeEventListener('ready', handleReady);
-      player.removeEventListener('error', handleError);
+      player.removeEventListener("ready", handleReady);
+      player.removeEventListener("error", handleError);
     };
   }, [onSceneReady, onError]);
 
@@ -89,7 +91,7 @@ export function MotionCanvas({
       renderer={renderer}
       background={backgroundColor}
       className={className}
-      style={{ width: '100%', ...style }}
+      style={{ width: "100%", ...style }}
     />
   );
 }
@@ -98,7 +100,7 @@ export function MotionCanvas({
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      'popcorn-player': React.DetailedHTMLProps<
+      "popcorn-player": React.DetailedHTMLProps<
         React.HTMLAttributes<PopcornPlayer> & {
           src?: string;
           width?: number;

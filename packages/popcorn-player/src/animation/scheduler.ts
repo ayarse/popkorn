@@ -1,5 +1,9 @@
-import type { SceneNode, AnimationInstance, AnimationDirection } from '../scene/types';
-import { interpolateKeyframes } from './keyframes';
+import type {
+  AnimationDirection,
+  AnimationInstance,
+  SceneNode,
+} from "../scene/types";
+import { interpolateKeyframes } from "./keyframes";
 
 /**
  * Animation scheduler.
@@ -82,8 +86,20 @@ export class AnimationScheduler {
     }
   }
 
-  private sampleAnimation(node: SceneNode, animation: AnimationInstance, t: number): void {
-    const { keyframes, delay, duration, iterationCount, timingFunction, fillMode, composition } = animation;
+  private sampleAnimation(
+    node: SceneNode,
+    animation: AnimationInstance,
+    t: number,
+  ): void {
+    const {
+      keyframes,
+      delay,
+      duration,
+      iterationCount,
+      timingFunction,
+      fillMode,
+      composition,
+    } = animation;
     if (keyframes.length === 0) return;
 
     const local = t - delay;
@@ -92,8 +108,14 @@ export class AnimationScheduler {
 
     if (local < 0) {
       // Delay period: `backwards`/`both` hold the first-keyframe value.
-      if (fillMode === 'backwards' || fillMode === 'both') {
-        interpolateKeyframes(node, keyframes, this.startProgress(animation), timingFunction, composition);
+      if (fillMode === "backwards" || fillMode === "both") {
+        interpolateKeyframes(
+          node,
+          keyframes,
+          this.startProgress(animation),
+          timingFunction,
+          composition,
+        );
       }
       return;
     }
@@ -101,17 +123,32 @@ export class AnimationScheduler {
     if (finite && local >= total) {
       // After the active interval: `forwards`/`both` hold the final value;
       // `none`/`backwards` revert to base (leave the node untouched here).
-      if (fillMode === 'forwards' || fillMode === 'both') {
-        interpolateKeyframes(node, keyframes, this.endProgress(animation), timingFunction, composition);
+      if (fillMode === "forwards" || fillMode === "both") {
+        interpolateKeyframes(
+          node,
+          keyframes,
+          this.endProgress(animation),
+          timingFunction,
+          composition,
+        );
       }
       return;
     }
 
     const progress = this.calculateProgress(animation, local);
-    interpolateKeyframes(node, keyframes, progress, timingFunction, composition);
+    interpolateKeyframes(
+      node,
+      keyframes,
+      progress,
+      timingFunction,
+      composition,
+    );
   }
 
-  private calculateProgress(animation: AnimationInstance, elapsed: number): number {
+  private calculateProgress(
+    animation: AnimationInstance,
+    elapsed: number,
+  ): number {
     const { duration, iterationCount, direction } = animation;
 
     const iteration = Math.floor(elapsed / duration);
@@ -127,16 +164,16 @@ export class AnimationScheduler {
   private applyDirection(
     progress: number,
     iteration: number,
-    direction: AnimationDirection
+    direction: AnimationDirection,
   ): number {
     switch (direction) {
-      case 'normal':
+      case "normal":
         return progress;
-      case 'reverse':
+      case "reverse":
         return 1 - progress;
-      case 'alternate':
+      case "alternate":
         return iteration % 2 === 0 ? progress : 1 - progress;
-      case 'alternate-reverse':
+      case "alternate-reverse":
         return iteration % 2 === 0 ? 1 - progress : progress;
       default:
         return progress;
@@ -152,13 +189,13 @@ export class AnimationScheduler {
   private endProgress(animation: AnimationInstance): number {
     const { direction, iterationCount } = animation;
     switch (direction) {
-      case 'reverse':
+      case "reverse":
         return 0;
-      case 'alternate':
+      case "alternate":
         return iterationCount % 2 === 0 ? 0 : 1;
-      case 'alternate-reverse':
+      case "alternate-reverse":
         return iterationCount % 2 === 0 ? 1 : 0;
-      case 'normal':
+      case "normal":
       default:
         return 1;
     }
@@ -226,14 +263,15 @@ export function animationsEndTime(instances: AnimationInstance[]): number {
 export function sampleInstanceAtProgress(
   node: SceneNode,
   instance: AnimationInstance,
-  progress: number
+  progress: number,
 ): void {
   const { keyframes, timingFunction, composition, direction } = instance;
   if (keyframes.length === 0) return;
   const p = Math.max(0, Math.min(1, progress));
   // Single iteration (iteration 0): normal/alternate keep p; reverse and
   // alternate-reverse mirror it. Matches AnimationScheduler.applyDirection(p, 0, …).
-  const directed = direction === 'reverse' || direction === 'alternate-reverse' ? 1 - p : p;
+  const directed =
+    direction === "reverse" || direction === "alternate-reverse" ? 1 - p : p;
   interpolateKeyframes(node, keyframes, directed, timingFunction, composition);
 }
 

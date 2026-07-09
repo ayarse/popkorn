@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { planGif } from "./gif-plan";
 import { quantizeFrame } from "./gif";
+import { planGif } from "./gif-plan";
 
 /**
  * Mean per-channel color error of the reconstructed image, averaged over
@@ -21,13 +21,23 @@ function blockMeanError(
   let tiles = 0;
   for (let by = 0; by < height; by += block) {
     for (let bx = 0; bx < width; bx += block) {
-      let or = 0, og = 0, ob = 0, pr = 0, pg = 0, pb = 0, n = 0;
+      let or = 0,
+        og = 0,
+        ob = 0,
+        pr = 0,
+        pg = 0,
+        pb = 0,
+        n = 0;
       for (let y = by; y < Math.min(by + block, height); y++) {
         for (let x = bx; x < Math.min(bx + block, width); x++) {
           const i = y * width + x;
           const p = palette[index[i]];
-          or += rgba[i * 4]; og += rgba[i * 4 + 1]; ob += rgba[i * 4 + 2];
-          pr += p[0]; pg += p[1]; pb += p[2];
+          or += rgba[i * 4];
+          og += rgba[i * 4 + 1];
+          ob += rgba[i * 4 + 2];
+          pr += p[0];
+          pg += p[1];
+          pb += p[2];
           n++;
         }
       }
@@ -63,12 +73,26 @@ test("plan delay is always a multiple of 10ms (GIF centisecond timing)", () => {
 test("alpha threshold maps sub-128 pixels to the reserved index, opaque pixels never do", () => {
   // 2x2: opaque red, semi-transparent (a=100), fully transparent, opaque blue.
   const rgba = new Uint8ClampedArray([
-    255, 0, 0, 255, // opaque
-    0, 255, 0, 100, // semi-transparent → transparent
-    0, 0, 255, 0, //   fully transparent
-    0, 0, 255, 255, // opaque
+    255,
+    0,
+    0,
+    255, // opaque
+    0,
+    255,
+    0,
+    100, // semi-transparent → transparent
+    0,
+    0,
+    255,
+    0, //   fully transparent
+    0,
+    0,
+    255,
+    255, // opaque
   ]);
-  const { index, transparentIndex } = quantizeFrame(rgba, 2, 2, { transparent: true });
+  const { index, transparentIndex } = quantizeFrame(rgba, 2, 2, {
+    transparent: true,
+  });
 
   expect(transparentIndex).toBeGreaterThanOrEqual(0);
   expect(index[1]).toBe(transparentIndex); // semi
@@ -78,21 +102,39 @@ test("alpha threshold maps sub-128 pixels to the reserved index, opaque pixels n
 });
 
 test("palette never exceeds 256 entries", () => {
-  const w = 256, h = 64;
+  const w = 256,
+    h = 64;
   const rgba = gradient(w, h); // >256 distinct colors
   expect(quantizeFrame(rgba, w, h, {}).palette.length).toBeLessThanOrEqual(256);
-  expect(quantizeFrame(rgba, w, h, { transparent: true }).palette.length).toBeLessThanOrEqual(256);
+  expect(
+    quantizeFrame(rgba, w, h, { transparent: true }).palette.length,
+  ).toBeLessThanOrEqual(256);
 });
 
 test("dithering lowers local mean color error vs nearest on a gradient", () => {
-  const w = 256, h = 64;
+  const w = 256,
+    h = 64;
   const rgba = gradient(w, h); // >256 distinct colors, so quantization bands
 
   const dithered = quantizeFrame(rgba, w, h, { dither: true });
   const nearest = quantizeFrame(rgba, w, h, { dither: false });
 
-  const eDither = blockMeanError(rgba, w, h, dithered.index, dithered.palette, 4);
-  const eNearest = blockMeanError(rgba, w, h, nearest.index, nearest.palette, 4);
+  const eDither = blockMeanError(
+    rgba,
+    w,
+    h,
+    dithered.index,
+    dithered.palette,
+    4,
+  );
+  const eNearest = blockMeanError(
+    rgba,
+    w,
+    h,
+    nearest.index,
+    nearest.palette,
+    4,
+  );
 
   expect(eDither).toBeLessThan(eNearest);
 });

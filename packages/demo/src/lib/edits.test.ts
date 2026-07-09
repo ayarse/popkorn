@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { extractEdits, applyEdits } from "./edits";
+import { applyEdits, extractEdits } from "./edits";
 
 const SCENE = `#ball {
   radius: 20px;
@@ -7,7 +7,8 @@ const SCENE = `#ball {
 }`;
 
 test("extractEdits parses a search/replace block", () => {
-  const reply = "Sure.\n```edit\n<<<<<<<\n  fill: #f00;\n=======\n  fill: #0f0;\n>>>>>>>\n```";
+  const reply =
+    "Sure.\n```edit\n<<<<<<<\n  fill: #f00;\n=======\n  fill: #0f0;\n>>>>>>>\n```";
   expect(extractEdits(reply)).toEqual([
     { search: "  fill: #f00;", replace: "  fill: #0f0;" },
   ]);

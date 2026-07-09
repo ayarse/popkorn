@@ -1,65 +1,66 @@
-import { useState, useEffect, useRef } from "react";
-import Editor from "react-simple-code-editor";
 import Prism from "prismjs";
+import { useEffect, useRef, useState } from "react";
+import Editor from "react-simple-code-editor";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
-import { MotionCanvas } from "./components/MotionCanvas";
-import AgentChat from "./components/AgentChat";
-import { BrandMark } from "./components/BrandMark";
-import { useNavigate } from "@tanstack/react-router";
-import { Sparkles, BookText } from "lucide-react";
-import { convertLottie } from "../../../tools/lottie2popcorn";
-import { convertSvg } from "../../../tools/svg2popcorn";
 import { parse, serialize } from "@popcorn/parser";
-import { examples } from "./examples";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-  DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import {
-  ChevronDown,
-  Upload,
   AlertCircle,
   AlertTriangle,
+  BookText,
   Check,
-  X,
+  ChevronDown,
+  Film,
+  FoldVertical,
+  Layers,
+  Maximize,
   PanelBottom,
   PanelBottomDashed,
   Repeat,
   RepeatOff,
-  Maximize,
-  FoldVertical,
+  Sparkles,
   UnfoldVertical,
-  Film,
-  Layers,
+  Upload,
+  X,
 } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { downloadGif, exportGifInWorker } from "@/lib/gif";
 import { cn } from "@/lib/utils";
-import { exportGifInWorker, downloadGif } from "@/lib/gif";
+import { convertLottie } from "../../../tools/lottie2popcorn";
+import { convertSvg } from "../../../tools/svg2popcorn";
+import AgentChat from "./components/AgentChat";
+import { BrandMark } from "./components/BrandMark";
+import { MotionCanvas } from "./components/MotionCanvas";
+import { examples } from "./examples";
 
 const enc = new TextEncoder();
 const bytes = (s: string) => enc.encode(s).length;
@@ -193,7 +194,8 @@ function BgContextMenu({
     window.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onClose);
-    const onBlur = () => window.addEventListener("focus", onClose, { once: true });
+    const onBlur = () =>
+      window.addEventListener("focus", onClose, { once: true });
     window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("mousedown", onMouseDown);
@@ -211,8 +213,10 @@ function BgContextMenu({
     if (!el) return;
     const rect = el.getBoundingClientRect();
     let { x, y } = position;
-    if (x + rect.width > window.innerWidth - 4) x = window.innerWidth - rect.width - 4;
-    if (y + rect.height > window.innerHeight - 4) y = window.innerHeight - rect.height - 4;
+    if (x + rect.width > window.innerWidth - 4)
+      x = window.innerWidth - rect.width - 4;
+    if (y + rect.height > window.innerHeight - 4)
+      y = window.innerHeight - rect.height - 4;
     setPos({ x: Math.max(4, x), y: Math.max(4, y) });
   }, [position]);
 
@@ -252,10 +256,12 @@ function BgContextMenu({
               }
             />
             <span className="truncate">{bg.name}</span>
-            {bgIndex === i && <Check className="ml-auto size-3.5 text-foreground" />}
+            {bgIndex === i && (
+              <Check className="ml-auto size-3.5 text-foreground" />
+            )}
           </button>
         ))}
-    </div>
+      </div>
     </div>
   );
 }
@@ -785,9 +791,12 @@ function App() {
           <ImportModal
             onFile={handleImportFile}
             onText={(text) => {
-              const ok = /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<(svg|!DOCTYPE svg)/i.test(text)
-                ? importSvg(text, "pasted SVG")
-                : importLottie(text, "pasted JSON");
+              const ok =
+                /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<(svg|!DOCTYPE svg)/i.test(
+                  text,
+                )
+                  ? importSvg(text, "pasted SVG")
+                  : importLottie(text, "pasted JSON");
               if (ok) setShowImport(false);
             }}
             onClose={() => setShowImport(false)}

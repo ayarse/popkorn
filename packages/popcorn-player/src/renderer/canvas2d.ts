@@ -1,11 +1,16 @@
-import type { Renderer } from './interface';
-import type { PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
-import type { TextAnchor, MaskMode } from '../scene/types';
-import { LUMA_COEFFICIENTS } from './types';
-import { PaintStateRenderer } from './paint-state';
-import { resolveGradient } from './gradient-geometry';
-import { resolveStrokeDash, paintOrderSequence } from './stroke';
-import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
+import { applyCommandsToPath, computePathBounds } from "../scene/path-parser";
+import type { MaskMode, TextAnchor } from "../scene/types";
+import { resolveGradient } from "./gradient-geometry";
+import type { Renderer } from "./interface";
+import { PaintStateRenderer } from "./paint-state";
+import { paintOrderSequence, resolveStrokeDash } from "./stroke";
+import type {
+  GradientData,
+  Matrix3x3,
+  PathCommand,
+  ResolvedClip,
+} from "./types";
+import { LUMA_COEFFICIENTS } from "./types";
 
 type Bounds = { x: number; y: number; width: number; height: number };
 
@@ -24,10 +29,10 @@ interface ImageEntry {
 
 // Intrinsic size: HTMLImageElement exposes naturalWidth/Height, ImageBitmap width/height.
 function imgWidth(img: HTMLImageElement | ImageBitmap): number {
-  return 'naturalWidth' in img ? img.naturalWidth : img.width;
+  return "naturalWidth" in img ? img.naturalWidth : img.width;
 }
 function imgHeight(img: HTMLImageElement | ImageBitmap): number {
-  return 'naturalHeight' in img ? img.naturalHeight : img.height;
+  return "naturalHeight" in img ? img.naturalHeight : img.height;
 }
 
 export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
@@ -46,9 +51,9 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
   constructor(canvas: HTMLCanvasElement) {
     super();
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     if (!ctx) {
-      throw new Error('Failed to get 2D rendering context');
+      throw new Error("Failed to get 2D rendering context");
     }
     this.ctx = ctx;
   }
@@ -85,13 +90,23 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   drawCircle(cx: number, cy: number, r: number): void {
     this.ctx.beginPath();
     this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    this.applyFillAndStroke({ x: cx - r, y: cy - r, width: r * 2, height: r * 2 });
+    this.applyFillAndStroke({
+      x: cx - r,
+      y: cy - r,
+      width: r * 2,
+      height: r * 2,
+    });
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
     this.ctx.beginPath();
     this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    this.applyFillAndStroke({ x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 });
+    this.applyFillAndStroke({
+      x: cx - rx,
+      y: cy - ry,
+      width: rx * 2,
+      height: ry * 2,
+    });
   }
 
   drawPath(commands: PathCommand[]): void {
@@ -100,14 +115,24 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.applyFillAndStroke(computePathBounds(commands));
   }
 
-  drawText(text: string, x: number, y: number, fontSize: number, fontFamily: string, fontWeight: string, anchor: TextAnchor): void {
+  drawText(
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number,
+    fontFamily: string,
+    fontWeight: string,
+    anchor: TextAnchor,
+  ): void {
     this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-    this.ctx.textAlign = anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left';
-    this.ctx.textBaseline = 'alphabetic';
+    this.ctx.textAlign =
+      anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
+    this.ctx.textBaseline = "alphabetic";
 
     // Bounding box (for gradients) mirrors scene/transform.getShapeBounds.
     const width = this.ctx.measureText(text).width;
-    const ax = anchor === 'middle' ? x - width / 2 : anchor === 'end' ? x - width : x;
+    const ax =
+      anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
     const bounds: Bounds = { x: ax, y: y - fontSize, width, height: fontSize };
 
     if (this.fillGradient) {
@@ -147,32 +172,47 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   // createImageBitmap, which also handles data: URLs. Returns null when neither
   // path exists (e.g. bun tests), leaving the image node inert.
   private loadImage(src: string): ImageEntry | null {
-    if (typeof Image !== 'undefined') {
+    if (typeof Image !== "undefined") {
       const img = new Image();
       const entry: ImageEntry = { img, loaded: false, errored: false };
       this.images.set(src, entry);
-      this.trackImageLoad(new Promise<void>((resolve) => {
-        img.onload = () => { entry.loaded = true; resolve(); };
-        img.onerror = () => {
-          entry.errored = true;
-          console.warn(`Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`);
-          resolve();
-        };
-      }));
+      this.trackImageLoad(
+        new Promise<void>((resolve) => {
+          img.onload = () => {
+            entry.loaded = true;
+            resolve();
+          };
+          img.onerror = () => {
+            entry.errored = true;
+            console.warn(
+              `Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`,
+            );
+            resolve();
+          };
+        }),
+      );
       img.src = src;
       return entry;
     }
-    if (typeof createImageBitmap !== 'undefined' && typeof fetch !== 'undefined') {
+    if (
+      typeof createImageBitmap !== "undefined" &&
+      typeof fetch !== "undefined"
+    ) {
       const entry: ImageEntry = { img: null, loaded: false, errored: false };
       this.images.set(src, entry);
       this.trackImageLoad(
         fetch(src)
           .then((r) => r.blob())
           .then((b) => createImageBitmap(b))
-          .then((bmp) => { entry.img = bmp; entry.loaded = true; })
+          .then((bmp) => {
+            entry.img = bmp;
+            entry.loaded = true;
+          })
           .catch(() => {
             entry.errored = true;
-            console.warn(`Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`);
+            console.warn(
+              `Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`,
+            );
           }),
       );
       return entry;
@@ -182,7 +222,9 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
   private trackImageLoad(p: Promise<void>): void {
     this.pendingImages.add(p);
-    void p.finally(() => { this.pendingImages.delete(p); });
+    void p.finally(() => {
+      this.pendingImages.delete(p);
+    });
   }
 
   // Resolves once no image decodes are in flight (immediately if none). An
@@ -192,11 +234,18 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     return Promise.all([...this.pendingImages]).then(() => undefined);
   }
 
-  compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void {
+  compositeMask(
+    mode: MaskMode,
+    drawContent: () => void,
+    drawMask: () => void,
+  ): void {
     const base = this.maskDepth * 2;
     const a = this.ensureOffscreen(base);
     const b = this.ensureOffscreen(base + 1);
-    if (!a || !b) { drawContent(); return; } // headless / no offscreen: content only
+    if (!a || !b) {
+      drawContent();
+      return;
+    } // headless / no offscreen: content only
 
     const main = this.ctx;
 
@@ -218,16 +267,17 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
     // Turn a luminance mask into an alpha mask in place, so a single
     // destination-in/out handles every mode.
-    if (mode === 'luminance' || mode === 'luminance-invert') luminanceToAlpha(b);
+    if (mode === "luminance" || mode === "luminance-invert")
+      luminanceToAlpha(b);
 
     // destination-in keeps content where the mask is opaque; destination-out
     // keeps it where the mask is transparent (the *-invert variants).
-    const invert = mode === 'alpha-invert' || mode === 'luminance-invert';
+    const invert = mode === "alpha-invert" || mode === "luminance-invert";
     a.save();
     a.setTransform(1, 0, 0, 1, 0, 0);
-    a.globalCompositeOperation = invert ? 'destination-out' : 'destination-in';
+    a.globalCompositeOperation = invert ? "destination-out" : "destination-in";
     a.drawImage(b.canvas, 0, 0);
-    a.globalCompositeOperation = 'source-over';
+    a.globalCompositeOperation = "source-over";
     a.restore();
 
     // Blit the masked result onto the main canvas at identity (A already holds
@@ -243,7 +293,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   // ctx.filter exists on all evergreen browsers; old Safari (<18) lacks it. It's
   // a string property ('none' by default), so a typeof check feature-detects it.
   supportsFilter(): boolean {
-    return typeof this.ctx.filter === 'string';
+    return typeof this.ctx.filter === "string";
   }
 
   // Composite a filtered subtree: render `drawContent` (which sets its own world
@@ -281,13 +331,14 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     main.globalAlpha = 1;
     main.filter = filter;
     main.drawImage(buf.canvas, 0, 0);
-    main.filter = 'none';
+    main.filter = "none";
     main.restore();
   }
 
   /** Lazily create/resize an offscreen 2D context sized to the main canvas. */
   private ensureOffscreen(index: number): CanvasRenderingContext2D | null {
-    const w = this.ctx.canvas.width, h = this.ctx.canvas.height;
+    const w = this.ctx.canvas.width,
+      h = this.ctx.canvas.height;
     let ctx = this.offscreen[index];
     if (ctx === undefined) {
       ctx = createOffscreen(w, h);
@@ -303,13 +354,13 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   clip(clip: ResolvedClip): void {
     const path = new Path2D();
     switch (clip.type) {
-      case 'rect':
+      case "rect":
         path.rect(clip.x, clip.y, clip.width, clip.height);
         break;
-      case 'circle':
+      case "circle":
         path.arc(clip.cx, clip.cy, clip.r, 0, Math.PI * 2);
         break;
-      case 'path':
+      case "path":
         applyCommandsToPath(path, clip.commands);
         break;
     }
@@ -359,7 +410,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
   private applyFillAndStroke(bounds: Bounds): void {
     for (const which of paintOrderSequence(this.paintOrder)) {
-      if (which === 'fill') this.fillPath(bounds);
+      if (which === "fill") this.fillPath(bounds);
       else this.strokePath(bounds);
     }
   }
@@ -403,25 +454,31 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
    *  CanvasGradient. */
   private realizeGradient(g: GradientData, b: Bounds): CanvasGradient {
     const r = resolveGradient(g, b);
-    const grad = r.type === 'linear'
-      ? this.ctx.createLinearGradient(r.x1, r.y1, r.x2, r.y2)
-      : this.ctx.createRadialGradient(r.fx, r.fy, 0, r.cx, r.cy, r.r);
+    const grad =
+      r.type === "linear"
+        ? this.ctx.createLinearGradient(r.x1, r.y1, r.x2, r.y2)
+        : this.ctx.createRadialGradient(r.fx, r.fy, 0, r.cx, r.cy, r.r);
     for (const stop of r.stops) grad.addColorStop(stop.offset, stop.color);
     return grad;
   }
 }
 
 /** A blank offscreen 2D context sized w×h, or null when no canvas API exists. */
-function createOffscreen(w: number, h: number): CanvasRenderingContext2D | null {
+function createOffscreen(
+  w: number,
+  h: number,
+): CanvasRenderingContext2D | null {
   try {
-    if (typeof document !== 'undefined') {
-      const canvas = document.createElement('canvas');
+    if (typeof document !== "undefined") {
+      const canvas = document.createElement("canvas");
       canvas.width = w;
       canvas.height = h;
-      return canvas.getContext('2d');
+      return canvas.getContext("2d");
     }
-    if (typeof OffscreenCanvas !== 'undefined') {
-      return new OffscreenCanvas(w, h).getContext('2d') as unknown as CanvasRenderingContext2D;
+    if (typeof OffscreenCanvas !== "undefined") {
+      return new OffscreenCanvas(w, h).getContext(
+        "2d",
+      ) as unknown as CanvasRenderingContext2D;
     }
   } catch {
     /* fall through */
@@ -448,7 +505,10 @@ function luminanceToAlpha(ctx: CanvasRenderingContext2D): void {
   }
   const px = data.data;
   for (let i = 0; i < px.length; i += 4) {
-    const lum = LUMA_COEFFICIENTS.r * px[i] + LUMA_COEFFICIENTS.g * px[i + 1] + LUMA_COEFFICIENTS.b * px[i + 2];
+    const lum =
+      LUMA_COEFFICIENTS.r * px[i] +
+      LUMA_COEFFICIENTS.g * px[i + 1] +
+      LUMA_COEFFICIENTS.b * px[i + 2];
     px[i + 3] = (px[i + 3] * lum) / 255;
   }
   ctx.putImageData(data, 0, 0);

@@ -1,7 +1,13 @@
-import type { SceneNode, KeyframeData, TimingFunction, AnimatableValue, CompositeOperation } from '../scene/types';
-import { getPropHandler, interpolateProp } from './registry';
-import type { PropValue } from './registry';
-import { applyEasing } from './easing';
+import type {
+  AnimatableValue,
+  CompositeOperation,
+  KeyframeData,
+  SceneNode,
+  TimingFunction,
+} from "../scene/types";
+import { applyEasing } from "./easing";
+import type { PropValue } from "./registry";
+import { getPropHandler, interpolateProp } from "./registry";
 
 /**
  * Sample the keyframe timeline at a given progress (0-1) and write the resolved
@@ -23,7 +29,7 @@ export function interpolateKeyframes(
   keyframes: KeyframeData[],
   progress: number,
   defaultEasing?: TimingFunction,
-  composite: CompositeOperation = 'replace'
+  composite: CompositeOperation = "replace",
 ): void {
   if (keyframes.length === 0) return;
 
@@ -31,7 +37,7 @@ export function interpolateKeyframes(
   // value already written this frame (base + bindings + earlier animations)
   // instead of replacing it. accumulate == add for plain numbers/lengths. Only
   // numeric handlers (with readLive) compose; color/gradient/path replace.
-  const additive = composite !== 'replace';
+  const additive = composite !== "replace";
 
   // Keyframes are sorted by offset once at build time (scene/builder
   // buildKeyframes) — this runs per animation per node per frame, so no
@@ -63,7 +69,7 @@ export function interpolateKeyframes(
   const range = next.offset - prev.offset;
   let localProgress = range > 0 ? (progress - prev.offset) / range : 0;
   const keyframeEasing = prev.easing || defaultEasing;
-  if (keyframeEasing === 'step-end') {
+  if (keyframeEasing === "step-end") {
     // Hold (CSS step-end): the departing keyframe's value holds across the whole
     // segment and jumps at the next keyframe. Forcing local progress to 0 makes
     // every property interpolate to its `from` endpoint — before per-kind
@@ -81,19 +87,24 @@ export function interpolateKeyframes(
     // Additive numeric channel: a missing endpoint is the additive identity (0),
     // not the base value, so an omitted keyframe contributes no delta (rather
     // than double-counting the base). Non-numeric (or replace) keep base.
-    const numericAdditive = additive && handler.kind === 'number' && !!handler.readLive;
-    const missing: PropValue | null = numericAdditive ? 0 : handler.readBase(node.base);
+    const numericAdditive =
+      additive && handler.kind === "number" && !!handler.readLive;
+    const missing: PropValue | null = numericAdditive
+      ? 0
+      : handler.readBase(node.base);
 
-    const from = property in prev.properties
-      ? (prev.properties[property] as PropValue)
-      : missing;
-    const to = property in next.properties
-      ? (next.properties[property] as PropValue)
-      : missing;
+    const from =
+      property in prev.properties
+        ? (prev.properties[property] as PropValue)
+        : missing;
+    const to =
+      property in next.properties
+        ? (next.properties[property] as PropValue)
+        : missing;
 
     const value = interpolateProp(handler, from, to, localProgress);
     if (value === null) continue;
-    if (numericAdditive && typeof value === 'number') {
+    if (numericAdditive && typeof value === "number") {
       handler.apply(node, handler.readLive!(node) + value);
     } else {
       handler.apply(node, value);
@@ -103,7 +114,7 @@ export function interpolateKeyframes(
 
 function propertyNames(
   a: Record<string, AnimatableValue>,
-  b: Record<string, AnimatableValue>
+  b: Record<string, AnimatableValue>,
 ): Set<string> {
   const names = new Set<string>(Object.keys(a));
   for (const k of Object.keys(b)) names.add(k);

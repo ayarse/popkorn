@@ -1,34 +1,58 @@
-import { test, expect } from 'bun:test';
-import { parse } from '@popcorn/parser';
-import { buildSceneGraph } from './builder';
-import { getShapeBounds } from './transform';
-import { getPropHandler } from '../animation/registry';
-import { AnimationScheduler } from '../animation/scheduler';
-import { resetNodeToBase } from './types';
-import type { TextData, CircleData, PolystarData, ImageData, PathData } from './types';
-import { hitTest } from '../runtime/hit-test';
-import { createInteractionManager, applyStateStyles } from '../runtime/interaction';
+import { expect, test } from "bun:test";
+import { parse } from "@popcorn/parser";
+import { getPropHandler } from "../animation/registry";
+import { AnimationScheduler } from "../animation/scheduler";
+import { hitTest } from "../runtime/hit-test";
+import {
+  applyStateStyles,
+  createInteractionManager,
+} from "../runtime/interaction";
+import { buildSceneGraph } from "./builder";
+import { getShapeBounds } from "./transform";
+import type {
+  CircleData,
+  ImageData,
+  PathData,
+  PolystarData,
+  TextData,
+} from "./types";
+import { resetNodeToBase } from "./types";
 
 const build = (src: string) => buildSceneGraph(parse(src));
 
 // --- text --------------------------------------------------------------------
 
-test('text: props mapped with defaults', () => {
-  const t = build('#t { type: text; content: "Hi"; x: 20px; y: 30px; font-size: 24px; text-anchor: middle; }').children[0];
-  expect(t.type).toBe('text');
+test("text: props mapped with defaults", () => {
+  const t = build(
+    '#t { type: text; content: "Hi"; x: 20px; y: 30px; font-size: 24px; text-anchor: middle; }',
+  ).children[0];
+  expect(t.type).toBe("text");
   const sd = t.shapeData as TextData;
-  expect(sd).toEqual({ type: 'text', x: 20, y: 30, content: 'Hi', fontSize: 24, fontFamily: 'sans-serif', fontWeight: 'normal', anchor: 'middle' });
+  expect(sd).toEqual({
+    type: "text",
+    x: 20,
+    y: 30,
+    content: "Hi",
+    fontSize: 24,
+    fontFamily: "sans-serif",
+    fontWeight: "normal",
+    anchor: "middle",
+  });
 });
 
-test('text: font-family / numeric font-weight', () => {
-  const t = build('#t { type: text; content: "x"; font-family: "Georgia"; font-weight: 700; }').children[0];
+test("text: font-family / numeric font-weight", () => {
+  const t = build(
+    '#t { type: text; content: "x"; font-family: "Georgia"; font-weight: 700; }',
+  ).children[0];
   const sd = t.shapeData as TextData;
-  expect(sd.fontFamily).toBe('Georgia');
-  expect(sd.fontWeight).toBe('700');
+  expect(sd.fontFamily).toBe("Georgia");
+  expect(sd.fontWeight).toBe("700");
 });
 
-test('text: headless bounds estimate is sane (0.6 * fontSize * len)', () => {
-  const t = build('#t { type: text; content: "AB"; x: 100px; y: 100px; font-size: 20px; }').children[0];
+test("text: headless bounds estimate is sane (0.6 * fontSize * len)", () => {
+  const t = build(
+    '#t { type: text; content: "AB"; x: 100px; y: 100px; font-size: 20px; }',
+  ).children[0];
   const b = getShapeBounds(t);
   // no DOM under bun -> estimate path
   expect(b.width).toBeCloseTo(0.6 * 20 * 2, 5);
@@ -36,22 +60,25 @@ test('text: headless bounds estimate is sane (0.6 * fontSize * len)', () => {
   expect(b).toMatchObject({ x: 100, y: 80 }); // anchor start, baseline alphabetic
 });
 
-test('text: font-size animates via registry and invalidates measured bounds', () => {
-  const t = build('#t { type: text; content: "AB"; font-size: 20px; }').children[0];
-  getShapeBounds(t);                       // populate cache, clears dirty flag
+test("text: font-size animates via registry and invalidates measured bounds", () => {
+  const t = build('#t { type: text; content: "AB"; font-size: 20px; }')
+    .children[0];
+  getShapeBounds(t); // populate cache, clears dirty flag
   expect(t.textBoundsDirty).toBe(false);
 
-  getPropHandler('font-size')!.apply(t, 40);
+  getPropHandler("font-size")!.apply(t, 40);
   expect((t.shapeData as TextData).fontSize).toBe(40);
   expect(t.textBoundsDirty).toBe(true);
   expect(getShapeBounds(t).width).toBeCloseTo(0.6 * 40 * 2, 5); // remeasured
 });
 
-test('text: hit-test against estimated bounds', () => {
-  const root = build('#t { type: text; content: "AB"; x: 100px; y: 100px; font-size: 20px; }');
+test("text: hit-test against estimated bounds", () => {
+  const root = build(
+    '#t { type: text; content: "AB"; x: 100px; y: 100px; font-size: 20px; }',
+  );
   root.children[0].interactive = true;
   expect(hitTest(root, { x: 110, y: 90 })).toBe(root.children[0]); // inside
-  expect(hitTest(root, { x: 300, y: 300 })).toBeNull();            // outside
+  expect(hitTest(root, { x: 300, y: 300 })).toBeNull(); // outside
 });
 
 // --- hit-test bubbling + pointer-events --------------------------------------
@@ -60,14 +87,14 @@ test('text: hit-test against estimated bounds', () => {
 // interactive shape is ever hit, groups never" behavior — those semantics are
 // asserted below on purpose.
 
-test('bubbling: interactive group is hit (and flips to :hover) when a descendant shape is hovered', () => {
+test("bubbling: interactive group is hit (and flips to :hover) when a descendant shape is hovered", () => {
   // The group itself has no geometry; the old hit-test could never hit it. Now a
   // hover over its child rect bubbles up and drives the group's &:hover.
   const src = `#g { type: group; &:hover { opacity: 0.5; }
     > #c { type: rect; x: 0; y: 0; width: 40px; height: 40px; fill: #000; } }`;
   const root = build(src);
   const g = root.children[0];
-  expect(g.type).toBe('group');
+  expect(g.type).toBe("group");
   expect(g.interactive).toBe(true);
 
   // Point inside the child rect, which has no interactive ancestor but the group.
@@ -76,21 +103,21 @@ test('bubbling: interactive group is hit (and flips to :hover) when a descendant
   const mgr = createInteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 10, y: 10, isDown: false } }, 0);
-  expect(g.interactionState).toBe('hover');
+  expect(g.interactionState).toBe("hover");
 });
 
-test('bubbling: child geometry poking outside the parent bubbles to the interactive parent', () => {
+test("bubbling: child geometry poking outside the parent bubbles to the interactive parent", () => {
   // Parent rect is (0,0)-(50,50); the child overhangs to (80,80). A point in the
   // overhang is outside the parent's own outline but still hits the parent.
   const src = `#p { type: rect; x: 0; y: 0; width: 50px; height: 50px; &:hover { opacity: 0.5; }
     > #c { type: rect; x: 40px; y: 40px; width: 40px; height: 40px; fill: #000; } }`;
   const p = build(src).children[0];
   expect(hitTest(p, { x: 70, y: 70 })).toBe(p); // overhang region -> parent
-  expect(hitTest(p, { x: 5, y: 5 })).toBe(p);   // parent's own geometry -> parent
+  expect(hitTest(p, { x: 5, y: 5 })).toBe(p); // parent's own geometry -> parent
   expect(hitTest(p, { x: 200, y: 200 })).toBeNull(); // outside both
 });
 
-test('bubbling: a directly-interactive child beats an interactive ancestor inside the child geometry', () => {
+test("bubbling: a directly-interactive child beats an interactive ancestor inside the child geometry", () => {
   // Both parent and child are interactive; nearest wins. Inside the child -> the
   // child (deeper paint depth); in the parent-only region -> the parent.
   const src = `#p { type: rect; x: 0; y: 0; width: 100px; height: 100px; &:hover { opacity: 0.5; }
@@ -98,18 +125,18 @@ test('bubbling: a directly-interactive child beats an interactive ancestor insid
   const p = build(src).children[0];
   const c = p.children[0];
   expect(hitTest(p, { x: 30, y: 30 })).toBe(c); // inside child -> nearest (child)
-  expect(hitTest(p, { x: 5, y: 5 })).toBe(p);   // parent-only -> parent
+  expect(hitTest(p, { x: 5, y: 5 })).toBe(p); // parent-only -> parent
 });
 
-test('pointer-events: none excludes a child from the parent hover region and skips its subtree', () => {
+test("pointer-events: none excludes a child from the parent hover region and skips its subtree", () => {
   // The none child overhangs the interactive parent; its geometry neither hits
   // it nor bubbles to the parent.
   const overhang = `#p { type: rect; x: 0; y: 0; width: 50px; height: 50px; &:hover { opacity: 0.5; }
     > #c { type: rect; x: 40px; y: 40px; width: 40px; height: 40px; pointer-events: none; } }`;
   const p = build(overhang).children[0];
-  expect(p.children[0].pointerEvents).toBe('none');
+  expect(p.children[0].pointerEvents).toBe("none");
   expect(hitTest(p, { x: 70, y: 70 })).toBeNull(); // overhang no longer bubbles
-  expect(hitTest(p, { x: 10, y: 10 })).toBe(p);    // parent's own geometry still hits
+  expect(hitTest(p, { x: 10, y: 10 })).toBe(p); // parent's own geometry still hits
 
   // A none subtree is skipped whole: an interactive descendant is not re-enabled.
   const subtree = `#g { type: group; pointer-events: none;
@@ -118,7 +145,7 @@ test('pointer-events: none excludes a child from the parent hover region and ski
   expect(hitTest(g, { x: 10, y: 10 })).toBeNull();
 });
 
-test('bubbling: an unpainted (fill: none) child still hits, crediting the interactive parent', () => {
+test("bubbling: an unpainted (fill: none) child still hits, crediting the interactive parent", () => {
   // Hit-testing is geometry-only, so a fill:none shape still hits (existing
   // quirk); bubbling inherits it — the parent's hover region includes the
   // invisible child geometry.
@@ -141,24 +168,24 @@ const SYMBOL_SRC = `
 #s2 { use: spark; cx: 100px; fill: #000000; }
 `;
 
-test('use: instantiates a symbol; use-site declarations override', () => {
+test("use: instantiates a symbol; use-site declarations override", () => {
   const root = build(SYMBOL_SRC);
   const [s1, s2] = root.children;
-  expect(s1.type).toBe('circle');
+  expect(s1.type).toBe("circle");
   expect((s1.shapeData as CircleData).cx).toBe(10);
   expect((s2.shapeData as CircleData).cx).toBe(100);
-  expect(s1.fill).toBe('#fbbf24');   // from definition
-  expect(s2.fill).toBe('#000000');   // use-site override wins
+  expect(s1.fill).toBe("#fbbf24"); // from definition
+  expect(s2.fill).toBe("#000000"); // use-site override wins
 });
 
-test('use: definition children are cloned with namespaced ids', () => {
+test("use: definition children are cloned with namespaced ids", () => {
   const [s1, s2] = build(SYMBOL_SRC).children;
-  expect(s1.children[0].id).toBe('s1.tail');
-  expect(s2.children[0].id).toBe('s2.tail');
+  expect(s1.children[0].id).toBe("s1.tail");
+  expect(s2.children[0].id).toBe("s2.tail");
   expect(s1.children[0]).not.toBe(s2.children[0]); // distinct nodes
 });
 
-test('use: each instance animates independently', () => {
+test("use: each instance animates independently", () => {
   const [s1, s2] = build(SYMBOL_SRC).children;
   expect(s1.animations).toHaveLength(1);
   expect(s2.animations).toHaveLength(1);
@@ -172,18 +199,18 @@ test('use: each instance animates independently', () => {
   expect((s2.shapeData as CircleData).r).toBe(5);
 });
 
-test('use: unknown symbol name throws', () => {
-  expect(() => build('#x { use: nope; }')).toThrow(/unknown symbol 'nope'/);
+test("use: unknown symbol name throws", () => {
+  expect(() => build("#x { use: nope; }")).toThrow(/unknown symbol 'nope'/);
 });
 
-test('use: cyclic definitions throw', () => {
-  const src = '@define a { use: b; } @define b { use: a; } #x { use: a; }';
+test("use: cyclic definitions throw", () => {
+  const src = "@define a { use: b; } @define b { use: a; } #x { use: a; }";
   expect(() => build(src)).toThrow(/cyclic symbol definition/);
 });
 
 // --- animation shorthand: time-value ordering (no 1000ms sentinel) -----------
 
-test('animation shorthand: 1s duration + nonzero delay parses exactly', () => {
+test("animation shorthand: 1s duration + nonzero delay parses exactly", () => {
   const src = `
 @keyframes spin { from { rotate: 0deg; } to { rotate: 360deg; } }
 #a { type: rect; width: 10px; animation: spin 1s linear 1 2s; }
@@ -198,7 +225,7 @@ test('animation shorthand: 1s duration + nonzero delay parses exactly', () => {
 
 // --- steps() / step-start easing --------------------------------------------
 
-test('steps() parses in shorthand, longhand, and per-keyframe', () => {
+test("steps() parses in shorthand, longhand, and per-keyframe", () => {
   const src = `
 @keyframes k {
   from { opacity: 0; animation-timing-function: steps(3, jump-start); }
@@ -208,14 +235,22 @@ test('steps() parses in shorthand, longhand, and per-keyframe', () => {
 #b { type: rect; width: 10px; animation-name: k; animation-timing-function: step-start; }
 `;
   const [a, b] = build(src).children;
-  expect(a.animations[0].timingFunction).toEqual({ type: 'steps', count: 4, position: 'jump-none' });
-  expect(a.animations[0].keyframes[0].easing).toEqual({ type: 'steps', count: 3, position: 'jump-start' });
-  expect(b.animations[0].timingFunction).toBe('step-start');
+  expect(a.animations[0].timingFunction).toEqual({
+    type: "steps",
+    count: 4,
+    position: "jump-none",
+  });
+  expect(a.animations[0].keyframes[0].easing).toEqual({
+    type: "steps",
+    count: 3,
+    position: "jump-start",
+  });
+  expect(b.animations[0].timingFunction).toBe("step-start");
 });
 
 // --- multi-selector keyframe blocks (`0%, 100% { ... }`) --------------------
 
-test('keyframe block with a selector list applies at every listed offset', () => {
+test("keyframe block with a selector list applies at every listed offset", () => {
   // `0%, 100%` must produce keyframes at BOTH 0 and 1 (standard CSS); a loop
   // that shares its endpoints uses this idiom to return to its start value.
   const src = `
@@ -224,13 +259,13 @@ test('keyframe block with a selector list applies at every listed offset', () =>
 `;
   const [node] = build(src).children;
   const kf = node.animations[0].keyframes;
-  expect(kf.map(k => k.offset)).toEqual([0, 0.5, 1]);
+  expect(kf.map((k) => k.offset)).toEqual([0, 0.5, 1]);
   expect(kf[0].properties.r).toBe(10);
   expect(kf[1].properties.r).toBe(20);
   expect(kf[2].properties.r).toBe(10); // the trailing 100% frame — dropped before the fix
 });
 
-test('linear() parses and distributes missing inputs per CSS L2', () => {
+test("linear() parses and distributes missing inputs per CSS L2", () => {
   const src = `
 @keyframes k { from { opacity: 0; } to { opacity: 1; } }
 #a { type: rect; width: 10px; animation: k 1s linear(0, 0.25, 1); }
@@ -239,7 +274,7 @@ test('linear() parses and distributes missing inputs per CSS L2', () => {
   const [a, b] = build(src).children;
   const ea = a.animations[0].timingFunction;
   expect(ea).toEqual({
-    type: 'linear',
+    type: "linear",
     points: [
       { input: 0, output: 0 },
       { input: 0.5, output: 0.25 }, // missing input distributed to the midpoint
@@ -249,7 +284,7 @@ test('linear() parses and distributes missing inputs per CSS L2', () => {
   // Two-percentage stop expands to two points sharing the output (flat segment).
   const eb = b.animations[0].timingFunction;
   expect(eb).toEqual({
-    type: 'linear',
+    type: "linear",
     points: [
       { input: 0, output: 0 },
       { input: 0.25, output: 0.5 },
@@ -261,7 +296,7 @@ test('linear() parses and distributes missing inputs per CSS L2', () => {
 
 // --- individual transform properties (translate / rotate / scale) -----------
 
-test('individual transform properties set base channels', () => {
+test("individual transform properties set base channels", () => {
   const src = `#a { type: rect; width: 10px; translate: 10px 20px; rotate: 45deg; scale: 2 3; }`;
   const [a] = build(src).children;
   expect(a.transform.translateX).toBe(10);
@@ -271,7 +306,7 @@ test('individual transform properties set base channels', () => {
   expect(a.transform.scaleY).toBe(3);
 });
 
-test('individual transform single-arg defaults (translate y=0, scale uniform)', () => {
+test("individual transform single-arg defaults (translate y=0, scale uniform)", () => {
   const src = `#a { type: rect; width: 10px; translate: 10px; scale: 2; }`;
   const [a] = build(src).children;
   expect(a.transform.translateY).toBe(0);
@@ -279,14 +314,18 @@ test('individual transform single-arg defaults (translate y=0, scale uniform)', 
   expect(a.transform.scaleY).toBe(2);
 });
 
-test('individual transform + transform: last declaration wins per channel', () => {
-  const [a] = build(`#a { type: rect; width: 10px; transform: translateX(5px); translate: 40px 0; }`).children;
+test("individual transform + transform: last declaration wins per channel", () => {
+  const [a] = build(
+    `#a { type: rect; width: 10px; transform: translateX(5px); translate: 40px 0; }`,
+  ).children;
   expect(a.transform.translateX).toBe(40);
-  const [b] = build(`#b { type: rect; width: 10px; translate: 40px 0; transform: translateX(5px); }`).children;
+  const [b] = build(
+    `#b { type: rect; width: 10px; translate: 40px 0; transform: translateX(5px); }`,
+  ).children;
   expect(b.transform.translateX).toBe(5);
 });
 
-test('individual transform properties animate the same channels', () => {
+test("individual transform properties animate the same channels", () => {
   const src = `
 @keyframes k { from { translate: 0 0; scale: 1; } to { translate: 100px 50px; scale: 2 3; } }
 #a { type: rect; width: 10px; animation: k 1s linear; }
@@ -299,7 +338,7 @@ test('individual transform properties animate the same channels', () => {
   expect(to.scaleY).toBe(3);
 });
 
-test('individual transform properties in :hover state block', () => {
+test("individual transform properties in :hover state block", () => {
   const src = `#a { type: rect; width: 10px; &:hover { translate: 5px 0; scale: 1.1; rotate: 10deg; } }`;
   const [a] = build(src).children;
   expect(a.hoverStyles?.transform?.translateX).toBe(5);
@@ -310,20 +349,20 @@ test('individual transform properties in :hover state block', () => {
 
 // --- animation-composition --------------------------------------------------
 
-test('animation-composition: add composes onto the value already written', () => {
+test("animation-composition: add composes onto the value already written", () => {
   const src = `
 @keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
 #a { type: rect; width: 10px; transform: translateX(100px); animation: shift 1s linear; animation-composition: add; }
 `;
   const [a] = build(src).children;
-  expect(a.animations[0].composition).toBe('add');
+  expect(a.animations[0].composition).toBe("add");
   const sched = new AnimationScheduler();
   resetNodeToBase(a);
   sched.sampleNode(a, 500); // progress 0.5 -> +25 on top of base 100
   expect(a.transform.translateX).toBe(125);
 });
 
-test('animation-composition: accumulate == add for plain numbers', () => {
+test("animation-composition: accumulate == add for plain numbers", () => {
   const src = `
 @keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
 #a { type: rect; width: 10px; transform: translateX(100px); animation: shift 1s linear; animation-composition: accumulate; }
@@ -335,40 +374,40 @@ test('animation-composition: accumulate == add for plain numbers', () => {
   expect(a.transform.translateX).toBe(125);
 });
 
-test('animation-composition: replace (default) overwrites', () => {
+test("animation-composition: replace (default) overwrites", () => {
   const src = `
 @keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
 #a { type: rect; width: 10px; transform: translateX(100px); animation: shift 1s linear; }
 `;
   const [a] = build(src).children;
-  expect(a.animations[0].composition).toBe('replace');
+  expect(a.animations[0].composition).toBe("replace");
   const sched = new AnimationScheduler();
   resetNodeToBase(a);
   sched.sampleNode(a, 500);
   expect(a.transform.translateX).toBe(25);
 });
 
-test('animation-composition is NOT part of the shorthand (shorthand resets it)', () => {
+test("animation-composition is NOT part of the shorthand (shorthand resets it)", () => {
   const src = `
 @keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
 #a { type: rect; width: 10px; animation-composition: add; animation: shift 1s linear; }
 `;
   const [a] = build(src).children;
-  expect(a.animations[0].composition).toBe('replace');
+  expect(a.animations[0].composition).toBe("replace");
 });
 
-test('animation-composition: comma-list positional against animation-name', () => {
+test("animation-composition: comma-list positional against animation-name", () => {
   const src = `
 @keyframes shift { from { transform: translateX(0); } to { transform: translateX(50px); } }
 @keyframes grow { from { transform: scale(1); } to { transform: scale(2); } }
 #a { type: rect; width: 10px; animation: shift 1s linear, grow 1s linear; animation-composition: add, replace; }
 `;
   const [a] = build(src).children;
-  expect(a.animations[0].composition).toBe('add');
-  expect(a.animations[1].composition).toBe('replace');
+  expect(a.animations[0].composition).toBe("add");
+  expect(a.animations[1].composition).toBe("replace");
 });
 
-test('animation-composition: color falls back to replace', () => {
+test("animation-composition: color falls back to replace", () => {
   const src = `
 @keyframes fadeCol { from { fill: #000000; } to { fill: #ffffff; } }
 #a { type: rect; width: 10px; fill: #ff0000; animation: fadeCol 1s linear; animation-composition: add; }
@@ -377,37 +416,53 @@ test('animation-composition: color falls back to replace', () => {
   const sched = new AnimationScheduler();
   resetNodeToBase(a);
   sched.sampleNode(a, 500); // mid grey, not "added" onto red
-  expect(a.fill).toBe('rgb(128, 128, 128)');
+  expect(a.fill).toBe("rgb(128, 128, 128)");
 });
 
 // --- transitions -------------------------------------------------------------
 
-test('transition shorthand parses (comma list, easing, delay)', () => {
-  const [a] = build(`#a { type: rect; width: 10px; transition: fill 0.3s ease, transform 200ms linear 100ms; }`).children;
+test("transition shorthand parses (comma list, easing, delay)", () => {
+  const [a] = build(
+    `#a { type: rect; width: 10px; transition: fill 0.3s ease, transform 200ms linear 100ms; }`,
+  ).children;
   expect(a.transitions).toEqual([
-    { property: 'fill', duration: 300, easing: 'ease', delay: 0 },
-    { property: 'transform', duration: 200, easing: 'linear', delay: 100 },
+    { property: "fill", duration: 300, easing: "ease", delay: 0 },
+    { property: "transform", duration: 200, easing: "linear", delay: 100 },
   ]);
 });
 
-test('transition longhands compose positionally; default property is all', () => {
-  const [a] = build(`#a { type: rect; width: 10px; transition-property: opacity; transition-duration: 0.5s; transition-timing-function: ease-in; transition-delay: 0.1s; }`).children;
-  expect(a.transitions).toEqual([{ property: 'opacity', duration: 500, easing: 'ease-in', delay: 100 }]);
-  const [b] = build(`#b { type: rect; width: 10px; transition: 0.3s; }`).children;
-  expect(b.transitions).toEqual([{ property: 'all', duration: 300, easing: 'ease', delay: 0 }]);
+test("transition longhands compose positionally; default property is all", () => {
+  const [a] = build(
+    `#a { type: rect; width: 10px; transition-property: opacity; transition-duration: 0.5s; transition-timing-function: ease-in; transition-delay: 0.1s; }`,
+  ).children;
+  expect(a.transitions).toEqual([
+    { property: "opacity", duration: 500, easing: "ease-in", delay: 100 },
+  ]);
+  const [b] = build(
+    `#b { type: rect; width: 10px; transition: 0.3s; }`,
+  ).children;
+  expect(b.transitions).toEqual([
+    { property: "all", duration: 300, easing: "ease", delay: 0 },
+  ]);
 });
 
-test('zero-duration transitions are dropped (instant)', () => {
-  const [a] = build(`#a { type: rect; width: 10px; transition-property: fill; }`).children;
+test("zero-duration transitions are dropped (instant)", () => {
+  const [a] = build(
+    `#a { type: rect; width: 10px; transition-property: fill; }`,
+  ).children;
   expect(a.transitions).toEqual([]);
 });
 
-test('transition inside a state block is stored on that state', () => {
-  const [a] = build(`#a { type: rect; width: 10px; &:hover { fill: #fff; transition: fill 0.2s; } }`).children;
-  expect(a.hoverStyles?.transitions).toEqual([{ property: 'fill', duration: 200, easing: 'ease', delay: 0 }]);
+test("transition inside a state block is stored on that state", () => {
+  const [a] = build(
+    `#a { type: rect; width: 10px; &:hover { fill: #fff; transition: fill 0.2s; } }`,
+  ).children;
+  expect(a.hoverStyles?.transitions).toEqual([
+    { property: "fill", duration: 200, easing: "ease", delay: 0 },
+  ]);
 });
 
-test('transition tweens fill on hover enter over the duration', () => {
+test("transition tweens fill on hover enter over the duration", () => {
   const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000000; transition: fill 300ms linear; &:hover { fill: #ffffff; } }`;
   const root = build(src);
   const btn = root.children[0];
@@ -417,59 +472,73 @@ test('transition tweens fill on hover enter over the duration', () => {
   const hover = { cursor: { x: 50, y: 50, isDown: false } };
   mgr.update(hover, 1000); // flip to hover at t=1000, snapshot from = #000
 
-  const frame = (now: number) => { resetNodeToBase(btn); mgr.applyOverrides(btn, now); return btn.fill; };
-  expect(frame(1000)).toBe('#000000');            // start (from snapshot, verbatim)
-  expect(frame(1150)).toBe('rgb(128, 128, 128)'); // halfway
-  expect(frame(1300)).toBe('#ffffff');            // done -> target snaps
+  const frame = (now: number) => {
+    resetNodeToBase(btn);
+    mgr.applyOverrides(btn, now);
+    return btn.fill;
+  };
+  expect(frame(1000)).toBe("#000000"); // start (from snapshot, verbatim)
+  expect(frame(1150)).toBe("rgb(128, 128, 128)"); // halfway
+  expect(frame(1300)).toBe("#ffffff"); // done -> target snaps
 });
 
-test('transition tweens back on hover exit', () => {
+test("transition tweens back on hover exit", () => {
   const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000000; transition: fill 200ms linear; &:hover { fill: #ffffff; } }`;
   const root = build(src);
   const btn = root.children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
-  const frame = (now: number) => { resetNodeToBase(btn); mgr.applyOverrides(btn, now); return btn.fill; };
+  const frame = (now: number) => {
+    resetNodeToBase(btn);
+    mgr.applyOverrides(btn, now);
+    return btn.fill;
+  };
 
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0);
   frame(200); // complete hover -> white
   mgr.update({ cursor: { x: 500, y: 500, isDown: false } }, 1000); // leave -> flip to normal, from = white
-  expect(frame(1100)).toBe('rgb(128, 128, 128)'); // halfway back
-  expect(frame(1200)).toBe('#000000');            // back to base
+  expect(frame(1100)).toBe("rgb(128, 128, 128)"); // halfway back
+  expect(frame(1200)).toBe("#000000"); // back to base
 });
 
-test('transform transition tweens scale on hover', () => {
+test("transform transition tweens scale on hover", () => {
   const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000; transition: transform 100ms linear; &:hover { transform: scale(2); } }`;
   const root = build(src);
   const btn = root.children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0);
-  resetNodeToBase(btn); mgr.applyOverrides(btn, 50); // halfway: scale 1 -> 2
+  resetNodeToBase(btn);
+  mgr.applyOverrides(btn, 50); // halfway: scale 1 -> 2
   expect(btn.transform.scaleX).toBe(1.5);
-  resetNodeToBase(btn); mgr.applyOverrides(btn, 100);
+  resetNodeToBase(btn);
+  mgr.applyOverrides(btn, 100);
   expect(btn.transform.scaleX).toBe(2);
 });
 
 // stage 2: transitions tween ANY registry property, not just the legacy six.
-test('transition eases a registry geometry prop (r) over its duration', () => {
+test("transition eases a registry geometry prop (r) over its duration", () => {
   const src = `#c { type: circle; cx: 50px; cy: 50px; r: 10px; transition: r 200ms linear; &:hover { r: 30px; } }`;
   const root = build(src);
   const c = root.children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
-  const frame = (now: number) => { resetNodeToBase(c); mgr.applyOverrides(c, now); return (c.shapeData as CircleData).r; };
+  const frame = (now: number) => {
+    resetNodeToBase(c);
+    mgr.applyOverrides(c, now);
+    return (c.shapeData as CircleData).r;
+  };
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 1000); // flip to hover, from r=10
-  expect(frame(1000)).toBe(10);            // start (from snapshot)
-  const mid = frame(1100);                 // halfway
+  expect(frame(1000)).toBe(10); // start (from snapshot)
+  const mid = frame(1100); // halfway
   expect(mid).toBeGreaterThan(10);
   expect(mid).toBeLessThan(30);
-  expect(frame(1200)).toBe(30);            // settles at target
+  expect(frame(1200)).toBe(30); // settles at target
 });
 
 // stage 2: object-valued endpoints that can't blend flip at the eased midpoint
 // (CSS discrete-transition rule), NOT at settle time.
-test('transition flips an unblendable paint (solid -> gradient) at the eased midpoint', () => {
+test("transition flips an unblendable paint (solid -> gradient) at the eased midpoint", () => {
   const src = `#c { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #000000;
     transition: fill 200ms linear; &:hover { fill: linear-gradient(90deg, #ff0000 0%, #0000ff 100%); } }`;
   const root = build(src);
@@ -478,31 +547,37 @@ test('transition flips an unblendable paint (solid -> gradient) at the eased mid
   mgr.setScene(root);
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0); // flip to hover, from = solid #000
   // Before the eased midpoint: still the source solid, no gradient.
-  resetNodeToBase(c); mgr.applyOverrides(c, 80);  // e = 0.4
-  expect(c.fill).toBe('#000000');
+  resetNodeToBase(c);
+  mgr.applyOverrides(c, 80); // e = 0.4
+  expect(c.fill).toBe("#000000");
   expect(c.fillGradient).toBeNull();
   // After the midpoint: the target gradient wins and the solid is cleared.
-  resetNodeToBase(c); mgr.applyOverrides(c, 120); // e = 0.6
+  resetNodeToBase(c);
+  mgr.applyOverrides(c, 120); // e = 0.6
   expect(c.fill).toBeNull();
-  expect(c.fillGradient?.stops[0].color).toBe('#ff0000');
+  expect(c.fillGradient?.stops[0].color).toBe("#ff0000");
 });
 
 // stage 2: a state flip mid-tween eases back from the DISPLAYED value, not the
 // target it was heading toward.
-test('transition reversal eases back from the displayed value, not the target', () => {
+test("transition reversal eases back from the displayed value, not the target", () => {
   const src = `#c { type: circle; cx: 50px; cy: 50px; r: 10px; transition: r 200ms linear; &:hover { r: 30px; } }`;
   const root = build(src);
   const c = root.children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
-  const frame = (now: number) => { resetNodeToBase(c); mgr.applyOverrides(c, now); return (c.shapeData as CircleData).r; };
+  const frame = (now: number) => {
+    resetNodeToBase(c);
+    mgr.applyOverrides(c, now);
+    return (c.shapeData as CircleData).r;
+  };
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0); // hover enter, from r=10
-  expect(frame(100)).toBe(20);            // halfway in: displayed r = 20
+  expect(frame(100)).toBe(20); // halfway in: displayed r = 20
   mgr.update({ cursor: { x: 500, y: 500, isDown: false } }, 100); // leave at midpoint, from = displayed 20
-  const back = frame(150);                // 50ms into the 200ms reverse
+  const back = frame(150); // 50ms into the 200ms reverse
   expect(back).toBeGreaterThan(10);
-  expect(back).toBeLessThan(20);          // easing DOWN from 20 toward base, not up toward 30
-  expect(frame(300)).toBe(10);            // settles back at base
+  expect(back).toBeLessThan(20); // easing DOWN from 20 toward base, not up toward 30
+  expect(frame(300)).toBe(10); // settles back at base
 });
 
 // --- state-child rules (`#p:hover > #c`) ------------------------------------
@@ -516,32 +591,37 @@ const CARD = `#card {
 const OVER = { cursor: { x: 50, y: 50, isDown: false } };
 const OUT = { cursor: { x: 500, y: 500, isDown: false } };
 
-test('state-child: parent hover applies/unapplies the child override', () => {
+test("state-child: parent hover applies/unapplies the child override", () => {
   const root = build(CARD);
   const card = root.children[0];
   const icon = card.children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
-  const paint = (node: typeof card, now: number) => { resetNodeToBase(node); mgr.applyOverrides(node, now); };
+  const paint = (node: typeof card, now: number) => {
+    resetNodeToBase(node);
+    mgr.applyOverrides(node, now);
+  };
 
   // Being targeted by an ancestor doesn't make the child hit-testable itself.
   expect(card.interactive).toBe(true);
   expect(icon.interactive).toBe(false);
 
   mgr.update(OVER, 0);
-  paint(card, 0); paint(icon, 0);
-  expect(card.fill).toBe('#2a2a4a');
-  expect(icon.fill).toBe('#ffffff');
+  paint(card, 0);
+  paint(icon, 0);
+  expect(card.fill).toBe("#2a2a4a");
+  expect(icon.fill).toBe("#ffffff");
   expect(icon.transform.rotate).toBe(15); // transform delta composes on the child
 
   mgr.update(OUT, 100);
-  paint(card, 100); paint(icon, 100);
-  expect(card.fill).toBe('#111111');
-  expect(icon.fill).toBe('#888888');
+  paint(card, 100);
+  paint(icon, 100);
+  expect(card.fill).toBe("#111111");
+  expect(icon.fill).toBe("#888888");
   expect(icon.transform.rotate).toBe(0);
 });
 
-test('state-child transition: own node-level transition wins over parent block', () => {
+test("state-child transition: own node-level transition wins over parent block", () => {
   const src = `#card {
     type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111;
     > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; transition: transform 100ms linear; }
@@ -551,7 +631,10 @@ test('state-child transition: own node-level transition wins over parent block',
   const ic = root.children[0].children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
-  const paint = (now: number) => { resetNodeToBase(ic); mgr.applyOverrides(ic, now); };
+  const paint = (now: number) => {
+    resetNodeToBase(ic);
+    mgr.applyOverrides(ic, now);
+  };
   mgr.update(OVER, 0);
   paint(50);
   expect(ic.transform.rotate).toBe(10); // child's own 100ms curve (not the parent's 999ms)
@@ -559,7 +642,7 @@ test('state-child transition: own node-level transition wins over parent block',
   expect(ic.transform.rotate).toBe(20);
 });
 
-test('state-child transition: falls back to the parent state block transition', () => {
+test("state-child transition: falls back to the parent state block transition", () => {
   const src = `#card {
     type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111;
     > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; }
@@ -569,7 +652,10 @@ test('state-child transition: falls back to the parent state block transition', 
   const ic = root.children[0].children[0];
   const mgr = createInteractionManager();
   mgr.setScene(root);
-  const paint = (now: number) => { resetNodeToBase(ic); mgr.applyOverrides(ic, now); };
+  const paint = (now: number) => {
+    resetNodeToBase(ic);
+    mgr.applyOverrides(ic, now);
+  };
   mgr.update(OVER, 0);
   paint(50);
   expect(ic.transform.rotate).toBe(10); // parent block's 100ms governs the child
@@ -577,7 +663,7 @@ test('state-child transition: falls back to the parent state block transition', 
   expect(ic.transform.rotate).toBe(20);
 });
 
-test('state-child: active falls back to hover overrides', () => {
+test("state-child: active falls back to hover overrides", () => {
   const src = `#card {
     type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #111;
     > #icon { type: rect; x: 40px; y: 40px; width: 20px; height: 20px; fill: #888888; }
@@ -588,32 +674,41 @@ test('state-child: active falls back to hover overrides', () => {
   const mgr = createInteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 50, y: 50, isDown: true } }, 0); // press over the card
-  resetNodeToBase(ic); mgr.applyOverrides(ic, 0);
-  expect(ic.fill).toBe('#ffffff'); // no &:active block -> child uses its hover override
+  resetNodeToBase(ic);
+  mgr.applyOverrides(ic, 0);
+  expect(ic.fill).toBe("#ffffff"); // no &:active block -> child uses its hover override
 });
 
 // --- polystar (star / polygon) ----------------------------------------------
 
-test('star: declarations populate PolystarData', () => {
+test("star: declarations populate PolystarData", () => {
   const src = `#s {
     type: star; sides: 6; outer-radius: 80px; inner-radius: 40px;
     rotation: 15deg; cx: 100px; cy: 100px; outer-roundness: 25%; fill: #f00;
   }`;
   const [node] = build(src).children;
-  expect(node.type).toBe('star');
+  expect(node.type).toBe("star");
   const sd = node.shapeData as PolystarData;
   expect(sd).toMatchObject({
-    type: 'star', sides: 6, outerRadius: 80, innerRadius: 40,
-    rotation: 15, cx: 100, cy: 100, outerRoundness: 25,
+    type: "star",
+    sides: 6,
+    outerRadius: 80,
+    innerRadius: 40,
+    rotation: 15,
+    cx: 100,
+    cy: 100,
+    outerRoundness: 25,
   });
 });
 
-test('polygon: inner-radius is ignored (polygon has none)', () => {
-  const [node] = build('#p { type: polygon; sides: 5; outer-radius: 50px; inner-radius: 99px; }').children;
+test("polygon: inner-radius is ignored (polygon has none)", () => {
+  const [node] = build(
+    "#p { type: polygon; sides: 5; outer-radius: 50px; inner-radius: 99px; }",
+  ).children;
   expect((node.shapeData as PolystarData).innerRadius).toBe(0);
 });
 
-test('star: animating outer-radius rebuilds via the registry (dirty flag)', () => {
+test("star: animating outer-radius rebuilds via the registry (dirty flag)", () => {
   const src = `
 @keyframes pulse { from { outer-radius: 10px; } to { outer-radius: 110px; } }
 #s { type: star; sides: 5; outer-radius: 10px; inner-radius: 5px; animation: pulse 1s linear; }
@@ -628,7 +723,7 @@ test('star: animating outer-radius rebuilds via the registry (dirty flag)', () =
 
 // --- stroke dashes -----------------------------------------------------------
 
-test('stroke-dasharray + dashoffset parse; dashoffset animates', () => {
+test("stroke-dasharray + dashoffset parse; dashoffset animates", () => {
   const src = `
 @keyframes march { from { stroke-dashoffset: 0px; } to { stroke-dashoffset: 20px; } }
 #d { type: rect; width: 50px; height: 50px; stroke: #000; stroke-width: 2px;
@@ -646,36 +741,40 @@ test('stroke-dasharray + dashoffset parse; dashoffset animates', () => {
 
 // --- fill-rule ---------------------------------------------------------------
 
-test('fill-rule: parses evenodd; defaults to nonzero', () => {
-  const [a] = build('#a { type: path; d: "M0 0 L10 0 L0 10 Z"; fill-rule: evenodd; }').children;
-  expect(a.fillRule).toBe('evenodd');
+test("fill-rule: parses evenodd; defaults to nonzero", () => {
+  const [a] = build(
+    '#a { type: path; d: "M0 0 L10 0 L0 10 Z"; fill-rule: evenodd; }',
+  ).children;
+  expect(a.fillRule).toBe("evenodd");
   const [b] = build('#b { type: path; d: "M0 0 L10 0 L0 10 Z"; }').children;
-  expect(b.fillRule).toBe('nonzero');
+  expect(b.fillRule).toBe("nonzero");
 });
 
 // --- paint-order -------------------------------------------------------------
 
-test('paint-order: parses stroke; defaults to normal', () => {
-  const [a] = build('#a { type: path; d: "M0 0 L10 0 Z"; paint-order: stroke; }').children;
-  expect(a.paintOrder).toBe('stroke');
+test("paint-order: parses stroke; defaults to normal", () => {
+  const [a] = build(
+    '#a { type: path; d: "M0 0 L10 0 Z"; paint-order: stroke; }',
+  ).children;
+  expect(a.paintOrder).toBe("stroke");
   const [b] = build('#b { type: path; d: "M0 0 L10 0 Z"; }').children;
-  expect(b.paintOrder).toBe('normal');
+  expect(b.paintOrder).toBe("normal");
 });
 
 // --- multi-path clip (Lottie mask add-mode) ----------------------------------
 
-test('clip-path: multiple path() values union into one command list', () => {
+test("clip-path: multiple path() values union into one command list", () => {
   const [g] = build(
-    "#g { type: group; clip-path: path('M0 0 L10 0 L10 10 Z') path('M20 20 L30 20 L30 30 Z'); }"
+    "#g { type: group; clip-path: path('M0 0 L10 0 L10 10 Z') path('M20 20 L30 20 L30 30 Z'); }",
   ).children;
-  expect(g.clipPath?.type).toBe('path');
-  if (g.clipPath?.type === 'path') {
+  expect(g.clipPath?.type).toBe("path");
+  if (g.clipPath?.type === "path") {
     // Two triangles -> two M commands in the concatenated list.
-    expect(g.clipPath.commands.filter((c) => c.type === 'M')).toHaveLength(2);
+    expect(g.clipPath.commands.filter((c) => c.type === "M")).toHaveLength(2);
   }
 });
 
-test('clip-path: @keyframes morph the clip commands via the registry', () => {
+test("clip-path: @keyframes morph the clip commands via the registry", () => {
   const [g] = build(`
     @keyframes reveal {
       from { clip-path: path('M0 0 L10 0 L10 10 L0 10 Z'); }
@@ -686,48 +785,58 @@ test('clip-path: @keyframes morph the clip commands via the registry', () => {
   `).children;
 
   // Base = first keyframe (unclipped author state).
-  expect(g.clipPath?.type).toBe('path');
-  const handler = getPropHandler('clip-path');
-  expect(handler?.kind).toBe('path');
+  expect(g.clipPath?.type).toBe("path");
+  const handler = getPropHandler("clip-path");
+  expect(handler?.kind).toBe("path");
 
   const sched = new AnimationScheduler();
   resetNodeToBase(g);
   sched.sampleNode(g, 500); // midway through the 1s animation
   // The second point's x lerps 10 -> 20, so at t=0.5 it sits at 15.
-  if (g.clipPath?.type === 'path') {
-    const line = g.clipPath.commands.find((c) => c.type === 'L') as { x: number };
+  if (g.clipPath?.type === "path") {
+    const line = g.clipPath.commands.find((c) => c.type === "L") as {
+      x: number;
+    };
     expect(line.x).toBeCloseTo(15, 5);
   }
 
   // A fresh reset restores the authored base (10), proving the morph never
   // corrupts the base snapshot.
   resetNodeToBase(g);
-  if (g.clipPath?.type === 'path') {
-    const line = g.clipPath.commands.find((c) => c.type === 'L') as { x: number };
+  if (g.clipPath?.type === "path") {
+    const line = g.clipPath.commands.find((c) => c.type === "L") as {
+      x: number;
+    };
     expect(line.x).toBeCloseTo(10, 5);
   }
 });
 
 // --- filter ------------------------------------------------------------------
 
-test('filter: parses blur + drop-shadow in order, color optional -> black', () => {
-  const [a] = build('#a { type: rect; filter: blur(8px) drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.5)); }').children;
+test("filter: parses blur + drop-shadow in order, color optional -> black", () => {
+  const [a] = build(
+    "#a { type: rect; filter: blur(8px) drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.5)); }",
+  ).children;
   expect(a.filter).toEqual([
-    { type: 'blur', radius: 8 },
-    { type: 'drop-shadow', dx: 2, dy: 4, blur: 6, color: 'rgba(0, 0, 0, 0.5)' },
+    { type: "blur", radius: 8 },
+    { type: "drop-shadow", dx: 2, dy: 4, blur: 6, color: "rgba(0, 0, 0, 0.5)" },
   ]);
   // Color omitted -> defaults to black; blur length defaults to 0.
-  const [b] = build('#b { type: rect; filter: drop-shadow(3px 5px); }').children;
-  expect(b.filter).toEqual([{ type: 'drop-shadow', dx: 3, dy: 5, blur: 0, color: '#000000' }]);
+  const [b] = build(
+    "#b { type: rect; filter: drop-shadow(3px 5px); }",
+  ).children;
+  expect(b.filter).toEqual([
+    { type: "drop-shadow", dx: 3, dy: 5, blur: 0, color: "#000000" },
+  ]);
 });
 
-test('filter: blur radius animates via the registry, base is preserved', () => {
+test("filter: blur radius animates via the registry, base is preserved", () => {
   const [g] = build(`
     @keyframes soften { from { filter: blur(4px); } to { filter: blur(12px); } }
     #g { type: rect; filter: blur(4px); animation: soften 1s linear; }
   `).children;
 
-  expect(getPropHandler('filter')?.kind).toBe('number');
+  expect(getPropHandler("filter")?.kind).toBe("number");
   const sched = new AnimationScheduler();
   resetNodeToBase(g);
   sched.sampleNode(g, 500); // midway
@@ -746,41 +855,42 @@ const MASK_SRC = `
 #mask { type: circle; cx: 25px; cy: 25px; r: 25px; fill: #fff; }
 `;
 
-test('mask: resolves the source by id, flags it, and links the mode', () => {
+test("mask: resolves the source by id, flags it, and links the mode", () => {
   const root = build(MASK_SRC);
   const [content, mask] = root.children;
   expect(content.mask?.source).toBe(mask);
-  expect(content.mask?.mode).toBe('alpha');
+  expect(content.mask?.mode).toBe("alpha");
   // The source is painted only as a mask, never on its own.
   expect(mask.isMaskSource).toBe(true);
   expect(content.isMaskSource).toBe(false);
 });
 
-test('mask: a hex-digit-only source id (#fade lexes as a color) still resolves', () => {
+test("mask: a hex-digit-only source id (#fade lexes as a color) still resolves", () => {
   const root = build(`
 #content { type: rect; width: 50px; height: 50px; fill: #f00; mask: #fade luminance; }
 #fade { type: rect; width: 50px; height: 50px; fill: #fff; }
 `);
   const [content, fade] = root.children;
   expect(content.mask?.source).toBe(fade);
-  expect(content.mask?.mode).toBe('luminance');
+  expect(content.mask?.mode).toBe("luminance");
   expect(fade.isMaskSource).toBe(true);
 });
 
-test('mask: an unknown source id throws', () => {
-  expect(() => build('#c { type: rect; width: 10px; mask: #nope alpha; }'))
-    .toThrow(/mask on 'c' references unknown node '#nope'/);
+test("mask: an unknown source id throws", () => {
+  expect(() =>
+    build("#c { type: rect; width: 10px; mask: #nope alpha; }"),
+  ).toThrow(/mask on 'c' references unknown node '#nope'/);
 });
 
-test('mask: mode variants parse (luminance-invert)', () => {
+test("mask: mode variants parse (luminance-invert)", () => {
   const root = build(`
     #c { type: rect; width: 10px; mask: #m luminance-invert; }
     #m { type: rect; width: 10px; }
   `);
-  expect(root.children[0].mask?.mode).toBe('luminance-invert');
+  expect(root.children[0].mask?.mode).toBe("luminance-invert");
 });
 
-test('mask: content nested inside its own matte source is un-trapped so it renders', () => {
+test("mask: content nested inside its own matte source is un-trapped so it renders", () => {
   // Lottie's track-matte-with-parenting (the fish Tail/Fins: content is BOTH
   // masked by AND transform-parented to its source). Naively the source is
   // isMaskSource and the render walk skips its whole subtree, so the nested
@@ -798,27 +908,43 @@ test('mask: content nested inside its own matte source is un-trapped so it rende
   expect(srcNode.transform.translateX).toBe(30); // its transform is preserved
   const [matte, content] = srcNode.children;
   // A `-matte` sub-group takes over as the mask source, holding the own shapes.
-  expect(matte.id).toBe('src-matte');
+  expect(matte.id).toBe("src-matte");
   expect(matte.isMaskSource).toBe(true);
-  expect(matte.children.map((c) => c.id)).toEqual(['shape']);
+  expect(matte.children.map((c) => c.id)).toEqual(["shape"]);
   // The content stays parented to #src (transform intact) but now masks the
   // matte holder, so it's no longer inside the mask source's subtree.
-  expect(content.id).toBe('content');
+  expect(content.id).toBe("content");
   expect(content.parent).toBe(srcNode);
   expect(content.mask?.source).toBe(matte);
 });
 
 // --- image nodes -------------------------------------------------------------
 
-test('image: props map with a default-0 box until natural size is known', () => {
+test("image: props map with a default-0 box until natural size is known", () => {
   const [n] = build("#i { type: image; content: url('x.png'); }").children;
-  expect(n.type).toBe('image');
-  expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 0, y: 0, width: 0, height: 0, src: 'x.png' });
+  expect(n.type).toBe("image");
+  expect(n.shapeData as ImageData).toEqual({
+    type: "image",
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    src: "x.png",
+  });
 });
 
-test('image: x/y/width/height populate the box', () => {
-  const [n] = build("#i { type: image; content: url('a.png'); x: 10px; y: 20px; width: 40px; height: 30px; }").children;
-  expect(n.shapeData as ImageData).toEqual({ type: 'image', x: 10, y: 20, width: 40, height: 30, src: 'a.png' });
+test("image: x/y/width/height populate the box", () => {
+  const [n] = build(
+    "#i { type: image; content: url('a.png'); x: 10px; y: 20px; width: 40px; height: 30px; }",
+  ).children;
+  expect(n.shapeData as ImageData).toEqual({
+    type: "image",
+    x: 10,
+    y: 20,
+    width: 40,
+    height: 30,
+    src: "a.png",
+  });
 });
 
 // --- static :root var() resolution (path dedup) ------------------------------
@@ -826,7 +952,7 @@ test('image: x/y/width/height populate the box', () => {
 // and rewrites uses to `var(--pN)`. These must resolve at build time, in both
 // static declarations and @keyframes, while reactive input() bindings survive.
 
-test('var: static `d: var(--p)` resolves to a real command list', () => {
+test("var: static `d: var(--p)` resolves to a real command list", () => {
   const [n] = build(`
     :root { --p: 'M 0 0 L 10 0 L 10 10 Z'; }
     #p { type: path; d: var(--p); }
@@ -836,7 +962,7 @@ test('var: static `d: var(--p)` resolves to a real command list', () => {
   expect(n.bindings).toHaveLength(0); // resolved statically, not a binding
 });
 
-test('var: `offset-path: var(--p)` builds a motion path', () => {
+test("var: `offset-path: var(--p)` builds a motion path", () => {
   const [n] = build(`
     :root { --p: path('M 0 0 L 100 0'); }
     #m { type: rect; width: 10px; height: 10px; offset-path: var(--p); }
@@ -844,16 +970,16 @@ test('var: `offset-path: var(--p)` builds a motion path', () => {
   expect(n.offsetPath).toBeTruthy();
 });
 
-test('var: compound `clip-path: var(--a) var(--b)` resolves each path', () => {
+test("var: compound `clip-path: var(--a) var(--b)` resolves each path", () => {
   const [n] = build(`
     :root { --a: path('M0 0 H10 V10 H0 Z'); --b: path('M2 2 H8 V8 H2 Z'); }
     #c { type: rect; width: 10px; height: 10px; clip-path: var(--a) var(--b); }
   `).children;
-  expect(n.clipPath?.type).toBe('path');
+  expect(n.clipPath?.type).toBe("path");
   expect(n.clipPath?.commands.length).toBeGreaterThan(0);
 });
 
-test('var: animated `d:` keyframes via var() morph carry commands, not empties', () => {
+test("var: animated `d:` keyframes via var() morph carry commands, not empties", () => {
   const [n] = build(`
     :root { --a: 'M 0 0 L 10 0 L 10 10 Z'; --b: 'M 0 0 L 20 0 L 20 20 Z'; }
     @keyframes morph { 0% { d: var(--a); } 100% { d: var(--b); } }
@@ -861,20 +987,22 @@ test('var: animated `d:` keyframes via var() morph carry commands, not empties',
   `).children;
   const kf = n.animations[0].keyframes;
   expect((kf[0].properties.d as unknown[]).length).toBeGreaterThan(0);
-  expect((kf[kf.length - 1].properties.d as unknown[]).length).toBeGreaterThan(0);
+  expect((kf[kf.length - 1].properties.d as unknown[]).length).toBeGreaterThan(
+    0,
+  );
 });
 
-test('var: reactive input() binding is preserved, not statically resolved', () => {
+test("var: reactive input() binding is preserved, not statically resolved", () => {
   const [n] = build(`
     :root { --x: input(cursor.x); }
     #c { type: circle; r: 10px; cx: var(--x); }
   `).children;
   // A var() whose :root def is reactive stays a binding (numeric, per-frame).
-  expect(n.bindings.some((b) => b.property === 'cx')).toBe(true);
+  expect(n.bindings.some((b) => b.property === "cx")).toBe(true);
 });
 
-test('var: an unknown var() is left as-is and does not crash the build', () => {
-  expect(() => build('#p { type: path; d: var(--missing); }')).not.toThrow();
+test("var: an unknown var() is left as-is and does not crash the build", () => {
+  expect(() => build("#p { type: path; d: var(--missing); }")).not.toThrow();
 });
 
 // --- state-animation fill mode -----------------------------------------------
@@ -882,18 +1010,18 @@ test('var: an unknown var() is left as-is and does not crash the build', () => {
 // A one-shot `:state()` animation should hold its end frame for as long as the
 // state stays active (stateful-runtime convention), so it defaults to `both`
 // rather than the node-level `forwards` — never the CSS `none` that snaps back.
-test('state-animation fill mode defaults to `both`', () => {
+test("state-animation fill mode defaults to `both`", () => {
   const root = build(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: idle; state idle {} }
     #dot { type: circle; r: 5; &:state(idle) { animation: slide 1s linear; } }
     @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
   `);
-  const dot = root.children.find((c) => c.id === 'dot')!;
-  expect(dot.stateStyles[0].animations[0].fillMode).toBe('both');
+  const dot = root.children.find((c) => c.id === "dot")!;
+  expect(dot.stateStyles[0].animations[0].fillMode).toBe("both");
 });
 
-test('state-animation: an explicit longhand fill mode wins over the `both` default', () => {
+test("state-animation: an explicit longhand fill mode wins over the `both` default", () => {
   const root = build(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: idle; state idle {} }
@@ -901,28 +1029,28 @@ test('state-animation: an explicit longhand fill mode wins over the `both` defau
       &:state(idle) { animation: slide 1s linear; animation-fill-mode: none; } }
     @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
   `);
-  const dot = root.children.find((c) => c.id === 'dot')!;
-  expect(dot.stateStyles[0].animations[0].fillMode).toBe('none');
+  const dot = root.children.find((c) => c.id === "dot")!;
+  expect(dot.stateStyles[0].animations[0].fillMode).toBe("none");
 });
 
-test('state-animation: an explicit shorthand fill token wins over the `both` default', () => {
+test("state-animation: an explicit shorthand fill token wins over the `both` default", () => {
   const root = build(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: idle; state idle {} }
     #dot { type: circle; r: 5; &:state(idle) { animation: slide 1s linear forwards; } }
     @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
   `);
-  const dot = root.children.find((c) => c.id === 'dot')!;
-  expect(dot.stateStyles[0].animations[0].fillMode).toBe('forwards');
+  const dot = root.children.find((c) => c.id === "dot")!;
+  expect(dot.stateStyles[0].animations[0].fillMode).toBe("forwards");
 });
 
 // The `both` default is scoped to :state() animations; node-level animations
 // keep the codebase's `forwards` default.
-test('base (node-level) animation keeps the `forwards` fill default', () => {
+test("base (node-level) animation keeps the `forwards` fill default", () => {
   const [node] = build(
-    '@keyframes k { 0% { cx: 0 } 100% { cx: 10 } } #a { type: circle; r: 5; animation: k 1s linear; }'
+    "@keyframes k { 0% { cx: 0 } 100% { cx: 10 } } #a { type: circle; r: 5; animation: k 1s linear; }",
   ).children;
-  expect(node.animations[0].fillMode).toBe('forwards');
+  expect(node.animations[0].fillMode).toBe("forwards");
 });
 
 // --- state-block gradient paint ----------------------------------------------
@@ -931,7 +1059,7 @@ test('base (node-level) animation keeps the `forwards` fill default', () => {
 // fill for a warmer one. The gradient must survive build (captured as
 // structured GradientData, not silently dropped like a solid `fill` string) and
 // win over the base gradient when the state applies.
-test(':state() gradient fill is captured as structured GradientData', () => {
+test(":state() gradient fill is captured as structured GradientData", () => {
   const root = build(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: off; state off {} state on {} }
@@ -939,14 +1067,14 @@ test(':state() gradient fill is captured as structured GradientData', () => {
       fill: radial-gradient(circle 30px at 40px 40px, #101010 0%, #202020 100%);
       &:state(on) { fill: radial-gradient(circle 30px at 40px 40px, #fff6d8 0%, #ffb64a 100%); } }
   `);
-  const b = root.children.find((c) => c.id === 'b')!;
-  const styles = b.stateStyles.find((s) => s.name === 'on')!.styles;
-  expect(styles.fillGradient?.type).toBe('radial-gradient');
-  expect(styles.fillGradient?.stops[0].color).toBe('#fff6d8');
-  expect(styles.fill).toBeUndefined();     // not miscaptured as a solid
+  const b = root.children.find((c) => c.id === "b")!;
+  const styles = b.stateStyles.find((s) => s.name === "on")!.styles;
+  expect(styles.fillGradient?.type).toBe("radial-gradient");
+  expect(styles.fillGradient?.stops[0].color).toBe("#fff6d8");
+  expect(styles.fill).toBeUndefined(); // not miscaptured as a solid
 });
 
-test('applyStateStyles: a :state() gradient fill overrides the base gradient, deep-copied', () => {
+test("applyStateStyles: a :state() gradient fill overrides the base gradient, deep-copied", () => {
   const root = build(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: off; state off {} state on {} }
@@ -954,12 +1082,12 @@ test('applyStateStyles: a :state() gradient fill overrides the base gradient, de
       fill: radial-gradient(circle 30px at 40px 40px, #101010 0%, #202020 100%);
       &:state(on) { fill: radial-gradient(circle 30px at 40px 40px, #fff6d8 0%, #ffb64a 100%); } }
   `);
-  const b = root.children.find((c) => c.id === 'b')!;
-  const entry = b.stateStyles.find((s) => s.name === 'on')!;
+  const b = root.children.find((c) => c.id === "b")!;
+  const entry = b.stateStyles.find((s) => s.name === "on")!;
   resetNodeToBase(b);
-  expect(b.fillGradient?.stops[0].color).toBe('#101010');   // base dark gradient
+  expect(b.fillGradient?.stops[0].color).toBe("#101010"); // base dark gradient
   applyStateStyles(b, entry.styles);
-  expect(b.fillGradient?.stops[0].color).toBe('#fff6d8');    // warm on-state gradient wins
+  expect(b.fillGradient?.stops[0].color).toBe("#fff6d8"); // warm on-state gradient wins
   expect(b.fill).toBeNull();
   // The node must not alias the shared StateStyles gradient (a later in-place
   // interpolation would otherwise corrupt the authored state stops).
@@ -968,7 +1096,7 @@ test('applyStateStyles: a :state() gradient fill overrides the base gradient, de
 
 // A solid `:state()` fill must clear a base GRADIENT, else the base gradient
 // (which the renderer prefers over a solid) would keep winning.
-test('applyStateStyles: a solid :state() fill clears a base gradient so the solid wins', () => {
+test("applyStateStyles: a solid :state() fill clears a base gradient so the solid wins", () => {
   const root = build(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: off; state off {} state on {} }
@@ -976,58 +1104,71 @@ test('applyStateStyles: a solid :state() fill clears a base gradient so the soli
       fill: radial-gradient(circle 30px at 40px 40px, #101010 0%, #202020 100%);
       &:state(on) { fill: #ff0000; } }
   `);
-  const b = root.children.find((c) => c.id === 'b')!;
-  const entry = b.stateStyles.find((s) => s.name === 'on')!;
+  const b = root.children.find((c) => c.id === "b")!;
+  const entry = b.stateStyles.find((s) => s.name === "on")!;
   resetNodeToBase(b);
   applyStateStyles(b, entry.styles);
-  expect(b.fill).toBe('#ff0000');
+  expect(b.fill).toBe("#ff0000");
   expect(b.fillGradient).toBeNull();
 });
 
 // Non-regression: a plain solid :hover fill still applies (the fill/stroke
 // capture was refactored through parsePaint; hover shares the same builder).
-test('hover: a solid fill override still applies (no regression)', () => {
-  const b = build('#b { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #222; &:hover { fill: #f00; } }').children[0];
+test("hover: a solid fill override still applies (no regression)", () => {
+  const b = build(
+    "#b { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #222; &:hover { fill: #f00; } }",
+  ).children[0];
   resetNodeToBase(b);
   applyStateStyles(b, b.hoverStyles!);
-  expect(b.fill).toBe('#f00');
+  expect(b.fill).toBe("#f00");
   expect(b.fillGradient).toBeNull();
 });
 
 // Hover gains gradient support for free on the instant-snap path (no transition
 // tween declared), since it shares applyStateStyles with machine states.
-test('hover: a gradient fill override applies on the instant-snap path', () => {
+test("hover: a gradient fill override applies on the instant-snap path", () => {
   const b = build(`
     #b { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #222;
       &:hover { fill: radial-gradient(circle 30px at 40px 40px, #0f0 0%, #00f 100%); } }
   `).children[0];
   resetNodeToBase(b);
   applyStateStyles(b, b.hoverStyles!);
-  expect(b.fillGradient?.stops[0].color).toBe('#0f0');
+  expect(b.fillGradient?.stops[0].color).toBe("#0f0");
   expect(b.fill).toBeNull();
 });
 
-test('state block warns only on unknown props, not on registry props or transition', () => {
+test("state block warns only on unknown props, not on registry props or transition", () => {
   const warns: string[] = [];
   const orig = console.warn;
-  console.warn = (m?: unknown) => { warns.push(String(m)); };
+  console.warn = (m?: unknown) => {
+    warns.push(String(m));
+  };
   try {
-    buildSceneGraph(parse(
-      `#a { type: circle; r: 10; fill: red; &:hover { r: 20; fill: blue; opacity: 0.5; transition: fill 200ms; bogus: 3; } }`
-    ));
+    buildSceneGraph(
+      parse(
+        `#a { type: circle; r: 10; fill: red; &:hover { r: 20; fill: blue; opacity: 0.5; transition: fill 200ms; bogus: 3; } }`,
+      ),
+    );
   } finally {
     console.warn = orig;
   }
   // `r` is a registry prop → now overridable, no warn (this is what stage 1 closes).
   expect(warns.some((w) => w.includes("'r'"))).toBe(false);
   // fill/opacity are honored, transition is consumed by resolveTransitions → no warn.
-  expect(warns.some((w) => w.includes('transition') || w.includes("'fill'") || w.includes("'opacity'"))).toBe(false);
+  expect(
+    warns.some(
+      (w) =>
+        w.includes("transition") ||
+        w.includes("'fill'") ||
+        w.includes("'opacity'"),
+    ),
+  ).toBe(false);
   // A genuinely unknown property still warns.
   expect(warns.some((w) => w.includes("Unknown property 'bogus'"))).toBe(true);
 });
 
-test('state override: :hover { r } snaps live geometry and reverts on base-reset', () => {
-  const c = build('#a { type: circle; r: 10; &:hover { r: 20; } }').children[0];
+test("state override: :hover { r } snaps live geometry and reverts on base-reset", () => {
+  const c = build("#a { type: circle; r: 10; &:hover { r: 20; } }").children[0];
   expect(c.hoverStyles?.overrides).toEqual({ r: 20 });
 
   applyStateStyles(c, c.hoverStyles!);
@@ -1038,8 +1179,10 @@ test('state override: :hover { r } snaps live geometry and reverts on base-reset
   expect((c.shapeData as CircleData).r).toBe(10);
 });
 
-test('state override: a geometry override marks polystar/outline caches stale', () => {
-  const s = build('#s { type: star; sides: 5; outer-radius: 40; inner-radius: 20; &:hover { outer-radius: 60; } }').children[0];
+test("state override: a geometry override marks polystar/outline caches stale", () => {
+  const s = build(
+    "#s { type: star; sides: 5; outer-radius: 40; inner-radius: 20; &:hover { outer-radius: 60; } }",
+  ).children[0];
   s.polystarDirty = false;
   s.outlineLengthDirty = false;
 
@@ -1049,9 +1192,11 @@ test('state override: a geometry override marks polystar/outline caches stale', 
   expect(s.outlineLengthDirty).toBe(true);
 });
 
-test('state override: trim-end normalizes a percentage to a 0..1 fraction', () => {
-  const p = build('#p { type: path; d: "M0 0 L100 0"; &:hover { trim-end: 50%; } }').children[0];
-  expect(p.hoverStyles?.overrides).toEqual({ 'trim-end': 0.5 });
+test("state override: trim-end normalizes a percentage to a 0..1 fraction", () => {
+  const p = build(
+    '#p { type: path; d: "M0 0 L100 0"; &:hover { trim-end: 50%; } }',
+  ).children[0];
+  expect(p.hoverStyles?.overrides).toEqual({ "trim-end": 0.5 });
 
   applyStateStyles(p, p.hoverStyles!);
   expect(p.trimEnd).toBe(0.5);

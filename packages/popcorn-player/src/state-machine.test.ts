@@ -1,14 +1,20 @@
-import { test, expect } from 'bun:test';
-import { parse } from '@popcorn/parser';
-import { buildSceneGraph } from './scene/builder';
-import { RenderLoop } from './runtime/loop';
-import { createVariableResolver } from './runtime/variables';
-import { StateMachineRunner } from './runtime/state-machine';
-import type { PointerTriggerEvent, MachineEvalContext } from './runtime/state-machine';
-import type { SceneNode, CircleData } from './scene/types';
-import type { Renderer } from './renderer/interface';
+import { expect, test } from "bun:test";
+import { parse } from "@popcorn/parser";
+import type { Renderer } from "./renderer/interface";
+import { RenderLoop } from "./runtime/loop";
+import type {
+  MachineEvalContext,
+  PointerTriggerEvent,
+} from "./runtime/state-machine";
+import { StateMachineRunner } from "./runtime/state-machine";
+import { createVariableResolver } from "./runtime/variables";
+import { buildSceneGraph } from "./scene/builder";
+import type { CircleData, SceneNode } from "./scene/types";
 
-const stubRenderer = new Proxy({}, { get: () => () => 0 }) as unknown as Renderer;
+const stubRenderer = new Proxy(
+  {},
+  { get: () => () => 0 },
+) as unknown as Renderer;
 
 const find = (n: SceneNode, id: string): SceneNode => {
   if (n.id === id) return n;
@@ -18,7 +24,8 @@ const find = (n: SceneNode, id: string): SceneNode => {
   }
   return undefined as unknown as SceneNode;
 };
-const cx = (root: SceneNode, id: string) => (find(root, id).shapeData as CircleData).cx;
+const cx = (root: SceneNode, id: string) =>
+  (find(root, id).shapeData as CircleData).cx;
 
 // A runner bound to a freshly built scene, plus a helper to evaluate a frame.
 function runnerFor(src: string) {
@@ -29,7 +36,7 @@ function runnerFor(src: string) {
   runner.setScene(root, 0);
   const evalFrame = (
     machineTime: number,
-    opts: { pointerEvents?: PointerTriggerEvent[]; events?: string[] } = {}
+    opts: { pointerEvents?: PointerTriggerEvent[]; events?: string[] } = {},
   ) => {
     for (const e of opts.events ?? []) runner.enqueueEvent(e);
     const ctx: MachineEvalContext = {
@@ -43,7 +50,7 @@ function runnerFor(src: string) {
 
 // --- Builder compilation -----------------------------------------------------
 
-test('builder compiles @machine onto the root and :state() sets onto nodes', () => {
+test("builder compiles @machine onto the root and :state() sets onto nodes", () => {
   const src = `
     :root { width: 100px; height: 100px; --energy: 0; }
     @machine cat {
@@ -62,24 +69,24 @@ test('builder compiles @machine onto the root and :state() sets onto nodes', () 
   `;
   const root = buildSceneGraph(parse(src));
   expect(root.machines.length).toBe(1);
-  expect(root.machines[0].name).toBe('cat');
+  expect(root.machines[0].name).toBe("cat");
 
-  const cat = find(root, 'cat');
+  const cat = find(root, "cat");
   expect(cat.stateStyles.length).toBe(2);
-  const idle = cat.stateStyles.find((s) => s.name === 'idle')!;
-  expect(idle.machine).toBeNull();               // un-namespaced :state(idle)
-  expect(idle.styles.fill).toBe('#0f0');         // static decl captured
-  expect(idle.animations.length).toBe(1);        // :state() carries its own animation
-  const excited = cat.stateStyles.find((s) => s.name === 'excited')!;
-  expect(excited.machine).toBe('cat');           // namespaced :state(cat.excited)
+  const idle = cat.stateStyles.find((s) => s.name === "idle")!;
+  expect(idle.machine).toBeNull(); // un-namespaced :state(idle)
+  expect(idle.styles.fill).toBe("#0f0"); // static decl captured
+  expect(idle.animations.length).toBe(1); // :state() carries its own animation
+  const excited = cat.stateStyles.find((s) => s.name === "excited")!;
+  expect(excited.machine).toBe("cat"); // namespaced :state(cat.excited)
 
   // Pointer-trigger target is flagged interactive so the hit-tester credits it.
-  expect(find(root, 'hitbox').interactive).toBe(true);
+  expect(find(root, "hitbox").interactive).toBe(true);
 });
 
 // --- Transition priority / declaration order ---------------------------------
 
-test('declaration order is priority: the first passing transition wins', () => {
+test("declaration order is priority: the first passing transition wins", () => {
   const { runner, resolver, evalFrame } = runnerFor(`
     :root { width: 10px; height: 10px; --go: 0; }
     @machine m {
@@ -93,33 +100,37 @@ test('declaration order is priority: the first passing transition wins', () => {
     }
     #n { type: circle; r: 1; }
   `);
-  resolver.setVariable('--go', 1);          // both transitions now pass
+  resolver.setVariable("--go", 1); // both transitions now pass
   const out = evalFrame(0);
-  expect(out).toEqual([{ type: 'statechange', machine: 'm', from: 'a', to: 'first' }]);
-  expect(runner.currentState('m')).toBe('first');
+  expect(out).toEqual([
+    { type: "statechange", machine: "m", from: "a", to: "first" },
+  ]);
+  expect(runner.currentState("m")).toBe("first");
 });
 
 // --- Guards: numeric var, equality, state-time -------------------------------
 
-test('guards: numeric comparison against a --variable', () => {
+test("guards: numeric comparison against a --variable", () => {
   const { runner, resolver, evalFrame } = runnerFor(`
     :root { width: 10px; height: 10px; --energy: 0; }
     @machine m { initial: calm; state calm { to: hyper when style(--energy > 80); } state hyper {} }
     #n { type: circle; r: 1; }
   `);
   evalFrame(0);
-  expect(runner.currentState('m')).toBe('calm'); // 0 is not > 80
-  resolver.setVariable('--energy', 90);
+  expect(runner.currentState("m")).toBe("calm"); // 0 is not > 80
+  resolver.setVariable("--energy", 90);
   evalFrame(16);
-  expect(runner.currentState('m')).toBe('hyper');
+  expect(runner.currentState("m")).toBe("hyper");
 });
 
-test('guards: input(media.*) resolves through VariableResolver (wired for free)', () => {
+test("guards: input(media.*) resolves through VariableResolver (wired for free)", () => {
   // media.* used to be unwired in the machine's own input reader (always 0);
   // routing guard input() through VariableResolver.resolveInput picks up the
   // media resolver. Stub matchMedia so prefers-reduced-motion reads 1.
   const prev = (globalThis as { matchMedia?: unknown }).matchMedia;
-  (globalThis as { matchMedia?: unknown }).matchMedia = () => ({ matches: true });
+  (globalThis as { matchMedia?: unknown }).matchMedia = () => ({
+    matches: true,
+  });
   try {
     const { runner, evalFrame } = runnerFor(`
       :root { width: 10px; height: 10px; }
@@ -131,27 +142,27 @@ test('guards: input(media.*) resolves through VariableResolver (wired for free)'
       #n { type: circle; r: 1; }
     `);
     evalFrame(0);
-    expect(runner.currentState('m')).toBe('still'); // guard saw the media value
+    expect(runner.currentState("m")).toBe("still"); // guard saw the media value
   } finally {
     (globalThis as { matchMedia?: unknown }).matchMedia = prev;
   }
 });
 
-test('guards: state-time drives a timeout', () => {
+test("guards: state-time drives a timeout", () => {
   const { runner, evalFrame } = runnerFor(`
     :root { width: 10px; height: 10px; }
     @machine m { initial: wait; state wait { to: done when style(state-time > 2s); } state done {} }
     #n { type: circle; r: 1; }
   `);
   evalFrame(1000);
-  expect(runner.currentState('m')).toBe('wait');  // 1000ms in state, not > 2000
-  evalFrame(2500);                                // 2500ms since entry (entry was 0)
-  expect(runner.currentState('m')).toBe('done');
+  expect(runner.currentState("m")).toBe("wait"); // 1000ms in state, not > 2000
+  evalFrame(2500); // 2500ms since entry (entry was 0)
+  expect(runner.currentState("m")).toBe("done");
 });
 
 // --- Any-state -----------------------------------------------------------------
 
-test('any-state (*) transitions are checked before the current state', () => {
+test("any-state (*) transitions are checked before the current state", () => {
   const { runner, evalFrame } = runnerFor(`
     :root { width: 10px; height: 10px; }
     @machine m {
@@ -162,43 +173,43 @@ test('any-state (*) transitions are checked before the current state', () => {
     }
     #n { type: circle; r: 1; }
   `);
-  evalFrame(0, { events: ['next'] });
-  expect(runner.currentState('m')).toBe('b');
-  evalFrame(16, { events: ['panic'] });           // any-state wins from any state
-  expect(runner.currentState('m')).toBe('reset');
+  evalFrame(0, { events: ["next"] });
+  expect(runner.currentState("m")).toBe("b");
+  evalFrame(16, { events: ["panic"] }); // any-state wins from any state
+  expect(runner.currentState("m")).toBe("reset");
 });
 
 // --- Trigger consumption / momentariness --------------------------------------
 
-test('external events are momentary: consumed after one evaluate', () => {
+test("external events are momentary: consumed after one evaluate", () => {
   const { runner, evalFrame } = runnerFor(`
     :root { width: 10px; height: 10px; }
     @machine m { initial: a; state a { to: b on event(go); } state b { to: a on event(go); } }
     #n { type: circle; r: 1; }
   `);
-  evalFrame(0, { events: ['go'] });
-  expect(runner.currentState('m')).toBe('b');
-  evalFrame(16);                                  // no event re-queued
-  expect(runner.currentState('m')).toBe('b');     // stayed put — event was consumed
+  evalFrame(0, { events: ["go"] });
+  expect(runner.currentState("m")).toBe("b");
+  evalFrame(16); // no event re-queued
+  expect(runner.currentState("m")).toBe("b"); // stayed put — event was consumed
 });
 
 // --- Pointer triggers: click + target bubbling --------------------------------
 
-test('pointer click matches its target, including bubbling to an ancestor target', () => {
+test("pointer click matches its target, including bubbling to an ancestor target", () => {
   const { root, runner, evalFrame } = runnerFor(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: off; state off { to: on on click(#box); } state on {} }
     #box { type: group; > #inner { type: rect; width: 10; height: 10; } }
   `);
-  const inner = find(root, 'inner');
+  const inner = find(root, "inner");
   // A click credited to a descendant of #box still fires click(#box) (bubbling).
-  evalFrame(0, { pointerEvents: [{ event: 'click', node: inner }] });
-  expect(runner.currentState('m')).toBe('on');
+  evalFrame(0, { pointerEvents: [{ event: "click", node: inner }] });
+  expect(runner.currentState("m")).toBe("on");
 });
 
 // --- `on complete` -------------------------------------------------------------
 
-test('on complete fires when the state\'s animations have finished', () => {
+test("on complete fires when the state's animations have finished", () => {
   const { runner, evalFrame } = runnerFor(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: intro; state intro { to: idle on complete; } state idle {} }
@@ -209,19 +220,19 @@ test('on complete fires when the state\'s animations have finished', () => {
     @keyframes slide { 0% { cx: 0 } 100% { cx: 100 } }
   `);
   evalFrame(300);
-  expect(runner.currentState('m')).toBe('intro'); // 300ms < 600ms end
+  expect(runner.currentState("m")).toBe("intro"); // 300ms < 600ms end
   evalFrame(700);
-  expect(runner.currentState('m')).toBe('idle');  // past the 600ms completion
+  expect(runner.currentState("m")).toBe("idle"); // past the 600ms completion
 });
 
-test('on complete never fires for a state with no animations', () => {
+test("on complete never fires for a state with no animations", () => {
   const { runner, evalFrame } = runnerFor(`
     :root { width: 100px; height: 100px; }
     @machine m { initial: idle; state idle { to: other on complete; } state other {} }
     #n { type: circle; r: 1; }
   `);
   evalFrame(100000);
-  expect(runner.currentState('m')).toBe('idle');  // empty state has no completion moment
+  expect(runner.currentState("m")).toBe("idle"); // empty state has no completion moment
 });
 
 // --- Loop integration: entry-anchored state animations + seek purity ----------
@@ -244,52 +255,52 @@ function loopFor(src: string) {
   return { root, loop };
 }
 
-test('state animations restart at the state entry time, not timeline zero', () => {
+test("state animations restart at the state entry time, not timeline zero", () => {
   const { root, loop } = loopFor(loopScene);
   const runner = loop.getStateMachineRunner();
 
   // Before entering b, no state animation applies (cx stays at base 0).
   loop.seek(1000);
-  expect(cx(root, 'dot')).toBeCloseTo(0);
+  expect(cx(root, "dot")).toBeCloseTo(0);
 
   // Enter b at machineTime 500 (as the live loop would).
-  runner.enqueueEvent('go');
+  runner.enqueueEvent("go");
   runner.evaluate(500, {
     variableResolver: loop.getVariableResolver(),
     pointerEvents: [],
   });
-  expect(runner.currentState('m')).toBe('b');
+  expect(runner.currentState("m")).toBe("b");
 
   // The slide is anchored at entry (500): machineTime 500 -> progress 0.
   loop.seek(500);
-  expect(cx(root, 'dot')).toBeCloseTo(0);
-  loop.seek(1000);                    // 500ms since entry -> halfway
-  expect(cx(root, 'dot')).toBeCloseTo(50);
-  loop.seek(1500);                    // 1000ms since entry -> end
-  expect(cx(root, 'dot')).toBeCloseTo(100);
+  expect(cx(root, "dot")).toBeCloseTo(0);
+  loop.seek(1000); // 500ms since entry -> halfway
+  expect(cx(root, "dot")).toBeCloseTo(50);
+  loop.seek(1500); // 1000ms since entry -> end
+  expect(cx(root, "dot")).toBeCloseTo(100);
 });
 
-test('seek purity: same time + same machine state gives identical frames', () => {
+test("seek purity: same time + same machine state gives identical frames", () => {
   const { root, loop } = loopFor(loopScene);
   const runner = loop.getStateMachineRunner();
-  runner.enqueueEvent('go');
+  runner.enqueueEvent("go");
   runner.evaluate(500, {
     variableResolver: loop.getVariableResolver(),
     pointerEvents: [],
   });
 
   loop.seek(1000);
-  const first = cx(root, 'dot');
-  loop.seek(0);                       // move away
-  loop.seek(1000);                    // and back — machine state unchanged
-  const second = cx(root, 'dot');
+  const first = cx(root, "dot");
+  loop.seek(0); // move away
+  loop.seek(1000); // and back — machine state unchanged
+  const second = cx(root, "dot");
   expect(second).toBeCloseTo(first);
   expect(second).toBeCloseTo(50);
 });
 
 // --- animation-timeline scrubbing via a variable ------------------------------
 
-test('animation-timeline scrubs a node\'s animation to a var()-supplied 0..1', () => {
+test("animation-timeline scrubs a node's animation to a var()-supplied 0..1", () => {
   const { root, loop } = loopFor(`
     :root { width: 100px; height: 100px; --p: 0; }
     #bar {
@@ -301,11 +312,11 @@ test('animation-timeline scrubs a node\'s animation to a var()-supplied 0..1', (
   `);
   const resolver = loop.getVariableResolver();
 
-  resolver.setVariable('--p', 0.25);
-  loop.seek(9999);                    // clock ignored; progress comes from --p
-  expect(cx(root, 'bar')).toBeCloseTo(25);
+  resolver.setVariable("--p", 0.25);
+  loop.seek(9999); // clock ignored; progress comes from --p
+  expect(cx(root, "bar")).toBeCloseTo(25);
 
-  resolver.setVariable('--p', 0.8);
+  resolver.setVariable("--p", 0.8);
   loop.seek(0);
-  expect(cx(root, 'bar')).toBeCloseTo(80);
+  expect(cx(root, "bar")).toBeCloseTo(80);
 });

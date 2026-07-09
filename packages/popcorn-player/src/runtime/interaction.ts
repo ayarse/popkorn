@@ -21,56 +21,75 @@
  * time: `seek(t)` twice is identical whenever no interaction state changes.
  */
 
-import type { SceneNode, InteractionState, StateStyles, TransitionSpec } from '../scene/types';
-import { hitTest, type Point } from './hit-test';
-import type { InputState } from './inputs';
-import { clamp01 } from '../scene/transform';
-import { applyEasing } from '../animation/easing';
+import { applyEasing } from "../animation/easing";
 import {
   getPropHandler,
-  interpolateProp,
   gradientsCompatible,
-  pathsCompatible,
+  interpolateProp,
   type PropHandler,
   type PropValue,
-} from '../animation/registry';
-import { cloneGradient, isGradientData } from '../renderer/types';
+  pathsCompatible,
+} from "../animation/registry";
+import { cloneGradient, isGradientData } from "../renderer/types";
+import { clamp01 } from "../scene/transform";
+import type {
+  InteractionState,
+  SceneNode,
+  StateStyles,
+  TransitionSpec,
+} from "../scene/types";
+import { hitTest, type Point } from "./hit-test";
+import type { InputState } from "./inputs";
 
 // A running tween toward `node.interactionState`, started when the state flipped.
 interface ActiveTransition {
-  startTime: number;                     // wall-clock ms at the flip
-  from: Map<string, PropValue | null>;   // displayed value per involved prop at the flip
-  specs: TransitionSpec[];               // effective transition list for this change
+  startTime: number; // wall-clock ms at the flip
+  from: Map<string, PropValue | null>; // displayed value per involved prop at the flip
+  specs: TransitionSpec[]; // effective transition list for this change
 }
 
 // Transform channels are registry properties but tween as deltas, and the CSS
 // `transition-property` names translate/rotate/scale/transform all govern them.
-const TRANSFORM_CHANNELS = new Set(['translateX', 'translateY', 'rotate', 'scaleX', 'scaleY']);
+const TRANSFORM_CHANNELS = new Set([
+  "translateX",
+  "translateY",
+  "rotate",
+  "scaleX",
+  "scaleY",
+]);
 
 // The StateStyles governing a given interaction state (active falls back to
 // hover, matching the runtime priority).
-function stateStylesFor(node: SceneNode, state: InteractionState): StateStyles | null {
-  if (state === 'active') return node.activeStyles ?? node.hoverStyles;
-  if (state === 'hover') return node.hoverStyles;
+function stateStylesFor(
+  node: SceneNode,
+  state: InteractionState,
+): StateStyles | null {
+  if (state === "active") return node.activeStyles ?? node.hoverStyles;
+  if (state === "hover") return node.hoverStyles;
   return null;
 }
 
 // Every registry-property key a state block can touch, folded into `out`. The
 // legacy fields map onto their registry names (paint gradient or solid -> the
 // color property; each declared transform channel -> its channel key).
-function collectInvolvedKeys(styles: StateStyles | null | undefined, out: Set<string>): void {
+function collectInvolvedKeys(
+  styles: StateStyles | null | undefined,
+  out: Set<string>,
+): void {
   if (!styles) return;
-  if (styles.fill !== undefined || styles.fillGradient !== undefined) out.add('fill');
-  if (styles.stroke !== undefined || styles.strokeGradient !== undefined) out.add('stroke');
-  if (styles.strokeWidth !== undefined) out.add('stroke-width');
-  if (styles.opacity !== undefined) out.add('opacity');
+  if (styles.fill !== undefined || styles.fillGradient !== undefined)
+    out.add("fill");
+  if (styles.stroke !== undefined || styles.strokeGradient !== undefined)
+    out.add("stroke");
+  if (styles.strokeWidth !== undefined) out.add("stroke-width");
+  if (styles.opacity !== undefined) out.add("opacity");
   const t = styles.transform;
   if (t) {
-    if (t.translateX !== undefined) out.add('translateX');
-    if (t.translateY !== undefined) out.add('translateY');
-    if (t.rotate !== undefined) out.add('rotate');
-    if (t.scaleX !== undefined) out.add('scaleX');
-    if (t.scaleY !== undefined) out.add('scaleY');
+    if (t.translateX !== undefined) out.add("translateX");
+    if (t.translateY !== undefined) out.add("translateY");
+    if (t.rotate !== undefined) out.add("rotate");
+    if (t.scaleX !== undefined) out.add("scaleX");
+    if (t.scaleY !== undefined) out.add("scaleY");
   }
   if (styles.overrides) for (const k in styles.overrides) out.add(k);
 }
@@ -81,12 +100,18 @@ function collectInvolvedKeys(styles: StateStyles | null | undefined, out: Set<st
 // shows (gradient deep-copied so the snapshot is never aliased onto authored
 // state); path props read their live command list.
 function readLiveProp(node: SceneNode, key: string): PropValue | null {
-  if (key === 'fill') return node.fillGradient ? cloneGradient(node.fillGradient) : node.fill;
-  if (key === 'stroke') return node.strokeGradient ? cloneGradient(node.strokeGradient) : node.stroke;
+  if (key === "fill")
+    return node.fillGradient ? cloneGradient(node.fillGradient) : node.fill;
+  if (key === "stroke")
+    return node.strokeGradient
+      ? cloneGradient(node.strokeGradient)
+      : node.stroke;
   const h = getPropHandler(key);
   if (h?.readLive) return h.readLive(node);
-  if (key === 'd') return node.shapeData.type === 'path' ? node.shapeData.commands : null;
-  if (key === 'clip-path') return node.clipPath?.type === 'path' ? node.clipPath.commands : null;
+  if (key === "d")
+    return node.shapeData.type === "path" ? node.shapeData.commands : null;
+  if (key === "clip-path")
+    return node.clipPath?.type === "path" ? node.clipPath.commands : null;
   return null;
 }
 
@@ -96,32 +121,48 @@ function readLiveProp(node: SceneNode, key: string): PropValue | null {
 // paint clears the opposite (gradient/solid) channel; everything else replaces.
 // A key the state doesn't touch holds the underlying live value (so it tweens
 // back to the base when leaving the state).
-function stateTargetProp(node: SceneNode, styles: StateStyles | null, key: string): PropValue | null {
+function stateTargetProp(
+  node: SceneNode,
+  styles: StateStyles | null,
+  key: string,
+): PropValue | null {
   switch (key) {
-    case 'translateX': return node.transform.translateX + (styles?.transform?.translateX ?? 0);
-    case 'translateY': return node.transform.translateY + (styles?.transform?.translateY ?? 0);
-    case 'rotate':     return node.transform.rotate + (styles?.transform?.rotate ?? 0);
-    case 'scaleX':     return node.transform.scaleX * (styles?.transform?.scaleX ?? 1);
-    case 'scaleY':     return node.transform.scaleY * (styles?.transform?.scaleY ?? 1);
+    case "translateX":
+      return node.transform.translateX + (styles?.transform?.translateX ?? 0);
+    case "translateY":
+      return node.transform.translateY + (styles?.transform?.translateY ?? 0);
+    case "rotate":
+      return node.transform.rotate + (styles?.transform?.rotate ?? 0);
+    case "scaleX":
+      return node.transform.scaleX * (styles?.transform?.scaleX ?? 1);
+    case "scaleY":
+      return node.transform.scaleY * (styles?.transform?.scaleY ?? 1);
   }
   if (styles) {
     switch (key) {
-      case 'fill':
-        if (styles.fillGradient !== undefined) return styles.fillGradient ? cloneGradient(styles.fillGradient) : null;
+      case "fill":
+        if (styles.fillGradient !== undefined)
+          return styles.fillGradient
+            ? cloneGradient(styles.fillGradient)
+            : null;
         if (styles.fill !== undefined) return styles.fill;
         break;
-      case 'stroke':
-        if (styles.strokeGradient !== undefined) return styles.strokeGradient ? cloneGradient(styles.strokeGradient) : null;
+      case "stroke":
+        if (styles.strokeGradient !== undefined)
+          return styles.strokeGradient
+            ? cloneGradient(styles.strokeGradient)
+            : null;
         if (styles.stroke !== undefined) return styles.stroke;
         break;
-      case 'stroke-width':
+      case "stroke-width":
         if (styles.strokeWidth !== undefined) return styles.strokeWidth;
         break;
-      case 'opacity':
+      case "opacity":
         if (styles.opacity !== undefined) return styles.opacity;
         break;
       default:
-        if (styles.overrides && key in styles.overrides) return styles.overrides[key];
+        if (styles.overrides && key in styles.overrides)
+          return styles.overrides[key];
     }
   }
   return readLiveProp(node, key);
@@ -130,15 +171,22 @@ function stateTargetProp(node: SceneNode, styles: StateStyles | null, key: strin
 // The last transition spec that matches a property (CSS: later entries win).
 // `all` matches everything; the transform channels also match the CSS group
 // names translate/rotate/scale and the `transform` shorthand.
-function matchSpec(specs: TransitionSpec[], key: string): TransitionSpec | null {
+function matchSpec(
+  specs: TransitionSpec[],
+  key: string,
+): TransitionSpec | null {
   const isTransform = TRANSFORM_CHANNELS.has(key);
   let match: TransitionSpec | null = null;
   for (const s of specs) {
     const p = s.property;
     if (
-      p === 'all' ||
+      p === "all" ||
       p === key ||
-      (isTransform && (p === 'transform' || p === 'translate' || p === 'rotate' || p === 'scale'))
+      (isTransform &&
+        (p === "transform" ||
+          p === "translate" ||
+          p === "rotate" ||
+          p === "scale"))
     ) {
       match = s;
     }
@@ -151,20 +199,31 @@ function matchSpec(specs: TransitionSpec[], key: string): TransitionSpec | null 
 // two strings (or two numbers) always blend.
 function blendable(from: PropValue | null, to: PropValue | null): boolean {
   if (isGradientData(from) || isGradientData(to)) {
-    return isGradientData(from) && isGradientData(to) && gradientsCompatible(from, to);
+    return (
+      isGradientData(from) &&
+      isGradientData(to) &&
+      gradientsCompatible(from, to)
+    );
   }
   if (Array.isArray(from) || Array.isArray(to)) {
-    return Array.isArray(from) && Array.isArray(to) && pathsCompatible(from, to);
+    return (
+      Array.isArray(from) && Array.isArray(to) && pathsCompatible(from, to)
+    );
   }
-  if (typeof from === 'number' && typeof to === 'number') return true;
-  if (typeof from === 'string' && typeof to === 'string') return true;
+  if (typeof from === "number" && typeof to === "number") return true;
+  if (typeof from === "string" && typeof to === "string") return true;
   return false;
 }
 
 // Blend one property from `from` toward `to` at eased progress `e`. Blendable
 // endpoints interpolate (numbers/colors/compatible gradients+paths); the rest
 // step discretely at the eased midpoint (CSS discrete transition).
-function blendProp(handler: PropHandler, from: PropValue | null, to: PropValue | null, e: number): PropValue | null {
+function blendProp(
+  handler: PropHandler,
+  from: PropValue | null,
+  to: PropValue | null,
+  e: number,
+): PropValue | null {
   if (e >= 1) return to;
   if (e <= 0) return from;
   if (!blendable(from, to)) return e < 0.5 ? from : to;
@@ -175,15 +234,29 @@ function blendProp(handler: PropHandler, from: PropValue | null, to: PropValue |
 // mutually exclusive (a gradient clears the solid and vice-versa); every other
 // property goes straight through its registry handler (which sets its own dirty
 // flags — invariant #3).
-function writeProp(node: SceneNode, key: string, value: PropValue | null): void {
-  if (key === 'fill') {
-    if (isGradientData(value)) { node.fillGradient = value; node.fill = null; }
-    else { node.fillGradient = null; node.fill = (value as string | null) ?? null; }
+function writeProp(
+  node: SceneNode,
+  key: string,
+  value: PropValue | null,
+): void {
+  if (key === "fill") {
+    if (isGradientData(value)) {
+      node.fillGradient = value;
+      node.fill = null;
+    } else {
+      node.fillGradient = null;
+      node.fill = (value as string | null) ?? null;
+    }
     return;
   }
-  if (key === 'stroke') {
-    if (isGradientData(value)) { node.strokeGradient = value; node.stroke = null; }
-    else { node.strokeGradient = null; node.stroke = (value as string | null) ?? null; }
+  if (key === "stroke") {
+    if (isGradientData(value)) {
+      node.strokeGradient = value;
+      node.stroke = null;
+    } else {
+      node.strokeGradient = null;
+      node.stroke = (value as string | null) ?? null;
+    }
     return;
   }
   if (value != null) getPropHandler(key)!.apply(node, value);
@@ -197,7 +270,7 @@ function writeProp(node: SceneNode, key: string, value: PropValue | null): void 
  */
 export function applyInteractionOverrides(node: SceneNode): void {
   const state = node.interactionState;
-  if (state === 'normal') return;
+  if (state === "normal") return;
   const styles = stateStylesFor(node, state);
   if (styles) applyStateStyles(node, styles);
 }
@@ -308,12 +381,12 @@ export class InteractionManager {
     // Update hover state
     if (hitNode !== this.hoveredNode) {
       if (this.hoveredNode && this.hoveredNode !== this.activeNode) {
-        this.setNodeState(this.hoveredNode, 'normal', now);
+        this.setNodeState(this.hoveredNode, "normal", now);
       }
       this.hoveredNode = hitNode;
 
       if (hitNode && hitNode !== this.activeNode) {
-        this.setNodeState(hitNode, 'hover', now);
+        this.setNodeState(hitNode, "hover", now);
       }
     }
 
@@ -321,18 +394,18 @@ export class InteractionManager {
     if (isPressed) {
       if (hitNode && hitNode !== this.activeNode) {
         if (this.activeNode) {
-          this.setNodeState(this.activeNode, 'normal', now);
+          this.setNodeState(this.activeNode, "normal", now);
         }
         this.activeNode = hitNode;
-        this.setNodeState(hitNode, 'active', now);
+        this.setNodeState(hitNode, "active", now);
       }
     } else {
       // Mouse released
       if (this.activeNode) {
         if (this.activeNode === hitNode) {
-          this.setNodeState(this.activeNode, 'hover', now);
+          this.setNodeState(this.activeNode, "hover", now);
         } else {
-          this.setNodeState(this.activeNode, 'normal', now);
+          this.setNodeState(this.activeNode, "normal", now);
         }
         this.activeNode = null;
       }
@@ -380,7 +453,11 @@ export class InteractionManager {
    * tween; otherwise the change snaps. The flip also propagates to any DSL
    * state-children (`#p:hover > #c`), whose overrides are anchored on THIS flip.
    */
-  private setNodeState(node: SceneNode, state: InteractionState, now: number): void {
+  private setNodeState(
+    node: SceneNode,
+    state: InteractionState,
+    now: number,
+  ): void {
     if (node.interactionState === state) return;
     this.startTween(node, this.effectiveSpecs(node, state), now);
     node.interactionState = state;
@@ -392,7 +469,12 @@ export class InteractionManager {
   // Flip a state-child alongside its parent. The child mirrors the parent's
   // state so its own (parent-authored) hover/activeStyles resolve in the normal
   // per-node override pass — including active-falls-back-to-hover.
-  private setChildState(child: SceneNode, parent: SceneNode, state: InteractionState, now: number): void {
+  private setChildState(
+    child: SceneNode,
+    parent: SceneNode,
+    state: InteractionState,
+    now: number,
+  ): void {
     if (child.interactionState === state) return;
     this.startTween(child, this.childSpecs(child, parent, state), now);
     child.interactionState = state;
@@ -401,7 +483,11 @@ export class InteractionManager {
   // Anchor (or clear) a node's transition tween: non-empty specs snapshot the
   // currently displayed value of every property the node's states can touch;
   // empty specs snap (delete any running tween).
-  private startTween(node: SceneNode, specs: TransitionSpec[], now: number): void {
+  private startTween(
+    node: SceneNode,
+    specs: TransitionSpec[],
+    now: number,
+  ): void {
     if (specs.length > 0) {
       const keys = new Set<string>();
       collectInvolvedKeys(node.hoverStyles, keys);
@@ -416,9 +502,13 @@ export class InteractionManager {
 
   // The transition list governing a change: the entered state's own transitions
   // if it declared any (CSS asymmetric enter/exit), else the node-level ones.
-  private effectiveSpecs(node: SceneNode, state: InteractionState): TransitionSpec[] {
-    if (state === 'hover' && node.hoverStyles?.transitions?.length) return node.hoverStyles.transitions;
-    if (state === 'active') {
+  private effectiveSpecs(
+    node: SceneNode,
+    state: InteractionState,
+  ): TransitionSpec[] {
+    if (state === "hover" && node.hoverStyles?.transitions?.length)
+      return node.hoverStyles.transitions;
+    if (state === "active") {
       const s = node.activeStyles?.transitions ?? node.hoverStyles?.transitions;
       if (s?.length) return s;
     }
@@ -428,11 +518,16 @@ export class InteractionManager {
   // A state-child's tween fallback: its own node-level `transition:` if it has
   // one, else the `transition:` declared inside the parent's state block (which
   // governs the children it lists; active falls back to hover), else snap.
-  private childSpecs(child: SceneNode, parent: SceneNode, state: InteractionState): TransitionSpec[] {
+  private childSpecs(
+    child: SceneNode,
+    parent: SceneNode,
+    state: InteractionState,
+  ): TransitionSpec[] {
     if (child.transitions.length) return child.transitions;
-    const block = state === 'active'
-      ? (parent.activeStyles?.transitions ?? parent.hoverStyles?.transitions)
-      : parent.hoverStyles?.transitions;
+    const block =
+      state === "active"
+        ? (parent.activeStyles?.transitions ?? parent.hoverStyles?.transitions)
+        : parent.hoverStyles?.transitions;
     return block ?? [];
   }
 
@@ -441,11 +536,11 @@ export class InteractionManager {
    */
   reset(): void {
     if (this.hoveredNode) {
-      this.setNodeState(this.hoveredNode, 'normal', performance.now());
+      this.setNodeState(this.hoveredNode, "normal", performance.now());
       this.hoveredNode = null;
     }
     if (this.activeNode) {
-      this.setNodeState(this.activeNode, 'normal', performance.now());
+      this.setNodeState(this.activeNode, "normal", performance.now());
       this.activeNode = null;
     }
   }

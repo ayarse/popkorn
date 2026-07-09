@@ -1,5 +1,5 @@
-import { test, expect } from 'bun:test';
-import { Canvas2DRenderer } from './canvas2d';
+import { expect, test } from "bun:test";
+import { Canvas2DRenderer } from "./canvas2d";
 
 // A stand-in 2D context that records drawImage calls so we can assert paints.
 function mockImageCanvas() {
@@ -7,12 +7,14 @@ function mockImageCanvas() {
   const ctx: any = {
     canvas: { width: 100, height: 100 },
     globalAlpha: 1,
-    drawImage(...args: any[]) { drawCalls.push(args); },
+    drawImage(...args: any[]) {
+      drawCalls.push(args);
+    },
   };
   return { getContext: () => ctx, drawCalls } as any;
 }
 
-test('whenImagesSettled resolves immediately when no images are pending', async () => {
+test("whenImagesSettled resolves immediately when no images are pending", async () => {
   const r = new Canvas2DRenderer(mockImageCanvas());
   await r.whenImagesSettled(); // must not hang
 });
@@ -20,13 +22,13 @@ test('whenImagesSettled resolves immediately when no images are pending', async 
 // The worker path only kicks in when there is no Image constructor (as in bun)
 // but fetch + createImageBitmap exist. Stub the decode primitives and verify the
 // load settles, caches, and paints the bitmap at its intrinsic size on re-draw.
-test('worker path (fetch + createImageBitmap) decodes, settles, and caches', async () => {
-  if (typeof Image !== 'undefined') return; // only exercises the worker branch
+test("worker path (fetch + createImageBitmap) decodes, settles, and caches", async () => {
+  if (typeof Image !== "undefined") return; // only exercises the worker branch
 
   const bitmap = { width: 32, height: 16 } as unknown as ImageBitmap;
   const origFetch = globalThis.fetch;
   const origCIB = (globalThis as any).createImageBitmap;
-  let fetched = '';
+  let fetched = "";
   (globalThis as any).fetch = async (src: string) => {
     fetched = src;
     return { blob: async () => ({}) } as any;
@@ -36,7 +38,7 @@ test('worker path (fetch + createImageBitmap) decodes, settles, and caches', asy
   try {
     const canvas = mockImageCanvas();
     const r = new Canvas2DRenderer(canvas);
-    const src = 'data:image/png;base64,AAAA';
+    const src = "data:image/png;base64,AAAA";
 
     // First draw kicks off the decode; nothing paints yet.
     r.drawImage(src, 0, 0, 0, 0);

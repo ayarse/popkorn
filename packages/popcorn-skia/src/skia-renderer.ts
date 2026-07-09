@@ -1,33 +1,33 @@
 import type {
-  Renderer,
-  PathCommand,
-  Matrix3x3,
   GradientData,
-  ResolvedClip,
   MaskMode,
+  Matrix3x3,
+  PathCommand,
   PathSink,
-} from '@popcorn/player';
+  Renderer,
+  ResolvedClip,
+} from "@popcorn/player";
 import {
-  PaintStateRenderer,
-  resolveGradient,
-  resolveStrokeDash,
-  paintOrderSequence,
   applyCommandsToPath,
   computePathBounds,
   LUMA_COEFFICIENTS,
-} from '@popcorn/player';
+  PaintStateRenderer,
+  paintOrderSequence,
+  resolveGradient,
+  resolveStrokeDash,
+} from "@popcorn/player";
 
 // react-native-skia types only — inline `import(...)` type refs are erased at
 // runtime, so this file loads under `bun test` without the native module. The
 // `Skia` API object is injected via the constructor (see PopcornView for the
 // real wiring, and the test for a mock).
-type SkiaApi = typeof import('@shopify/react-native-skia').Skia;
-type SkCanvas = import('@shopify/react-native-skia').SkCanvas;
-type SkPaint = import('@shopify/react-native-skia').SkPaint;
-type SkPath = import('@shopify/react-native-skia').SkPath;
-type SkShader = import('@shopify/react-native-skia').SkShader;
-type SkColor = import('@shopify/react-native-skia').SkColor;
-type SkPathEffect = import('@shopify/react-native-skia').SkPathEffect;
+type SkiaApi = typeof import("@shopify/react-native-skia").Skia;
+type SkCanvas = import("@shopify/react-native-skia").SkCanvas;
+type SkPaint = import("@shopify/react-native-skia").SkPaint;
+type SkPath = import("@shopify/react-native-skia").SkPath;
+type SkShader = import("@shopify/react-native-skia").SkShader;
+type SkColor = import("@shopify/react-native-skia").SkColor;
+type SkPathEffect = import("@shopify/react-native-skia").SkPathEffect;
 
 type Bounds = { x: number; y: number; width: number; height: number };
 
@@ -45,13 +45,13 @@ const DASH_CACHE_CAP = 64;
 // them at runtime (that would pull the native module into the test). These match
 // the underlying Skia C++ enums and haven't moved.
 const PaintStyle = { Fill: 0, Stroke: 1 } as const;
-const StrokeCap = { butt: 0, round: 1, square: 2 } as const;   // SkStrokeCap
-const StrokeJoin = { miter: 0, round: 1, bevel: 2 } as const;  // SkStrokeJoin
-const FillType = { nonzero: 0, evenodd: 1 } as const;          // Winding, EvenOdd
-const TileMode_Clamp = 0;                                       // TileMode.Clamp
-const ClipOp_Intersect = 1;                                     // ClipOp.Intersect
-const BlendMode_DstIn = 6;                                      // SkBlendMode.DstIn:  r = d * sa
-const BlendMode_DstOut = 8;                                     // SkBlendMode.DstOut: r = d * (1-sa)
+const StrokeCap = { butt: 0, round: 1, square: 2 } as const; // SkStrokeCap
+const StrokeJoin = { miter: 0, round: 1, bevel: 2 } as const; // SkStrokeJoin
+const FillType = { nonzero: 0, evenodd: 1 } as const; // Winding, EvenOdd
+const TileMode_Clamp = 0; // TileMode.Clamp
+const ClipOp_Intersect = 1; // ClipOp.Intersect
+const BlendMode_DstIn = 6; // SkBlendMode.DstIn:  r = d * sa
+const BlendMode_DstOut = 8; // SkBlendMode.DstOut: r = d * (1-sa)
 
 // Luminance -> alpha colour matrix (4x5, RGBA row-major, last column = bias).
 // Zeroes RGB and writes Rec.709 luma into alpha, so a luminance matte becomes an
@@ -60,10 +60,26 @@ const BlendMode_DstOut = 8;                                     // SkBlendMode.D
 // ponytail: unlike the Canvas2D path this ignores the mask's own alpha (can't
 // express luma*alpha as a linear matrix); fine for the usual opaque luma matte.
 const LUMA_TO_ALPHA_MATRIX = [
-  0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0,
-  0, 0, 0, 0, 0,
-  LUMA_COEFFICIENTS.r, LUMA_COEFFICIENTS.g, LUMA_COEFFICIENTS.b, 0, 0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  LUMA_COEFFICIENTS.r,
+  LUMA_COEFFICIENTS.g,
+  LUMA_COEFFICIENTS.b,
+  0,
+  0,
 ];
 
 /**
@@ -166,13 +182,23 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   drawCircle(cx: number, cy: number, r: number): void {
-    const bounds: Bounds = { x: cx - r, y: cy - r, width: r * 2, height: r * 2 };
+    const bounds: Bounds = {
+      x: cx - r,
+      y: cy - r,
+      width: r * 2,
+      height: r * 2,
+    };
     this.fillAndStroke(bounds, (p) => this.canvas!.drawCircle(cx, cy, r, p));
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
     const rect = this.skia.XYWHRect(cx - rx, cy - ry, rx * 2, ry * 2);
-    const bounds: Bounds = { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 };
+    const bounds: Bounds = {
+      x: cx - rx,
+      y: cy - ry,
+      width: rx * 2,
+      height: ry * 2,
+    };
     this.fillAndStroke(bounds, (p) => this.canvas!.drawOval(rect, p));
   }
 
@@ -181,7 +207,10 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     path.setFillType(FillType[this.fillRule]);
     // Only a gradient paint consumes bounds, so skip the full command scan
     // (computePathBounds) for the common flat-fill/stroke path.
-    const bounds = this.fillGradient || this.strokeGradient ? computePathBounds(commands) : ZERO_BOUNDS;
+    const bounds =
+      this.fillGradient || this.strokeGradient
+        ? computePathBounds(commands)
+        : ZERO_BOUNDS;
     this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
   }
 
@@ -194,12 +223,16 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   clip(clip: ResolvedClip): void {
     if (!this.canvas) return;
-    if (clip.type === 'rect') {
-      this.canvas.clipRect(this.skia.XYWHRect(clip.x, clip.y, clip.width, clip.height), ClipOp_Intersect, true);
+    if (clip.type === "rect") {
+      this.canvas.clipRect(
+        this.skia.XYWHRect(clip.x, clip.y, clip.width, clip.height),
+        ClipOp_Intersect,
+        true,
+      );
       return;
     }
     let path: SkPath;
-    if (clip.type === 'circle') {
+    if (clip.type === "circle") {
       path = this.skia.Path.Make();
       path.addCircle(clip.cx, clip.cy, clip.r);
     } else {
@@ -217,18 +250,25 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   // The closures each call setTransform (absolute, per the CTM mirror) to place
   // their subtree at its world position. Everything is bracketed so the CTM and
   // clip state are clean afterwards.
-  compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void {
+  compositeMask(
+    mode: MaskMode,
+    drawContent: () => void,
+    drawMask: () => void,
+  ): void {
     const canvas = this.canvas;
-    if (!canvas) { drawContent(); return; }
+    if (!canvas) {
+      drawContent();
+      return;
+    }
 
     const savedCtm = this.ctm;
     const savedOpacity = this.opacity;
 
-    const invert = mode === 'alpha-invert' || mode === 'luminance-invert';
+    const invert = mode === "alpha-invert" || mode === "luminance-invert";
     const maskPaint = (this.maskPaint ??= this.skia.Paint());
 
-    canvas.save();          // outer bracket: restores CTM + clip afterwards
-    canvas.saveLayer();     // L1: content
+    canvas.save(); // outer bracket: restores CTM + clip afterwards
+    canvas.saveLayer(); // L1: content
     drawContent();
     // Re-entrancy: a nested track matte inside drawContent reuses this single
     // pooled maskPaint, so we must configure it *after* drawContent — right
@@ -238,14 +278,16 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     // already-opened layer either. (Mirrors Canvas2D's per-depth buffer bands.)
     maskPaint.reset();
     maskPaint.setBlendMode(invert ? BlendMode_DstOut : BlendMode_DstIn);
-    if (mode === 'luminance' || mode === 'luminance-invert') {
-      maskPaint.setColorFilter(this.skia.ColorFilter.MakeMatrix(LUMA_TO_ALPHA_MATRIX));
+    if (mode === "luminance" || mode === "luminance-invert") {
+      maskPaint.setColorFilter(
+        this.skia.ColorFilter.MakeMatrix(LUMA_TO_ALPHA_MATRIX),
+      );
     }
     canvas.saveLayer(maskPaint); // L2: mask (blended down onto L1 on restore)
     drawMask();
-    canvas.restore();       // composite L2 -> L1 (DstIn / DstOut)
-    canvas.restore();       // composite L1 -> canvas (source-over)
-    canvas.restore();       // outer bracket
+    canvas.restore(); // composite L2 -> L1 (DstIn / DstOut)
+    canvas.restore(); // composite L1 -> canvas (source-over)
+    canvas.restore(); // outer bracket
 
     this.ctm = savedCtm;
     this.opacity = savedOpacity;
@@ -259,7 +301,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     // PathEffect.MakeDash requires an even-length interval array; an odd array
     // means [on,off,on] — duplicate it so the pattern repeats correctly (Canvas2D
     // does this implicitly in setLineDash).
-    this.dashArray = dashArray.length % 2 ? dashArray.concat(dashArray) : dashArray;
+    this.dashArray =
+      dashArray.length % 2 ? dashArray.concat(dashArray) : dashArray;
     this.dashOffset = dashOffset;
   }
 
@@ -324,7 +367,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       if (p) draw(p);
     };
     for (const which of paintOrderSequence(this.paintOrder)) {
-      if (which === 'fill') fill();
+      if (which === "fill") fill();
       else stroke();
     }
   }
@@ -410,9 +453,13 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     const colors = r.stops.map((s) => this.color(s.color));
     const pos = r.stops.map((s) => s.offset);
 
-    if (r.type === 'linear') {
+    if (r.type === "linear") {
       return this.skia.Shader.MakeLinearGradient(
-        { x: r.x1, y: r.y1 }, { x: r.x2, y: r.y2 }, colors, pos, TileMode_Clamp,
+        { x: r.x1, y: r.y1 },
+        { x: r.x2, y: r.y2 },
+        colors,
+        pos,
+        TileMode_Clamp,
       );
     }
 
@@ -420,15 +467,27 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     // exactly mirroring canvas createRadialGradient(focal, 0, centre, radius).
     if (r.fx !== r.cx || r.fy !== r.cy) {
       return this.skia.Shader.MakeTwoPointConicalGradient(
-        { x: r.fx, y: r.fy }, 0, { x: r.cx, y: r.cy }, r.r, colors, pos, TileMode_Clamp,
+        { x: r.fx, y: r.fy },
+        0,
+        { x: r.cx, y: r.cy },
+        r.r,
+        colors,
+        pos,
+        TileMode_Clamp,
       );
     }
-    return this.skia.Shader.MakeRadialGradient({ x: r.cx, y: r.cy }, r.r, colors, pos, TileMode_Clamp);
+    return this.skia.Shader.MakeRadialGradient(
+      { x: r.cx, y: r.cy },
+      r.r,
+      colors,
+      pos,
+      TileMode_Clamp,
+    );
   }
 
   /** Memoize the dash PathEffect by interval-contents + offset (rebuilt each frame otherwise). */
   private dashEffect(intervals: number[], offset: number): SkPathEffect {
-    const key = `${intervals.join(',')}|${offset}`;
+    const key = `${intervals.join(",")}|${offset}`;
     let e = this.dashCache.get(key);
     if (!e) {
       if (this.dashCache.size >= DASH_CACHE_CAP) this.dashCache.clear();
@@ -482,7 +541,14 @@ class SkPathSink implements PathSink {
     this.path.lineTo(x, y);
   }
 
-  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void {
+  bezierCurveTo(
+    cp1x: number,
+    cp1y: number,
+    cp2x: number,
+    cp2y: number,
+    x: number,
+    y: number,
+  ): void {
     this.path.cubicTo(cp1x, cp1y, cp2x, cp2y, x, y);
   }
 
@@ -494,10 +560,16 @@ class SkPathSink implements PathSink {
   // current point, so sample the (already SVG->center converted) arc into line
   // segments. Fine for the rare A command; smooth enough at 24 steps.
   ellipse(
-    x: number, y: number, rx: number, ry: number, rotation: number,
-    startAngle: number, endAngle: number, counterclockwise = false
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    rotation: number,
+    startAngle: number,
+    endAngle: number,
+    counterclockwise = false,
   ): void {
-    let a0 = startAngle;
+    const a0 = startAngle;
     let a1 = endAngle;
     if (!counterclockwise && a1 < a0) a1 += Math.PI * 2;
     if (counterclockwise && a1 > a0) a1 -= Math.PI * 2;

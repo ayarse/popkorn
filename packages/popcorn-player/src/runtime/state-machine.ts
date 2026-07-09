@@ -23,24 +23,28 @@
  * avoids threading a parallel scoped entry-time per machine down the walk.
  */
 
-import type { SceneNode } from '../scene/types';
-import type { MachineRule, MachineTrigger, MachineGuard } from '@popcorn/parser';
-import type { VariableResolver } from './variables';
-import { animationsEndTime } from '../animation/scheduler';
+import type {
+  MachineGuard,
+  MachineRule,
+  MachineTrigger,
+} from "@popcorn/parser";
+import { animationsEndTime } from "../animation/scheduler";
+import type { SceneNode } from "../scene/types";
+import type { VariableResolver } from "./variables";
 
 // A pointer event detected this frame, credited to the top hit node (nearest
 // interactive) — or null for empty canvas (still a `:root` occurrence). Built by
 // the loop from the shared hit-tester; the runner only matches it to triggers.
 export interface PointerTriggerEvent {
-  event: 'click' | 'pointerdown' | 'pointerup' | 'hoverstart' | 'hoverend';
+  event: "click" | "pointerdown" | "pointerup" | "hoverstart" | "hoverend";
   node: SceneNode | null;
 }
 
 // Side effects a transition produces, forwarded by the loop to the host
 // (component) as `statechange` / `machine-event` DOM events.
 export type MachineOutput =
-  | { type: 'statechange'; machine: string; from: string; to: string }
-  | { type: 'emit'; machine: string; name: string };
+  | { type: "statechange"; machine: string; from: string; to: string }
+  | { type: "emit"; machine: string; name: string };
 
 // Everything `evaluate()` needs to resolve a frame's triggers and guards.
 export interface MachineEvalContext {
@@ -51,8 +55,8 @@ export interface MachineEvalContext {
 interface MachineInstance {
   def: MachineRule;
   current: string;
-  entryTime: number;      // global timeline ms at entry into `current`
-  completeAt: number;     // machineTime at which `current`'s animations finish (Infinity if none/looping)
+  entryTime: number; // global timeline ms at entry into `current`
+  completeAt: number; // machineTime at which `current`'s animations finish (Infinity if none/looping)
 }
 
 export class StateMachineRunner {
@@ -71,7 +75,12 @@ export class StateMachineRunner {
     this.root = root;
     this.queuedEvents = [];
     this.instances = (root.machines ?? []).map((def) => {
-      const inst: MachineInstance = { def, current: def.initial, entryTime: now, completeAt: Infinity };
+      const inst: MachineInstance = {
+        def,
+        current: def.initial,
+        entryTime: now,
+        completeAt: Infinity,
+      };
       inst.completeAt = this.computeCompleteAt(def.name, def.initial, now);
       return inst;
     });
@@ -98,7 +107,11 @@ export class StateMachineRunner {
    */
   isStateActive(machine: string | null, name: string): boolean {
     for (const inst of this.instances) {
-      if (inst.current === name && (machine === null || inst.def.name === machine)) return true;
+      if (
+        inst.current === name &&
+        (machine === null || inst.def.name === machine)
+      )
+        return true;
     }
     return false;
   }
@@ -106,7 +119,11 @@ export class StateMachineRunner {
   /** Entry time (global ms) of the machine currently in `name` (first match for null). */
   entryTimeFor(machine: string | null, name: string): number {
     for (const inst of this.instances) {
-      if (inst.current === name && (machine === null || inst.def.name === machine)) return inst.entryTime;
+      if (
+        inst.current === name &&
+        (machine === null || inst.def.name === machine)
+      )
+        return inst.entryTime;
     }
     return 0;
   }
@@ -127,24 +144,34 @@ export class StateMachineRunner {
     return out;
   }
 
-  private step(inst: MachineInstance, machineTime: number, ctx: MachineEvalContext, out: MachineOutput[]): void {
+  private step(
+    inst: MachineInstance,
+    machineTime: number,
+    ctx: MachineEvalContext,
+    out: MachineOutput[],
+  ): void {
     const def = inst.def;
     // Any-state (`*`) transitions are checked before the current state's.
-    const anyState = def.states.find((s) => s.name === '*');
+    const anyState = def.states.find((s) => s.name === "*");
     const cur = def.states.find((s) => s.name === inst.current);
-    const ordered = [...(anyState?.transitions ?? []), ...(cur?.transitions ?? [])];
+    const ordered = [
+      ...(anyState?.transitions ?? []),
+      ...(cur?.transitions ?? []),
+    ];
 
     for (const tr of ordered) {
       if (!this.triggerFired(tr.trigger, inst, machineTime, ctx)) continue;
-      if (!tr.guards.every((g) => this.guardPasses(g, inst, machineTime, ctx))) continue;
+      if (!tr.guards.every((g) => this.guardPasses(g, inst, machineTime, ctx)))
+        continue;
 
       const from = inst.current;
       inst.current = tr.to;
       inst.entryTime = machineTime;
       inst.completeAt = this.computeCompleteAt(def.name, tr.to, machineTime);
-      out.push({ type: 'statechange', machine: def.name, from, to: tr.to });
+      out.push({ type: "statechange", machine: def.name, from, to: tr.to });
       const toState = def.states.find((s) => s.name === tr.to);
-      for (const name of toState?.emits ?? []) out.push({ type: 'emit', machine: def.name, name });
+      for (const name of toState?.emits ?? [])
+        out.push({ type: "emit", machine: def.name, name });
       return; // at most one transition per machine per frame
     }
   }
@@ -153,38 +180,45 @@ export class StateMachineRunner {
     trigger: MachineTrigger | null,
     inst: MachineInstance,
     machineTime: number,
-    ctx: MachineEvalContext
+    ctx: MachineEvalContext,
   ): boolean {
     if (!trigger) return true; // unconditional (guard-only, or immediate when guardless)
     switch (trigger.kind) {
-      case 'complete':
+      case "complete":
         return machineTime >= inst.completeAt; // completeAt Infinity => never fires
-      case 'event':
+      case "event":
         return this.queuedEvents.includes(trigger.name);
-      case 'pointer':
+      case "pointer":
         return ctx.pointerEvents.some(
-          (pe) => pe.event === trigger.event && pointerTargetMatches(trigger.target, pe.node)
+          (pe) =>
+            pe.event === trigger.event &&
+            pointerTargetMatches(trigger.target, pe.node),
         );
     }
   }
 
-  private guardPasses(g: MachineGuard, inst: MachineInstance, machineTime: number, ctx: MachineEvalContext): boolean {
+  private guardPasses(
+    g: MachineGuard,
+    inst: MachineInstance,
+    machineTime: number,
+    ctx: MachineEvalContext,
+  ): boolean {
     const left = this.resolveOperand(g.left, inst, machineTime, ctx);
     return compare(left, g.op, g.right);
   }
 
   private resolveOperand(
-    left: MachineGuard['left'],
+    left: MachineGuard["left"],
     inst: MachineInstance,
     machineTime: number,
-    ctx: MachineEvalContext
+    ctx: MachineEvalContext,
   ): number | boolean | string | undefined {
     switch (left.kind) {
-      case 'state-time':
+      case "state-time":
         return machineTime - inst.entryTime;
-      case 'var':
+      case "var":
         return ctx.variableResolver.getVariable(left.name);
-      case 'input':
+      case "input":
         return ctx.variableResolver.resolveInput(left.path);
     }
   }
@@ -193,16 +227,21 @@ export class StateMachineRunner {
   // the local time at which they all finish: `entryTime + animationsEndTime(...)`
   // (Infinity when the state has no animations or any loop forever — such states
   // never satisfy `on complete`, by design).
-  private computeCompleteAt(machine: string, state: string, entryTime: number): number {
+  private computeCompleteAt(
+    machine: string,
+    state: string,
+    entryTime: number,
+  ): number {
     const end = animationsEndTime(this.animationsForState(machine, state));
     return end === Infinity ? Infinity : entryTime + end;
   }
 
   private animationsForState(machine: string, state: string) {
-    const acc: import('../scene/types').AnimationInstance[] = [];
+    const acc: import("../scene/types").AnimationInstance[] = [];
     const visit = (n: SceneNode): void => {
       for (const e of n.stateStyles) {
-        if (e.name === state && (e.machine === null || e.machine === machine)) acc.push(...e.animations);
+        if (e.name === state && (e.machine === null || e.machine === machine))
+          acc.push(...e.animations);
       }
       n.children.forEach(visit);
     };
@@ -217,10 +256,13 @@ export class StateMachineRunner {
  * matches when it is the credited node or one of its ancestors (bubbling —
  * clicking a shape inside an interactive group counts as clicking the group).
  */
-function pointerTargetMatches(target: { type: 'id' | 'root'; name: string }, node: SceneNode | null): boolean {
-  if (target.type === 'root') return true;
+function pointerTargetMatches(
+  target: { type: "id" | "root"; name: string },
+  node: SceneNode | null,
+): boolean {
+  if (target.type === "root") return true;
   for (let n: SceneNode | null = node; n; n = n.parent) {
-    if (n.id === target.name || n.id.endsWith('.' + target.name)) return true;
+    if (n.id === target.name || n.id.endsWith("." + target.name)) return true;
   }
   return false;
 }
@@ -228,32 +270,45 @@ function pointerTargetMatches(target: { type: 'id' | 'root'; name: string }, nod
 // Flat comparison for a guard. Equality (`=`/`!=`) compares loosely across
 // number/boolean/string; ordering (`<` `<=` `>` `>=`) coerces to number and
 // fails on non-numeric operands. Booleans read as 1/0.
-function compare(left: number | boolean | string | undefined, op: MachineGuard['op'], right: number | boolean | string): boolean {
-  if (op === '=' || op === '!=') {
+function compare(
+  left: number | boolean | string | undefined,
+  op: MachineGuard["op"],
+  right: number | boolean | string,
+): boolean {
+  if (op === "=" || op === "!=") {
     const eq = looseEq(left, right);
-    return op === '=' ? eq : !eq;
+    return op === "=" ? eq : !eq;
   }
   const l = toNum(left);
   const r = toNum(right);
   if (Number.isNaN(l) || Number.isNaN(r)) return false;
   switch (op) {
-    case '<': return l < r;
-    case '<=': return l <= r;
-    case '>': return l > r;
-    case '>=': return l >= r;
+    case "<":
+      return l < r;
+    case "<=":
+      return l <= r;
+    case ">":
+      return l > r;
+    case ">=":
+      return l >= r;
   }
 }
 
-function looseEq(a: number | boolean | string | undefined, b: number | boolean | string): boolean {
-  if (typeof a === 'boolean' || typeof b === 'boolean') return toNum(a) === toNum(b);
-  if (typeof a === 'number' || typeof b === 'number') return toNum(a) === toNum(b);
+function looseEq(
+  a: number | boolean | string | undefined,
+  b: number | boolean | string,
+): boolean {
+  if (typeof a === "boolean" || typeof b === "boolean")
+    return toNum(a) === toNum(b);
+  if (typeof a === "number" || typeof b === "number")
+    return toNum(a) === toNum(b);
   return String(a) === String(b);
 }
 
 function toNum(v: number | boolean | string | undefined): number {
-  if (typeof v === 'number') return v;
-  if (typeof v === 'boolean') return v ? 1 : 0;
-  if (typeof v === 'string') return parseFloat(v);
+  if (typeof v === "number") return v;
+  if (typeof v === "boolean") return v ? 1 : 0;
+  if (typeof v === "string") return parseFloat(v);
   return NaN;
 }
 

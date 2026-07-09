@@ -7,21 +7,29 @@
  * hover/active regions match what is painted exactly, including transform-origin.
  */
 
+import type { Matrix3x3, PathCommand, ResolvedClip } from "../renderer/types";
+import {
+  IDENTITY_MATRIX,
+  invertMatrix,
+  transformPoint,
+} from "../renderer/types";
+import { resolveClip } from "../scene/clip";
+import { applyCommandsToPath } from "../scene/path-parser";
+import { polystarCommands } from "../scene/polystar";
+import {
+  computeWorldMatrix,
+  getScratchContext,
+  getShapeBounds,
+} from "../scene/transform";
 import type {
-  SceneNode,
-  RectData,
   CircleData,
   EllipseData,
-  PathData,
   FillRule,
-} from '../scene/types';
-import { childrenInPaintOrder } from '../scene/types';
-import type { Matrix3x3, PathCommand, ResolvedClip } from '../renderer/types';
-import { IDENTITY_MATRIX, invertMatrix, transformPoint } from '../renderer/types';
-import { computeWorldMatrix, getShapeBounds, getScratchContext } from '../scene/transform';
-import { resolveClip } from '../scene/clip';
-import { applyCommandsToPath } from '../scene/path-parser';
-import { polystarCommands } from '../scene/polystar';
+  PathData,
+  RectData,
+  SceneNode,
+} from "../scene/types";
+import { childrenInPaintOrder } from "../scene/types";
 
 export interface Point {
   x: number;
@@ -76,7 +84,7 @@ function hitTestNode(
   parentWorld: Matrix3x3,
   order: { value: number },
   nearestInteractive: SceneNode | null,
-  hits: Map<SceneNode, number>
+  hits: Map<SceneNode, number>,
 ): void {
   // A node hidden by its visibility window paints nothing, so it (and its
   // subtree) can't be hit either. `hidden` is set by the per-frame resolve walk.
@@ -89,7 +97,7 @@ function hitTestNode(
   // pointer-events: none removes this node AND its subtree from hit-testing —
   // its geometry neither hits it nor bubbles to an ancestor, and (we don't
   // support re-enabling) no descendant can opt back in.
-  if (node.pointerEvents === 'none') return;
+  if (node.pointerEvents === "none") return;
 
   const world = computeWorldMatrix(node, parentWorld);
   const depth = order.value++;
@@ -124,24 +132,33 @@ function hitTestNode(
  * circle/rect are pure math; path reuses the Path2D scratch context and, like
  * path hit-testing, degrades to `false` (rejects) when no DOM is available.
  */
-function isPointInClip(clip: ResolvedClip, point: Point, fillRule: FillRule = 'nonzero'): boolean {
+function isPointInClip(
+  clip: ResolvedClip,
+  point: Point,
+  fillRule: FillRule = "nonzero",
+): boolean {
   switch (clip.type) {
-    case 'rect':
+    case "rect":
       return (
         point.x >= clip.x &&
         point.x <= clip.x + clip.width &&
         point.y >= clip.y &&
         point.y <= clip.y + clip.height
       );
-    case 'circle': {
+    case "circle": {
       const dx = point.x - clip.cx;
       const dy = point.y - clip.cy;
       return dx * dx + dy * dy <= clip.r * clip.r;
     }
-    case 'path': {
+    case "path": {
       const ctx = getScratchContext();
-      if (!ctx || typeof Path2D === 'undefined') return false;
-      return ctx.isPointInPath(buildPath2D(clip.commands), point.x, point.y, fillRule);
+      if (!ctx || typeof Path2D === "undefined") return false;
+      return ctx.isPointInPath(
+        buildPath2D(clip.commands),
+        point.x,
+        point.y,
+        fillRule,
+      );
     }
   }
 }
@@ -151,24 +168,33 @@ function isPointInClip(clip: ResolvedClip, point: Point, fillRule: FillRule = 'n
  */
 function isPointInShape(node: SceneNode, point: Point): boolean {
   switch (node.shapeData.type) {
-    case 'rect':
+    case "rect":
       return isPointInRect(node.shapeData as RectData, point);
-    case 'circle':
+    case "circle":
       return isPointInCircle(node.shapeData as CircleData, point);
-    case 'ellipse':
+    case "ellipse":
       return isPointInEllipse(node.shapeData as EllipseData, point);
-    case 'path':
-      return isPointInCommands((node.shapeData as PathData).commands, point, node.fillRule);
-    case 'star':
-    case 'polygon':
+    case "path":
+      return isPointInCommands(
+        (node.shapeData as PathData).commands,
+        point,
+        node.fillRule,
+      );
+    case "star":
+    case "polygon":
       return isPointInCommands(polystarCommands(node), point, node.fillRule);
-    case 'text':
-    case 'image': {
+    case "text":
+    case "image": {
       // Rect test against the node's bounding box.
       const b = getShapeBounds(node);
-      return point.x >= b.x && point.x <= b.x + b.width && point.y >= b.y && point.y <= b.y + b.height;
+      return (
+        point.x >= b.x &&
+        point.x <= b.x + b.width &&
+        point.y >= b.y &&
+        point.y <= b.y + b.height
+      );
     }
-    case 'group':
+    case "group":
       // Groups are not hit-testable themselves
       return false;
     default:
@@ -202,9 +228,13 @@ function isPointInEllipse(ellipse: EllipseData, point: Point): boolean {
  * Falls back to false when neither Path2D nor a canvas context is available
  * (e.g. a headless test runner without a DOM).
  */
-function isPointInCommands(commands: PathCommand[], point: Point, fillRule: FillRule): boolean {
+function isPointInCommands(
+  commands: PathCommand[],
+  point: Point,
+  fillRule: FillRule,
+): boolean {
   const ctx = getScratchContext();
-  if (!ctx || typeof Path2D === 'undefined') return false;
+  if (!ctx || typeof Path2D === "undefined") return false;
   const path = buildPath2D(commands);
   return ctx.isPointInPath(path, point.x, point.y, fillRule);
 }

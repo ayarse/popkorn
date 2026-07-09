@@ -1,37 +1,43 @@
-import { test, expect } from 'bun:test';
-import { parse } from '@popcorn/parser';
-import { buildSceneGraph } from './scene/builder';
-import { createSceneNode, snapshotNode, resetNodeToBase } from './scene/types';
-import type { SceneNode, PathData } from './scene/types';
-import type { GradientData } from './renderer/types';
-import { parseColor } from './renderer/types';
-import { parsePath, outlineLength } from './scene/path-parser';
+import { expect, test } from "bun:test";
+import { parse } from "@popcorn/parser";
+import { interpolateKeyframes } from "./animation/keyframes";
 import {
+  getPropHandler,
+  gradientsCompatible,
   interpolateGradient,
   interpolatePath,
-  gradientsCompatible,
-  pathsCompatible,
   interpolateProp,
-  getPropHandler,
-} from './animation/registry';
-import { interpolateKeyframes } from './animation/keyframes';
-import { computeTrim } from './runtime/loop';
+  pathsCompatible,
+} from "./animation/registry";
+import type { GradientData } from "./renderer/types";
+import { parseColor } from "./renderer/types";
+import { computeTrim } from "./runtime/loop";
+import { buildSceneGraph } from "./scene/builder";
+import { outlineLength, parsePath } from "./scene/path-parser";
+import type { PathData, SceneNode } from "./scene/types";
+import { createSceneNode, resetNodeToBase, snapshotNode } from "./scene/types";
 
 function firstNode(css: string): SceneNode {
   return buildSceneGraph(parse(css)).children[0];
 }
 
 const grad = (stops: [number, string][], angle = 0): GradientData => ({
-  type: 'linear-gradient',
+  type: "linear-gradient",
   angle,
   stops: stops.map(([offset, color]) => ({ offset, color })),
 });
 
 // --- (1) gradient lerp -------------------------------------------------------
 
-test('interpolateGradient: offset and color lerp at the midpoint', () => {
-  const a = grad([[0, '#000000'], [1, '#ff0000']]);
-  const b = grad([[0.4, '#ffffff'], [1, '#0000ff']]);
+test("interpolateGradient: offset and color lerp at the midpoint", () => {
+  const a = grad([
+    [0, "#000000"],
+    [1, "#ff0000"],
+  ]);
+  const b = grad([
+    [0.4, "#ffffff"],
+    [1, "#0000ff"],
+  ]);
   const mid = interpolateGradient(a, b, 0.5) as GradientData;
   expect(mid.stops[0].offset).toBeCloseTo(0.2, 6);
   const c0 = parseColor(mid.stops[0].color);
@@ -41,77 +47,102 @@ test('interpolateGradient: offset and color lerp at the midpoint', () => {
   expect(c1.b).toBe(128); // 00 -> ff
 });
 
-test('gradientsCompatible: type mismatch and stop-count mismatch are incompatible', () => {
-  const lin = grad([[0, '#000'], [1, '#fff']]);
-  const rad: GradientData = { type: 'radial-gradient', stops: lin.stops };
-  const threeStops = grad([[0, '#000'], [0.5, '#888'], [1, '#fff']]);
+test("gradientsCompatible: type mismatch and stop-count mismatch are incompatible", () => {
+  const lin = grad([
+    [0, "#000"],
+    [1, "#fff"],
+  ]);
+  const rad: GradientData = { type: "radial-gradient", stops: lin.stops };
+  const threeStops = grad([
+    [0, "#000"],
+    [0.5, "#888"],
+    [1, "#fff"],
+  ]);
   expect(gradientsCompatible(lin, threeStops)).toBe(false);
   expect(gradientsCompatible(lin, rad)).toBe(false);
 });
 
-test('interpolateProp: incompatible gradients step to the departing value', () => {
-  const handler = getPropHandler('fill')!;
-  const a = grad([[0, '#000'], [1, '#fff']]);
-  const b = grad([[0, '#000'], [0.5, '#888'], [1, '#fff']]);
+test("interpolateProp: incompatible gradients step to the departing value", () => {
+  const handler = getPropHandler("fill")!;
+  const a = grad([
+    [0, "#000"],
+    [1, "#fff"],
+  ]);
+  const b = grad([
+    [0, "#000"],
+    [0.5, "#888"],
+    [1, "#fff"],
+  ]);
   // Mid-segment holds `from`; never crashes on the mismatched stop counts.
   expect(interpolateProp(handler, a, b, 0.5)).toBe(a);
 });
 
 // --- (2) gradient deep-copy on reset ----------------------------------------
 
-test('resetNodeToBase: mutating a live gradient stop does not corrupt the base', () => {
-  const node = createSceneNode('g', 'rect');
-  node.shapeData = { type: 'rect', x: 0, y: 0, width: 10, height: 10, rx: 0, ry: 0 };
-  node.fillGradient = grad([[0, '#ff0000'], [1, '#0000ff']]);
+test("resetNodeToBase: mutating a live gradient stop does not corrupt the base", () => {
+  const node = createSceneNode("g", "rect");
+  node.shapeData = {
+    type: "rect",
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    rx: 0,
+    ry: 0,
+  };
+  node.fillGradient = grad([
+    [0, "#ff0000"],
+    [1, "#0000ff"],
+  ]);
   node.base = snapshotNode(node);
 
   resetNodeToBase(node);
   // Corrupt the live stops.
   node.fillGradient!.stops[0].offset = 0.9;
-  node.fillGradient!.stops[0].color = '#00ff00';
+  node.fillGradient!.stops[0].color = "#00ff00";
 
   // A fresh reset must restore pristine authored stops.
   resetNodeToBase(node);
   expect(node.fillGradient!.stops[0].offset).toBe(0);
-  expect(node.fillGradient!.stops[0].color).toBe('#ff0000');
+  expect(node.fillGradient!.stops[0].color).toBe("#ff0000");
   // The base itself must never have aliased the live array.
   expect(node.base.fillGradient!.stops[0].offset).toBe(0);
 });
 
 // --- (3) path morph midpoint -------------------------------------------------
 
-test('interpolatePath: numeric args lerp pairwise at the midpoint', () => {
-  const a = parsePath('M0 0 L10 0');
-  const b = parsePath('M0 0 L20 40');
+test("interpolatePath: numeric args lerp pairwise at the midpoint", () => {
+  const a = parsePath("M0 0 L10 0");
+  const b = parsePath("M0 0 L20 40");
   const mid = interpolatePath(a, b, 0.5);
-  const l = mid[1] as { type: 'L'; x: number; y: number };
-  expect(l.type).toBe('L');
+  const l = mid[1] as { type: "L"; x: number; y: number };
+  expect(l.type).toBe("L");
   expect(l.x).toBeCloseTo(15, 6);
   expect(l.y).toBeCloseTo(20, 6);
 });
 
-test('interpolatePath: cubic control points lerp pairwise', () => {
-  const a = parsePath('M0 0 C0 0 10 10 20 20');
-  const b = parsePath('M0 0 C0 0 30 10 40 20');
+test("interpolatePath: cubic control points lerp pairwise", () => {
+  const a = parsePath("M0 0 C0 0 10 10 20 20");
+  const b = parsePath("M0 0 C0 0 30 10 40 20");
   const mid = interpolatePath(a, b, 0.5);
-  const c = mid[1] as { type: 'C'; x2: number; x: number };
+  const c = mid[1] as { type: "C"; x2: number; x: number };
   expect(c.x2).toBeCloseTo(20, 6);
   expect(c.x).toBeCloseTo(30, 6);
 });
 
 // --- (4) incompatible path steps --------------------------------------------
 
-test('pathsCompatible / interpolateProp: mismatched command sequences step', () => {
-  const a = parsePath('M0 0 L10 0');
-  const b = parsePath('M0 0 C0 0 5 5 10 0'); // L vs C at index 1
+test("pathsCompatible / interpolateProp: mismatched command sequences step", () => {
+  const a = parsePath("M0 0 L10 0");
+  const b = parsePath("M0 0 C0 0 5 5 10 0"); // L vs C at index 1
   expect(pathsCompatible(a, b)).toBe(false);
-  const handler = getPropHandler('d')!;
+  const handler = getPropHandler("d")!;
   expect(interpolateProp(handler, a, b, 0.5)).toBe(a);
 });
 
 // --- (5) outline-length cache invalidates during a morph --------------------
 
-test('outlineLength cache invalidates when d morphs (trim tracks the new length)', () => {
+test("outlineLength cache invalidates when d morphs (trim tracks the new length)", () => {
   const css = `
     #p {
       type: path;
@@ -146,7 +177,7 @@ test('outlineLength cache invalidates when d morphs (trim tracks the new length)
 
 // --- gradient animates end-to-end through the pipeline ----------------------
 
-test('fill gradient animates through @keyframes (interpolated at the midpoint)', () => {
+test("fill gradient animates through @keyframes (interpolated at the midpoint)", () => {
   const css = `
     #r {
       type: rect; x: 0; y: 0; width: 10; height: 10;

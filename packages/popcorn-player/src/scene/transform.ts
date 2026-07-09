@@ -1,49 +1,73 @@
-import type { Matrix3x3 } from '../renderer/types';
+import type { Matrix3x3 } from "../renderer/types";
 import {
   IDENTITY_MATRIX,
   multiplyMatrices,
-  translationMatrix,
   rotationMatrix,
   scaleMatrix,
-} from '../renderer/types';
-import type { SceneNode, TransformOriginValue, RectData, CircleData, EllipseData, TextData, PolystarData, ImageData } from './types';
-import { samplePathAt } from './path-parser';
+  translationMatrix,
+} from "../renderer/types";
+import { samplePathAt } from "./path-parser";
+import type {
+  CircleData,
+  EllipseData,
+  ImageData,
+  PolystarData,
+  RectData,
+  SceneNode,
+  TextData,
+  TransformOriginValue,
+} from "./types";
 
 /**
  * Axis-aligned bounding box of a shape in its local coordinate space.
  * Groups and paths have no intrinsic box, so percentage origins resolve to 0.
  */
-export function getShapeBounds(node: SceneNode): { x: number; y: number; width: number; height: number } {
+export function getShapeBounds(node: SceneNode): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
   switch (node.shapeData.type) {
-    case 'rect': {
+    case "rect": {
       const r = node.shapeData as RectData;
       return { x: r.x, y: r.y, width: r.width, height: r.height };
     }
-    case 'circle': {
+    case "circle": {
       const c = node.shapeData as CircleData;
       return { x: c.cx - c.r, y: c.cy - c.r, width: c.r * 2, height: c.r * 2 };
     }
-    case 'ellipse': {
+    case "ellipse": {
       const e = node.shapeData as EllipseData;
-      return { x: e.cx - e.rx, y: e.cy - e.ry, width: e.rx * 2, height: e.ry * 2 };
+      return {
+        x: e.cx - e.rx,
+        y: e.cy - e.ry,
+        width: e.rx * 2,
+        height: e.ry * 2,
+      };
     }
-    case 'star':
-    case 'polygon': {
+    case "star":
+    case "polygon": {
       // Outer-radius square around the center; exact enough for origins/clip.
       const s = node.shapeData as PolystarData;
       const r = s.outerRadius;
       return { x: s.cx - r, y: s.cy - r, width: r * 2, height: r * 2 };
     }
-    case 'image': {
+    case "image": {
       const i = node.shapeData as ImageData;
       return { x: i.x, y: i.y, width: i.width, height: i.height };
     }
-    case 'text': {
+    case "text": {
       const t = node.shapeData as TextData;
       const { width, height } = measureText(node, t);
       // Anchor shifts the box like ctx.textAlign does; baseline is alphabetic,
       // so the box sits above the y baseline.
-      const x = t.anchor === 'middle' ? t.x - width / 2 : t.anchor === 'end' ? t.x - width : t.x;
+      const x =
+        t.anchor === "middle"
+          ? t.x - width / 2
+          : t.anchor === "end"
+            ? t.x - width
+            : t.x;
       return { x, y: t.y - height, width, height };
     }
     default:
@@ -56,8 +80,12 @@ export function getShapeBounds(node: SceneNode): { x: number; y: number; width: 
  * registry when font-size animates). Uses a lazily-created scratch 2D context —
  * the same pattern as the Path2D scratch in runtime/hit-test.ts.
  */
-export function measureText(node: SceneNode, t: TextData): { width: number; height: number } {
-  if (node.cachedTextBounds && !node.textBoundsDirty) return node.cachedTextBounds;
+export function measureText(
+  node: SceneNode,
+  t: TextData,
+): { width: number; height: number } {
+  if (node.cachedTextBounds && !node.textBoundsDirty)
+    return node.cachedTextBounds;
 
   const ctx = getScratchContext();
   let bounds: { width: number; height: number };
@@ -84,10 +112,12 @@ let scratchContext: CanvasRenderingContext2D | null | undefined;
 export function getScratchContext(): CanvasRenderingContext2D | null {
   if (scratchContext !== undefined) return scratchContext;
   try {
-    if (typeof OffscreenCanvas !== 'undefined') {
-      scratchContext = new OffscreenCanvas(1, 1).getContext('2d') as unknown as CanvasRenderingContext2D;
-    } else if (typeof document !== 'undefined') {
-      scratchContext = document.createElement('canvas').getContext('2d');
+    if (typeof OffscreenCanvas !== "undefined") {
+      scratchContext = new OffscreenCanvas(1, 1).getContext(
+        "2d",
+      ) as unknown as CanvasRenderingContext2D;
+    } else if (typeof document !== "undefined") {
+      scratchContext = document.createElement("canvas").getContext("2d");
     } else {
       scratchContext = null;
     }
@@ -97,15 +127,22 @@ export function getScratchContext(): CanvasRenderingContext2D | null {
   return scratchContext;
 }
 
-function resolveOriginValue(v: TransformOriginValue, offset: number, dimension: number): number {
+function resolveOriginValue(
+  v: TransformOriginValue,
+  offset: number,
+  dimension: number,
+): number {
   // Percentages are relative to the shape's bounding box; pixels are absolute in local space.
-  return v.unit === '%' ? offset + (v.value / 100) * dimension : v.value;
+  return v.unit === "%" ? offset + (v.value / 100) * dimension : v.value;
 }
 
 /**
  * Resolve transform-origin to pixel values in the node's local coordinate space.
  */
-export function resolveTransformOrigin(node: SceneNode): { x: number; y: number } {
+export function resolveTransformOrigin(node: SceneNode): {
+  x: number;
+  y: number;
+} {
   const origin = node.transform.transformOrigin;
   const bounds = getShapeBounds(node);
   return {
@@ -143,8 +180,13 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
   }
 
   if (hasOrigin) matrix = multiplyMatrices(matrix, translationMatrix(ox, oy));
-  if (t.rotate !== 0) matrix = multiplyMatrices(matrix, rotationMatrix(t.rotate * Math.PI / 180));
-  if (t.scaleX !== 1 || t.scaleY !== 1) matrix = multiplyMatrices(matrix, scaleMatrix(t.scaleX, t.scaleY));
+  if (t.rotate !== 0)
+    matrix = multiplyMatrices(
+      matrix,
+      rotationMatrix((t.rotate * Math.PI) / 180),
+    );
+  if (t.scaleX !== 1 || t.scaleY !== 1)
+    matrix = multiplyMatrices(matrix, scaleMatrix(t.scaleX, t.scaleY));
   if (hasOrigin) matrix = multiplyMatrices(matrix, translationMatrix(-ox, -oy));
 
   return matrix;
@@ -153,7 +195,10 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
 /**
  * Compute world transform by multiplying parent's world transform with local transform
  */
-export function computeWorldMatrix(node: SceneNode, parentWorld: Matrix3x3 = IDENTITY_MATRIX): Matrix3x3 {
+export function computeWorldMatrix(
+  node: SceneNode,
+  parentWorld: Matrix3x3 = IDENTITY_MATRIX,
+): Matrix3x3 {
   return multiplyMatrices(parentWorld, computeLocalMatrix(node));
 }
 
@@ -163,7 +208,7 @@ export function computeWorldMatrix(node: SceneNode, parentWorld: Matrix3x3 = IDE
 export function computeAllWorldTransforms(
   root: SceneNode,
   worldMatrices: Map<string, Matrix3x3> = new Map(),
-  parentWorld: Matrix3x3 = IDENTITY_MATRIX
+  parentWorld: Matrix3x3 = IDENTITY_MATRIX,
 ): Map<string, Matrix3x3> {
   const worldMatrix = computeWorldMatrix(root, parentWorld);
   worldMatrices.set(root.id, worldMatrix);
@@ -185,7 +230,8 @@ export function computeWorldMatrixFromRoot(node: SceneNode | null): Matrix3x3 {
   const chain: SceneNode[] = [];
   for (let n: SceneNode | null = node; n; n = n.parent) chain.push(n);
   let m = IDENTITY_MATRIX;
-  for (let i = chain.length - 1; i >= 0; i--) m = multiplyMatrices(m, computeLocalMatrix(chain[i]));
+  for (let i = chain.length - 1; i >= 0; i--)
+    m = multiplyMatrices(m, computeLocalMatrix(chain[i]));
   return m;
 }
 

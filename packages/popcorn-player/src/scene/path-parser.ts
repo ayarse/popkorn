@@ -1,6 +1,6 @@
-import type { PathCommand } from '../renderer/types';
-import type { SceneNode, ShapeData } from './types';
-import { polystarToCommands } from './polystar';
+import type { PathCommand } from "../renderer/types";
+import { polystarToCommands } from "./polystar";
+import type { SceneNode, ShapeData } from "./types";
 
 /**
  * Parse SVG path data string into PathCommand array
@@ -23,12 +23,12 @@ export function parsePath(d: string): PathCommand[] {
     const command = cmd.toUpperCase();
 
     switch (command) {
-      case 'M': {
+      case "M": {
         const x = parseFloat(tokens[i++]);
         const y = parseFloat(tokens[i++]);
         const absX = isRelative ? currentX + x : x;
         const absY = isRelative ? currentY + y : y;
-        commands.push({ type: 'M', x: absX, y: absY });
+        commands.push({ type: "M", x: absX, y: absY });
         currentX = absX;
         currentY = absY;
         startX = absX;
@@ -40,47 +40,47 @@ export function parsePath(d: string): PathCommand[] {
           const ly = parseFloat(tokens[i++]);
           const absLX = isRelative ? currentX + lx : lx;
           const absLY = isRelative ? currentY + ly : ly;
-          commands.push({ type: 'L', x: absLX, y: absLY });
+          commands.push({ type: "L", x: absLX, y: absLY });
           currentX = absLX;
           currentY = absLY;
         }
         break;
       }
 
-      case 'L': {
+      case "L": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const x = parseFloat(tokens[i++]);
           const y = parseFloat(tokens[i++]);
           const absX = isRelative ? currentX + x : x;
           const absY = isRelative ? currentY + y : y;
-          commands.push({ type: 'L', x: absX, y: absY });
+          commands.push({ type: "L", x: absX, y: absY });
           currentX = absX;
           currentY = absY;
         }
         break;
       }
 
-      case 'H': {
+      case "H": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const x = parseFloat(tokens[i++]);
           const absX = isRelative ? currentX + x : x;
-          commands.push({ type: 'H', x: absX });
+          commands.push({ type: "H", x: absX });
           currentX = absX;
         }
         break;
       }
 
-      case 'V': {
+      case "V": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const y = parseFloat(tokens[i++]);
           const absY = isRelative ? currentY + y : y;
-          commands.push({ type: 'V', y: absY });
+          commands.push({ type: "V", y: absY });
           currentY = absY;
         }
         break;
       }
 
-      case 'C': {
+      case "C": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const x1 = parseFloat(tokens[i++]);
           const y1 = parseFloat(tokens[i++]);
@@ -97,10 +97,13 @@ export function parsePath(d: string): PathCommand[] {
           const absY = isRelative ? currentY + y : y;
 
           commands.push({
-            type: 'C',
-            x1: absX1, y1: absY1,
-            x2: absX2, y2: absY2,
-            x: absX, y: absY
+            type: "C",
+            x1: absX1,
+            y1: absY1,
+            x2: absX2,
+            y2: absY2,
+            x: absX,
+            y: absY,
           });
           currentX = absX;
           currentY = absY;
@@ -108,7 +111,7 @@ export function parsePath(d: string): PathCommand[] {
         break;
       }
 
-      case 'S': {
+      case "S": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const x2 = parseFloat(tokens[i++]);
           const y2 = parseFloat(tokens[i++]);
@@ -121,9 +124,11 @@ export function parsePath(d: string): PathCommand[] {
           const absY = isRelative ? currentY + y : y;
 
           commands.push({
-            type: 'S',
-            x2: absX2, y2: absY2,
-            x: absX, y: absY
+            type: "S",
+            x2: absX2,
+            y2: absY2,
+            x: absX,
+            y: absY,
           });
           currentX = absX;
           currentY = absY;
@@ -131,7 +136,7 @@ export function parsePath(d: string): PathCommand[] {
         break;
       }
 
-      case 'Q': {
+      case "Q": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const x1 = parseFloat(tokens[i++]);
           const y1 = parseFloat(tokens[i++]);
@@ -144,9 +149,11 @@ export function parsePath(d: string): PathCommand[] {
           const absY = isRelative ? currentY + y : y;
 
           commands.push({
-            type: 'Q',
-            x1: absX1, y1: absY1,
-            x: absX, y: absY
+            type: "Q",
+            x1: absX1,
+            y1: absY1,
+            x: absX,
+            y: absY,
           });
           currentX = absX;
           currentY = absY;
@@ -154,7 +161,7 @@ export function parsePath(d: string): PathCommand[] {
         break;
       }
 
-      case 'T': {
+      case "T": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const x = parseFloat(tokens[i++]);
           const y = parseFloat(tokens[i++]);
@@ -162,20 +169,20 @@ export function parsePath(d: string): PathCommand[] {
           const absX = isRelative ? currentX + x : x;
           const absY = isRelative ? currentY + y : y;
 
-          commands.push({ type: 'T', x: absX, y: absY });
+          commands.push({ type: "T", x: absX, y: absY });
           currentX = absX;
           currentY = absY;
         }
         break;
       }
 
-      case 'A': {
+      case "A": {
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const rx = parseFloat(tokens[i++]);
           const ry = parseFloat(tokens[i++]);
           const angle = parseFloat(tokens[i++]);
-          const largeArc = tokens[i++] === '1';
-          const sweep = tokens[i++] === '1';
+          const largeArc = tokens[i++] === "1";
+          const sweep = tokens[i++] === "1";
           const x = parseFloat(tokens[i++]);
           const y = parseFloat(tokens[i++]);
 
@@ -183,9 +190,14 @@ export function parsePath(d: string): PathCommand[] {
           const absY = isRelative ? currentY + y : y;
 
           commands.push({
-            type: 'A',
-            rx, ry, angle, largeArc, sweep,
-            x: absX, y: absY
+            type: "A",
+            rx,
+            ry,
+            angle,
+            largeArc,
+            sweep,
+            x: absX,
+            y: absY,
           });
           currentX = absX;
           currentY = absY;
@@ -193,8 +205,8 @@ export function parsePath(d: string): PathCommand[] {
         break;
       }
 
-      case 'Z': {
-        commands.push({ type: 'Z' });
+      case "Z": {
+        commands.push({ type: "Z" });
         currentX = startX;
         currentY = startY;
         break;
@@ -213,11 +225,24 @@ export function parsePath(d: string): PathCommand[] {
 export interface PathSink {
   moveTo(x: number, y: number): void;
   lineTo(x: number, y: number): void;
-  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+  bezierCurveTo(
+    cp1x: number,
+    cp1y: number,
+    cp2x: number,
+    cp2y: number,
+    x: number,
+    y: number,
+  ): void;
   quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
   ellipse(
-    x: number, y: number, rx: number, ry: number, rotation: number,
-    startAngle: number, endAngle: number, counterclockwise?: boolean
+    x: number,
+    y: number,
+    rx: number,
+    ry: number,
+    rotation: number,
+    startAngle: number,
+    endAngle: number,
+    counterclockwise?: boolean,
   ): void;
   closePath(): void;
 }
@@ -226,7 +251,10 @@ export interface PathSink {
  * Emit parsed path commands into a PathSink. Mirrors SVG path semantics,
  * including smooth-curve reflection and real elliptical arcs.
  */
-export function applyCommandsToPath(sink: PathSink, commands: PathCommand[]): void {
+export function applyCommandsToPath(
+  sink: PathSink,
+  commands: PathCommand[],
+): void {
   let currentX = 0;
   let currentY = 0;
   let lastControlX = 0;
@@ -235,35 +263,35 @@ export function applyCommandsToPath(sink: PathSink, commands: PathCommand[]): vo
 
   for (const cmd of commands) {
     switch (cmd.type) {
-      case 'M':
+      case "M":
         sink.moveTo(cmd.x, cmd.y);
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'L':
+      case "L":
         sink.lineTo(cmd.x, cmd.y);
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'H':
+      case "H":
         sink.lineTo(cmd.x, currentY);
         currentX = cmd.x;
         break;
-      case 'V':
+      case "V":
         sink.lineTo(currentX, cmd.y);
         currentY = cmd.y;
         break;
-      case 'C':
+      case "C":
         sink.bezierCurveTo(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
         lastControlX = cmd.x2;
         lastControlY = cmd.y2;
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'S': {
+      case "S": {
         let cx1 = currentX;
         let cy1 = currentY;
-        if (lastCommand === 'C' || lastCommand === 'S') {
+        if (lastCommand === "C" || lastCommand === "S") {
           cx1 = 2 * currentX - lastControlX;
           cy1 = 2 * currentY - lastControlY;
         }
@@ -274,17 +302,17 @@ export function applyCommandsToPath(sink: PathSink, commands: PathCommand[]): vo
         currentY = cmd.y;
         break;
       }
-      case 'Q':
+      case "Q":
         sink.quadraticCurveTo(cmd.x1, cmd.y1, cmd.x, cmd.y);
         lastControlX = cmd.x1;
         lastControlY = cmd.y1;
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'T': {
+      case "T": {
         let qx = currentX;
         let qy = currentY;
-        if (lastCommand === 'Q' || lastCommand === 'T') {
+        if (lastCommand === "Q" || lastCommand === "T") {
           qx = 2 * currentX - lastControlX;
           qy = 2 * currentY - lastControlY;
         }
@@ -295,14 +323,28 @@ export function applyCommandsToPath(sink: PathSink, commands: PathCommand[]): vo
         currentY = cmd.y;
         break;
       }
-      case 'A': {
+      case "A": {
         const seg = arcToEllipse(
-          currentX, currentY, cmd.rx, cmd.ry, cmd.angle, cmd.largeArc, cmd.sweep, cmd.x, cmd.y
+          currentX,
+          currentY,
+          cmd.rx,
+          cmd.ry,
+          cmd.angle,
+          cmd.largeArc,
+          cmd.sweep,
+          cmd.x,
+          cmd.y,
         );
         if (seg) {
           sink.ellipse(
-            seg.cx, seg.cy, seg.rx, seg.ry, seg.rotation,
-            seg.startAngle, seg.endAngle, seg.counterclockwise
+            seg.cx,
+            seg.cy,
+            seg.rx,
+            seg.ry,
+            seg.rotation,
+            seg.startAngle,
+            seg.endAngle,
+            seg.counterclockwise,
           );
         } else {
           // Degenerate arc (zero radius / coincident endpoints) -> straight line.
@@ -312,7 +354,7 @@ export function applyCommandsToPath(sink: PathSink, commands: PathCommand[]): vo
         currentY = cmd.y;
         break;
       }
-      case 'Z':
+      case "Z":
         sink.closePath();
         break;
     }
@@ -325,9 +367,9 @@ export interface ArcSegment {
   cy: number;
   rx: number;
   ry: number;
-  rotation: number;   // radians
+  rotation: number; // radians
   startAngle: number; // radians
-  endAngle: number;   // radians
+  endAngle: number; // radians
   counterclockwise: boolean;
 }
 
@@ -340,12 +382,15 @@ export interface ArcSegment {
  * small to span the endpoints are scaled up (F.6.6).
  */
 export function arcToEllipse(
-  x1: number, y1: number,
-  rxIn: number, ryIn: number,
+  x1: number,
+  y1: number,
+  rxIn: number,
+  ryIn: number,
   xAxisRotationDeg: number,
   largeArc: boolean,
   sweep: boolean,
-  x2: number, y2: number
+  x2: number,
+  y2: number,
 ): ArcSegment | null {
   // Coincident endpoints: arc reduces to nothing / a line.
   if (x1 === x2 && y1 === y2) return null;
@@ -424,7 +469,12 @@ function angleBetween(ux: number, uy: number, vx: number, vy: number): number {
  * Approximate (control points overshoot the true curve) but sufficient for
  * anchoring gradients to a path's box.
  */
-export function computePathBounds(commands: PathCommand[]): { x: number; y: number; width: number; height: number } {
+export function computePathBounds(commands: PathCommand[]): {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+} {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -441,36 +491,36 @@ export function computePathBounds(commands: PathCommand[]): { x: number; y: numb
 
   for (const cmd of commands) {
     switch (cmd.type) {
-      case 'M':
-      case 'L':
-      case 'T':
-      case 'A':
+      case "M":
+      case "L":
+      case "T":
+      case "A":
         acc(cmd.x, cmd.y);
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'H':
+      case "H":
         acc(cmd.x, currentY);
         currentX = cmd.x;
         break;
-      case 'V':
+      case "V":
         acc(currentX, cmd.y);
         currentY = cmd.y;
         break;
-      case 'C':
+      case "C":
         acc(cmd.x1, cmd.y1);
         acc(cmd.x2, cmd.y2);
         acc(cmd.x, cmd.y);
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'S':
+      case "S":
         acc(cmd.x2, cmd.y2);
         acc(cmd.x, cmd.y);
         currentX = cmd.x;
         currentY = cmd.y;
         break;
-      case 'Q':
+      case "Q":
         acc(cmd.x1, cmd.y1);
         acc(cmd.x, cmd.y);
         currentX = cmd.x;
@@ -497,7 +547,7 @@ const LENGTH_SAMPLES = 32;
  */
 function flattenPath(
   commands: PathCommand[],
-  emit: (x: number, y: number, isMove: boolean) => void
+  emit: (x: number, y: number, isMove: boolean) => void,
 ): void {
   let currentX = 0;
   let currentY = 0;
@@ -513,7 +563,14 @@ function flattenPath(
     currentY = y;
   };
 
-  const cubic = (x1: number, y1: number, x2: number, y2: number, x: number, y: number) => {
+  const cubic = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    x: number,
+    y: number,
+  ) => {
     const x0 = currentX;
     const y0 = currentY;
     for (let k = 1; k <= LENGTH_SAMPLES; k++) {
@@ -533,37 +590,40 @@ function flattenPath(
     for (let k = 1; k <= LENGTH_SAMPLES; k++) {
       const t = k / LENGTH_SAMPLES;
       const mt = 1 - t;
-      point(mt * mt * x0 + 2 * mt * t * x1 + t * t * x, mt * mt * y0 + 2 * mt * t * y1 + t * t * y);
+      point(
+        mt * mt * x0 + 2 * mt * t * x1 + t * t * x,
+        mt * mt * y0 + 2 * mt * t * y1 + t * t * y,
+      );
     }
   };
 
   for (const cmd of commands) {
     switch (cmd.type) {
-      case 'M':
+      case "M":
         emit(cmd.x, cmd.y, true);
         currentX = cmd.x;
         currentY = cmd.y;
         startX = cmd.x;
         startY = cmd.y;
         break;
-      case 'L':
+      case "L":
         point(cmd.x, cmd.y);
         break;
-      case 'H':
+      case "H":
         point(cmd.x, currentY);
         break;
-      case 'V':
+      case "V":
         point(currentX, cmd.y);
         break;
-      case 'C':
+      case "C":
         cubic(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y);
         lastControlX = cmd.x2;
         lastControlY = cmd.y2;
         break;
-      case 'S': {
+      case "S": {
         let cx1 = currentX;
         let cy1 = currentY;
-        if (lastCommand === 'C' || lastCommand === 'S') {
+        if (lastCommand === "C" || lastCommand === "S") {
           cx1 = 2 * currentX - lastControlX;
           cy1 = 2 * currentY - lastControlY;
         }
@@ -572,15 +632,15 @@ function flattenPath(
         lastControlY = cmd.y2;
         break;
       }
-      case 'Q':
+      case "Q":
         quad(cmd.x1, cmd.y1, cmd.x, cmd.y);
         lastControlX = cmd.x1;
         lastControlY = cmd.y1;
         break;
-      case 'T': {
+      case "T": {
         let qx = currentX;
         let qy = currentY;
-        if (lastCommand === 'Q' || lastCommand === 'T') {
+        if (lastCommand === "Q" || lastCommand === "T") {
           qx = 2 * currentX - lastControlX;
           qy = 2 * currentY - lastControlY;
         }
@@ -589,18 +649,31 @@ function flattenPath(
         lastControlY = qy;
         break;
       }
-      case 'A': {
+      case "A": {
         const seg = arcToEllipse(
-          currentX, currentY, cmd.rx, cmd.ry, cmd.angle, cmd.largeArc, cmd.sweep, cmd.x, cmd.y
+          currentX,
+          currentY,
+          cmd.rx,
+          cmd.ry,
+          cmd.angle,
+          cmd.largeArc,
+          cmd.sweep,
+          cmd.x,
+          cmd.y,
         );
         if (seg) {
           const cosR = Math.cos(seg.rotation);
           const sinR = Math.sin(seg.rotation);
           for (let k = 1; k <= LENGTH_SAMPLES; k++) {
-            const a = seg.startAngle + ((seg.endAngle - seg.startAngle) * k) / LENGTH_SAMPLES;
+            const a =
+              seg.startAngle +
+              ((seg.endAngle - seg.startAngle) * k) / LENGTH_SAMPLES;
             const ex = seg.rx * Math.cos(a);
             const ey = seg.ry * Math.sin(a);
-            point(seg.cx + ex * cosR - ey * sinR, seg.cy + ex * sinR + ey * cosR);
+            point(
+              seg.cx + ex * cosR - ey * sinR,
+              seg.cy + ex * sinR + ey * cosR,
+            );
           }
           currentX = cmd.x;
           currentY = cmd.y;
@@ -609,7 +682,7 @@ function flattenPath(
         }
         break;
       }
-      case 'Z':
+      case "Z":
         point(startX, startY);
         break;
     }
@@ -671,7 +744,10 @@ export function buildMotionPath(commands: PathCommand[]): MotionPath {
  * Binary-searches the cumulative table, lerps the bracketing points, and takes
  * the tangent from the containing segment's direction. Angle is in radians.
  */
-export function samplePathAt(mp: MotionPath, distance01: number): { x: number; y: number; angle: number } {
+export function samplePathAt(
+  mp: MotionPath,
+  distance01: number,
+): { x: number; y: number; angle: number } {
   const pts = mp.points;
   if (pts.length === 1 || mp.length === 0) {
     return { x: pts[0].x, y: pts[0].y, angle: 0 };
@@ -722,20 +798,20 @@ export function ellipsePerimeter(rx: number, ry: number): number {
  */
 export function shapeOutlineLength(sd: ShapeData): number {
   switch (sd.type) {
-    case 'circle':
+    case "circle":
       return 2 * Math.PI * Math.abs(sd.r);
-    case 'ellipse':
+    case "ellipse":
       return ellipsePerimeter(sd.rx, sd.ry);
-    case 'rect': {
+    case "rect": {
       const rx = Math.min(Math.abs(sd.rx), sd.width / 2);
       const ry = Math.min(Math.abs(sd.ry), sd.height / 2);
       const straight = 2 * (sd.width - 2 * rx) + 2 * (sd.height - 2 * ry);
       return straight + ellipsePerimeter(rx, ry);
     }
-    case 'path':
+    case "path":
       return computePathLength(sd.commands);
-    case 'star':
-    case 'polygon':
+    case "star":
+    case "polygon":
       return computePathLength(polystarToCommands(sd));
     default:
       return 0;

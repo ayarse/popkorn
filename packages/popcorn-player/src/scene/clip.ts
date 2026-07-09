@@ -1,6 +1,6 @@
-import type { SceneNode } from './types';
-import type { ResolvedClip } from '../renderer/types';
-import { getShapeBounds } from './transform';
+import type { ResolvedClip } from "../renderer/types";
+import { getShapeBounds } from "./transform";
+import type { SceneNode } from "./types";
 
 /**
  * Resolve a node's authored clip-path to concrete local-space geometry.
@@ -15,19 +15,19 @@ export function resolveClip(node: SceneNode): ResolvedClip | null {
   if (!clip) return null;
 
   switch (clip.type) {
-    case 'circle':
-      return { type: 'circle', cx: clip.x, cy: clip.y, r: clip.r };
-    case 'inset': {
+    case "circle":
+      return { type: "circle", cx: clip.x, cy: clip.y, r: clip.r };
+    case "inset": {
       const b = getShapeBounds(node);
       return {
-        type: 'rect',
+        type: "rect",
         x: b.x + clip.left,
         y: b.y + clip.top,
         width: b.width - clip.left - clip.right,
         height: b.height - clip.top - clip.bottom,
       };
     }
-    case 'path':
-      return { type: 'path', commands: clip.commands };
+    case "path":
+      return { type: "path", commands: clip.commands };
   }
 }

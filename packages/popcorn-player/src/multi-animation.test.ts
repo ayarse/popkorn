@@ -1,9 +1,9 @@
-import { test, expect } from 'bun:test';
-import { parse } from '@popcorn/parser';
-import { buildSceneGraph } from './scene/builder';
-import { AnimationScheduler } from './animation/scheduler';
-import { resetNodeToBase } from './scene/types';
-import type { SceneNode } from './scene/types';
+import { expect, test } from "bun:test";
+import { parse } from "@popcorn/parser";
+import { AnimationScheduler } from "./animation/scheduler";
+import { buildSceneGraph } from "./scene/builder";
+import type { SceneNode } from "./scene/types";
+import { resetNodeToBase } from "./scene/types";
 
 // A comma-separated `animation` shorthand must build one AnimationInstance per
 // group, each with its own keyframes/timing. This is the converter's per-channel
@@ -40,14 +40,14 @@ const SRC = `
 }
 `;
 
-test('comma-list animation builds one instance per group', () => {
-  const node = findNode(buildSceneGraph(parse(SRC)), 'n');
+test("comma-list animation builds one instance per group", () => {
+  const node = findNode(buildSceneGraph(parse(SRC)), "n");
   expect(node.animations).toHaveLength(2);
-  expect(node.animations.map((a) => a.name)).toEqual(['slide', 'spin']);
+  expect(node.animations.map((a) => a.name)).toEqual(["slide", "spin"]);
 });
 
-test('per-channel easing is independent (step-end translate vs linear rotate)', () => {
-  const node = findNode(buildSceneGraph(parse(SRC)), 'n');
+test("per-channel easing is independent (step-end translate vs linear rotate)", () => {
+  const node = findNode(buildSceneGraph(parse(SRC)), "n");
   const scheduler = new AnimationScheduler();
 
   resetNodeToBase(node);
@@ -59,8 +59,8 @@ test('per-channel easing is independent (step-end translate vs linear rotate)', 
   expect(node.transform.rotate).toBe(45);
 });
 
-test('the two animations touch distinct components (no clobber at the end)', () => {
-  const node = findNode(buildSceneGraph(parse(SRC)), 'n');
+test("the two animations touch distinct components (no clobber at the end)", () => {
+  const node = findNode(buildSceneGraph(parse(SRC)), "n");
   const scheduler = new AnimationScheduler();
 
   resetNodeToBase(node);
@@ -75,33 +75,38 @@ test('the two animations touch distinct components (no clobber at the end)', () 
 // per sub-property; the shorthand resets the whole list.
 
 const build1 = (decls: string) =>
-  findNode(buildSceneGraph(parse(
-    `@keyframes blink { 0% { opacity: 1; } 100% { opacity: 0; } }\n#n { type: circle; r: 5px; ${decls} }`
-  )), 'n');
+  findNode(
+    buildSceneGraph(
+      parse(
+        `@keyframes blink { 0% { opacity: 1; } 100% { opacity: 0; } }\n#n { type: circle; r: 5px; ${decls} }`,
+      ),
+    ),
+    "n",
+  );
 
-test('longhands alone (name + duration) build an animation', () => {
-  const node = build1('animation-name: blink; animation-duration: 2s;');
+test("longhands alone (name + duration) build an animation", () => {
+  const node = build1("animation-name: blink; animation-duration: 2s;");
   expect(node.animations).toHaveLength(1);
-  expect(node.animations[0].name).toBe('blink');
+  expect(node.animations[0].name).toBe("blink");
   expect(node.animations[0].duration).toBe(2000);
 });
 
-test('a longhand overrides an earlier shorthand (later wins)', () => {
-  const node = build1('animation: blink 1s; animation-duration: 2s;');
+test("a longhand overrides an earlier shorthand (later wins)", () => {
+  const node = build1("animation: blink 1s; animation-duration: 2s;");
   expect(node.animations).toHaveLength(1);
   expect(node.animations[0].duration).toBe(2000);
 });
 
-test('a shorthand resets an earlier longhand', () => {
+test("a shorthand resets an earlier longhand", () => {
   // animation-duration:2s is wiped by the later shorthand, which sets 1s.
-  const node = build1('animation-duration: 2s; animation: blink 1s;');
+  const node = build1("animation-duration: 2s; animation: blink 1s;");
   expect(node.animations).toHaveLength(1);
   expect(node.animations[0].duration).toBe(1000);
 });
 
-test('longhands cycle positionally across a two-animation list', () => {
+test("longhands cycle positionally across a two-animation list", () => {
   const node = build1(
-    'animation-name: blink, blink; animation-duration: 1s, 2s; animation-iteration-count: infinite;'
+    "animation-name: blink, blink; animation-duration: 1s, 2s; animation-iteration-count: infinite;",
   );
   expect(node.animations).toHaveLength(2);
   expect(node.animations[0].duration).toBe(1000);
