@@ -47,7 +47,18 @@ import { isGradientData } from '../renderer/types';
 import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './types';
 import { parsePath, buildMotionPath } from './path-parser';
 import { clamp01 } from './transform';
-import { gradientsCompatible, pathsCompatible } from '../animation/registry';
+import { gradientsCompatible, pathsCompatible, getPropHandler } from '../animation/registry';
+
+// Declarations that are valid inside a state block but handled outside the
+// buildStateStyles switch (transition* → resolveTransitions), so the default
+// case must not warn on them.
+const STATE_BLOCK_IGNORED = new Set([
+  'transition',
+  'transition-property',
+  'transition-duration',
+  'transition-delay',
+  'transition-timing-function',
+]);
 
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
   sd.type === 'star' || sd.type === 'polygon';
@@ -532,6 +543,22 @@ export class SceneBuilder {
           extractIndividualTransform(property, value, (key, val) => { t[key] = val; });
           break;
         }
+
+        default:
+          // A state block (:hover/:active/:state()) only overrides the paint,
+          // opacity and transform channels above — a deliberately narrower set
+          // than the keyframe registry (see registry.ts / getPropHandler). Any
+          // other declaration is silently inert, which reads as a bug; warn so
+          // the author isn't left guessing, distinguishing "animatable, but not
+          // in a state block" from an outright unknown property. transition* is
+          // consumed by resolveTransitions below, so it isn't inert.
+          if (!STATE_BLOCK_IGNORED.has(property)) {
+            console.warn(
+              getPropHandler(property)
+                ? `'${property}' animates via @keyframes but is not overridable in :hover/:active/:state() blocks; ignored.`
+                : `Unknown property '${property}' in a :hover/:active/:state() block; ignored.`
+            );
+          }
       }
     }
 

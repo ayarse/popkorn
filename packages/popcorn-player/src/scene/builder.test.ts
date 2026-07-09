@@ -952,3 +952,20 @@ test('hover: a gradient fill override applies on the instant-snap path', () => {
   expect(b.fillGradient?.stops[0].color).toBe('#0f0');
   expect(b.fill).toBeNull();
 });
+
+test('state block warns on registry props it cannot override, but not on supported props or transition', () => {
+  const warns: string[] = [];
+  const orig = console.warn;
+  console.warn = (m?: unknown) => { warns.push(String(m)); };
+  try {
+    buildSceneGraph(parse(
+      `#a { type: circle; r: 10; fill: red; &:hover { r: 20; fill: blue; opacity: 0.5; transition: fill 200ms; } }`
+    ));
+  } finally {
+    console.warn = orig;
+  }
+  // `r` is animatable via @keyframes but not overridable in a state block → warn.
+  expect(warns.some((w) => w.includes("'r'") && w.includes('@keyframes'))).toBe(true);
+  // fill/opacity are honored, transition is consumed by resolveTransitions → no warn.
+  expect(warns.some((w) => w.includes('transition') || w.includes("'fill'") || w.includes("'opacity'"))).toBe(false);
+});
