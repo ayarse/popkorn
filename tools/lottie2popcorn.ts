@@ -262,6 +262,8 @@ interface LayerCtx {
 interface InheritedStyle {
   fill: string | null;
   stroke: string | null;
+  strokeCh: ((t: number) => Sample) | null;
+  strokeKfs: Kf[] | null;
   strokeWidth: number | null;
   lineCap: string | null;
   lineJoin: string | null;
@@ -271,9 +273,38 @@ interface InheritedStyle {
   trim: TrimInfo | null;
 }
 const EMPTY_STYLE: InheritedStyle = {
-  fill: null, stroke: null, strokeWidth: null, lineCap: null,
-  lineJoin: null, miterLimit: null, dashArray: null, dashOffset: 0, trim: null,
+  fill: null, stroke: null, strokeCh: null, strokeKfs: null, strokeWidth: null,
+  lineCap: null, lineJoin: null, miterLimit: null, dashArray: null, dashOffset: 0, trim: null,
 };
+
+/**
+ * A solid-color channel driven by the union of a color track and an opacity
+ * track (Lottie keeps a fill/stroke's `c` and `o` on separate timelines). One
+ * or both may animate; sample the color at each merged keyframe time, folding
+ * opacity into its alpha via `lottieColor` (which emits rgba() for alpha<1).
+ * `key` is the DSL property the channel writes ('fill' or 'stroke'). Mirrors
+ * the `gf` grid-union pattern. Callers guarantee at least one track animates.
+ */
+function colorOpacityChannel(
+  c: ReturnType<typeof prop>,
+  o: ReturnType<typeof prop>,
+  key: 'fill' | 'stroke'
+): { base: string; ch: (t: number) => Sample; kfs: Kf[] } {
+  const tracks: Kf[][] = [];
+  if (c && c.animated && c.kfs) tracks.push(c.kfs);
+  if (o && o.animated && o.kfs) tracks.push(o.kfs);
+  const times = [...new Set(tracks.flatMap((k) => k.map((kf) => kf.t)))].sort((a, b) => a - b);
+  const kfs: Kf[] = times.map((t) => {
+    const src = tracks.map((tk) => tk.find((kf) => kf.t === t)).find(Boolean);
+    return { t, i: src?.i, o: src?.o, h: src?.h };
+  });
+  const opAt = (t: number) => (o ? (o.at(t)[0] ?? 100) / 100 : 1);
+  const colorAt = (t: number) => (c ? c.at(t) : [0, 0, 0]);
+  const swatch = (t: number) => lottieColor(colorAt(t), opAt(t));
+  const ch = (t: number): Sample =>
+    key === 'fill' ? { fill: swatch(t) } : { stroke: swatch(t) };
+  return { base: swatch(times[0]), ch, kfs };
+}
 
 /** One emitted @keyframes + its animation-shorthand timing, for a single channel. */
 interface AnimSpec {
@@ -1022,6 +1053,8 @@ export class Converter {
     let fillCh: ((t: number) => Sample) | null = null;
     let fillKfs: Kf[] | null = null;
     let stroke: string | null = inherited.stroke;
+    let strokeCh: ((t: number) => Sample) | null = inherited.strokeCh;
+    let strokeKfs: Kf[] | null = inherited.strokeKfs;
     let strokeWidth: number | null = inherited.strokeWidth;
     let lineCap: string | null = inherited.lineCap;
     let lineJoin: string | null = inherited.lineJoin;
@@ -1050,12 +1083,13 @@ export class Converter {
           const c = prop(it.c);
           const o = prop(it.o);
           const op = o && !o.animated ? (o.at(0)[0] ?? 100) / 100 : 1;
-          if (o && o.animated) this.warnOnce('animated fill opacity baked to first value');
           let color: string | null = null, ch: ((t: number) => Sample) | null = null, kfs: Kf[] | null = null;
-          if (c && c.animated && c.kfs) {
-            kfs = c.kfs;
-            ch = (t) => ({ fill: lottieColor(c.at(t), op) });
-            color = lottieColor(c.at(c.kfs[0].t), op);
+          // Color and/or opacity animate: sample the color on the union of both
+          // keyframe grids, folding opacity into alpha. (Animated opacity alone
+          // was previously baked to fully-opaque — the pulse silently vanished.)
+          if ((c && c.animated && c.kfs) || (o && o.animated && o.kfs)) {
+            const built = colorOpacityChannel(c, o, 'fill');
+            color = built.base; ch = built.ch; kfs = built.kfs;
           } else if (c) {
             color = lottieColor(c.at(0), op);
           }
@@ -1065,7 +1099,17 @@ export class Converter {
         case 'st': {
           const c = prop(it.c);
           const w = prop(it.w);
-          if (c) stroke = c.animated ? lottieColor(c.at(c.kfs![0].t)) : lottieColor(c.at(0));
+          const o = prop(it.o);
+          const op = o && !o.animated ? (o.at(0)[0] ?? 100) / 100 : 1;
+          // Stroke opacity (`o`) lives on its own track like a fill's: static <100
+          // folds into the color's alpha; animated color and/or opacity drives a
+          // stroke channel (registry animates `stroke` as a color kind).
+          if ((c && c.animated && c.kfs) || (o && o.animated && o.kfs)) {
+            const built = colorOpacityChannel(c, o, 'stroke');
+            stroke = built.base; strokeCh = built.ch; strokeKfs = built.kfs;
+          } else if (c) {
+            stroke = lottieColor(c.at(0), op);
+          }
           if (w) strokeWidth = w.at(0)[0] ?? 0;
           lineCap = it.lc === 2 ? 'round' : it.lc === 3 ? 'square' : 'butt';
           lineJoin = it.lj === 2 ? 'round' : it.lj === 3 ? 'bevel' : 'miter';
@@ -1090,13 +1134,19 @@ export class Converter {
           // fill. The player supports `stroke: <gradient>` (strokeGradient); the
           // outline width/cap/join come off the `gs` exactly like a plain `st`.
           // Animated width/stops bake to their first value (matching `st`).
-          stroke = this.buildGradient(it);
+          // Static stroke opacity (`o`<100) folds into every stop's alpha; an
+          // animated `o` bakes to its first value (a per-stop opacity channel
+          // would need a gradient-string channel — worth a follow-up, not this).
+          const gso = prop(it.o);
+          const gsop = gso ? (gso.at(0)[0] ?? 100) / 100 : 1;
+          stroke = this.buildGradient(it, gsop);
           const w = prop(it.w);
           if (w) strokeWidth = w.at(0)[0] ?? 0;
           lineCap = it.lc === 2 ? 'round' : it.lc === 3 ? 'square' : 'butt';
           lineJoin = it.lj === 2 ? 'round' : it.lj === 3 ? 'bevel' : 'miter';
           miterLimit = typeof it.ml === 'number' ? it.ml : null;
           if (it.g && it.g.k && it.g.k.a === 1) this.warnOnce('animated gradient stroke stops baked to first value');
+          if (gso && gso.animated) this.warnOnce('animated gradient stroke opacity baked to first value');
           break;
         }
         case 'gf': {
@@ -1185,10 +1235,11 @@ export class Converter {
           if (miterLimit != null && miterLimit !== 4) node.decls.push(`stroke-miterlimit: ${num(miterLimit)}`);
           if (dashArray) node.decls.push(`stroke-dasharray: ${dashArray.map((d) => `${num(d)}px`).join(' ')}`);
           if (dashOffset) node.decls.push(`stroke-dashoffset: ${num(dashOffset)}px`);
+          if (strokeCh && strokeKfs) node.channels.push({ priority: 1, kfs: strokeKfs, sample: strokeCh });
           this.finalizeAnim(node);
           hoistStroke = node;
           // The fills below now paint unstroked; the hoisted node is the stroke.
-          stroke = null; strokeWidth = null; lineCap = null; lineJoin = null; miterLimit = null; dashArray = null; dashOffset = 0;
+          stroke = null; strokeCh = null; strokeKfs = null; strokeWidth = null; lineCap = null; lineJoin = null; miterLimit = null; dashArray = null; dashOffset = 0;
         }
       }
     }
@@ -1199,7 +1250,7 @@ export class Converter {
     // inherit it down so descendants of that group still pick it up.
     const effectiveTrim = trim ?? inherited.trim;
     const style: InheritedStyle = {
-      fill: effectiveFill, stroke, trim: effectiveTrim,
+      fill: effectiveFill, stroke, strokeCh, strokeKfs, trim: effectiveTrim,
       strokeWidth, lineCap, lineJoin, miterLimit, dashArray, dashOffset,
     };
 
@@ -1228,6 +1279,7 @@ export class Converter {
       }
       const lch = layer ? layer.ch : fillCh, lkfs = layer ? layer.kfs : fillKfs;
       if (lch && lkfs) rule.channels.push({ priority: 1, kfs: lkfs, sample: lch });
+      if (strokeCh && strokeKfs) rule.channels.push({ priority: 1, kfs: strokeKfs, sample: strokeCh });
     };
 
     const out: Rule[] = [];
@@ -1437,12 +1489,12 @@ export class Converter {
     return rule;
   }
 
-  private buildGradient(it: any): string | null {
+  private buildGradient(it: any, opacity = 1): string | null {
     const g = it.g;
     if (!g || !g.k) return null;
     // Animated stops: emit a fill channel of full gradient() strings per keyframe
     // (Popcorn interpolates them; see registry 'gradient'). Static: bake at t0.
-    return this.gradientCssAt(it, g.k.a === 1 ? g.k.k[0].t : 0);
+    return this.gradientCssAt(it, g.k.a === 1 ? g.k.k[0].t : 0, opacity);
   }
 
   /**
@@ -1452,29 +1504,29 @@ export class Converter {
    * and alpha on the union of both position sets and emit rgba() stops (dropping
    * the tail lost the fade-to-transparent that soft glows depend on).
    */
-  private gradientStops(flat: number[], count: number): string[] {
+  private gradientStops(flat: number[], count: number, opacity = 1): string[] {
     const colors: { pos: number; rgb: number[] }[] = [];
     for (let i = 0; i < count; i++) {
       colors.push({ pos: flat[i * 4], rgb: [flat[i * 4 + 1], flat[i * 4 + 2], flat[i * 4 + 3]] });
     }
     const alphas: { pos: number; a: number }[] = [];
     for (let i = count * 4; i + 1 < flat.length; i += 2) alphas.push({ pos: flat[i], a: flat[i + 1] });
-    if (alphas.length === 0) return colors.map((c) => `${lottieColor(c.rgb)} ${num(c.pos * 100)}%`);
+    if (alphas.length === 0) return colors.map((c) => `${lottieColor(c.rgb, opacity)} ${num(c.pos * 100)}%`);
     const positions = [...new Set([...colors.map((c) => c.pos), ...alphas.map((a) => a.pos)])].sort((x, y) => x - y);
     return positions.map((p) => {
       const rgb = [0, 1, 2].map((k) => sampleStopScalar(colors, p, (c) => c.rgb[k]));
       const a = sampleStopScalar(alphas, p, (s) => s.a);
-      return `${lottieColor([...rgb, a])} ${num(p * 100)}%`;
+      return `${lottieColor([...rgb, a], opacity)} ${num(p * 100)}%`;
     });
   }
 
   /** Build the CSS gradient string for `it` at frame `t` (samples animated stops/geometry). */
-  private gradientCssAt(it: any, t: number): string | null {
+  private gradientCssAt(it: any, t: number, opacity = 1): string | null {
     const g = it.g;
     if (!g || !g.k) return null;
     const flat: number[] = g.k.a === 1 ? sampleAt(g.k.k, t) : g.k.k;
     const count = g.p || Math.floor(flat.length / 4);
-    const stops = this.gradientStops(flat, count);
+    const stops = this.gradientStops(flat, count, opacity);
     // Exact geometry in the shape's local space (same coords as the path `d`), so
     // the player draws point-to-point / circle-at rather than approximating off
     // the bbox. s = center/start, e = radius endpoint / linear end.

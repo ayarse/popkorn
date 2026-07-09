@@ -331,6 +331,48 @@ test('legacy animated `sh` with no `a` flag still morphs (d channel, not an empt
   expect(css).not.toMatch(/d:\s*''/);
 });
 
+// --- fill/stroke opacity (Lottie `o` on its own track) ----------------------
+
+test('animated fill opacity (static color) drives an rgba() fill channel, not a baked opaque fill', () => {
+  // A fill whose `o` pulses 0->35->10 with a static red `c`. Opacity lives on its
+  // own track; the color must be sampled with alpha per keyframe (previously the
+  // whole pulse was silently baked to fully-opaque).
+  const fl = { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 1, k: [
+    { t: 0, s: [0], o: { x: [0.3], y: [0] }, i: { x: [0.7], y: [1] } },
+    { t: 15, s: [35] },
+    { t: 30, s: [10] },
+  ] } };
+  const c = new Converter();
+  const css = c.convert(shapeLayer([{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, fl]));
+  // A fill animation exists, keyed on the opacity grid, with rgba() values.
+  expect(css).toContain('@keyframes');
+  expect(css).toContain('animation:');
+  expect(css).toContain('fill: rgba(255, 0, 0, 0)');    // t=0, alpha 0
+  expect(css).toContain('fill: rgba(255, 0, 0, 0.35)'); // t=15
+  expect(css).toContain('fill: rgba(255, 0, 0, 0.1)');  // t=30
+  // The departing keyframe's easing is preserved on the fill channel.
+  expect(css).toContain('cubic-bezier(0.3, 0, 0.7, 1)');
+  // The old lossy warning is gone for the handled case.
+  expect(c.warnings.some((w) => w.includes('animated fill opacity baked'))).toBe(false);
+});
+
+test('static stroke opacity <100 folds into the stroke color alpha (rgba)', () => {
+  const st = { ty: 'st', c: { a: 0, k: [0, 0, 1] }, w: { a: 0, k: 4 }, o: { a: 0, k: 50 } };
+  const css = new Converter().convert(shapeLayer([{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, st]));
+  expect(css).toContain('stroke: rgba(0, 0, 255, 0.5)');
+});
+
+test('animated stroke opacity drives a keyframed rgba() stroke channel', () => {
+  const st = { ty: 'st', c: { a: 0, k: [0, 0, 1] }, w: { a: 0, k: 4 }, o: { a: 1, k: [
+    { t: 0, s: [80] },
+    { t: 30, s: [0] },
+  ] } };
+  const css = new Converter().convert(shapeLayer([{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, st]));
+  expect(css).toContain('animation:');
+  expect(css).toContain('stroke: rgba(0, 0, 255, 0.8)'); // base / t=0
+  expect(css).toContain('stroke: rgba(0, 0, 255, 0)');   // t=30, faded out
+});
+
 test("masks: any non-'n' mode clips (canvas parity), 'n' is a no-op, none block", () => {
   // lottie-web's canvas renderer clips to the nonzero union of every mask whose
   // mode isn't 'none', ignoring add/subtract/intersect/difference.
