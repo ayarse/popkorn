@@ -10,6 +10,7 @@ import { marked } from "marked";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useToc } from "@/use-toc";
 
 const DOCS = [
   { key: "CONCEPT", label: "Concept", file: "CONCEPT.md" },
@@ -29,17 +30,6 @@ function docSource(file: string): string {
   return path ? files[path] : `# ${file}\n\n.Source file not found.`;
 }
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
-type TocItem = { id: string; text: string; indent: number };
-
 marked.use({ gfm: true, breaks: false });
 
 export default function Docs() {
@@ -52,41 +42,7 @@ export default function Docs() {
   );
   const scrollRef = useRef<HTMLElement>(null);
   const proseRef = useRef<HTMLDivElement>(null);
-  const [toc, setToc] = useState<TocItem[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
-
-  // Assign stable ids to headings + build the on-this-page outline. Heading
-  // levels vary per doc (DSL uses h3, others h2), so indentation is relative
-  // to the shallowest collected level.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: html is the re-run trigger — the effect reads the DOM rendered from it
-  useEffect(() => {
-    const prose = proseRef.current;
-    if (!prose) return;
-    const heads = Array.from(
-      prose.querySelectorAll<HTMLHeadingElement>("h2, h3, h4"),
-    );
-    const counts = new Map<string, number>();
-    let minLevel = Infinity;
-    const items: TocItem[] = [];
-    for (const h of heads) {
-      minLevel = Math.min(minLevel, Number(h.tagName.slice(1)));
-    }
-    heads.forEach((h, i) => {
-      const base = slugify(h.textContent || "") || `heading-${i}`;
-      const n = (counts.get(base) ?? 0) + 1;
-      counts.set(base, n);
-      const id = n === 1 ? base : `${base}-${n}`;
-      h.id = id;
-      const level = Number(h.tagName.slice(1));
-      items.push({
-        id,
-        text: h.textContent || "",
-        indent: Math.max(0, level - minLevel),
-      });
-    });
-    setToc(items);
-    setActiveId(items[0]?.id ?? null);
-  }, [html]);
+  const { toc, activeId, scrollToHeading } = useToc(proseRef, scrollRef, html);
 
   // Scroll the content to top when switching sections.
   // biome-ignore lint/correctness/useExhaustiveDependencies: active is the re-run trigger — scroll to top on section switch
@@ -99,48 +55,6 @@ export default function Docs() {
   useEffect(() => {
     if (scrollRef.current) Prism.highlightAllUnder(scrollRef.current);
   }, [html]);
-
-  // Scrollspy: the current section is the last heading sitting at or above the
-  // top of the scroll viewport.
-  useEffect(() => {
-    const root = scrollRef.current;
-    const prose = proseRef.current;
-    if (!root || !prose || toc.length === 0) return;
-    const heads = Array.from(
-      prose.querySelectorAll<HTMLHeadingElement>("h2, h3, h4"),
-    );
-    let raf = 0;
-    const update = () => {
-      raf = 0;
-      const rootTop = root.getBoundingClientRect().top;
-      const offset = 80;
-      let current = heads[0]?.id ?? null;
-      for (const h of heads) {
-        const top = h.getBoundingClientRect().top - rootTop;
-        if (top <= offset) current = h.id;
-        else break;
-      }
-      setActiveId(current);
-    };
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(update);
-    };
-    root.addEventListener("scroll", onScroll, { passive: true });
-    update();
-    return () => {
-      root.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [toc]);
-
-  function scrollToHeading(id: string) {
-    const root = scrollRef.current;
-    if (!root) return;
-    const el = root.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
-    setActiveId(id);
-    el?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
