@@ -35,39 +35,28 @@ type Message = {
   applied?: boolean;
 };
 
-type Provider = "openai" | "openrouter";
-
 type AgentConfig = {
-  provider: Provider;
+  baseUrl: string;
   apiKey: string;
   model: string;
 };
 
 const STORAGE_KEY = "popcorn.agent.config";
 
-const BASE_URLS: Record<Provider, string> = {
-  openai: "https://api.openai.com/v1",
-  openrouter: "https://openrouter.ai/api/v1",
-};
+const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
-const PROVIDER_LABELS: Record<Provider, string> = {
-  openai: "OpenAI",
-  openrouter: "OpenRouter",
-};
+const DEFAULT_MODEL = "anthropic/claude-opus-4.8";
 
-const DEFAULT_MODELS: Record<Provider, string> = {
-  openai: "gpt-4.1-mini",
-  openrouter: "anthropic/claude-sonnet-4",
-};
-
-const MODEL_PRESETS: Record<Provider, string[]> = {
-  openai: ["gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"],
-  openrouter: [
-    "anthropic/claude-sonnet-4",
-    "openai/gpt-4o",
-    "google/gemini-2.5-flash",
-  ],
-};
+const MODEL_PRESETS = [
+  "anthropic/claude-opus-4.8",
+  "anthropic/claude-sonnet-5",
+  "anthropic/claude-sonnet-4.6",
+  "openai/gpt-5.5",
+  "z-ai/glm-5.2",
+  "deepseek/deepseek-v4-pro",
+  "minimax/m3",
+  "xiaomi/mimo-v2.5",
+];
 
 const SYSTEM_PROMPT = [
   "You are Popcorn Copilot, embedded in the Popcorn demo editor. Popcorn is a hand-authorable CSS-subset DSL that compiles to a 2D scene graph and plays back on Canvas2D. You help the user create and edit the scene that is live in the editor.",
@@ -111,12 +100,11 @@ function loadConfig(): AgentConfig | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<AgentConfig>;
-    if (!parsed.apiKey || !parsed.provider) return null;
-    if (parsed.provider !== "openai" && parsed.provider !== "openrouter") return null;
+    if (!parsed.apiKey || !parsed.baseUrl) return null;
     return {
-      provider: parsed.provider,
+      baseUrl: parsed.baseUrl,
       apiKey: parsed.apiKey,
-      model: parsed.model ?? DEFAULT_MODELS[parsed.provider],
+      model: parsed.model ?? DEFAULT_MODEL,
     };
   } catch {
     return null;
@@ -145,7 +133,7 @@ async function streamLLM(
   signal: AbortSignal,
   onToken: (delta: string) => void,
 ): Promise<string> {
-  const res = await fetch(`${BASE_URLS[cfg.provider]}/chat/completions`, {
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -156,7 +144,7 @@ async function streamLLM(
   });
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`${PROVIDER_LABELS[cfg.provider]} ${res.status}: ${err.slice(0, 200)}`);
+    throw new Error(`${res.status}: ${err.slice(0, 200)}`);
   }
   const reader = res.body!.getReader();
   const decoder = new TextDecoder();
@@ -533,11 +521,9 @@ function SettingsDialog({
   onSave: (cfg: AgentConfig) => void;
   onClose: () => void;
 }) {
-  const [provider, setProvider] = useState<Provider>(current?.provider ?? "openai");
+  const [baseUrl, setBaseUrl] = useState(current?.baseUrl ?? DEFAULT_BASE_URL);
   const [apiKey, setApiKey] = useState(current?.apiKey ?? "");
-  const [model, setModel] = useState(
-    current?.model ?? DEFAULT_MODELS[current?.provider ?? "openai"],
-  );
+  const [model, setModel] = useState(current?.model ?? DEFAULT_MODEL);
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
@@ -548,50 +534,24 @@ function SettingsDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const switchProvider = (p: Provider) => {
-    setProvider(p);
-    setModel(DEFAULT_MODELS[p]);
-  };
-
-  const presets = MODEL_PRESETS[provider];
-
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Agent settings</DialogTitle>
           <DialogDescription>
-            Bring your own key. Stored locally in your browser — never sent anywhere except the provider.
+            Bring your own key. Stored locally in your browser — never sent anywhere except the endpoint. Any OpenAI-compatible chat completions endpoint works; defaults to OpenRouter, switch the base URL for OpenAI or others.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <Field label="Provider">
-            <div className="flex gap-1.5 rounded-lg border border-border bg-background p-0.5">
-              {(["openai", "openrouter"] as Provider[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => switchProvider(p)}
-                  className={cn(
-                    "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
-                    provider === p
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {PROVIDER_LABELS[p]}
-                </button>
-              ))}
-            </div>
-          </Field>
-
           <Field label="API key">
             <div className="flex items-center gap-1.5">
               <input
                 type={showKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder={provider === "openai" ? "sk-…" : "sk-or-…"}
+                placeholder="sk-or-…"
                 spellCheck={false}
                 className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring"
               />
@@ -606,6 +566,16 @@ function SettingsDialog({
             </div>
           </Field>
 
+          <Field label="Base URL">
+            <input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              spellCheck={false}
+              placeholder={DEFAULT_BASE_URL}
+              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring"
+            />
+          </Field>
+
           <Field label="Model">
             <div className="relative">
               <input
@@ -617,7 +587,7 @@ function SettingsDialog({
                 placeholder="model id"
               />
               <datalist id="agent-model-presets">
-                {presets.map((m) => (
+                {MODEL_PRESETS.map((m) => (
                   <option key={m} value={m} />
                 ))}
               </datalist>
@@ -635,7 +605,7 @@ function SettingsDialog({
             disabled={!apiKey.trim()}
             onClick={() =>
               onSave({
-                provider,
+                baseUrl: baseUrl.trim() || DEFAULT_BASE_URL,
                 apiKey: apiKey.trim(),
                 model,
               })
