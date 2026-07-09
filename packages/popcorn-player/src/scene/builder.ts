@@ -48,16 +48,26 @@ import { createSceneNode, createDefaultTransformOrigin, snapshotNode } from './t
 import { parsePath, buildMotionPath } from './path-parser';
 import { clamp01 } from './transform';
 import { gradientsCompatible, pathsCompatible, getPropHandler } from '../animation/registry';
+import type { PropValue } from '../animation/registry';
 
 // Declarations that are valid inside a state block but handled outside the
-// buildStateStyles switch (transition* → resolveTransitions), so the default
-// case must not warn on them.
+// buildStateStyles switch (transition* → resolveTransitions, animation* →
+// buildAnimations for :state() blocks), so the default case must not warn.
 const STATE_BLOCK_IGNORED = new Set([
   'transition',
   'transition-property',
   'transition-duration',
   'transition-delay',
   'transition-timing-function',
+  'animation',
+  'animation-name',
+  'animation-duration',
+  'animation-delay',
+  'animation-timing-function',
+  'animation-iteration-count',
+  'animation-direction',
+  'animation-fill-mode',
+  'animation-composition',
 ]);
 
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
@@ -544,21 +554,23 @@ export class SceneBuilder {
           break;
         }
 
-        default:
-          // A state block (:hover/:active/:state()) only overrides the paint,
-          // opacity and transform channels above — a deliberately narrower set
-          // than the keyframe registry (see registry.ts / getPropHandler). Any
-          // other declaration is silently inert, which reads as a bug; warn so
-          // the author isn't left guessing, distinguishing "animatable, but not
-          // in a state block" from an outright unknown property. transition* is
-          // consumed by resolveTransitions below, so it isn't inert.
-          if (!STATE_BLOCK_IGNORED.has(property)) {
-            console.warn(
-              getPropHandler(property)
-                ? `'${property}' animates via @keyframes but is not overridable in :hover/:active/:state() blocks; ignored.`
-                : `Unknown property '${property}' in a :hover/:active/:state() block; ignored.`
-            );
+        default: {
+          // Every property the registry can animate is overridable in a state
+          // block as an instant snap: parse its endpoint the same way keyframes
+          // do and stash it in `overrides`, keyed by property name. applyState-
+          // Styles feeds each entry to the property's registry handler (which
+          // sets any dirty flags for free — invariant #3). A handler that no-ops
+          // on this node's shape is silently inert, same as a keyframe would be.
+          // transition* is consumed by resolveTransitions below, so it's ignored
+          // here; anything else with no registry entry is a genuine unknown.
+          const value = this.resolveStaticVars(decl.value);
+          if (getPropHandler(property)) {
+            const parsed = this.parseAnimatableValue(property, value);
+            if (parsed !== undefined) (styles.overrides ??= {})[property] = parsed;
+          } else if (!STATE_BLOCK_IGNORED.has(property)) {
+            console.warn(`Unknown property '${property}' in a :hover/:active/:state() block; ignored.`);
           }
+        }
       }
     }
 
@@ -1469,59 +1481,70 @@ export class SceneBuilder {
           // CSS individual transform properties animate the same channels.
           extractIndividualTransform(property, value, (key, val) => { props[key] = val; });
           break;
-        case 'opacity':
-          props.opacity = getNumericValue(value);
-          break;
-        case 'trim-start':
-        case 'trim-end':
-        case 'trim-offset':
-        case 'offset-distance':
-          // Store normalized 0..1 so keyframe interpolation stays in range.
-          props[property] = normalizeFraction(value);
-          break;
-        case 'fill':
-        case 'stroke': {
-          // A gradient endpoint parses to structured GradientData (animated
-          // stops); a plain color parses to its string. Both are animatable.
-          const paint = this.parsePaint(value);
-          if (paint?.type === 'gradient') {
-            if (paint.gradient) props[property] = paint.gradient;
-          } else if (paint?.color != null) {
-            props[property] = paint.color;
-          }
-          break;
+        default: {
+          // Every other animatable property carries a single endpoint value,
+          // parsed the same way here and in state-block overrides.
+          const parsed = this.parseAnimatableValue(property, value);
+          if (parsed !== undefined) props[property] = parsed;
         }
-        case 'd':
-          // Path morphing: parse the path string to commands once at build.
-          props.d = parsePath(getStringValue(value));
-          break;
-        case 'clip-path': {
-          // Animated clip (Lottie animated masks): only the path() variant
-          // morphs — reuse parseClipPath, then carry its command list as the
-          // path-kind keyframe value (circle/inset aren't command-morphable).
-          const clip = this.parseClipPath(value);
-          if (clip && clip.type === 'path') props['clip-path'] = clip.commands;
-          break;
-        }
-        case 'filter': {
-          // Only the blur radius is animatable (a plain number, keyed as
-          // 'filter' in the registry). drop-shadow keyframes are ignored.
-          const ops = this.parseFilter(value);
-          const blur = ops?.find((o) => o.type === 'blur');
-          if (blur && blur.type === 'blur') props.filter = blur.radius;
-          break;
-        }
-        default:
-          // Store raw numeric/string value
-          if (isNumberValue(value) || isLengthValue(value)) {
-            props[property] = getNumericValue(value);
-          } else if (isColorValue(value) || isKeywordValue(value) || isStringValue(value)) {
-            props[property] = getStringValue(value);
-          }
       }
     }
 
     return props;
+  }
+
+  /**
+   * Parse one declaration value into its animatable endpoint, for the properties
+   * that carry a single value (i.e. everything except the multi-channel
+   * transform/translate/rotate/scale forms). Shared by keyframe building and
+   * state-block overrides so both accept identical per-property syntax: trim and
+   * offset-distance normalize to 0..1 fractions, `d`/clip-path parse to command
+   * lists, fill/stroke to color-or-gradient, filter to its blur radius, and
+   * anything else to a raw number or string. `undefined` = nothing usable to
+   * store (caller leaves the property untouched).
+   */
+  private parseAnimatableValue(property: string, value: Value): PropValue | undefined {
+    switch (property) {
+      case 'opacity':
+        return getNumericValue(value);
+      case 'trim-start':
+      case 'trim-end':
+      case 'trim-offset':
+      case 'offset-distance':
+        // Store normalized 0..1 so interpolation stays in range.
+        return normalizeFraction(value);
+      case 'fill':
+      case 'stroke': {
+        // A gradient endpoint parses to structured GradientData (animated
+        // stops); a plain color parses to its string. Both are animatable.
+        const paint = this.parsePaint(value);
+        if (paint?.type === 'gradient') return paint.gradient ?? undefined;
+        if (paint?.color != null) return paint.color;
+        return undefined;
+      }
+      case 'd':
+        // Path morphing: parse the path string to commands once at build.
+        return parsePath(getStringValue(value));
+      case 'clip-path': {
+        // Animated clip (Lottie animated masks): only the path() variant
+        // morphs — reuse parseClipPath, then carry its command list as the
+        // path-kind value (circle/inset aren't command-morphable).
+        const clip = this.parseClipPath(value);
+        return clip && clip.type === 'path' ? clip.commands : undefined;
+      }
+      case 'filter': {
+        // Only the blur radius is animatable (a plain number, keyed as
+        // 'filter' in the registry). drop-shadow is ignored.
+        const ops = this.parseFilter(value);
+        const blur = ops?.find((o) => o.type === 'blur');
+        return blur && blur.type === 'blur' ? blur.radius : undefined;
+      }
+      default:
+        // Raw numeric/string value (geometry, dash offset, font-size, …).
+        if (isNumberValue(value) || isLengthValue(value)) return getNumericValue(value);
+        if (isColorValue(value) || isKeywordValue(value) || isStringValue(value)) return getStringValue(value);
+        return undefined;
+    }
   }
 
   private extractTransformProperties(value: Value, props: Record<string, AnimatableValue>): void {

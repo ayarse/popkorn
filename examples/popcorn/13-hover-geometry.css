@@ -1,0 +1,74 @@
+/* Hover geometry — a small gallery of shapes that grow, resize, and re-draw
+   their outline on :hover, exercising generic :hover overrides of registry
+   properties (not just paint/transform). The circle's radius-on-hover only
+   takes effect once that override lands; its fill flip proves the rule
+   matches TODAY regardless. Each shape idles gently so the row isn't dead
+   before you touch it. */
+:root {
+  width: 800px;
+  height: 400px;
+  background: #10121c;
+}
+
+@keyframes bob {
+  0%, 100% { translate: 0px 0px; }
+  50%      { translate: 0px -6px; }
+}
+@keyframes glow {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+@keyframes dash-drift {
+  0%   { stroke-dashoffset: 0px; }
+  100% { stroke-dashoffset: -48px; }
+}
+
+/* ---- circle: r grows on hover (lands with the parallel change), fill flips
+   today so the rule visibly does something right now ---- */
+#dot {
+  type: circle; cx: 140px; cy: 180px; r: 46px;
+  fill: #4ecdc4;
+  animation: bob 2.4s ease-in-out infinite;
+  transition: fill 200ms ease, r 200ms ease;
+  &:hover { r: 66px; fill: #ff6b6b; }
+}
+
+/* ---- rect: width/height change on hover ---- */
+#box {
+  type: rect; x: 300px; y: 140px; width: 90px; height: 90px; rx: 12px; ry: 12px;
+  fill: #ffd93d;
+  transform-origin: 345px 185px;
+  animation: bob 2.4s ease-in-out infinite 0.15s;
+  transition: width 200ms ease, height 200ms ease, fill 200ms ease;
+  &:hover { width: 130px; height: 60px; fill: #ffb703; }
+}
+
+/* ---- stroked path: stroke-dashoffset resets/animates on hover, revealing
+   the dash pattern racing around the shape ---- */
+#loop {
+  type: path;
+  d: 'M 500 140 C 560 140 560 230 500 230 C 440 230 440 140 500 140 Z';
+  fill: none;
+  stroke: #a78bfa;
+  stroke-width: 8px;
+  stroke-linecap: round;
+  stroke-dasharray: 16px 8px;
+  animation: dash-drift 3s linear infinite;
+  transition: stroke-dashoffset 200ms ease, stroke 200ms ease;
+  &:hover { stroke-dashoffset: -96px; stroke: #f472b6; }
+}
+
+/* ---- star: trim-end sweeps its outline on hover, like the shape drawing
+   itself in ---- */
+#burst {
+  type: star; cx: 680px; cy: 185px; sides: 5; outer-radius: 46px; inner-radius: 20px;
+  fill: none;
+  stroke: #6ee7b7;
+  stroke-width: 5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  trim-end: 35%;
+  animation: glow 2s ease-in-out infinite;
+  transition: trim-end 250ms ease;
+  &:hover { trim-end: 100%; }
+}

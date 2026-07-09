@@ -953,19 +953,52 @@ test('hover: a gradient fill override applies on the instant-snap path', () => {
   expect(b.fill).toBeNull();
 });
 
-test('state block warns on registry props it cannot override, but not on supported props or transition', () => {
+test('state block warns only on unknown props, not on registry props or transition', () => {
   const warns: string[] = [];
   const orig = console.warn;
   console.warn = (m?: unknown) => { warns.push(String(m)); };
   try {
     buildSceneGraph(parse(
-      `#a { type: circle; r: 10; fill: red; &:hover { r: 20; fill: blue; opacity: 0.5; transition: fill 200ms; } }`
+      `#a { type: circle; r: 10; fill: red; &:hover { r: 20; fill: blue; opacity: 0.5; transition: fill 200ms; bogus: 3; } }`
     ));
   } finally {
     console.warn = orig;
   }
-  // `r` is animatable via @keyframes but not overridable in a state block → warn.
-  expect(warns.some((w) => w.includes("'r'") && w.includes('@keyframes'))).toBe(true);
+  // `r` is a registry prop → now overridable, no warn (this is what stage 1 closes).
+  expect(warns.some((w) => w.includes("'r'"))).toBe(false);
   // fill/opacity are honored, transition is consumed by resolveTransitions → no warn.
   expect(warns.some((w) => w.includes('transition') || w.includes("'fill'") || w.includes("'opacity'"))).toBe(false);
+  // A genuinely unknown property still warns.
+  expect(warns.some((w) => w.includes("Unknown property 'bogus'"))).toBe(true);
+});
+
+test('state override: :hover { r } snaps live geometry and reverts on base-reset', () => {
+  const c = build('#a { type: circle; r: 10; &:hover { r: 20; } }').children[0];
+  expect(c.hoverStyles?.overrides).toEqual({ r: 20 });
+
+  applyStateStyles(c, c.hoverStyles!);
+  expect((c.shapeData as CircleData).r).toBe(20);
+
+  // Releasing the state = next frame's base-reset restores the authored radius.
+  resetNodeToBase(c);
+  expect((c.shapeData as CircleData).r).toBe(10);
+});
+
+test('state override: a geometry override marks polystar/outline caches stale', () => {
+  const s = build('#s { type: star; sides: 5; outer-radius: 40; inner-radius: 20; &:hover { outer-radius: 60; } }').children[0];
+  s.polystarDirty = false;
+  s.outlineLengthDirty = false;
+
+  applyStateStyles(s, s.hoverStyles!);
+  expect((s.shapeData as PolystarData).outerRadius).toBe(60);
+  expect(s.polystarDirty).toBe(true);
+  expect(s.outlineLengthDirty).toBe(true);
+});
+
+test('state override: trim-end normalizes a percentage to a 0..1 fraction', () => {
+  const p = build('#p { type: path; d: "M0 0 L100 0"; &:hover { trim-end: 50%; } }').children[0];
+  expect(p.hoverStyles?.overrides).toEqual({ 'trim-end': 0.5 });
+
+  applyStateStyles(p, p.hoverStyles!);
+  expect(p.trimEnd).toBe(0.5);
 });

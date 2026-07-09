@@ -1,6 +1,7 @@
 import type { PathCommand, GradientData } from '../renderer/types';
 import { cloneGradient } from '../renderer/types';
 import type { MotionPath } from './path-parser';
+import type { PropValue } from '../animation/registry';
 import type { Value, MachineRule } from '@popcorn/parser';
 
 // CSS Motion Path offset-rotate: `auto` follows the path tangent; `angle` adds a
@@ -96,6 +97,12 @@ export interface StateStyles {
   strokeWidth?: number;
   opacity?: number;
   transform?: Partial<Transform>;
+  // Generic registry-backed overrides for every animatable property outside the
+  // legacy channels above (geometry, trim, dash offset, offset-distance, `d`,
+  // clip-path, filter, font-size, …). Keyed by CSS property name, valued by the
+  // parsed endpoint the property's registry handler applies. Instant-snapped in
+  // applyStateStyles (stage 1); replace semantics, same as fill.
+  overrides?: Record<string, PropValue>;
   // Transitions declared inside this state block; when entering this state they
   // override the node-level transitions (CSS asymmetric enter/exit timing).
   transitions?: TransitionSpec[];

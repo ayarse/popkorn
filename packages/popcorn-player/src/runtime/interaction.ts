@@ -22,7 +22,7 @@ import { hitTest, type Point } from './hit-test';
 import type { InputState } from './inputs';
 import { lerp, clamp01 } from '../scene/transform';
 import { applyEasing } from '../animation/easing';
-import { interpolateColor } from '../animation/registry';
+import { interpolateColor, getPropHandler } from '../animation/registry';
 import { cloneGradient } from '../renderer/types';
 
 // Absolute (already-composed) values of every transitionable property. Transform
@@ -162,6 +162,15 @@ export function applyStateStyles(node: SceneNode, styles: StateStyles): void {
   applyStateDeltas(vals, styles);
   writeLive(node, vals);
   applyStatePaint(node, styles);
+  // Generic registry-backed overrides (everything outside the legacy channels):
+  // snap each parsed endpoint straight in via its handler, which sets any dirty
+  // flags (outline length, polystar, text bounds) itself — invariant #3. Runs
+  // every frame after base-reset, so releasing the state reverts automatically.
+  if (styles.overrides) {
+    for (const key in styles.overrides) {
+      getPropHandler(key)!.apply(node, styles.overrides[key]);
+    }
+  }
 }
 
 /**
