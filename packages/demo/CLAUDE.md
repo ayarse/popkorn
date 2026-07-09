@@ -41,25 +41,30 @@ root `package.json` by mistake, so verify the dep landed in
 
 ## Layout
 
-`App.tsx` is the whole app — one component plus `ImportStatusChip` and
-`ImportModal` subcomponents in the same file. Structure:
+`app.tsx` is the shell — it owns the shared state and wires up presentational
+panels. Structure:
 
 ```
 <TooltipProvider delayDuration={400}>        # wraps everything; required for any Tooltip
   <div flex h-full flex-col>                  # full-height dark surface
-    <header h-12 border-b>                    # compact Linear-style bar
-      [logo] [Examples ▼] ... [ImportStatusChip] [Import Lottie]
+    <AppHeader>                               # logo, Examples ▼, ImportStatusChip, Import, Copilot
     <div flex flex-1 overflow-hidden>         # two-pane split
-      <source panel flex-1>                   # react-simple-code-editor + Prism
-      <animation panel flex-1 flex-col>
-        <toolbar h-10 border-b>               # player tools (see below)
-        <player content flex-1>               # MotionCanvas + error toast
+      <SourcePanel>                           # react-simple-code-editor + Prism, minify toggle
+      <PlayerPanel>                           # toolbar + MotionCanvas + error toast + bg menu
+      <AgentChat>                             # copilot sidebar
     <ImportModal?>                            # controlled by showImport
 ```
 
-No router, no state library. Everything is `useState` in `App`. The editor is
-the source of truth: `source` state feeds both the Prism-highlighted textarea
-and `<MotionCanvas source={source}>`.
+Files: `app.tsx` (shell) + `components/{app-header,source-panel,player-panel,
+import-modal,import-status-chip,bg-context-menu}.tsx`. Size/import math lives in
+`lib/import-size.ts`.
+
+No router, no state library. `app.tsx` holds the *shared* state (`source`,
+`error`, `importResult`, `currentExample`, `minified`/`sizeDelta`, `chatOpen`)
+and the import/minify handlers; `PlayerPanel` owns the *player-only* state
+(`fit`, `renderer`, `loop`, controls, bg, export progress) internally so App
+doesn't thread it. The editor is the source of truth: `source` feeds both the
+Prism-highlighted textarea and `<MotionCanvas source={source}>`.
 
 ## Design system
 
