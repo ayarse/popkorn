@@ -54,6 +54,18 @@ have actually happened here:
 6. **The renderer clears the full device-space backing buffer before the
    viewport (fit/DPR) transform is applied**; pointer input maps CSS px →
    device px → scene coords through the inverse viewport in `InputTracker`.
+7. **The three renderer backends (Canvas2D, SVG, Skia) must never hand-copy
+   paint semantics from each other** — Skia drifted this way once. Rendering
+   *decisions* live in the shared walk (`runtime/loop.ts renderNode`) or the
+   shared helpers (`renderer/gradient-geometry.ts`, `paint-state.ts`,
+   `stroke.ts`); backends keep only platform realization. Keep the `Renderer`
+   interface primitive-level — don't raise it to `renderNode(node)` (SVG's
+   retained diffing and Skia's per-frame RN canvas need the primitive seam).
+   Any per-backend rendering fix or new backend capability gets a case in the
+   cross-backend conformance suite (`renderer/conformance.ts`, one spec table
+   run against all three); deliberate divergences (Skia luma·alpha limit,
+   text/image no-ops, SVG text-measure approximation) are pinned there as
+   expected-divergence tests — extend that table, don't silently change them.
 
 ## Lottie converter
 
