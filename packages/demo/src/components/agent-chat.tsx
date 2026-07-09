@@ -600,6 +600,8 @@ function ModelCombobox({
         type="button"
         role="combobox"
         aria-expanded={open}
+        aria-controls="agent-model-listbox"
+        aria-haspopup="listbox"
         onClick={() => setOpen((v) => !v)}
         className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors hover:border-border focus:border-primary/50"
       >
@@ -614,7 +616,10 @@ function ModelCombobox({
         />
       </button>
       {open && (
-        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-border bg-popover p-0 shadow-xl">
+        <div
+          id="agent-model-listbox"
+          className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-border bg-popover p-0 shadow-xl"
+        >
           <Command shouldFilter={false} className="rounded-lg">
             <CommandInput
               placeholder="Search or type a model id…"
