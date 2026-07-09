@@ -21,7 +21,7 @@
   sides: 5;
   outer-radius: 15px;
   inner-radius: 6px;
-  fill: #fdf6d3;
+  fill: #eaf1ff;
   transform-origin: center;
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4));
   animation: twinkle 2.4s ease-in-out infinite;
@@ -47,23 +47,28 @@
   fill: #f6f3d8;
 }
 
-/* The starfield: twelve instances of the one symbol. Each line overrides only
-   what makes that star different — position (cx/cy), colour (fill), size
-   (outer-/inner-radius, kept off `scale` so it never fights the twinkle
-   animation), and a negative `animation-delay` so the twinkles desync into a
-   shimmer instead of pulsing in lockstep. */
-#s1  { use: star; cx: 110px; cy: 200px; fill: #f8fafc; animation-delay: -0.2s; }
-#s2  { use: star; cx: 250px; cy: 250px; fill: #cfe3ff; outer-radius: 12px; inner-radius: 5px; animation-delay: -1.3s; }
-#s3  { use: star; cx: 200px; cy: 410px; outer-radius: 20px; inner-radius: 9px; animation-delay: -0.7s; animation-duration: 3s; }
-#s4  { use: star; cx: 360px; cy: 200px; fill: #f8fafc; outer-radius: 9px; inner-radius: 4px; animation-delay: -2.0s; }
-#s5  { use: star; cx: 410px; cy: 360px; fill: #e0e7ff; outer-radius: 14px; inner-radius: 6px; animation-delay: -0.5s; }
-#s6  { use: star; cx: 540px; cy: 300px; outer-radius: 11px; inner-radius: 5px; animation-delay: -1.7s; }
-#s7  { use: star; cx: 300px; cy: 150px; fill: #cfe3ff; outer-radius: 13px; inner-radius: 6px; animation-delay: -0.9s; animation-duration: 2.8s; }
-#s8  { use: star; cx: 700px; cy: 380px; fill: #f8fafc; outer-radius: 10px; inner-radius: 4px; animation-delay: -2.3s; }
-#s9  { use: star; cx: 470px; cy: 430px; fill: #cfe3ff; animation-delay: -1.0s; }
-#s10 { use: star; cx: 580px; cy: 420px; outer-radius: 18px; inner-radius: 8px; animation-delay: -0.3s; animation-duration: 3.4s; }
-#s11 { use: star; cx: 740px; cy: 300px; fill: #f8fafc; outer-radius: 8px; inner-radius: 4px; animation-delay: -1.5s; }
-#s12 { use: star; cx: 150px; cy: 330px; fill: #e0e7ff; outer-radius: 10px; inner-radius: 5px; animation-delay: -0.8s; }
+/* The starfield: twelve instances of the one symbol, sorted into three depth
+   tiers to fake parallax. Each use-site overrides only what makes that star
+   different, and the tier sets three channels together: NEAR stars are big,
+   bright-white and twinkle slowly; FAR stars are tiny, dim blue-grey and
+   twinkle fast. (Size/colour ride on the overrides, not `scale`/`opacity`, so
+   they never fight the twinkle animation.) A negative `animation-delay`
+   desyncs each into a shimmer instead of pulsing in lockstep. */
+/* near — big, bright, slow */
+#s1  { use: star; cx: 110px; cy: 200px; fill: #f8fafc; outer-radius: 19px; inner-radius: 9px; animation-delay: -0.2s; animation-duration: 3.4s; }
+#s3  { use: star; cx: 200px; cy: 410px; fill: #f8fafc; outer-radius: 20px; inner-radius: 9px; animation-delay: -0.7s; animation-duration: 3.6s; }
+#s9  { use: star; cx: 470px; cy: 430px; fill: #f8fafc; outer-radius: 18px; inner-radius: 8px; animation-delay: -1.0s; animation-duration: 3.3s; }
+/* mid */
+#s2  { use: star; cx: 250px; cy: 250px; fill: #cfe3ff; outer-radius: 12px; inner-radius: 5px; animation-delay: -1.3s; animation-duration: 2.5s; }
+#s5  { use: star; cx: 410px; cy: 360px; fill: #e0e7ff; outer-radius: 13px; inner-radius: 6px; animation-delay: -0.5s; animation-duration: 2.6s; }
+#s10 { use: star; cx: 580px; cy: 420px; fill: #cfe3ff; outer-radius: 13px; inner-radius: 6px; animation-delay: -0.3s; animation-duration: 2.5s; }
+#s12 { use: star; cx: 150px; cy: 330px; fill: #e0e7ff; outer-radius: 12px; inner-radius: 5px; animation-delay: -0.8s; animation-duration: 2.6s; }
+/* far — tiny, dim, fast */
+#s4  { use: star; cx: 360px; cy: 200px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -2.0s; animation-duration: 1.8s; }
+#s6  { use: star; cx: 540px; cy: 300px; fill: #8793c4; outer-radius: 9px;  inner-radius: 4px; animation-delay: -1.7s; animation-duration: 1.9s; }
+#s7  { use: star; cx: 300px; cy: 150px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -0.9s; animation-duration: 1.7s; }
+#s8  { use: star; cx: 700px; cy: 380px; fill: #8793c4; outer-radius: 9px;  inner-radius: 4px; animation-delay: -2.3s; animation-duration: 2.0s; }
+#s11 { use: star; cx: 740px; cy: 300px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -1.5s; animation-duration: 1.8s; }
 
 /* Hills silhouette along the bottom, darker than the sky for depth. */
 #hills {
@@ -77,7 +82,7 @@
   content: "Symbols: one @define, many stars";
   x: 400px;
   y: 90px;
-  font-size: 34px;
+  font-size: 24px;
   font-family: sans-serif;
   font-weight: bold;
   text-anchor: middle;
