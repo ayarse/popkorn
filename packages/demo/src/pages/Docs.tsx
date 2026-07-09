@@ -48,7 +48,7 @@ export default function Docs() {
   const activeDoc = DOCS.find((d) => d.key === active)!;
   const html = useMemo(
     () => marked.parse(docSource(activeDoc.file)) as string,
-    [active],
+    [activeDoc.file],
   );
   const scrollRef = useRef<HTMLElement>(null);
   const proseRef = useRef<HTMLDivElement>(null);
@@ -58,6 +58,7 @@ export default function Docs() {
   // Assign stable ids to headings + build the on-this-page outline. Heading
   // levels vary per doc (DSL uses h3, others h2), so indentation is relative
   // to the shallowest collected level.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html is the re-run trigger — the effect reads the DOM rendered from it
   useEffect(() => {
     const prose = proseRef.current;
     if (!prose) return;
@@ -88,11 +89,13 @@ export default function Docs() {
   }, [html]);
 
   // Scroll the content to top when switching sections.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: active is the re-run trigger — scroll to top on section switch
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [active]);
 
   // Highlight code blocks.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: html is the re-run trigger — re-highlight after content renders
   useEffect(() => {
     if (scrollRef.current) Prism.highlightAllUnder(scrollRef.current);
   }, [html]);
@@ -171,6 +174,7 @@ export default function Docs() {
           <nav className="space-y-0.5">
             {DOCS.map((d) => (
               <button
+                type="button"
                 key={d.key}
                 onClick={() => setActive(d.key)}
                 className={cn(
@@ -192,6 +196,7 @@ export default function Docs() {
             <div
               ref={proseRef}
               className="docs-prose"
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: intentional render of trusted bundled docs markdown
               dangerouslySetInnerHTML={{ __html: html }}
             />
           </div>
@@ -207,6 +212,7 @@ export default function Docs() {
             <nav className="space-y-0.5 border-l border-border/60">
               {toc.map((t) => (
                 <button
+                  type="button"
                   key={t.id}
                   onClick={() => scrollToHeading(t.id)}
                   className={cn(

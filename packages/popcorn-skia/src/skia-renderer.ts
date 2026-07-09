@@ -265,7 +265,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     const savedOpacity = this.opacity;
 
     const invert = mode === "alpha-invert" || mode === "luminance-invert";
-    const maskPaint = (this.maskPaint ??= this.skia.Paint());
+    this.maskPaint ??= this.skia.Paint();
+    const maskPaint = this.maskPaint;
 
     canvas.save(); // outer bracket: restores CTM + clip afterwards
     canvas.saveLayer(); // L1: content

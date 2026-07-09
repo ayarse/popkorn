@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Popcorn vs lottie-web harness</title>
@@ -23,9 +23,9 @@
   <label>Lottie JSON <input type="file" id="jsonFile" accept="application/json"></label>
   <label>Popcorn CSS <input type="file" id="cssFile" accept=".css,text/css"></label>
   <label>t (s) <input type="number" id="tInput" step="0.05" value="0" style="width:5em"></label>
-  <button id="stepBack">-1 frame</button>
-  <button id="stepFwd">+1 frame</button>
-  <button id="diffBtn">pixel diff</button>
+  <button type="button" id="stepBack">-1 frame</button>
+  <button type="button" id="stepFwd">+1 frame</button>
+  <button type="button" id="diffBtn">pixel diff</button>
 </div>
 <div class="row">
   <div class="pane"><h3>lottie-web (parity floor)</h3><div id="lot"></div></div>

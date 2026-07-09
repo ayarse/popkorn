@@ -379,7 +379,9 @@ export class SceneBuilder {
     to: SceneNode,
   ): void {
     if (node.mask?.source === from) node.mask.source = to;
-    node.children.forEach((c) => this.repointMaskSource(c, from, to));
+    node.children.forEach((c) => {
+      this.repointMaskSource(c, from, to);
+    });
   }
 
   private buildNode(rule: Rule): SceneNode {
@@ -619,7 +621,8 @@ export class SceneBuilder {
         case "scale": {
           // CSS individual transform properties in a state block: merge into the
           // same channel deltas (last-declaration-wins per channel).
-          const t = (styles.transform ??= {});
+          styles.transform ??= {};
+          const t = styles.transform;
           extractIndividualTransform(property, value, (key, val) => {
             t[key] = val;
           });
@@ -638,8 +641,10 @@ export class SceneBuilder {
           const value = this.resolveStaticVars(decl.value);
           if (getPropHandler(property)) {
             const parsed = this.parseAnimatableValue(property, value);
-            if (parsed !== undefined)
-              (styles.overrides ??= {})[property] = parsed;
+            if (parsed !== undefined) {
+              styles.overrides ??= {};
+              styles.overrides[property] = parsed;
+            }
           } else if (!STATE_BLOCK_IGNORED.has(property)) {
             console.warn(
               `Unknown property '${property}' in a :hover/:active/:state() block; ignored.`,

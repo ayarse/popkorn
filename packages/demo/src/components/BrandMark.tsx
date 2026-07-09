@@ -12,6 +12,7 @@ export function BrandMark({ suffix, className }: BrandMarkProps) {
     <Link to="/" className={cn("flex items-center gap-2 pr-2", className)}>
       <div className="flex size-5 items-center justify-center rounded-md bg-indigo-500 text-white">
         <span
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: bundled trusted SVG icon
           dangerouslySetInnerHTML={{ __html: popcornIconRaw }}
           className="[&>svg]:size-3 [&>svg]:fill-current"
         />

@@ -92,8 +92,8 @@ const DEG = Math.PI / 180;
 function parseTransform(s: string): Mat {
   let m: Mat = IDENTITY;
   const re = /([a-zA-Z]+)\s*\(([^)]*)\)/g;
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(s))) {
+  let match: RegExpExecArray | null = re.exec(s);
+  for (; match !== null; match = re.exec(s)) {
     const name = match[1];
     const args = match[2]
       .split(/[\s,]+/)
@@ -369,9 +369,9 @@ function parseCss(css: string, warn: (m: string) => void): StyleBlock[] {
   const blocks: StyleBlock[] = [];
   let order = 0;
   const re = /([^{}]+)\{([^{}]*)\}/g;
-  let m: RegExpExecArray | null;
+  let m: RegExpExecArray | null = re.exec(css);
   let sawAt = false;
-  while ((m = re.exec(css))) {
+  for (; m !== null; m = re.exec(css)) {
     const selText = m[1].trim();
     if (selText.startsWith("@")) {
       sawAt = true;
@@ -409,8 +409,8 @@ function parseSelector(
   for (const part of text.split(/\s+/).filter(Boolean)) {
     const c: { tag?: string; id?: string; classes: string[] } = { classes: [] };
     const re = /([.#]?)([\w-]+)|\*/g;
-    let t: RegExpExecArray | null;
-    while ((t = re.exec(part))) {
+    let t: RegExpExecArray | null = re.exec(part);
+    for (; t !== null; t = re.exec(part)) {
       if (t[0] === "*") continue;
       if (t[1] === "#") {
         c.id = t[2];

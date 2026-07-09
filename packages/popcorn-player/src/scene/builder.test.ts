@@ -840,12 +840,18 @@ test("filter: blur radius animates via the registry, base is preserved", () => {
   const sched = new AnimationScheduler();
   resetNodeToBase(g);
   sched.sampleNode(g, 500); // midway
-  expect((g.filter?.[0] as { radius: number }).radius).toBeCloseTo(8, 5);
+  expect((g.filter?.[0] as { radius: number } | undefined)?.radius).toBeCloseTo(
+    8,
+    5,
+  );
 
   // A fresh reset restores the authored base (4), proving the morph never
   // corrupts the base snapshot copy.
   resetNodeToBase(g);
-  expect((g.filter?.[0] as { radius: number }).radius).toBeCloseTo(4, 5);
+  expect((g.filter?.[0] as { radius: number } | undefined)?.radius).toBeCloseTo(
+    4,
+    5,
+  );
 });
 
 // --- track masks ------------------------------------------------------------

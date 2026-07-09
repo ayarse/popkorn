@@ -91,6 +91,11 @@ export const PopcornView = forwardRef<PopcornViewRef, PopcornViewProps>(
     // wins when given; otherwise `autoplay: false` starts paused.
     const wantPaused = paused ?? !autoplay;
 
+    // wantPaused is read for the initial state only; runtime toggles go through
+    // the pause effect below so a pause never rebuilds the scene. Excluding it is
+    // deliberate — adding it would tear down and rebuild the whole scene on every
+    // pause/resume.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: wantPaused is init-only; runtime toggles use the pause effect below.
     useEffect(() => {
       const ast = parse(source);
       const sceneW = ast.canvas?.width ?? width;

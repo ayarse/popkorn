@@ -7,8 +7,7 @@ export type ApplyResult =
 export function extractEdits(text: string): EditBlock[] {
   const blocks: EditBlock[] = [];
   const fence = /```edit\s*\n([\s\S]*?)```/g;
-  let m: RegExpExecArray | null;
-  while ((m = fence.exec(text))) {
+  for (let m = fence.exec(text); m; m = fence.exec(text)) {
     const inner = m[1].match(
       /<<<<<<<\n?([\s\S]*?)\n?=======\n?([\s\S]*?)\n?>>>>>>>/,
     );

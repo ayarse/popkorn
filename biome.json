@@ -12,6 +12,9 @@
   },
   "linter": {
     "enabled": true,
-    "rules": { "recommended": true }
+    "rules": { "preset": "recommended" }
+  },
+  "css": {
+    "parser": { "cssModules": false, "tailwindDirectives": true }
   }
 }

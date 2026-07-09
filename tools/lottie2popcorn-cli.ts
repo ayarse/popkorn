@@ -45,7 +45,7 @@ function runBatch(dir: string) {
 
   for (const f of files) {
     const rel = f.slice(dir.length + 1);
-    let res;
+    let res: ReturnType<typeof convertFile>;
     try {
       res = convertFile(f);
     } catch (e: any) {
@@ -82,7 +82,9 @@ function runBatch(dir: string) {
     console.log("\ntop blockers:");
     [...blockerTally.entries()]
       .sort((a, b) => b[1] - a[1])
-      .forEach(([k, v]) => console.log(`  ${v}x  ${k}`));
+      .forEach(([k, v]) => {
+        console.log(`  ${v}x  ${k}`);
+      });
   }
 }
 

@@ -128,9 +128,10 @@ function wrapScene(source: string, request: string): string {
 
 function extractCss(text: string): string | null {
   const re = /```css\s*\n([\s\S]*?)```/g;
-  let match: RegExpExecArray | null;
   let last: string | null = null;
-  while ((match = re.exec(text))) last = match[1];
+  for (let match = re.exec(text); match; match = re.exec(text)) {
+    last = match[1];
+  }
   return last ? last.trim() : null;
 }
 
@@ -209,10 +210,12 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: input is the re-run trigger — resize the textarea as its value changes
   useEffect(() => {
     fitInput();
   }, [input, fitInput]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these are re-run triggers — scroll to bottom when content/state changes
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -366,6 +369,7 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
           <div className="mt-1 flex flex-wrap gap-1.5">
             {suggestions.map((s) => (
               <button
+                type="button"
                 key={s}
                 onClick={() => send(s)}
                 className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground"
@@ -443,6 +447,7 @@ function HeaderIconButton({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       aria-label={label}
       title={label}
@@ -460,13 +465,18 @@ function MessageBody({ text }: { text: string }) {
       {parts.map((part, i) =>
         i % 2 === 1 ? (
           <pre
+            // biome-ignore lint/suspicious/noArrayIndexKey: text split has no stable id; index is the natural key
             key={i}
             className="my-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-background/60 p-2 font-mono text-[11px] leading-snug"
           >
             {part}
           </pre>
         ) : part ? (
-          <span key={i} className="whitespace-pre-wrap">
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: text split has no stable id; index is the natural key
+            key={i}
+            className="whitespace-pre-wrap"
+          >
             {part}
           </span>
         ) : null,
@@ -761,12 +771,13 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    // biome-ignore lint/a11y/noLabelWithoutControl: the field control is nested inside via children; biome can't see through the prop
+    <label className="block space-y-1.5">
+      <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
-      </label>
+      </span>
       {children}
-    </div>
+    </label>
   );
 }
 
