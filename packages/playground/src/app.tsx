@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AgentChat from "@/components/agent-chat";
+import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";

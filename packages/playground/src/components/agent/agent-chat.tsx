@@ -1,0 +1,279 @@
+import {
+  AlertCircle,
+  Check,
+  LoaderCircle,
+  type LucideIcon,
+  Send,
+  Settings,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { AgentSettings } from "@/components/agent/agent-settings";
+import { useAgentChat } from "@/hooks/use-agent-chat";
+import { type Message, SUGGESTIONS } from "@/lib/agent";
+import { cn } from "@/lib/utils";
+
+export type AgentChatProps = {
+  open: boolean;
+  onClose: () => void;
+  source: string;
+  onApplySource: (css: string) => void;
+};
+
+function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
+  const {
+    messages,
+    input,
+    setInput,
+    typing,
+    streamingId,
+    error,
+    config,
+    settingsOpen,
+    setSettingsOpen,
+    applyConfig,
+    send,
+  } = useAgentChat(source, onApplySource);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const fitInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: input is the re-run trigger — resize the textarea as its value changes
+  useEffect(() => {
+    fitInput();
+  }, [input, fitInput]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these are re-run triggers — scroll to bottom when content/state changes
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, typing, open, error]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    send(input);
+  };
+
+  if (!open) return null;
+
+  return (
+    <aside className="flex w-[384px] shrink-0 flex-col border-l border-border bg-popover text-popover-foreground animate-in fade-in-0 slide-in-from-right-2">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
+          <Sparkles className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="truncate text-[13px] font-semibold">
+            Popcorn Copilot
+          </div>
+          <div className="truncate text-[11px] text-muted-foreground">
+            {config ? `${config.model}` : "Not configured"}
+          </div>
+        </div>
+        <HeaderIconButton
+          icon={Settings}
+          label="Agent settings"
+          onClick={() => setSettingsOpen(true)}
+        />
+        <HeaderIconButton icon={X} label="Close chat" onClick={onClose} />
+      </div>
+
+      <div
+        ref={scrollRef}
+        className="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
+      >
+        {messages.map((m) => (
+          <Bubble key={m.id} message={m} />
+        ))}
+        {typing && streamingId === null && <TypingBubble />}
+        {error && (
+          <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[11px] leading-relaxed text-destructive">
+            <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        {messages.length <= 1 && !typing && !error && (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {SUGGESTIONS.map((s) => (
+              <button
+                type="button"
+                key={s}
+                onClick={() => send(s)}
+                className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="flex shrink-0 items-end gap-1.5 border-t border-border p-2"
+      >
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (
+              e.key === "Enter" &&
+              !e.shiftKey &&
+              !e.nativeEvent.isComposing
+            ) {
+              e.preventDefault();
+              send(input);
+            }
+          }}
+          rows={1}
+          placeholder="Edit the live scene…"
+          spellCheck={false}
+          disabled={typing}
+          className="max-h-40 min-h-9 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring disabled:opacity-50"
+        />
+        <button
+          type="button"
+          onClick={() => send(input)}
+          disabled={typing || !input.trim()}
+          aria-label="Send message"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
+        >
+          {typing ? (
+            <LoaderCircle className="size-4 animate-spin" />
+          ) : (
+            <Send className="size-4" />
+          )}
+        </button>
+      </form>
+
+      {settingsOpen && (
+        <AgentSettings
+          current={config}
+          onSave={applyConfig}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+    </aside>
+  );
+}
+
+function HeaderIconButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+    >
+      <Icon className="size-4" />
+    </button>
+  );
+}
+
+function MessageBody({ text }: { text: string }) {
+  const parts = text.split(/```(?:css|edit)?\n?/);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <pre
+            // biome-ignore lint/suspicious/noArrayIndexKey: text split has no stable id; index is the natural key
+            key={i}
+            className="my-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-background/60 p-2 font-mono text-[11px] leading-snug"
+          >
+            {part}
+          </pre>
+        ) : part ? (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: text split has no stable id; index is the natural key
+            key={i}
+            className="whitespace-pre-wrap"
+          >
+            {part}
+          </span>
+        ) : null,
+      )}
+    </>
+  );
+}
+
+function Bubble({ message }: { message: Message }) {
+  const isUser = message.role === "user";
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-1",
+        isUser ? "items-end" : "items-start",
+      )}
+    >
+      <div className={cn("flex items-end gap-2", isUser && "flex-row-reverse")}>
+        {!isUser && (
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
+            <Sparkles className="size-3.5" />
+          </div>
+        )}
+        <div
+          className={cn(
+            "max-w-[85%] break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
+            isUser
+              ? "whitespace-pre-wrap rounded-br-sm bg-primary text-primary-foreground"
+              : "rounded-bl-sm bg-secondary text-secondary-foreground",
+          )}
+        >
+          {isUser ? message.text : <MessageBody text={message.text} />}
+        </div>
+      </div>
+      {!isUser && message.applied && (
+        <div className="ml-8 flex items-center gap-1 text-[11px] font-medium text-emerald-500">
+          <Check className="size-3" />
+          <span>Applied to editor</span>
+        </div>
+      )}
+      {message.parseError && (
+        <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-destructive">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+          <span>{message.parseError}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TypingBubble() {
+  return (
+    <div className="flex items-end gap-2">
+      <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
+        <Sparkles className="size-3.5" />
+      </div>
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-secondary px-3 py-2.5">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="size-1.5 animate-bounce rounded-full bg-muted-foreground"
+            style={{ animationDelay: `${i * 140}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default AgentChat;
