@@ -54,6 +54,7 @@ import {
   FoldVertical,
   UnfoldVertical,
   Film,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportGifInWorker, downloadGif } from "@/lib/gif";
@@ -150,6 +151,13 @@ const FIT_MODES: { value: FitMode; label: string }[] = [
   { value: "none", label: "None" },
 ];
 
+type RendererKind = "canvas" | "svg";
+
+const RENDERERS: { value: RendererKind; label: string }[] = [
+  { value: "canvas", label: "Canvas" },
+  { value: "svg", label: "SVG (WIP)" },
+];
+
 function App() {
   const navigate = useNavigate();
   const [currentExample, setCurrentExample] = useState<string | null>("motion");
@@ -161,6 +169,7 @@ function App() {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [loop, setLoop] = useState(true);
   const [fit, setFit] = useState<FitMode>("contain");
+  const [renderer, setRenderer] = useState<RendererKind>("canvas");
   const [chatOpen, setChatOpen] = useState(false);
   const [minified, setMinified] = useState(false);
   const [sizeDelta, setSizeDelta] = useState<SizeDelta | null>(null);
@@ -425,6 +434,34 @@ function App() {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
+                {/* Renderer backend (dev/testing affordance) */}
+                <DropdownMenu>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="gap-1.5">
+                          <Layers className="size-3.5" />
+                          {RENDERERS.find((r) => r.value === renderer)?.label}
+                          <ChevronDown className="size-3 opacity-60" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent>Renderer backend</TooltipContent>
+                  </Tooltip>
+                  <DropdownMenuContent align="end" className="w-36">
+                    <DropdownMenuRadioGroup
+                      value={renderer}
+                      onValueChange={(v) => setRenderer(v as RendererKind)}
+                    >
+                      {RENDERERS.map((r) => (
+                        <DropdownMenuRadioItem key={r.value} value={r.value}>
+                          {r.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 {/* Loop toggle */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -556,10 +593,12 @@ function App() {
                 }}
               >
                 <MotionCanvas
+                  key={renderer}
                   source={source}
                   controls={controlsVisible}
                   loop={loop}
                   fit={fit}
+                  renderer={renderer}
                   style={{ height: "100%", backgroundColor: activeBg.value }}
                   onError={(err) => setError(err.message)}
                   onSceneReady={() => setError(null)}

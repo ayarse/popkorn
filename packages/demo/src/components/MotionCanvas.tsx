@@ -13,6 +13,8 @@ export interface MotionCanvasProps {
   loop?: boolean;
   /** How the scene fits the container */
   fit?: 'contain' | 'cover' | 'fill' | 'none';
+  /** Rendering backend. Read once at component init — change via a key remount. */
+  renderer?: 'canvas' | 'svg';
   /** Called when scene is ready */
   onSceneReady?: () => void;
   /** Called on error */
@@ -32,6 +34,7 @@ export function MotionCanvas({
   controls = true,
   loop = true,
   fit = 'contain',
+  renderer = 'canvas',
   onSceneReady,
   onError,
   className,
@@ -83,6 +86,7 @@ export function MotionCanvas({
   return (
     <popcorn-player
       ref={playerRef}
+      renderer={renderer}
       background={backgroundColor}
       className={className}
       style={{ width: '100%', ...style }}
@@ -100,6 +104,7 @@ declare global {
           width?: number;
           height?: number;
           background?: string;
+          renderer?: string;
         },
         PopcornPlayer
       >;

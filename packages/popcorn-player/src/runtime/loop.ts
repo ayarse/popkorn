@@ -76,6 +76,12 @@ export class RenderLoop {
   // Fires once per rendered frame with the current timeline time (drives the
   // controls scrubber off the existing loop tick — no extra rAF).
   private frameCallback: ((time: number) => void) | null = null;
+  // Stable per-node keys for the retained-backend bracket (beginNode/endNode).
+  // node.id is a CSS selector name and NOT unique (classes, symbol expansion),
+  // so we stamp a monotonic key on first sight. Nodes are built once and live
+  // for the scene's lifetime, so the WeakMap keeps keys stable across frames.
+  private nodeKeys = new WeakMap<SceneNode, string>();
+  private nextNodeKey = 0;
 
   constructor(
     renderer: Renderer,
@@ -105,6 +111,8 @@ export class RenderLoop {
 
   setScene(root: SceneNode): void {
     this.sceneRoot = root;
+    this.nodeKeys = new WeakMap();
+    this.nextNodeKey = 0;
     this.interactionManager.setScene(root);
     // Machines start at their initial states, anchored at timeline zero.
     this.machineRunner.setScene(root, 0);
@@ -493,6 +501,12 @@ export class RenderLoop {
     // passes that feed those composites bypass it (isolated = true).
     if (!isolated && node.mask) { this.renderMask(node); return; }
 
+    // Retained-backend bracket: opens this node's element before its own
+    // save/transform and closes it after its subtree. Placed on the normal draw
+    // path (past the filter/mask redirects), so a filtered/masked node is still
+    // bracketed exactly once — inside the composite closure that re-enters here.
+    this.renderer.beginNode?.(this.nodeKey(node));
+
     this.renderer.save();
 
     // Cascade opacity: a group's opacity should dim its children too, so we
@@ -577,6 +591,17 @@ export class RenderLoop {
     }
 
     this.renderer.restore();
+    this.renderer.endNode?.();
+  }
+
+  /** Stable retained-backend key for a node (monotonic, stamped on first sight). */
+  private nodeKey(node: SceneNode): string {
+    let key = this.nodeKeys.get(node);
+    if (key === undefined) {
+      key = 'n' + this.nextNodeKey++;
+      this.nodeKeys.set(node, key);
+    }
+    return key;
   }
 
   /**
@@ -614,7 +639,14 @@ export class RenderLoop {
   private renderFilter(node: SceneNode, isolated: boolean, inheritedAlpha: number): void {
     const parentWorld = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
     const world = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node));
-    const css = filterToCSS(node.filter!, matrixScale(world));
+    // Device-space blit (Canvas): prescale by the full world scale. User-space
+    // CSS filter (SVG): the wrapper sits at parentWorld, so the browser scales by
+    // the parent's scale — hand it only the node's own (local) scale and the two
+    // multiply back to the world scale, matching Canvas.
+    const scale = this.renderer.filtersUseUserSpace?.()
+      ? matrixScale(world) / (matrixScale(parentWorld) || 1)
+      : matrixScale(world);
+    const css = filterToCSS(node.filter!, scale);
     this.renderer.compositeFilter!(css, () => {
       this.renderer.setTransform(parentWorld);
       this.renderNode(node, isolated, inheritedAlpha, true /* skipFilter */);

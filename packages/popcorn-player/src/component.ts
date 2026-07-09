@@ -1,5 +1,6 @@
 import { parse } from '@popcorn/parser';
 import { Canvas2DRenderer } from './renderer/canvas2d';
+import { SVGRenderer } from './renderer/svg';
 import { buildSceneGraph } from './scene/builder';
 import { RenderLoop } from './runtime/loop';
 import { AnimationScheduler } from './animation/scheduler';
@@ -37,7 +38,10 @@ const HTMLElementBase: typeof HTMLElement =
 
 export class PopcornPlayer extends HTMLElementBase {
   private canvas: HTMLCanvasElement;
-  private renderer: Canvas2DRenderer | null = null;
+  // Live SVG surface, created lazily when renderer="svg" (default is canvas).
+  private svg: SVGSVGElement | null = null;
+  private renderer: Canvas2DRenderer | SVGRenderer | null = null;
+  private useSvg = false;
   private renderLoop: RenderLoop | null = null;
   private scheduler: AnimationScheduler | null = null;
   private _source: string = '';
@@ -81,7 +85,7 @@ export class PopcornPlayer extends HTMLElementBase {
         aspect-ratio: var(--pc-aspect, 4 / 3);
         max-width: 100%;
       }
-      canvas {
+      canvas, svg {
         display: block;
         position: absolute;
         inset: 0;
@@ -455,7 +459,14 @@ export class PopcornPlayer extends HTMLElementBase {
 
       const sceneRoot = buildSceneGraph(ast);
 
-      this.renderer = new Canvas2DRenderer(this.canvas);
+      // Backend: canvas (default) or a retained SVG surface (renderer="svg").
+      // The viewport handling below is identical for both — the fit/DPR matrix
+      // is folded into the transforms the loop hands the renderer.
+      this.useSvg = this.getAttribute('renderer') === 'svg';
+      const surface = this.useSvg ? this.ensureSvg() : this.canvas;
+      this.canvas.style.display = this.useSvg ? 'none' : 'block';
+      if (this.svg) this.svg.style.display = this.useSvg ? 'block' : 'none';
+      this.renderer = this.useSvg ? new SVGRenderer(this.svg!) : new Canvas2DRenderer(this.canvas);
       this.scheduler = new AnimationScheduler();
 
       this.renderLoop = new RenderLoop(this.renderer, this.scheduler);
@@ -487,8 +498,11 @@ export class PopcornPlayer extends HTMLElementBase {
       }
       this.pendingVariables.clear();
 
+      // Input stays on the active surface; the inverse-viewport path in
+      // InputTracker works unchanged for either element (only getBoundingClientRect
+      // + pointer listeners, both present on canvas and svg).
       const inputTracker = this.renderLoop.getInputTracker();
-      inputTracker.attach(this.canvas);
+      inputTracker.attach(surface as HTMLCanvasElement);
 
       // Size the backing store and compute the fit viewport before first paint.
       this.syncSize();
@@ -509,9 +523,19 @@ export class PopcornPlayer extends HTMLElementBase {
     }
   }
 
+  /** Lazily create the SVG surface and append it into the shadow root. */
+  private ensureSvg(): SVGSVGElement {
+    if (!this.svg) {
+      this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      // Insert before the controls overlay so the overlay stays on top.
+      this.shadowRoot!.insertBefore(this.svg, this.controlsEl);
+    }
+    return this.svg;
+  }
+
   /**
-   * Match the canvas backing store to the host element × devicePixelRatio and
-   * recompute the fit viewport (shared with the render root and input mapping).
+   * Match the render surface's backing store to the host element × devicePixelRatio
+   * and recompute the fit viewport (shared with the render root and input mapping).
    */
   private syncSize(): void {
     if (!this.renderLoop) return;
@@ -523,8 +547,13 @@ export class PopcornPlayer extends HTMLElementBase {
 
     const bw = Math.max(1, Math.round(elemW * dpr));
     const bh = Math.max(1, Math.round(elemH * dpr));
-    if (this.canvas.width !== bw) this.canvas.width = bw;
-    if (this.canvas.height !== bh) this.canvas.height = bh;
+    // Both backends work in the same device-px space (viewport folds in DPR/fit).
+    if (this.useSvg && this.renderer instanceof SVGRenderer) {
+      this.renderer.setSize(bw, bh);
+    } else {
+      if (this.canvas.width !== bw) this.canvas.width = bw;
+      if (this.canvas.height !== bh) this.canvas.height = bh;
+    }
 
     const vp = computeViewport(this.sceneWidth, this.sceneHeight, elemW, elemH, dpr, this.fit);
     this.renderLoop.setViewport(viewportMatrix(vp));

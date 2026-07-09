@@ -11,6 +11,13 @@ export interface Renderer {
   beginFrame(): void;
   endFrame(): void;
 
+  // Retained-backend hook: brackets all draw calls belonging to one scene node.
+  // Keys are stable across frames and nest to mirror the tree, so a retained
+  // backend (SVG) can get-or-create one element per node and diff it. Immediate-
+  // mode backends (Canvas2D/Skia) omit these entirely.
+  beginNode?(key: string): void;
+  endNode?(): void;
+
   // Shape rendering
   drawRect(x: number, y: number, w: number, h: number, rx?: number, ry?: number): void;
   drawCircle(cx: number, cy: number, r: number): void;
@@ -43,6 +50,12 @@ export interface Renderer {
   // filter string already scaled to device space by the caller).
   supportsFilter?(): boolean;
   compositeFilter?(filter: string, drawContent: () => void): void;
+  // A device-space-blit backend (Canvas2D) wants the filter string pre-scaled by
+  // the node's full world scale. A retained backend that applies the string as a
+  // CSS `filter` on a group in the node's *parent* user space (SVG) instead gets
+  // the CTM's scale for free, so it wants the string scaled by only the node's
+  // own local scale. Return true for the latter. Feature-detected; default false.
+  filtersUseUserSpace?(): boolean;
 
   // Style (called before draw)
   setFill(color: Color | null): void;
