@@ -197,9 +197,12 @@ for "which is active"); fit mode uses `DropdownMenuRadioGroup`/`RadioItem`
   from the same module needs `import { Foo, type Bar }`.
 - **`noUnusedLocals` / `noUnusedParameters: true`** — remove imports you stop
   using before building; `tsc -b` will fail otherwise.
-- **`@/*` alias** — always import UI/lib via `@/components/ui/…`, `@/lib/utils`,
-  not relative paths. Relative imports are for same-package non-alias files
-  (`./MotionCanvas`, `./examples`).
+- **`@/*` alias** — one rule: anything under `src/` imports via `@/…`
+  (`@/components/…`, `@/lib/…`, `@/use-scene`, `@/globals.css`), never relative.
+  Relative imports are *only* for files outside `src/` that the alias can't
+  reach — the repo-root converters (`../../../tools/…`) and skill docs
+  (`../../../../.claude/…`). `@` resolves in the Vite build and in bun tests
+  (via the demo `tsconfig.json` `paths`).
 - **No comments in code** unless asked.
 - **Scrollbar styling** lives in `globals.css` (`@layer base`): a thin dark thumb
   on a faint always-visible rail that brightens on `:hover`. Do not reintroduce

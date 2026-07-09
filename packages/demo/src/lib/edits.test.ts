@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { applyEdits, extractEdits } from "./edits";
+import { applyEdits, extractEdits } from "@/lib/edits";
 
 const SCENE = `#ball {
   radius: 20px;

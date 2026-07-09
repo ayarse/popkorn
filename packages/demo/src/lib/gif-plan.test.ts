@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { planGif } from "./gif-plan";
+import { planGif } from "@/lib/gif-plan";
 
 describe("planGif", () => {
   test("delayMs is always a centisecond multiple, minimum 20ms", () => {

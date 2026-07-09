@@ -1,4 +1,4 @@
-import { exportGif } from "./gif";
+import { exportGif } from "@/lib/gif";
 
 // Cast the worker global to the minimal surface we use, so the file typechecks
 // under the DOM lib without pulling in the WebWorker lib (which conflicts).

@@ -1,11 +1,11 @@
 import { useState } from "react";
+import AgentChat from "@/components/agent-chat";
+import { AppHeader } from "@/components/app-header";
+import { ImportModal } from "@/components/import-modal";
+import { PlayerPanel } from "@/components/player-panel";
+import { SourcePanel } from "@/components/source-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AgentChat from "./components/agent-chat";
-import { AppHeader } from "./components/app-header";
-import { ImportModal } from "./components/import-modal";
-import { PlayerPanel } from "./components/player-panel";
-import { SourcePanel } from "./components/source-panel";
-import { useScene } from "./use-scene";
+import { useScene } from "@/use-scene";
 
 function App() {
   const scene = useScene();

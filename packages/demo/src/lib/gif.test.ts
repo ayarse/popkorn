@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { quantizeFrame } from "./gif";
-import { planGif } from "./gif-plan";
+import { quantizeFrame } from "@/lib/gif";
+import { planGif } from "@/lib/gif-plan";
 
 /**
  * Mean per-channel color error of the reconstructed image, averaged over

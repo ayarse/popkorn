@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
+import popcornIconRaw from "@/assets/popcorn-icon.svg?raw";
 import { cn } from "@/lib/utils";
-import popcornIconRaw from "../assets/popcorn-icon.svg?raw";
 
 type BrandMarkProps = {
   suffix?: React.ReactNode;

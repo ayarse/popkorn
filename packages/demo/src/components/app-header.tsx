@@ -11,8 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { examples } from "@/examples";
 import type { ImportResult } from "@/lib/import-size";
-import { examples } from "../examples";
 
 export function AppHeader({
   currentExample,

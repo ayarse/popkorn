@@ -6,9 +6,9 @@ import {
   RenderLoop,
 } from "@popcorn/player";
 import { GIFEncoder, type Palette, quantize } from "gifenc";
-import { planGif } from "./gif-plan";
+import { planGif } from "@/lib/gif-plan";
 
-export { planGif } from "./gif-plan";
+export { planGif } from "@/lib/gif-plan";
 
 /** Alpha at or above this (0–255) counts as opaque; below maps to transparency. */
 const ALPHA_THRESHOLD = 128;
