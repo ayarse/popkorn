@@ -357,7 +357,7 @@ function App() {
               onClick={() => setShowImport(true)}
             >
               <Upload className="size-3.5" />
-              Import
+              Import Lottie/SVG
             </Button>
             <Button
               variant={chatOpen ? "default" : "secondary"}
