@@ -270,6 +270,17 @@ mask: #maskLayer alpha;   /* alpha | alpha-invert | luminance | luminance-invert
 - Luminance modes convert alpha to luminance (`0.2126R + 0.7152G + 0.0722B`); `*-invert` uses `destination-out` vs `destination-in`.
 - Unknown source id throws `mask on '…' references unknown node '#…'`.
 
+### Filters
+
+```css
+#glow { filter: blur(12px); }
+#card { filter: blur(2px) drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.4)); }
+```
+
+- Two functions only: `blur(<len>)` and `drop-shadow(<dx> <dy> <blur> <color>)`; applies to the node **and its whole subtree** (a group filters its composited output).
+- The blur **radius is animatable** in `@keyframes` (`filter: blur(...)`); drop-shadow is static.
+- Renderers without filter support (old Safari) skip filters and draw unfiltered (warned once). Maps to the AE blur/drop-shadow effects the converter emits.
+
 ---
 
 ## 10. Transforms & motion paths
@@ -643,6 +654,70 @@ value to the target instead of snapping — on both enter and exit.
   whenever no interaction state changes.
 - Color tweens interpolate; a null↔color paint change snaps (nothing to lerp).
 
+### State machines — `@machine` / `:state()`
+
+For interaction a `:hover`/`:active` override **can't** express — a state that
+outlives the pointer (toggles, "intro once then loop", timeouts, app-state
+driven looks). `:hover`/`:active` still cover plain hover/press buttons; reach
+for `@machine` only when a state must persist. **Full spec + rationale:
+[docs/STATE-MACHINES.md](../../../docs/STATE-MACHINES.md); worked scenes:
+`examples/popcorn/11-state-machine.css` and `12-toggle-lamp.css`.**
+
+```css
+:root { --energy: 0; --tap: trigger; }   /* inputs = custom props; trigger auto-resets */
+
+@machine cat {
+  initial: idle;
+  state idle    { to: excited on click(#hitbox);
+                  to: hyper  when style(--energy > 80) mix 300ms ease-in-out; }
+  state excited { to: idle   on complete; }        /* this state's animations finished */
+  state hyper   { to: idle   when style(--energy <= 80); emit: overheat; }
+  state *       { to: idle   on event(reset); }    /* any-state, checked before current */
+}
+
+#cat:state(idle)    { animation: breathe 2s ease-in-out infinite; }
+#cat:state(excited) { animation: jump 600ms ease-out; }   /* restarts on entry */
+```
+
+- One `@machine` = one graph; **multiple blocks run concurrently** (a blink loop
+  and button logic don't share a graph). Declare `initial:`.
+- `to: <state> [on <trigger>] [when <guard> [and <guard>]*] [mix <dur> [<easing>]]`.
+  **Declaration order = priority** (first passing transition wins). Guards ANDed
+  only.
+- **Triggers (`on …`), zero host code:** `click(#id)` `pointerdown/up(#id)`
+  `hoverstart/end(#id)` (or `(:root)` for anywhere) · `complete` (state's
+  animations done) · `event(name)` (host escape hatch — `player.fire('name')`).
+- **Guards (`when style(…)`):** MQ-range comparisons over `--vars` and `input()`
+  paths: `--energy > 80`, `--mood: happy` (equality), `input(cursor.x) < 400`,
+  `state-time > 2s` (reserved per-machine timer → timeouts), plus `media.*`
+  (`prefers-reduced-motion`, `hover`, `width`, `height`).
+- **`:state(name)` is a full rule** — including `animation:`, which is the
+  capability jump over `:hover` (a state can *start* an animation, re-anchored at
+  entry time). Namespace as `:state(cat.idle)` if two machines share a name.
+- **Machine scenes are unbounded** (no loop-wrap / play-once clamp); a one-shot
+  `:state()` animation holds its final frame — `:state()` animations default to
+  `animation-fill-mode: both`, not the node-level `forwards`.
+- **Host API:** `player.setVariable('--energy', 80)` / `player.fire('--tap')` /
+  `player.getVariable(...)`; events out are `emit: name` (on entry) →
+  `machine-event` CustomEvent, plus `statechange` on every transition.
+- Seek stays pure as a function of `(time, machineState)` — machine state lives
+  off the timeline (invariant 4 holds). `mix` currently hard-cuts (tween parses
+  but isn't wired yet).
+
+### Scrubbing — `animation-timeline`
+
+Drive an animation by a **0..1 value** instead of the clock — the same
+`var()`/`input()` vocabulary used everywhere else:
+
+```css
+#bar  { animation: fill-up 1s linear; animation-timeline: var(--progress); }   /* host-fed 0..1 */
+#hero { animation: reveal 1s ease-out; animation-timeline: input(scroll.progress); }
+```
+
+- `scroll.progress` is scroll position normalized to 0..1 (raw offset stays
+  `scroll.y`). Orthogonal to `@machine`; web scenes need zero host code, native
+  hosts feed `var(--progress)`.
+
 ---
 
 ## 15. Embedding — `<popcorn-player>`
@@ -773,6 +848,8 @@ player.source = myDslCode;   // parse + build + play
 - **Paint order = document order**, override with `z-index` (negatives allowed); it also sets hit-test priority.
 - **`visible-from`/`visible-until`** gate a node + subtree to a scene-local time window (skipped in render *and* hit-test outside it).
 - **Geometry props are type-gated** — `r` on a rect is ignored, etc.
+- **`@machine` scenes are unbounded** — no loop-wrap/play-once clamp; `:state()` animations default to `fill-mode: both` (a one-shot holds its final frame), unlike the node-level `forwards`.
+- **`filter`** supports only `blur()` (animatable) and `drop-shadow()` (static); anything else is dropped.
 - Unrecognized enum keywords silently fall back to the default.
 - **No `//` comments, no `.5` numbers, no exponents** (`0.5`, not `.5`).
 
@@ -784,6 +861,6 @@ player.source = myDslCode;   // parse + build + play
 - Scene builder & types: `packages/popcorn-player/src/scene/{builder,types,transform,polystar,clip,path-parser}.ts`
 - Renderer: `packages/popcorn-player/src/renderer/{canvas2d,types,interface}.ts`
 - Animation: `packages/popcorn-player/src/animation/{easing,keyframes,scheduler,registry}.ts`
-- Runtime & component: `packages/popcorn-player/src/runtime/{loop,inputs,variables,interaction,hit-test}.ts`, `component.ts`
+- Runtime & component: `packages/popcorn-player/src/runtime/{loop,inputs,variables,interaction,hit-test,state-machine}.ts`, `component.ts`
 - Examples: `examples/*.css`, `examples/lottie/*.css`
 - Lottie converter: `tools/lottie2popcorn.ts`

@@ -44,6 +44,9 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Nesting | `> #child { … }` inside a rule body |
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |
 | Transitions | `transition: fill 0.3s ease, transform 0.2s` — state flips tween (enter+exit) instead of snapping; runtime-only, timeline stays pure |
+| State machines | `@machine m { initial: off; state off { to: on on click(#btn) } state on { to: off on click(#btn) } }` + `#btn:state(on) { animation: … }` — named states that outlive the pointer (toggles, sequences, timeouts); `:state()` can start `animation:` (the jump over `:hover`). See reference.md §14, examples 11/12 |
+| Scrubbing | `animation-timeline: var(--progress)` or `input(scroll.progress)` — drive an animation by a 0..1 value instead of the clock |
+| Filters | `filter: blur(12px)` (radius animatable in `@keyframes`) · `filter: blur(2px) drop-shadow(4px 6px 8px rgba(0,0,0,.4))` (drop-shadow static); applies to node + subtree |
 | Motion path | `offset-path: path('…'); offset-distance: 50%; offset-rotate: auto` (animate `offset-distance`) |
 | Mask | `clip-path: circle(80 at 200 200)` · `mask: #layer alpha` |
 | Gradient/path animation | animate `fill: linear-gradient(…)` (same type + stop count) or `d: 'M…'` (same command sequence) in `@keyframes`; incompatible endpoints step |
