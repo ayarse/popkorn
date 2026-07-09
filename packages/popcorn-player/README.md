@@ -46,13 +46,14 @@ The simplest way to use the player is via the `<popcorn-player>` custom element:
 | `width` | number | Canvas width in pixels (default: 400) |
 | `height` | number | Canvas height in pixels (default: 300) |
 | `background` | string | Background color (CSS color value) |
-| `src` | string | DSL source code (can also use `.source` property) |
+| `src` | string | URL to fetch DSL source from (http(s), relative, `data:`, `blob:`). For inline DSL *text*, use the `.source` property instead. |
 
 ### Web Component Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `source` | string | Get/set the DSL source code |
+| `source` | string | Get/set the DSL source *text* directly (the inline channel — not a URL) |
+| `src` | string \| null | Get/set the `src` URL attribute (fetched into `source`) |
 | `width` | number | Get/set canvas width |
 | `height` | number | Get/set canvas height |
 | `background` | string \| null | Get/set background color |
@@ -70,7 +71,8 @@ The simplest way to use the player is via the `<popcorn-player>` custom element:
 | Event | Detail | Description |
 |-------|--------|-------------|
 | `ready` | `{ sceneRoot: SceneNode }` | Fired when scene is parsed and ready |
-| `error` | `{ error: Error }` | Fired on parse or initialization error |
+| `complete` | — | Fired once when a non-looping timeline reaches its end |
+| `error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
 
 ## React Integration
 

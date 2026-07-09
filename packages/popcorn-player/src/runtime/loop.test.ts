@@ -164,6 +164,44 @@ test('loop off: time past duration clamps to sceneDuration', () => {
   expect(renderer.opacities.at(-1)!).toBe(opacityAtEnd);
 });
 
+// `complete` fires exactly once when a play-once timeline first passes its end,
+// stays latched across held-at-end frames, and re-arms after a seek back inside.
+test('complete fires once at end, re-fires after seek-back', () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(fadingDot()); // sceneDuration = 3000, loop off
+  loop.pause();
+
+  let completes = 0;
+  loop.setCompleteCallback(() => completes++);
+
+  loop.seek(1000); // inside the clip — no completion
+  expect(completes).toBe(0);
+
+  loop.seek(9000); // past the end — fires once
+  expect(completes).toBe(1);
+
+  loop.seek(12000); // still past — latched, no re-fire
+  expect(completes).toBe(1);
+
+  loop.seek(500); // back inside — re-arms
+  loop.seek(9000); // past again — fires once more
+  expect(completes).toBe(2);
+});
+
+// A looping scene never "completes" — the timeline wraps instead of ending.
+test('complete never fires while looping', () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(fadingDot());
+  loop.setLoop(true);
+
+  let completes = 0;
+  loop.setCompleteCallback(() => completes++);
+
+  loop.seek(4000);
+  loop.seek(7000);
+  expect(completes).toBe(0);
+});
+
 // Loop ON: past the duration the timeline wraps back into [0, duration) so the
 // animation keeps cycling. (Not paused — the wrap only runs on a live timeline.)
 test('loop on: time past duration wraps', () => {

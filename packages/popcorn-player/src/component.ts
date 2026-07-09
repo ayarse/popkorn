@@ -88,9 +88,15 @@ export class PopcornPlayer extends HTMLElementBase {
       canvas, svg {
         display: block;
         position: absolute;
-        inset: 0;
+        top: 0;
+        left: 0;
         width: 100%;
-        height: 100%;
+        /* Fill the host, but reserve the controls bar's height at the bottom so
+           the scene renders above it rather than under it (var is 0 when the
+           controls are hidden). An explicit height is required: <canvas>/<svg>
+           are replaced elements, so top/bottom insets don't stretch them —
+           height:auto would fall back to the intrinsic backing-store size. */
+        height: calc(100% - var(--pc-controls-h, 0px));
       }
       .pc-controls {
         position: absolute;
@@ -474,6 +480,11 @@ export class PopcornPlayer extends HTMLElementBase {
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
       this.renderLoop.setLoop(this.boolAttr('loop'));
       this.renderLoop.setFrameCallback((t) => this.onFrame(t));
+      // Non-looping timeline reached its end -> notify the host once (Lottie's
+      // `complete`). Looping/state-machine scenes never fire it.
+      this.renderLoop.setCompleteCallback(() => {
+        this.dispatchEvent(new CustomEvent('complete'));
+      });
       // Machine transitions/emits -> DOM events for the host.
       this.renderLoop.setMachineEventCallback((o) => {
         if (o.type === 'statechange') {
@@ -540,7 +551,10 @@ export class PopcornPlayer extends HTMLElementBase {
   private syncSize(): void {
     if (!this.renderLoop) return;
 
-    const rect = this.getBoundingClientRect();
+    // Measure the active render surface (which is inset above the controls bar),
+    // not the host, so the fit viewport matches the real drawable area.
+    const surface: Element = this.useSvg && this.svg ? this.svg : this.canvas;
+    const rect = surface.getBoundingClientRect();
     const elemW = rect.width || this.sceneWidth;
     const elemH = rect.height || this.sceneHeight;
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
@@ -602,10 +616,14 @@ export class PopcornPlayer extends HTMLElementBase {
     }
   }
 
-  /** Sync the controls overlay to the current attr + scene state. */
+  /** Sync the controls bar to the current attr + scene state. */
   private refreshControls(): void {
     const show = this.boolAttr('controls');
     this.controlsEl.style.display = show ? 'flex' : 'none';
+    // Reserve (or release) the bar's height so the surface doesn't render under
+    // it; re-fit since the surface box just changed.
+    this.style.setProperty('--pc-controls-h', show ? '32px' : '0px');
+    this.syncSize();
     if (!show) return;
     const d = this.duration;
     this.scrub.max = String(d);

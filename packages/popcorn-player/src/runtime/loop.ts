@@ -76,6 +76,11 @@ export class RenderLoop {
   // Fires once per rendered frame with the current timeline time (drives the
   // controls scrubber off the existing loop tick — no extra rAF).
   private frameCallback: ((time: number) => void) | null = null;
+  // Fires once when a non-looping finite timeline first reaches its end. Latched
+  // so the held-at-end frames don't re-fire it; the latch clears when the clock
+  // drops back inside the clip (seek/reset), so a replay can complete again.
+  private completeCallback: (() => void) | null = null;
+  private hasCompleted: boolean = false;
   // Stable per-node keys for the retained-backend bracket (beginNode/endNode).
   // node.id is a CSS selector name and NOT unique (classes, symbol expansion),
   // so we stamp a monotonic key on first sight. Nodes are built once and live
@@ -120,6 +125,7 @@ export class RenderLoop {
     this.prevHit = null;
     this.downHit = null;
     this.sceneDuration = computeSceneDuration(root);
+    this.hasCompleted = false;
     this.sceneDynamic = sceneHasDynamicContent(root);
     this.sceneTimeScoped = sceneHasTimeScoping(root);
     this.sceneUnbounded = sceneIsUnbounded(root);
@@ -163,6 +169,11 @@ export class RenderLoop {
   /** Register a per-frame callback (current timeline time in ms). */
   setFrameCallback(cb: ((time: number) => void) | null): void {
     this.frameCallback = cb;
+  }
+
+  /** Register a callback fired once when a play-once timeline reaches its end. */
+  setCompleteCallback(cb: (() => void) | null): void {
+    this.completeCallback = cb;
   }
 
   /** Scene duration in ms (max animation end time; infinite counts as one iteration). */
@@ -273,6 +284,9 @@ export class RenderLoop {
   private drawFrame(now: number, live: boolean = false): void {
     if (this.sceneRoot) {
       let t = this.scheduler.time(now);
+      // Clear the completion latch whenever the clock sits inside the clip, so a
+      // seek-back or reset lets `complete` fire again on the next pass.
+      if (t < this.sceneDuration) this.hasCompleted = false;
       // Looping: once the timeline runs past the scene's duration, fold it back
       // into [0, duration) and re-anchor the scheduler. Re-anchoring (rather than
       // just sampling the wrapped t) resets fill-forward states cleanly and keeps
@@ -298,6 +312,10 @@ export class RenderLoop {
         // isn't a root-timeline bound, so they keep their old free-run behavior.
         this.scheduler.seek(this.sceneDuration, now);
         t = this.sceneDuration;
+        if (!this.hasCompleted) {
+          this.hasCompleted = true;
+          this.completeCallback?.();
+        }
       }
 
       // Machines evaluate once per LIVE frame, BEFORE the node walk. `t` (the
