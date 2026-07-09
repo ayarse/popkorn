@@ -451,6 +451,60 @@ test('transform transition tweens scale on hover', () => {
   expect(btn.transform.scaleX).toBe(2);
 });
 
+// stage 2: transitions tween ANY registry property, not just the legacy six.
+test('transition eases a registry geometry prop (r) over its duration', () => {
+  const src = `#c { type: circle; cx: 50px; cy: 50px; r: 10px; transition: r 200ms linear; &:hover { r: 30px; } }`;
+  const root = build(src);
+  const c = root.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  const frame = (now: number) => { resetNodeToBase(c); mgr.applyOverrides(c, now); return (c.shapeData as CircleData).r; };
+  mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 1000); // flip to hover, from r=10
+  expect(frame(1000)).toBe(10);            // start (from snapshot)
+  const mid = frame(1100);                 // halfway
+  expect(mid).toBeGreaterThan(10);
+  expect(mid).toBeLessThan(30);
+  expect(frame(1200)).toBe(30);            // settles at target
+});
+
+// stage 2: object-valued endpoints that can't blend flip at the eased midpoint
+// (CSS discrete-transition rule), NOT at settle time.
+test('transition flips an unblendable paint (solid -> gradient) at the eased midpoint', () => {
+  const src = `#c { type: circle; cx: 50px; cy: 50px; r: 40px; fill: #000000;
+    transition: fill 200ms linear; &:hover { fill: linear-gradient(90deg, #ff0000 0%, #0000ff 100%); } }`;
+  const root = build(src);
+  const c = root.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0); // flip to hover, from = solid #000
+  // Before the eased midpoint: still the source solid, no gradient.
+  resetNodeToBase(c); mgr.applyOverrides(c, 80);  // e = 0.4
+  expect(c.fill).toBe('#000000');
+  expect(c.fillGradient).toBeNull();
+  // After the midpoint: the target gradient wins and the solid is cleared.
+  resetNodeToBase(c); mgr.applyOverrides(c, 120); // e = 0.6
+  expect(c.fill).toBeNull();
+  expect(c.fillGradient?.stops[0].color).toBe('#ff0000');
+});
+
+// stage 2: a state flip mid-tween eases back from the DISPLAYED value, not the
+// target it was heading toward.
+test('transition reversal eases back from the displayed value, not the target', () => {
+  const src = `#c { type: circle; cx: 50px; cy: 50px; r: 10px; transition: r 200ms linear; &:hover { r: 30px; } }`;
+  const root = build(src);
+  const c = root.children[0];
+  const mgr = createInteractionManager();
+  mgr.setScene(root);
+  const frame = (now: number) => { resetNodeToBase(c); mgr.applyOverrides(c, now); return (c.shapeData as CircleData).r; };
+  mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0); // hover enter, from r=10
+  expect(frame(100)).toBe(20);            // halfway in: displayed r = 20
+  mgr.update({ cursor: { x: 500, y: 500, isDown: false } }, 100); // leave at midpoint, from = displayed 20
+  const back = frame(150);                // 50ms into the 200ms reverse
+  expect(back).toBeGreaterThan(10);
+  expect(back).toBeLessThan(20);          // easing DOWN from 20 toward base, not up toward 30
+  expect(frame(300)).toBe(10);            // settles back at base
+});
+
 // --- state-child rules (`#p:hover > #c`) ------------------------------------
 
 // A card whose hover state restyles a specific direct child (the icon).

@@ -11,58 +11,41 @@
  *
  * CSS transitions: when a node declares `transition`, a state flip does not snap
  * the affected properties — the manager records a tween (start time + a snapshot
- * of the displayed values) and `applyOverrides` interpolates from that snapshot
- * toward the new state's value each frame. Tween state is wall-clock driven and
- * lives ONLY here, so the animation timeline stays a pure function of time:
- * `seek(t)` twice is identical whenever no interaction state changes.
+ * of the displayed value of every property the node's states can touch) and
+ * `applyOverrides` interpolates from that snapshot toward the new state's value
+ * each frame. Every registry property is transitionable (not just the legacy
+ * fill/stroke/stroke-width/opacity/transform six): numerics and colors blend,
+ * object-valued endpoints that can't blend (incompatible gradients/paths) flip
+ * at the eased midpoint (CSS discrete-transition rule). Tween state is wall-clock
+ * driven and lives ONLY here, so the animation timeline stays a pure function of
+ * time: `seek(t)` twice is identical whenever no interaction state changes.
  */
 
 import type { SceneNode, InteractionState, StateStyles, TransitionSpec } from '../scene/types';
 import { hitTest, type Point } from './hit-test';
 import type { InputState } from './inputs';
-import { lerp, clamp01 } from '../scene/transform';
+import { clamp01 } from '../scene/transform';
 import { applyEasing } from '../animation/easing';
-import { interpolateColor, getPropHandler } from '../animation/registry';
-import { cloneGradient } from '../renderer/types';
-
-// Absolute (already-composed) values of every transitionable property. Transform
-// channels are flattened, so a snapshot captures the exact displayed pose.
-interface LiveValues {
-  fill: string | null;
-  stroke: string | null;
-  strokeWidth: number;
-  opacity: number;
-  translateX: number;
-  translateY: number;
-  rotate: number;
-  scaleX: number;
-  scaleY: number;
-}
+import {
+  getPropHandler,
+  interpolateProp,
+  gradientsCompatible,
+  pathsCompatible,
+  type PropHandler,
+  type PropValue,
+} from '../animation/registry';
+import { cloneGradient, isGradientData } from '../renderer/types';
 
 // A running tween toward `node.interactionState`, started when the state flipped.
 interface ActiveTransition {
-  startTime: number;      // wall-clock ms at the flip
-  from: LiveValues;       // displayed values snapshotted at the flip
-  specs: TransitionSpec[]; // effective transition list for this change
+  startTime: number;                     // wall-clock ms at the flip
+  from: Map<string, PropValue | null>;   // displayed value per involved prop at the flip
+  specs: TransitionSpec[];               // effective transition list for this change
 }
 
-// Transitionable property groups. `transform` covers all five channels together.
-const TRANSITION_GROUPS = ['fill', 'stroke', 'stroke-width', 'opacity', 'transform'] as const;
-type TransitionGroup = (typeof TRANSITION_GROUPS)[number];
-
-function liveSnapshot(node: SceneNode): LiveValues {
-  return {
-    fill: node.fill,
-    stroke: node.stroke,
-    strokeWidth: node.strokeWidth,
-    opacity: node.opacity,
-    translateX: node.transform.translateX,
-    translateY: node.transform.translateY,
-    rotate: node.transform.rotate,
-    scaleX: node.transform.scaleX,
-    scaleY: node.transform.scaleY,
-  };
-}
+// Transform channels are registry properties but tween as deltas, and the CSS
+// `transition-property` names translate/rotate/scale/transform all govern them.
+const TRANSFORM_CHANNELS = new Set(['translateX', 'translateY', 'rotate', 'scaleX', 'scaleY']);
 
 // The StateStyles governing a given interaction state (active falls back to
 // hover, matching the runtime priority).
@@ -72,56 +55,90 @@ function stateStylesFor(node: SceneNode, state: InteractionState): StateStyles |
   return null;
 }
 
-// Layer a state's overrides onto a LiveValues struct: paint/opacity/stroke-width
-// are absolute; transform is a delta (translate/rotate additive, scale
-// multiplicative), matching applyInteractionOverrides.
-function applyStateDeltas(vals: LiveValues, styles: StateStyles): void {
-  if (styles.fill !== undefined) vals.fill = styles.fill;
-  if (styles.stroke !== undefined) vals.stroke = styles.stroke;
-  if (styles.strokeWidth !== undefined) vals.strokeWidth = styles.strokeWidth;
-  if (styles.opacity !== undefined) vals.opacity = styles.opacity;
+// Every registry-property key a state block can touch, folded into `out`. The
+// legacy fields map onto their registry names (paint gradient or solid -> the
+// color property; each declared transform channel -> its channel key).
+function collectInvolvedKeys(styles: StateStyles | null | undefined, out: Set<string>): void {
+  if (!styles) return;
+  if (styles.fill !== undefined || styles.fillGradient !== undefined) out.add('fill');
+  if (styles.stroke !== undefined || styles.strokeGradient !== undefined) out.add('stroke');
+  if (styles.strokeWidth !== undefined) out.add('stroke-width');
+  if (styles.opacity !== undefined) out.add('opacity');
   const t = styles.transform;
   if (t) {
-    if (t.translateX !== undefined) vals.translateX += t.translateX;
-    if (t.translateY !== undefined) vals.translateY += t.translateY;
-    if (t.rotate !== undefined) vals.rotate += t.rotate;
-    if (t.scaleX !== undefined) vals.scaleX *= t.scaleX;
-    if (t.scaleY !== undefined) vals.scaleY *= t.scaleY;
+    if (t.translateX !== undefined) out.add('translateX');
+    if (t.translateY !== undefined) out.add('translateY');
+    if (t.rotate !== undefined) out.add('rotate');
+    if (t.scaleX !== undefined) out.add('scaleX');
+    if (t.scaleY !== undefined) out.add('scaleY');
   }
+  if (styles.overrides) for (const k in styles.overrides) out.add(k);
 }
 
-// The absolute displayed values for a state, computed against the node's current
-// underlying (pre-override) live fields.
-function computeStateValues(node: SceneNode, state: InteractionState): LiveValues {
-  const vals = liveSnapshot(node);
-  const styles = stateStylesFor(node, state);
-  if (styles) applyStateDeltas(vals, styles);
-  return vals;
+// Read the current LIVE (post-animation, pre-override) value of a property as an
+// interpolation endpoint. Numerics (incl. transform channels) go through the
+// registry's readLive; paint reads the gradient-or-solid the node currently
+// shows (gradient deep-copied so the snapshot is never aliased onto authored
+// state); path props read their live command list.
+function readLiveProp(node: SceneNode, key: string): PropValue | null {
+  if (key === 'fill') return node.fillGradient ? cloneGradient(node.fillGradient) : node.fill;
+  if (key === 'stroke') return node.strokeGradient ? cloneGradient(node.strokeGradient) : node.stroke;
+  const h = getPropHandler(key);
+  if (h?.readLive) return h.readLive(node);
+  if (key === 'd') return node.shapeData.type === 'path' ? node.shapeData.commands : null;
+  if (key === 'clip-path') return node.clipPath?.type === 'path' ? node.clipPath.commands : null;
+  return null;
 }
 
-function writeLive(node: SceneNode, vals: LiveValues): void {
-  node.fill = vals.fill;
-  node.stroke = vals.stroke;
-  node.strokeWidth = vals.strokeWidth;
-  node.opacity = vals.opacity;
-  node.transform.translateX = vals.translateX;
-  node.transform.translateY = vals.translateY;
-  node.transform.rotate = vals.rotate;
-  node.transform.scaleX = vals.scaleX;
-  node.transform.scaleY = vals.scaleY;
+// The value a state drives `key` to, computed against the node's current
+// underlying live fields. Transform channels compose as deltas (translate/rotate
+// additive, scale multiplicative) — the deliberate divergence from CSS replace;
+// paint clears the opposite (gradient/solid) channel; everything else replaces.
+// A key the state doesn't touch holds the underlying live value (so it tweens
+// back to the base when leaving the state).
+function stateTargetProp(node: SceneNode, styles: StateStyles | null, key: string): PropValue | null {
+  switch (key) {
+    case 'translateX': return node.transform.translateX + (styles?.transform?.translateX ?? 0);
+    case 'translateY': return node.transform.translateY + (styles?.transform?.translateY ?? 0);
+    case 'rotate':     return node.transform.rotate + (styles?.transform?.rotate ?? 0);
+    case 'scaleX':     return node.transform.scaleX * (styles?.transform?.scaleX ?? 1);
+    case 'scaleY':     return node.transform.scaleY * (styles?.transform?.scaleY ?? 1);
+  }
+  if (styles) {
+    switch (key) {
+      case 'fill':
+        if (styles.fillGradient !== undefined) return styles.fillGradient ? cloneGradient(styles.fillGradient) : null;
+        if (styles.fill !== undefined) return styles.fill;
+        break;
+      case 'stroke':
+        if (styles.strokeGradient !== undefined) return styles.strokeGradient ? cloneGradient(styles.strokeGradient) : null;
+        if (styles.stroke !== undefined) return styles.stroke;
+        break;
+      case 'stroke-width':
+        if (styles.strokeWidth !== undefined) return styles.strokeWidth;
+        break;
+      case 'opacity':
+        if (styles.opacity !== undefined) return styles.opacity;
+        break;
+      default:
+        if (styles.overrides && key in styles.overrides) return styles.overrides[key];
+    }
+  }
+  return readLiveProp(node, key);
 }
 
-// The last transition spec that matches a group (CSS: later entries win). `all`
-// matches everything; the transform group also matches the individual
-// transform property names.
-function matchSpec(specs: TransitionSpec[], group: TransitionGroup): TransitionSpec | null {
+// The last transition spec that matches a property (CSS: later entries win).
+// `all` matches everything; the transform channels also match the CSS group
+// names translate/rotate/scale and the `transform` shorthand.
+function matchSpec(specs: TransitionSpec[], key: string): TransitionSpec | null {
+  const isTransform = TRANSFORM_CHANNELS.has(key);
   let match: TransitionSpec | null = null;
   for (const s of specs) {
     const p = s.property;
     if (
       p === 'all' ||
-      p === group ||
-      (group === 'transform' && (p === 'translate' || p === 'rotate' || p === 'scale'))
+      p === key ||
+      (isTransform && (p === 'transform' || p === 'translate' || p === 'rotate' || p === 'scale'))
     ) {
       match = s;
     }
@@ -129,13 +146,47 @@ function matchSpec(specs: TransitionSpec[], group: TransitionGroup): TransitionS
   return match;
 }
 
-// A color blend for fill/stroke; when either endpoint is null (no paint) there
-// is nothing to interpolate, so it snaps to the target once the tween advances.
-function mixColor(from: string | null, to: string | null, e: number): string | null {
+// Two endpoints blend smoothly iff same-typed and structurally compatible;
+// otherwise the caller flips discretely at the midpoint. Colors are strings, so
+// two strings (or two numbers) always blend.
+function blendable(from: PropValue | null, to: PropValue | null): boolean {
+  if (isGradientData(from) || isGradientData(to)) {
+    return isGradientData(from) && isGradientData(to) && gradientsCompatible(from, to);
+  }
+  if (Array.isArray(from) || Array.isArray(to)) {
+    return Array.isArray(from) && Array.isArray(to) && pathsCompatible(from, to);
+  }
+  if (typeof from === 'number' && typeof to === 'number') return true;
+  if (typeof from === 'string' && typeof to === 'string') return true;
+  return false;
+}
+
+// Blend one property from `from` toward `to` at eased progress `e`. Blendable
+// endpoints interpolate (numbers/colors/compatible gradients+paths); the rest
+// step discretely at the eased midpoint (CSS discrete transition).
+function blendProp(handler: PropHandler, from: PropValue | null, to: PropValue | null, e: number): PropValue | null {
   if (e >= 1) return to;
   if (e <= 0) return from;
-  if (typeof from === 'string' && typeof to === 'string') return interpolateColor(from, to, e);
-  return to;
+  if (!blendable(from, to)) return e < 0.5 ? from : to;
+  return interpolateProp(handler, from, to, e);
+}
+
+// Write a resolved value onto the node. Paint keeps the gradient/solid channels
+// mutually exclusive (a gradient clears the solid and vice-versa); every other
+// property goes straight through its registry handler (which sets its own dirty
+// flags — invariant #3).
+function writeProp(node: SceneNode, key: string, value: PropValue | null): void {
+  if (key === 'fill') {
+    if (isGradientData(value)) { node.fillGradient = value; node.fill = null; }
+    else { node.fillGradient = null; node.fill = (value as string | null) ?? null; }
+    return;
+  }
+  if (key === 'stroke') {
+    if (isGradientData(value)) { node.strokeGradient = value; node.stroke = null; }
+    else { node.strokeGradient = null; node.stroke = (value as string | null) ?? null; }
+    return;
+  }
+  if (value != null) getPropHandler(key)!.apply(node, value);
 }
 
 /**
@@ -158,9 +209,16 @@ export function applyInteractionOverrides(node: SceneNode): void {
  * same override semantics.
  */
 export function applyStateStyles(node: SceneNode, styles: StateStyles): void {
-  const vals = liveSnapshot(node);
-  applyStateDeltas(vals, styles);
-  writeLive(node, vals);
+  if (styles.strokeWidth !== undefined) node.strokeWidth = styles.strokeWidth;
+  if (styles.opacity !== undefined) node.opacity = styles.opacity;
+  const t = styles.transform;
+  if (t) {
+    if (t.translateX !== undefined) node.transform.translateX += t.translateX;
+    if (t.translateY !== undefined) node.transform.translateY += t.translateY;
+    if (t.rotate !== undefined) node.transform.rotate += t.rotate;
+    if (t.scaleX !== undefined) node.transform.scaleX *= t.scaleX;
+    if (t.scaleY !== undefined) node.transform.scaleY *= t.scaleY;
+  }
   applyStatePaint(node, styles);
   // Generic registry-backed overrides (everything outside the legacy channels):
   // snap each parsed endpoint straight in via its handler, which sets any dirty
@@ -182,22 +240,23 @@ export function applyStateStyles(node: SceneNode, styles: StateStyles): void {
  * DEEP-COPIED so this shared StateStyles object is never aliased onto the node:
  * resolveNode re-applies fresh each frame and a later in-place gradient
  * interpolation must not corrupt the authored state stops (same discipline as
- * the base-snapshot gradient clone). NOTE: this instant-snap path is what
- * :state() and non-transitioning :hover/:active use; the transition-tween path
- * (LiveValues) carries only solid colors, so gradients are not interpolated
- * across a hover transition — they snap when the tween settles.
+ * the base-snapshot gradient clone). This is the instant-snap path (:state() and
+ * non-transitioning :hover/:active); the transition-tween path smoothly blends
+ * compatible gradients and flips incompatible ones at the eased midpoint.
  */
 function applyStatePaint(node: SceneNode, styles: StateStyles): void {
   if (styles.fillGradient !== undefined) {
     node.fillGradient = cloneGradient(styles.fillGradient);
     node.fill = null;
   } else if (styles.fill !== undefined) {
+    node.fill = styles.fill;
     node.fillGradient = null;
   }
   if (styles.strokeGradient !== undefined) {
     node.strokeGradient = cloneGradient(styles.strokeGradient);
     node.stroke = null;
   } else if (styles.stroke !== undefined) {
+    node.stroke = styles.stroke;
     node.strokeGradient = null;
   }
 }
@@ -292,14 +351,14 @@ export class InteractionManager {
       return;
     }
 
-    // Absolute target for the state we're transitioning INTO (== interactionState),
-    // computed against the node's current underlying values (pre-override).
-    const target = computeStateValues(node, node.interactionState);
-    const from = active.from;
+    // Values are resolved against the state we're transitioning INTO (==
+    // interactionState), computed per-property against the node's current
+    // underlying (pre-override) live fields.
+    const styles = stateStylesFor(node, node.interactionState);
     let done = true;
 
-    for (const group of TRANSITION_GROUPS) {
-      const spec = matchSpec(active.specs, group);
+    for (const [key, fromVal] of active.from) {
+      const spec = matchSpec(active.specs, key);
       let e = 1;
       if (spec) {
         const p = (now - active.startTime - spec.delay) / spec.duration;
@@ -308,7 +367,8 @@ export class InteractionManager {
           e = p <= 0 ? 0 : applyEasing(clamp01(p), spec.easing);
         }
       }
-      writeGroup(node, group, from, target, e);
+      const target = stateTargetProp(node, styles, key);
+      writeProp(node, key, blendProp(getPropHandler(key)!, fromVal, target, e));
     }
 
     if (done) this.transitions.delete(node);
@@ -339,10 +399,16 @@ export class InteractionManager {
   }
 
   // Anchor (or clear) a node's transition tween: non-empty specs snapshot the
-  // currently displayed values; empty specs snap (delete any running tween).
+  // currently displayed value of every property the node's states can touch;
+  // empty specs snap (delete any running tween).
   private startTween(node: SceneNode, specs: TransitionSpec[], now: number): void {
     if (specs.length > 0) {
-      this.transitions.set(node, { startTime: now, from: liveSnapshot(node), specs });
+      const keys = new Set<string>();
+      collectInvolvedKeys(node.hoverStyles, keys);
+      collectInvolvedKeys(node.activeStyles, keys);
+      const from = new Map<string, PropValue | null>();
+      for (const key of keys) from.set(key, readLiveProp(node, key));
+      this.transitions.set(node, { startTime: now, from, specs });
     } else {
       this.transitions.delete(node);
     }
@@ -396,38 +462,6 @@ export class InteractionManager {
    */
   getActiveNode(): SceneNode | null {
     return this.activeNode;
-  }
-}
-
-// Blend one transitionable group from `from` toward `target` at eased progress
-// `e` (e >= 1 snaps to target) and write it onto the node.
-function writeGroup(
-  node: SceneNode,
-  group: TransitionGroup,
-  from: LiveValues,
-  target: LiveValues,
-  e: number
-): void {
-  switch (group) {
-    case 'fill':
-      node.fill = mixColor(from.fill, target.fill, e);
-      break;
-    case 'stroke':
-      node.stroke = mixColor(from.stroke, target.stroke, e);
-      break;
-    case 'stroke-width':
-      node.strokeWidth = lerp(from.strokeWidth, target.strokeWidth, e);
-      break;
-    case 'opacity':
-      node.opacity = lerp(from.opacity, target.opacity, e);
-      break;
-    case 'transform':
-      node.transform.translateX = lerp(from.translateX, target.translateX, e);
-      node.transform.translateY = lerp(from.translateY, target.translateY, e);
-      node.transform.rotate = lerp(from.rotate, target.rotate, e);
-      node.transform.scaleX = lerp(from.scaleX, target.scaleX, e);
-      node.transform.scaleY = lerp(from.scaleY, target.scaleY, e);
-      break;
   }
 }
 
