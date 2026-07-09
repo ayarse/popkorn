@@ -8,6 +8,7 @@ import 'prismjs/components/prism-css'
 import { marked } from 'marked'
 import { ArrowLeft, BookOpen, ListTree } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BrandMark } from '@/components/BrandMark'
 import { cn } from '@/lib/utils'
 
 const DOCS = [
@@ -142,11 +143,7 @@ export default function Docs() {
     <div className="flex h-full flex-col bg-background text-foreground">
       {/* Header — mirrors the playground shell */}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-        <div className="flex items-center gap-2 pr-2">
-          <div className="size-5 rounded-md bg-gradient-to-br from-primary to-accent" />
-          <h1 className="text-[15px] font-semibold tracking-tight">Popcorn</h1>
-          <span className="text-[15px] text-muted-foreground/70">/ Docs</span>
-        </div>
+        <BrandMark suffix={<span className="text-[15px] text-muted-foreground/70">/ Docs</span>} />
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="ghost"

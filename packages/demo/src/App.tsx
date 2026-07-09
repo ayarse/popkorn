@@ -5,6 +5,7 @@ import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
 import { MotionCanvas } from "./components/MotionCanvas";
 import AgentChat from "./components/AgentChat";
+import { BrandMark } from "./components/BrandMark";
 import { useNavigate } from "@tanstack/react-router";
 import { Sparkles, BookText } from "lucide-react";
 import { convertLottie } from "../../../tools/lottie2popcorn";
@@ -295,12 +296,13 @@ function App() {
       <div className="flex h-full flex-col bg-background text-foreground">
         {/* Header — compact, Linear-style */}
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-          <div className="flex items-center gap-2 pr-2">
-            <div className="size-5 rounded-md bg-gradient-to-br from-primary to-accent" />
-            <h1 className="text-[15px] font-semibold tracking-tight">
-              Popcorn
-            </h1>
-          </div>
+          <BrandMark
+            suffix={
+              <span className="ml-1.5 text-[13px] font-normal text-muted-foreground">
+                Playground
+              </span>
+            }
+          />
 
           <Button
             variant="ghost"
