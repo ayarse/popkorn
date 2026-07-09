@@ -18,7 +18,11 @@ const CUSTOM = /--[a-zA-Z_][a-zA-Z0-9_\-]*/y;
 // Accept a leading-dot fraction (`.5`) as well as `10` / `10.5` — CSS allows it
 // and minifiers (esbuild) emit it by stripping the leading zero.
 const NUMBER = /-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)/y;
-const COLOR = /#[0-9a-fA-F]{3,8}/y;
+// The trailing boundary matters: without it `#Background` would greedily lex as
+// the hex color `#Bac` (B,a,c are hex) with `kground…` left dangling, instead of
+// a node-id reference (`mask: #Background-…`). A real hex color is never
+// followed by another identifier char, so require a non-[\w-] boundary after it.
+const COLOR = /#[0-9a-fA-F]{3,8}(?![\w-])/y;
 // Longest-first so 'ms' beats 's' and 'rem' beats 'em'.
 const UNITS = ['deg', 'rem', 'px', 'em', 'ms', 's'] as const;
 

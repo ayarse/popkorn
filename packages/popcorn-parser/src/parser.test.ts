@@ -205,6 +205,18 @@ test('hex value is a color; non-hex #ident is a node-id keyword (mask reference)
   });
 });
 
+test('#ident starting with hex-like chars is a node-id keyword, not a truncated color', () => {
+  // `#Background…` must not lex as the hex color `#Bac` (B,a,c are hex) with the
+  // rest dangling — it is a full node-id mask reference.
+  const decls = parse('#n { mask: #Background-Big-Wave alpha; }').rules[0].declarations;
+  expect(decls[0].value).toEqual({
+    type: 'list',
+    values: [{ type: 'keyword', value: '#Background-Big-Wave' }, { type: 'keyword', value: 'alpha' }],
+  });
+  // A genuine hex color still parses as a color.
+  expect(parse('#n { fill: #abc; }').rules[0].declarations[0].value).toEqual({ type: 'color', value: '#abc' });
+});
+
 test('comment ignored', () => {
   const ast = parse('/* hi */ #box { fill: #fff; }');
   expect(ast.rules).toHaveLength(1);
