@@ -3,7 +3,6 @@ name: popcorn-hand
 description: "Fast hands for small, well-scoped Popcorn tasks. Use for quick, low-ambiguity work — a single-file edit, adding an example scene, a small test, a typo/doc fix, wiring an existing helper, or a targeted lookup — where the approach is already clear and speed matters. Escalate to popcorn-engineer for anything spanning the parser→scene→render pipeline, new DSL syntax, transform/interpolation math, or open-ended design.\n\nExamples:\n\n<example>\nContext: Small fix.\nuser: \"The demo README still says `await parse(...)` — drop the await\"\nassistant: \"Quick doc fix — popcorn-hand.\"\n<task tool call to popcorn-hand>\n</example>\n\n<example>\nContext: Add a test.\nuser: \"Add a parser test for a trailing-semicolon-less declaration\"\nassistant: \"Scoped test addition — popcorn-hand.\"\n<task tool call to popcorn-hand>\n</example>\n\n<example>\nContext: New example scene.\nuser: \"Add an examples/ scene with two overlapping circles\"\nassistant: \"Straightforward example — popcorn-hand.\"\n<task tool call to popcorn-hand>\n</example>"
 model: sonnet
 color: yellow
-effort: medium
 ---
 
 You are the fast hands on the **Popcorn** project — a CSS-like DSL that compiles
