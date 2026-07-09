@@ -18,6 +18,18 @@ import { hitTest } from './hit-test';
 import { isFunctionValue, isKeywordValue, type Value } from '@popcorn/parser';
 
 /**
+ * Flags set only on the TOP node of a mask composite pass (renderMask). Never
+ * propagated to children, so nested mattes resolve independently.
+ * - `paintSource`: paint this node even though it is `isMaskSource`.
+ * - `skipMask`: skip this node's own `mask` redirect (we are already inside its
+ *   composite) — a matte SOURCE is entered WITHOUT this so its own mask applies.
+ */
+interface RenderOpts {
+  paintSource?: boolean;
+  skipMask?: boolean;
+}
+
+/**
  * Main render loop.
  *
  * Drives requestAnimationFrame and, each frame, runs the value-resolution
@@ -491,20 +503,27 @@ export class RenderLoop {
     this.renderer.endFrame();
   }
 
-  private renderNode(node: SceneNode, isolated: boolean = false, inheritedAlpha: number = 1, skipFilter: boolean = false): void {
+  private renderNode(node: SceneNode, opts: RenderOpts = {}, inheritedAlpha: number = 1, skipFilter: boolean = false): void {
+    // `paintSource` and `skipMask` are set only on the TOP node of a composite
+    // pass (renderMask) and must NOT propagate to descendants — a nested matte
+    // still needs its source skipped and its own mask composited.
+    const paintSource = opts.paintSource ?? false;
+    const skipMask = opts.skipMask ?? false;
+
     // Outside its visibility window the node (and subtree) paints nothing.
     if (node.hidden) return;
 
-    // A mask source is painted only via its dependent's composite (below); the
-    // isolated passes that feed composites bypass that skip.
-    if (!isolated && node.isMaskSource) return;
+    // A mask source is painted only via its dependent's composite; `paintSource`
+    // is the composite pass telling it to paint the source (or the masked
+    // content, which may itself be a source) rather than skip it.
+    if (!paintSource && node.isMaskSource) return;
 
     // filter is the outermost visual wrapper: composite this node's subtree
     // offscreen and blit it back through ctx.filter (so it wraps the masked
     // result too). skipFilter guards the re-entry from renderFilter itself.
     if (!skipFilter && node.filter) {
       if (this.renderer.supportsFilter?.() && this.renderer.compositeFilter) {
-        this.renderFilter(node, isolated, inheritedAlpha);
+        this.renderFilter(node, opts, inheritedAlpha);
         return;
       }
       // Renderer can't apply filters — warn once, then fall through to draw the
@@ -515,9 +534,12 @@ export class RenderLoop {
       }
     }
 
-    // A node with a mask is composited offscreen against its source; the isolated
-    // passes that feed those composites bypass it (isolated = true).
-    if (!isolated && node.mask) { this.renderMask(node); return; }
+    // A node with a mask is composited offscreen against its source. `skipMask`
+    // is set only when re-entering the very node whose composite we are already
+    // inside (avoids infinite recursion); a matte SOURCE that carries its own
+    // mask is entered with skipMask=false so its mask composites correctly —
+    // this is what stops a chained/nested matte source from painting whole.
+    if (!skipMask && node.mask) { this.renderMask(node); return; }
 
     // Retained-backend bracket: opens this node's element before its own
     // save/transform and closes it after its subtree. Placed on the normal draw
@@ -605,7 +627,7 @@ export class RenderLoop {
 
     // Render children in paint order (z-index ascending, document order ties).
     for (const child of childrenInPaintOrder(node)) {
-      this.renderNode(child, false, alpha);
+      this.renderNode(child, undefined, alpha);
     }
 
     this.renderer.restore();
@@ -638,8 +660,11 @@ export class RenderLoop {
     const maskAlpha = worldAlpha(source.parent);
     this.renderer.compositeMask(
       node.mask!.mode,
-      () => { this.renderer.setTransform(contentParent); this.renderNode(node, true, contentAlpha); },
-      () => { this.renderer.setTransform(maskParent); this.renderNode(source, true, maskAlpha); }
+      // Content: paint it (even if it is itself a source), but skip its own mask
+      // redirect — we ARE that composite. Source: paint it, but keep its own mask
+      // (skipMask=false) so a chained matte composites instead of painting solid.
+      () => { this.renderer.setTransform(contentParent); this.renderNode(node, { paintSource: true, skipMask: true }, contentAlpha); },
+      () => { this.renderer.setTransform(maskParent); this.renderNode(source, { paintSource: true }, maskAlpha); }
     );
   }
 
@@ -654,7 +679,7 @@ export class RenderLoop {
    * The re-entry passes skipFilter=true so it doesn't recurse on this same node
    * (its mask, if any, still composites inside the offscreen).
    */
-  private renderFilter(node: SceneNode, isolated: boolean, inheritedAlpha: number): void {
+  private renderFilter(node: SceneNode, opts: RenderOpts, inheritedAlpha: number): void {
     const parentWorld = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
     const world = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node));
     // Device-space blit (Canvas): prescale by the full world scale. User-space
@@ -667,7 +692,7 @@ export class RenderLoop {
     const css = filterToCSS(node.filter!, scale);
     this.renderer.compositeFilter!(css, () => {
       this.renderer.setTransform(parentWorld);
-      this.renderNode(node, isolated, inheritedAlpha, true /* skipFilter */);
+      this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
     });
   }
 }

@@ -296,3 +296,33 @@ test('state animation with explicit fill:none snaps back to base on completion',
   loop.seek(3000);                        // past the 1000ms end
   expect(nodeCx(root, 'dot')).toBeCloseTo(0);
 });
+
+// Chained track matte: a masked content whose matte SOURCE is itself masked.
+// The source must composite against its own matte (a nested compositeMask), not
+// paint whole — otherwise the source's full shape leaks into the alpha channel
+// and the content spills far past its intended region (the Mail Box regression:
+// a matte source's shape flooded the canvas). Two composites must run: the outer
+// content->source, and the nested source->source2.
+test('chained matte: a matte source with its own mask composites nested, not solid', () => {
+  const sheet = parse(`
+    :root { width: 100px; height: 100px; }
+    #wrap {
+      type: group;
+      > #content { type: rect; x: 0; y: 0; width: 50px; height: 50px; fill: #ff0000; mask: #src alpha; }
+      > #src { type: rect; x: 0; y: 0; width: 50px; height: 50px; fill: #00ff00; mask: #src2 alpha; }
+      > #src2 { type: rect; x: 0; y: 0; width: 30px; height: 30px; fill: #0000ff; }
+    }
+  `);
+  const root = buildSceneGraph(sheet);
+  let composites = 0;
+  const renderer = createRecordingRenderer();
+  renderer.compositeMask = function (_m: MaskMode, drawContent: () => void, drawMask: () => void) {
+    composites++;
+    drawContent();
+    drawMask();
+  };
+  const loop = new RenderLoop(renderer);
+  loop.setScene(root);
+  loop.seek(0);
+  expect(composites).toBe(2); // outer content->src, nested src->src2 (was 1 before the fix)
+});
