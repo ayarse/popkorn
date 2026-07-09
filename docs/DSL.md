@@ -843,3 +843,24 @@ else:
 
 `scroll.progress` is a built-in input: scroll position normalized to 0..1 by the
 scrollable range (the raw offset stays available as `scroll.y`).
+
+## Importing SVG
+
+Alongside the Lottie converter, `tools/svg2popcorn.ts` (CLI:
+`tools/svg2popcorn-cli.ts`, or the demo's **Import** button) turns a static SVG
+into Popcorn DSL. The mapping is the natural one:
+
+- `<rect>`/`<circle>`/`<ellipse>`/`<line>`/`<polyline>`/`<polygon>`/`<path>` →
+  the matching Popcorn shapes; `<g>` → a group.
+- `fill`/`stroke`/`stroke-width`/`stroke-linecap`/`stroke-linejoin`/
+  `stroke-dasharray`/`fill-rule`/`opacity` → their Popcorn equivalents.
+- `<linearGradient>`/`<radialGradient>` (incl. `objectBoundingBox` units,
+  `gradientTransform`, and `stop-opacity`) → Popcorn gradient fills.
+- `transform` (`matrix`/`translate`/`rotate(a cx cy)`/`scale`/`skewX`/`skewY`)
+  is decomposed onto each node's `transform`; shear bakes into geometry.
+- `<clipPath>` and luminance `<mask>` → Popcorn clip/mask.
+
+**Phase 1 is static only** — the first frame is imported. An embedded
+`<style>`/SMIL animation is dropped with a warning (animated import is phase 2).
+Deliberately skipped, matching the Lottie skips: SMIL timing, `<pattern>`,
+`<marker>`, `<foreignObject>`, and `<textPath>`.

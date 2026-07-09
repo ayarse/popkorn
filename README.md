@@ -15,8 +15,9 @@ for holds, negative `animation-delay` for staggering, `z-index` for layering)
 rather than inventing syntax. Interactivity is declarative — `var()` and
 `input(cursor.x)` bindings — not a scripting engine. Real Lottie files convert
 into the DSL via the bundled converter (`tools/lottie2popcorn-cli.ts`, or the
-demo's Import Lottie button), validated continuously against the LottieFiles
-conformance corpus.
+demo's Import button), validated continuously against the LottieFiles
+conformance corpus. Static SVG imports too, via `tools/svg2popcorn-cli.ts` (same
+Import button) — phase 1 brings in the artwork; animated SVG is a later phase.
 
 ## Packages
 

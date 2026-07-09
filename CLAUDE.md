@@ -75,6 +75,18 @@ scoreboard (baseline: 65/8/7/0; only rare shape modifiers pb/op/zz/rd remain
 blocked, deliberately — shipping players skip them too). Real-file smoke
 checks live in the sticker/demo files under `examples/lottie/`.
 
+## SVG converter
+
+`tools/svg2popcorn.ts` (browser-safe core; `tools/svg-xml.ts` is its dependency-
+free XML reader) + `tools/svg2popcorn-cli.ts` (CLI: `--validate`, `--batch`,
+raw-string input, matches `.svg`). Shares the same `Converter`/`convertSvg`/
+`validate` contract shape as the Lottie converter, so the demo's **Import**
+button branches on file type into either. **Phase 1 is static import only** — the
+first frame; embedded `<style>`/SMIL animation is dropped with a warning (animated
+SVG is phase 2). Skips mirror Lottie's plus SVG-only ones: `<pattern>`,
+`<marker>`, `<foreignObject>`, `<textPath>`, SMIL. Batch gate: run `--batch
+examples/svg` over the fixtures in `examples/svg/` before/after converter changes.
+
 ## Deliberate skips (don't "helpfully" add these)
 
 JS expressions, text animators, merge-path subtract/intersect (union is
