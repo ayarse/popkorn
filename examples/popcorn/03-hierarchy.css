@@ -1,84 +1,237 @@
-/* Hierarchy — nested orbits, trim trails, a moon on its own clock */
+/* ============================================================
+   HIERARCHY — a solar system, nested groups 4–6 deep.
+
+   The lesson: every group contributes exactly ONE motion, and a
+   child inherits ALL of its ancestors'. So the little satellite
+   at the bottom rides five spinning frames at once — the sun's
+   orbit, Earth's orbit, the Moon's orbit and its own — without a
+   single coordinate of its own doing the work. Transform
+   inheritance composes down the tree.
+
+   TREE  (→ = the motion that group adds to everything inside it):
+
+   #system                       static frame, centres the stage
+    ├─ starfield / guide rings    static + twinkle decoration
+    ├─ #sun                       → breathes (scale pulse)
+    ├─ #mercuryOrbit              → revolves (fast)
+    ├─ #earthOrbit          L1    → revolves
+    │   └─ #earth           L2    positions Earth on the ring
+    │       ├─ #earthBody   L3    → spins  (Earth's day)
+    │       └─ #moonOrbit   L3    → revolves (Moon around Earth)
+    │           └─ #moon    L4    positions the Moon
+    │               ├─ #moonBody
+    │               └─ #satOrbit L5 → revolves (satellite)
+    │                   └─ #sat  L6  the deepest child
+    ├─ #marsOrbit                 → revolves; body spins
+    └─ #saturnOrbit         L1    → revolves
+        └─ #saturnCarrier   L2    positions Saturn on the ring
+            └─ #saturnUpright L3  → COUNTER-rotates the orbit away
+                so the tilted ring stays level in screen space
+                while the orbit still sweeps Saturn around.
+   ============================================================ */
+
 :root {
   width: 800px;
   height: 600px;
   background: #05060f;
 }
 
+/* One turn. Reused by every revolution AND every spin — the only
+   difference between "orbits the sun" and "spins in place" is
+   which group in the tree the animation is attached to. */
 @keyframes orbit {
   0%   { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-/* A trim window marching around a ring reads as an orbital trail */
-@keyframes trail {
-  0%   { trim-offset: 0%; }
-  100% { trim-offset: 100%; }
-}
-
+/* The sun's slow breath — a symmetric 0%/100% keyframe loops clean. */
 @keyframes sunPulse {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.05); }
+  50%      { transform: scale(1.06); }
 }
 
-#space {
+/* Corona glow, pulsing a touch out of phase with the body. */
+@keyframes glowPulse {
+  0%, 100% { transform: scale(1);    opacity: 0.55; }
+  50%      { transform: scale(1.12); opacity: 0.8;  }
+}
+
+/* A few background stars fade in and out. */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 1;    }
+}
+
+/* ── #system — the root frame. Purely positional (moves the whole
+      universe to canvas centre); every orbit below inherits it. ── */
+#system {
   type: group;
   transform: translate(400px, 300px);
 
-  /* Faint orbit rings */
-  > #ring1 { type: circle; cx: 0; cy: 0; r: 150px; fill: none; stroke: #17203f; stroke-width: 2px; }
-  > #ring2 { type: circle; cx: 0; cy: 0; r: 250px; fill: none; stroke: #17203f; stroke-width: 2px; }
+  /* Starfield — cheap depth: static dots at varied size/opacity,
+     a couple wired to `twinkle`. Coords are relative to centre. */
+  > #s1  { type: circle; cx: -350px; cy: -230px; r: 1.5px; fill: #ffffff; opacity: 0.7; }
+  > #s2  { type: circle; cx: -280px; cy:  180px; r: 1px;   fill: #cdd6ff; opacity: 0.5; }
+  > #s3  { type: circle; cx: -180px; cy: -120px; r: 1.2px; fill: #ffffff;
+           animation: twinkle 3s ease-in-out infinite; }
+  > #s4  { type: circle; cx:  330px; cy: -200px; r: 1.5px; fill: #fff2cc; opacity: 0.8; }
+  > #s5  { type: circle; cx:  300px; cy:  120px; r: 1px;   fill: #ffffff; opacity: 0.45; }
+  > #s6  { type: circle; cx:  210px; cy:  250px; r: 1.3px; fill: #cdd6ff;
+           animation: twinkle 2.4s ease-in-out infinite; }
+  > #s7  { type: circle; cx: -320px; cy:   40px; r: 1px;   fill: #ffffff; opacity: 0.5; }
+  > #s8  { type: circle; cx:  120px; cy: -250px; r: 1.4px; fill: #fff2cc; opacity: 0.7; }
+  > #s9  { type: circle; cx: -110px; cy:  230px; r: 1px;   fill: #ffffff;
+           animation: twinkle 3.6s ease-in-out infinite; }
+  > #s10 { type: circle; cx:  360px; cy:   10px; r: 1.2px; fill: #cdd6ff; opacity: 0.6; }
+  > #s11 { type: circle; cx:   40px; cy:  270px; r: 1px;   fill: #ffffff; opacity: 0.5; }
+  > #s12 { type: circle; cx: -250px; cy: -260px; r: 1.3px; fill: #fff2cc; opacity: 0.65; }
 
-  /* Bright trailing arcs, each matched to its planet's period */
-  > #trail1 {
-    type: circle; cx: 0; cy: 0; r: 150px;
-    fill: none; stroke: #4ecdc4; stroke-width: 3px; stroke-linecap: round;
-    trim-start: 0%; trim-end: 20%;
-    animation: trail 8s linear infinite;
-  }
-  > #trail2 {
-    type: circle; cx: 0; cy: 0; r: 250px;
-    fill: none; stroke: #e94560; stroke-width: 3px; stroke-linecap: round;
-    trim-start: 0%; trim-end: 13%;
-    animation: trail 14s linear infinite;
+  /* Faint guide rings — one per orbit radius, so the nesting reads
+     even when a planet is on the far side. Stroke only, no fill. */
+  > #ringMercury { type: circle; cx: 0; cy: 0; r: 90px;  fill: none; stroke: #141b33; stroke-width: 1px; }
+  > #ringEarth   { type: circle; cx: 0; cy: 0; r: 150px; fill: none; stroke: #141b33; stroke-width: 1px; }
+  > #ringMars    { type: circle; cx: 0; cy: 0; r: 205px; fill: none; stroke: #141b33; stroke-width: 1px; }
+  > #ringSaturn  { type: circle; cx: 0; cy: 0; r: 262px; fill: none; stroke: #141b33; stroke-width: 1px; }
+
+  /* Corona — big soft radial faded to transparent (8-digit alpha),
+     behind the sun. No filters; the gradient alpha IS the glow. */
+  > #sunGlow {
+    type: circle; cx: 0; cy: 0; r: 95px;
+    fill: radial-gradient(#ffcf7a 0%, #ffcf7a00 70%);
+    transform-origin: center;
+    animation: glowPulse 4s ease-in-out infinite;
   }
 
-  /* The sun, gently breathing */
+  /* ── #sun (L1 motion: breathe) ──────────────────────────────── */
   > #sun {
-    type: circle; cx: 0; cy: 0; r: 46px;
+    type: circle; cx: 0; cy: 0; r: 42px;
     fill: radial-gradient(#fff6d5 0%, #ffb02e 100%);
     transform-origin: center;
-    animation: sunPulse 3s ease-in-out infinite;
+    animation: sunPulse 4s ease-in-out infinite;
   }
 
-  /* Earth orbits the sun; the moon subtree runs at double speed via time-scale */
-  > #earthOrbit {
+  /* ── Mercury — one group, one motion: a fast tight revolution.
+        No moon, no spin; it's the speed contrast for the others. ── */
+  > #mercuryOrbit {
     type: group;
-    animation: orbit 8s linear infinite;
-
-    > #earth {
-      type: circle; cx: 150px; cy: 0; r: 18px;
-      fill: radial-gradient(#8fd6ff 0%, #2f6fb0 100%);
+    animation: orbit 5s linear infinite;
+    > #mercury {
+      type: circle; cx: 90px; cy: 0; r: 7px;
+      fill: radial-gradient(#b8b0a8 0%, #6b6560 100%);
     }
+  }
 
-    > #moonSystem {
+  /* ── Earth system — the deep branch. Read it top to bottom:
+        each `> ` step adds one more spinning frame of reference. ── */
+  > #earthOrbit {                         /* L1 → revolves round the sun */
+    type: group;
+    animation: orbit 12s linear infinite;
+
+    > #earth {                            /* L2 — carrier: just positions Earth */
       type: group;
       transform: translate(150px, 0);
-      time-scale: 2;
-      animation: orbit 2s linear infinite;
 
-      > #moon { type: circle; cx: 34px; cy: 0; r: 7px; fill: #cbd5e1; }
+      /* L3 → Earth's own spin. It's a GROUP so the continents turn
+         with it while the moon (a sibling, below) is unaffected —
+         that separation is the whole point: spin ≠ orbit. */
+      > #earthBody {
+        type: group;
+        animation: orbit 6s linear infinite;
+
+        > #ocean    { type: circle;  cx: 0; cy: 0; r: 15px;
+                      fill: radial-gradient(#7fc4ff 0%, #1b5fa8 100%); }
+        > #land1    { type: ellipse; cx: -5px; cy: -4px; rx: 6px; ry: 4px; fill: #3f9c5a; }
+        > #land2    { type: ellipse; cx:  6px; cy:  5px; rx: 4px; ry: 5px; fill: #4caf6a; }
+        > #land3    { type: ellipse; cx:  7px; cy: -6px; rx: 3px; ry: 2px; fill: #3f9c5a; }
+      }
+
+      /* L3 → the Moon's revolution. Sits at Earth's position
+         (inherited) but NOT Earth's spin, so its orbit plane is
+         steady while the planet turns underneath. */
+      > #moonOrbit {
+        type: group;
+        animation: orbit 3.2s linear infinite;
+
+        > #moon {                         /* L4 — carrier: positions the Moon */
+          type: group;
+          transform: translate(38px, 0);
+
+          > #moonBody {
+            type: circle; cx: 0; cy: 0; r: 6px;
+            fill: radial-gradient(circle 8px at -2px -2px, #eef0f4 0%, #9aa0aa 100%);
+          }
+
+          /* L5 → a satellite revolving round the Moon... */
+          > #satOrbit {
+            type: group;
+            animation: orbit 1.4s linear infinite;
+            /* L6 — the deepest node in the scene. Its screen path is
+               the sum of five inherited rotations + this one, yet it
+               only ever declares a single 13px offset. */
+            > #sat { type: circle; cx: 13px; cy: 0; r: 2.5px; fill: #d6f5ff; }
+          }
+        }
+      }
     }
   }
 
-  /* Mars, slower and further out */
+  /* ── Mars — revolves, and its body spins to show a polar cap.
+        Two levels: orbit group → spinning body group. ── */
   > #marsOrbit {
     type: group;
-    animation: orbit 14s linear infinite;
+    animation: orbit 18s linear infinite;
 
     > #mars {
-      type: circle; cx: 250px; cy: 0; r: 14px;
-      fill: radial-gradient(#ff9e7d 0%, #c0392b 100%);
+      type: group;
+      transform: translate(205px, 0);
+      animation: orbit 9s linear infinite;   /* Mars' day */
+
+      > #marsBody { type: circle;  cx: 0; cy: 0; r: 11px;
+                    fill: radial-gradient(#ff9e7d 0%, #b23a1e 100%); }
+      > #marsCap  { type: ellipse; cx: 0; cy: -8px; rx: 4px; ry: 2.5px; fill: #ffe3d6; }
+    }
+  }
+
+  /* ── Saturn — the COUNTER-ROTATION lesson. ────────────────────
+        #saturnOrbit spins the whole subtree round the sun. Inside,
+        #saturnUpright runs the SAME orbit in `reverse`, so the two
+        rotations cancel (parent +θ, child −θ → net 0). Result:
+        Saturn keeps a fixed screen orientation — the flat ring
+        stays level as it's carried around, instead of tumbling.
+        Position still orbits, because the translate lives ABOVE
+        the counter-rotation, on #saturnCarrier. ── */
+  > #saturnOrbit {                         /* L1 → revolves */
+    type: group;
+    animation: orbit 26s linear infinite;
+
+    > #saturnCarrier {                     /* L2 — positions Saturn on the ring */
+      type: group;
+      transform: translate(262px, 0);
+
+      > #saturnUpright {                   /* L3 → cancels the orbit's rotation */
+        type: group;
+        animation: orbit 26s linear infinite reverse;
+
+        /* Ring behind the body (document order) — a stroked ellipse
+           reads as a tilted disc; the body hides its front centre. */
+        > #saturnRing {
+          type: ellipse; cx: 0; cy: 0; rx: 34px; ry: 11px;
+          fill: none; stroke: #e7cf9c; stroke-width: 4px; opacity: 0.85;
+        }
+        > #saturnBody {
+          type: circle; cx: 0; cy: 0; r: 16px;
+          fill: radial-gradient(#f5d9a0 0%, #c99a54 100%);
+        }
+
+        /* A small moon riding INSIDE the upright frame — its orbit
+           plane is steady too, thanks to the counter-rotation. */
+        > #titanOrbit {
+          type: group;
+          animation: orbit 4s linear infinite;
+          > #titan { type: circle; cx: 30px; cy: 0; r: 4px;
+                     fill: radial-gradient(#ffd9a0 0%, #c98a4a 100%); }
+        }
+      }
     }
   }
 }
