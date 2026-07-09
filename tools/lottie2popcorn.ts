@@ -641,12 +641,16 @@ export class Converter {
     // full-time is what left frozen duplicate copies on screen.
     const visFrom = typeof l.ip === 'number' && l.ip > compIp ? l.ip : null;
     const visUntil = typeof l.op === 'number' && l.op < compOp ? l.op : null;
-    const record = (rule: Rule): Rule => {
+    // `maskTarget` is the rule a post-hoc track matte (buildLayerList :576-580)
+    // and clip must land on. It is the outer `rule` unless the layer isolates its
+    // clip/mask scope from transform-parented children in an inner wrapper, in
+    // which case the matte must follow the clip onto that inner content rule.
+    const record = (rule: Rule, maskTarget: Rule = rule): Rule => {
       if (visFrom != null) rule.decls.push(`visible-from: ${num(visFrom / this.fr, 3)}s`);
       if (visUntil != null) rule.decls.push(`visible-until: ${num(visUntil / this.fr, 3)}s`);
       const filterDecl = this.effectFilterDecl(l);
       if (filterDecl) rule.decls.push(filterDecl);
-      if (typeof l.ind === 'number') ruleByInd.set(l.ind, rule);
+      if (typeof l.ind === 'number') ruleByInd.set(l.ind, maskTarget);
       return rule;
     };
 
@@ -690,8 +694,18 @@ export class Converter {
       // A layer mask is the tighter clip and shares the single `clip-path` slot,
       // so prefer it — never emit both (the second would clobber the first).
       const cw = l.w ?? asset.w, ch = l.h ?? asset.h;
-      if (mask) this.applyMask(group, mask);
-      else if (cw && ch) group.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
+      // Lottie parenting is transform-ONLY: the clip box and any track matte must
+      // scope the precomp's own content but NEVER its transform-parented children.
+      // When both a clip/mask and such children are present, hold the clip/mask +
+      // the expanded comp content in an inner wrapper and keep the children as
+      // plain transform siblings of it (record() points the post-hoc matte here).
+      const emitsClip = !!mask || !!(cw && ch);
+      const isolate = childRules.length > 0 && emitsClip;
+      const content: Rule = isolate
+        ? { id: this.uniqueId(`${id}-content`), type: 'group', decls: [], channels: [], children: [] }
+        : group;
+      if (mask) this.applyMask(content, mask);
+      else if (cw && ch) content.decls.push(`clip-path: path('M0 0 H${num(cw)} V${num(ch)} H0 Z')`);
 
       // Time scoping. A keyframed time remap (tm) fully defines the local
       // timeline, so it subsumes st/sr; otherwise st -> time-offset and sr
@@ -724,9 +738,15 @@ export class Converter {
       this.compStack.add(l.refId);
       const assetRules = this.buildLayerList(asset.layers, id, aip, aop);
       this.compStack.delete(l.refId);
-      group.children.push(...assetRules, ...childRules);
+      if (content !== group) {
+        content.children.push(...assetRules);
+        this.finalizeAnim(content);
+        group.children.push(content, ...childRules);
+      } else {
+        group.children.push(...assetRules, ...childRules);
+      }
       this.finalizeAnim(group);
-      return record(group);
+      return record(group, content);
     }
 
     if (l.ty === 2) {

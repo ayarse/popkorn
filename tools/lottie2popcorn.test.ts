@@ -427,3 +427,50 @@ test('animated mask (legacy, no `a` flag) drives a keyframed clip-path', () => {
   expect(css).toMatch(/\d+%\s*\{[^}]*clip-path: path\(/);
   expect(c.warnings.some((w) => w.includes('baked to first frame'))).toBe(false);
 });
+
+/** Byte range [openBrace, closeBrace] of the block introduced by `selector`. */
+function blockRange(css: string, selector: string): [number, number] {
+  const start = css.indexOf(selector);
+  if (start < 0) throw new Error(`selector ${selector} not found`);
+  const open = css.indexOf('{', start);
+  let depth = 0, i = open;
+  for (; i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}' && --depth === 0) break;
+  }
+  return [open, i];
+}
+
+test('a transform-parented child is NOT nested inside its parent precomp clip/mask scope', () => {
+  const ks = { p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 }, r: { a: 0, k: 0 } };
+  const dot = { ty: 4, nm: 'dot', ind: 1, ip: 0, op: 60, st: 0, ks,
+    shapes: [{ ty: 'el', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [20, 20] } }, { ty: 'fl', c: { a: 0, k: [1, 0, 0] }, o: { a: 0, k: 100 } }] };
+  const css = new Converter().convert({
+    v: '5', fr: 30, ip: 0, op: 60, w: 100, h: 100,
+    assets: [{ id: 'inner', layers: [dot] }],
+    layers: [
+      // Matte source: painted only through the precomp's composite.
+      { ty: 4, nm: 'matte-src', ind: 2, ip: 0, op: 60, st: 0, ks,
+        shapes: [{ ty: 'rc', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [10, 10] } }, { ty: 'fl', c: { a: 0, k: [0, 0, 0] }, o: { a: 0, k: 100 } }] },
+      // Precomp instance: emits a comp-box clip AND consumes matte src (tt:1 tp:2).
+      { ty: 0, nm: 'pre', ind: 3, refId: 'inner', ip: 0, op: 60, st: 0, w: 50, h: 50, tt: 1, tp: 2, ks },
+      // Transform-parented child of the precomp — must inherit ONLY its transform.
+      { ty: 4, nm: 'child', ind: 4, parent: 3, ip: 0, op: 60, st: 0, ks,
+        shapes: [{ ty: 'rc', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [10, 10] } }, { ty: 'fl', c: { a: 0, k: [0, 1, 0] }, o: { a: 0, k: 100 } }] },
+    ],
+  });
+  // The clip + matte are isolated onto an inner content wrapper.
+  const [cOpen, cClose] = blockRange(css, '#pre-content {');
+  const content = css.slice(cOpen, cClose);
+  expect(content).toContain('clip-path: path(');
+  expect(content).toContain('mask: #matte-src alpha');
+  // The transform-parented child sits OUTSIDE that clip/mask scope.
+  const childIdx = css.indexOf('#child {');
+  expect(childIdx).toBeGreaterThan(-1);
+  expect(childIdx < cOpen || childIdx > cClose).toBe(true);
+  // And the outer transform group carries neither the clip nor the matte itself.
+  const [pOpen] = blockRange(css, '#pre {');
+  const preHead = css.slice(pOpen, cOpen);
+  expect(preHead).not.toContain('clip-path');
+  expect(preHead).not.toContain('mask:');
+});
