@@ -97,9 +97,10 @@ converter emits it for precomp layers.
   `bun run build` green, corpus batch unchanged-or-better, and a browser
   eyeball of an affected demo scene (screenshots lie less than tests here —
   several real bugs were only visible on canvas). For frame-accurate visual
-  truth, use the lottie-web vs popcorn comparison harness at
-  `tools/harness/` (see its README) — lottie-web is the parity floor, not
-  the ceiling.
+  truth, use the comparison harness at `tools/harness/` (see its README) —
+  **thorvg is the parity target; lottie-web canvas is the floor** and the
+  sanity cross-check (thorvg fails some things too: when JSON intent and
+  lottie-web agree against thorvg, don't chase thorvg).
 - Demo gallery scenes live in `examples/popcorn/*.css` (the source of truth,
   also test-globbed by the parser). The demo loads them dynamically via
   `import.meta.glob` in `packages/demo/src/examples.ts` — filename

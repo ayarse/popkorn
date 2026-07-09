@@ -14,11 +14,15 @@ deliberate skip, or a documented limitation — and each has a different
 correct response. Never fix before classifying.
 
 **Core principles (learned the hard way):**
-- **The parity floor is lottie-web's *canvas* renderer** — not AE, not
-  thorvg, not lottie-web SVG. If lottie-web canvas also renders it "wrong"
-  (e.g. drops layer blur), Popcorn matching that is *correct*, and the skip
-  is legitimate. Floor, not ceiling: exceeding it is allowed when nearly
-  free (that's how `filter: blur()` got in).
+- **Two reference players, two roles.** **thorvg is the parity TARGET** —
+  the quality bar Popcorn aims to match. **lottie-web *canvas* is the
+  FLOOR** — never render worse than it — and the sanity cross-check:
+  thorvg has its own failures, so before chasing a thorvg-only behavior,
+  confirm it against the source JSON's intent (if lottie-web and the JSON
+  agree and thorvg disagrees, thorvg is the one that's wrong). Matching
+  lottie-web but falling short of thorvg is not "done" — it's a **target
+  gap**: implement if the nearly-free rule allows, otherwise record it as
+  a warned, documented gap rather than silently calling it correct.
 - **Warnings are the scoreboard.** A silent drop is always a bug, even when
   the drop itself is a deliberate skip. `warnOnce(...)` every discard.
 - **CSS idiom first** when adding anything to the DSL: use the real CSS
@@ -35,19 +39,23 @@ correct response. Never fix before classifying.
 
 ```dot
 digraph triage {
-    "File renders wrong" [shape=box];
+    "File renders wrong vs thorvg" [shape=box];
     "Feature in deliberate-skip list?" [shape=diamond];
+    "thorvg uniquely wrong (JSON + lottie-web agree)?" [shape=diamond];
     "lottie-web CANVAS also wrong?" [shape=diamond];
     "Converted CSS faithful to JSON?" [shape=diamond];
     "Skip is correct; ensure a warning exists" [shape=box];
-    "Parity-floor match; ensure a warning exists" [shape=box];
+    "Don't chase thorvg; no change" [shape=box];
+    "TARGET GAP: implement if nearly free, else warn + document" [shape=box];
     "PLAYER bug (builder/runtime/renderer)" [shape=box];
     "CONVERTER bug" [shape=box];
 
-    "File renders wrong" -> "Feature in deliberate-skip list?";
+    "File renders wrong vs thorvg" -> "Feature in deliberate-skip list?";
     "Feature in deliberate-skip list?" -> "Skip is correct; ensure a warning exists" [label="yes"];
-    "Feature in deliberate-skip list?" -> "lottie-web CANVAS also wrong?" [label="no"];
-    "lottie-web CANVAS also wrong?" -> "Parity-floor match; ensure a warning exists" [label="yes"];
+    "Feature in deliberate-skip list?" -> "thorvg uniquely wrong (JSON + lottie-web agree)?" [label="no"];
+    "thorvg uniquely wrong (JSON + lottie-web agree)?" -> "Don't chase thorvg; no change" [label="yes"];
+    "thorvg uniquely wrong (JSON + lottie-web agree)?" -> "lottie-web CANVAS also wrong?" [label="no"];
+    "lottie-web CANVAS also wrong?" -> "TARGET GAP: implement if nearly free, else warn + document" [label="yes"];
     "lottie-web CANVAS also wrong?" -> "Converted CSS faithful to JSON?" [label="no"];
     "Converted CSS faithful to JSON?" -> "PLAYER bug (builder/runtime/renderer)" [label="yes"];
     "Converted CSS faithful to JSON?" -> "CONVERTER bug" [label="no"];
@@ -62,10 +70,11 @@ offscreen compositor, the channel plumbing, a native `ctx` capability) with
 no new subsystem and no new dependency (blur qualified: `ctx.filter` + the
 existing compositor). "The file needs it" alone does not.
 
-Quick parity-floor probe before firing up the harness: lottie-web *canvas*
-is known to drop all layer effects (blur/glow/shadow) — an effects-shaped
-symptom is likely a floor match. Anything geometry/paint/timing-shaped,
-assume the floor renders it and keep triaging.
+Quick probe before firing up the harness: lottie-web *canvas* is known to
+drop all layer effects (blur/glow/shadow) — an effects-shaped symptom where
+thorvg renders the effect is a classic TARGET GAP (that's how
+`filter: blur()` got in). Anything geometry/paint/timing-shaped, assume
+both references render it and keep triaging toward a real bug.
 
 Marker-driven interactivity (named segments a host app plays) is not a
 conversion target at all — it maps to a hand-authored `@machine` scene
@@ -211,8 +220,9 @@ shipped bug; the serializer was forgotten once and broke round-trip):
 
 | Mistake | Correction |
 |---|---|
-| Fixing before classifying | Run the triage flowchart; the same symptom has four different correct responses |
-| Comparing against AE intent or thorvg | The floor is lottie-web *canvas*; check what it actually renders |
+| Fixing before classifying | Run the triage flowchart; the same symptom has five different correct responses |
+| Treating "matches lottie-web" as done | lottie-web is the floor; thorvg is the target — a gap vs thorvg is a target gap, not correctness |
+| Chasing a thorvg-only behavior | thorvg fails things too; when JSON intent + lottie-web agree against it, thorvg is wrong |
 | Trusting `validate: ok` | It catches structure, not silent visual wrongness |
 | Eyeballing motion quality | Sample the curves at 1 ms and differentiate |
 | Implementing a skipped feature because a file uses it | Skips are overturned by "nearly free", not by demand |
