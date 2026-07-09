@@ -1,5 +1,5 @@
 import type { Renderer } from '../renderer/interface';
-import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData, TimeRemapStop } from '../scene/types';
+import type { SceneNode, RectData, CircleData, EllipseData, PathData, TextData, ImageData, TimeRemapStop, FilterOp } from '../scene/types';
 import type { TrimDescriptor, Matrix3x3 } from '../renderer/types';
 import { IDENTITY_MATRIX, multiplyMatrices } from '../renderer/types';
 import { resetNodeToBase, childrenInPaintOrder } from '../scene/types';
@@ -49,6 +49,9 @@ export class RenderLoop {
   // Fit-to-container: root transform (scene -> device px) applied each frame, plus
   // the scene box size the background fills. Default identity = 1:1, no fit.
   private viewport: Matrix3x3 = IDENTITY_MATRIX;
+  // One-time guard: a node has a `filter` but the renderer can't apply it (old
+  // Safari, or a backend without a filter concept). Warned once, then unfiltered.
+  private filterWarned: boolean = false;
   private sceneWidth: number = 0;
   private sceneHeight: number = 0;
   // Looping: when on, the timeline wraps once it passes `sceneDuration`.
@@ -462,17 +465,33 @@ export class RenderLoop {
     this.renderer.endFrame();
   }
 
-  private renderNode(node: SceneNode, isolated: boolean = false, inheritedAlpha: number = 1): void {
+  private renderNode(node: SceneNode, isolated: boolean = false, inheritedAlpha: number = 1, skipFilter: boolean = false): void {
     // Outside its visibility window the node (and subtree) paints nothing.
     if (node.hidden) return;
 
-    // In the normal walk, a mask source is painted only via its dependent's
-    // composite (below), and a node with a mask is composited offscreen. The
-    // isolated passes that feed those composites bypass both (isolated = true).
-    if (!isolated) {
-      if (node.isMaskSource) return;
-      if (node.mask) { this.renderMask(node); return; }
+    // A mask source is painted only via its dependent's composite (below); the
+    // isolated passes that feed composites bypass that skip.
+    if (!isolated && node.isMaskSource) return;
+
+    // filter is the outermost visual wrapper: composite this node's subtree
+    // offscreen and blit it back through ctx.filter (so it wraps the masked
+    // result too). skipFilter guards the re-entry from renderFilter itself.
+    if (!skipFilter && node.filter) {
+      if (this.renderer.supportsFilter?.() && this.renderer.compositeFilter) {
+        this.renderFilter(node, isolated, inheritedAlpha);
+        return;
+      }
+      // Renderer can't apply filters — warn once, then fall through to draw the
+      // node unfiltered (preserving the normal transform discipline).
+      if (!this.filterWarned) {
+        this.filterWarned = true;
+        console.warn('[popcorn] filter: unsupported by this renderer; drawing unfiltered');
+      }
     }
+
+    // A node with a mask is composited offscreen against its source; the isolated
+    // passes that feed those composites bypass it (isolated = true).
+    if (!isolated && node.mask) { this.renderMask(node); return; }
 
     this.renderer.save();
 
@@ -580,6 +599,47 @@ export class RenderLoop {
       () => { this.renderer.setTransform(maskParent); this.renderNode(source, true, maskAlpha); }
     );
   }
+
+  /**
+   * Composite a node's subtree offscreen and blit it back through ctx.filter.
+   * The content is rendered at its full world transform (viewport folded in, like
+   * renderMask), so the offscreen holds device-space pixels; the filter is then
+   * applied at the blit in device space. We therefore pre-scale the filter's
+   * lengths (blur radius, shadow offset/blur) by the node's world scale, so a
+   * scaled element's blur scales with it — matching CSS, and independent of
+   * whether the platform ctx.filter honors the CTM (browsers diverge on that).
+   * The re-entry passes skipFilter=true so it doesn't recurse on this same node
+   * (its mask, if any, still composites inside the offscreen).
+   */
+  private renderFilter(node: SceneNode, isolated: boolean, inheritedAlpha: number): void {
+    const parentWorld = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node.parent));
+    const world = multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node));
+    const css = filterToCSS(node.filter!, matrixScale(world));
+    this.renderer.compositeFilter!(css, () => {
+      this.renderer.setTransform(parentWorld);
+      this.renderNode(node, isolated, inheritedAlpha, true /* skipFilter */);
+    });
+  }
+}
+
+/** Uniform device-space scale of a 3×3 affine matrix (geometric mean of its
+ * axis scales, √|det| — a single-value approximation for the elliptical case). */
+function matrixScale(m: Matrix3x3): number {
+  const det = m[0] * m[4] - m[1] * m[3];
+  return Math.sqrt(Math.abs(det));
+}
+
+/** Build a CSS filter string from the ops, scaling every length to device px. */
+function filterToCSS(ops: FilterOp[], scale: number): string {
+  const parts: string[] = [];
+  for (const op of ops) {
+    if (op.type === 'blur') {
+      parts.push(`blur(${op.radius * scale}px)`);
+    } else {
+      parts.push(`drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`);
+    }
+  }
+  return parts.join(' ');
 }
 
 /**

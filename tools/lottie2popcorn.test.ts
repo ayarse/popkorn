@@ -154,17 +154,48 @@ test('precomp time remap (tm) emits a time-remap curve, not a blocked feature', 
 
 test('an unsupported layer effect (ef) warns instead of silently dropping, and still converts', () => {
   const doc = comp(30, [0, 30]);
-  // A Gaussian Blur "glow" effect, plus a disabled one that must stay silent.
+  // A Tint effect (ty 20, unsupported), plus a disabled one that must stay silent.
   doc.layers[0].ef = [
-    { ty: 29, nm: 'Gaussian Blur', en: 1, ef: [{ ty: 0, nm: 'Blurriness', v: { a: 0, k: 89.3 } }] },
-    { ty: 25, nm: 'Drop Shadow', en: 0 },
+    { ty: 20, nm: 'Tint', en: 1 },
+    { ty: 20, nm: 'Fill', en: 0 },
   ];
   const c = new Converter();
   const css = c.convert(doc);
   expect(validate(css)).toEqual([]); // conversion still succeeds
-  expect(c.warnings.some((w) => w.includes("layer effect 'Gaussian Blur'"))).toBe(true);
-  expect(c.warnings.some((w) => w.includes('Drop Shadow'))).toBe(false); // en:0 stays quiet
+  expect(c.warnings.some((w) => w.includes("layer effect 'Tint'"))).toBe(true);
+  expect(c.warnings.some((w) => w.includes('Fill'))).toBe(false); // en:0 stays quiet
   expect([...c.blocked].some((b) => b.includes('effect'))).toBe(false); // warn, not block
+});
+
+test('Gaussian Blur (ty 29) maps to filter: blur(Blurriness / 4 px), no warning', () => {
+  const doc = comp(30, [0, 30]);
+  doc.layers[0].ef = [
+    { ty: 29, nm: 'Gaussian Blur', en: 1, ef: [{ ty: 0, nm: 'Blurriness', v: { a: 0, k: 89.3 } }] },
+  ];
+  const c = new Converter();
+  const css = c.convert(doc);
+  expect(validate(css)).toEqual([]);
+  expect(css).toContain('filter: blur(22.33px)'); // 89.3 / 4
+  expect(c.warnings.some((w) => w.includes('Gaussian Blur'))).toBe(false); // mapped, not warned
+});
+
+test('Drop Shadow (ty 25) maps to drop-shadow() using lottie-web polar convention', () => {
+  const doc = comp(30, [0, 30]);
+  // color black, opacity 128/255, direction 0deg (straight up), distance 10, softness 8.
+  // angle = (0 - 90)deg -> dx = 10·cos(-90°) = 0, dy = 10·sin(-90°) = -10; blur = 8/4 = 2.
+  doc.layers[0].ef = [
+    { ty: 25, nm: 'Drop Shadow', en: 1, ef: [
+      { ty: 2, nm: 'Shadow Color', v: { a: 0, k: [0, 0, 0, 1] } },
+      { ty: 0, nm: 'Opacity', v: { a: 0, k: 128 } },
+      { ty: 0, nm: 'Direction', v: { a: 0, k: 0 } },
+      { ty: 0, nm: 'Distance', v: { a: 0, k: 10 } },
+      { ty: 0, nm: 'Softness', v: { a: 0, k: 8 } },
+    ] },
+  ];
+  const c = new Converter();
+  const css = c.convert(doc);
+  expect(validate(css)).toEqual([]);
+  expect(css).toContain('drop-shadow(0px -10px 2px rgba(0, 0, 0, 0.502))');
 });
 
 test('a hoisted union stroke samples the combined d on the UNION of every input grid', () => {

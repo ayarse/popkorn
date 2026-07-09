@@ -34,9 +34,11 @@ export class Canvas2DRenderer implements Renderer {
   // In-flight image decodes; each promise settles (never rejects) on load/error.
   private pendingImages = new Set<Promise<void>>();
   private offscreen: (CanvasRenderingContext2D | null)[] = [];
-  // Re-entrancy depth for compositeMask: nested track mattes each claim a
-  // distinct offscreen pair so an inner matte's beginFrame() can't clear the
-  // outer content mid-composite.
+  // Re-entrancy depth for offscreen compositing (compositeMask + compositeFilter):
+  // nested composites each claim a distinct offscreen band (base = depth*2) so an
+  // inner composite's beginFrame() can't clear an outer's content mid-composite.
+  // Filter and mask share the counter so they interleave (filter-in-matte,
+  // matte-in-filter) without clobbering each other's buffers.
   private maskDepth = 0;
   private fillColor: string | null = '#000000';
   private strokeColor: string | null = null;
@@ -244,6 +246,51 @@ export class Canvas2DRenderer implements Renderer {
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
     main.drawImage(a.canvas, 0, 0);
+    main.restore();
+  }
+
+  // ctx.filter exists on all evergreen browsers; old Safari (<18) lacks it. It's
+  // a string property ('none' by default), so a typeof check feature-detects it.
+  supportsFilter(): boolean {
+    return typeof this.ctx.filter === 'string';
+  }
+
+  // Composite a filtered subtree: render `drawContent` (which sets its own world
+  // transform) into an offscreen holding device-space pixels, then blit it back
+  // to the main canvas at identity with `filter` applied. Because the blit is in
+  // device space, the caller must have already scaled the filter's lengths by the
+  // node's world scale (so a scaled element's blur/shadow scales — CSS semantics),
+  // rather than relying on ctx.filter honoring the CTM (which browsers diverge on).
+  compositeFilter(filter: string, drawContent: () => void): void {
+    const buf = this.ensureOffscreen(this.maskDepth * 2);
+    if (!buf) {
+      // Headless (no offscreen): draw unfiltered, bracketed so the closure's
+      // absolute setTransform can't leak into sibling draws on the main ctx.
+      this.ctx.save();
+      drawContent();
+      this.ctx.restore();
+      return;
+    }
+
+    const main = this.ctx;
+    // A nested composite inside drawContent claims a deeper band, so it can't
+    // clear this buffer mid-composite (mirrors compositeMask's depth discipline).
+    this.maskDepth++;
+    try {
+      this.ctx = buf;
+      this.beginFrame();
+      drawContent();
+    } finally {
+      this.maskDepth--;
+    }
+
+    this.ctx = main;
+    main.save();
+    main.setTransform(1, 0, 0, 1, 0, 0);
+    main.globalAlpha = 1;
+    main.filter = filter;
+    main.drawImage(buf.canvas, 0, 0);
+    main.filter = 'none';
     main.restore();
   }
 

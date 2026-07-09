@@ -518,16 +518,16 @@ export class Converter {
       this.blocked.add(feat);
     }
 
-    // Layer effects (`ef`) aren't rendered — surface each so the drop isn't
-    // silent (e.g. a Gaussian Blur "glow" would otherwise vanish with no
-    // signal that the layer won't look soft). Ignoring layer effects is a
-    // deliberate skip that matches shipping canvas players (lottie-web's own
-    // canvas renderer likewise skips them); it's a warning, not a hard block,
-    // so the layer still converts — just without the effect.
+    // Layer effects (`ef`): Gaussian Blur (ty 29) and Drop Shadow (ty 25) map to
+    // CSS `filter` (see effectFilterDecl, emitted per layer in buildLayerRule).
+    // Every OTHER effect is still unsupported — surface each so the drop isn't
+    // silent (matching shipping canvas players, which skip effects too). It's a
+    // warning, not a hard block, so the layer still converts — just without it.
     for (const l of layers) {
       if (!this.isConvertible(l) || !Array.isArray(l.ef)) continue;
       for (const e of l.ef) {
         if (!e || e.en === 0) continue;
+        if (e.ty === 29 || e.ty === 25) continue; // converted to filter:
         const name = typeof e.nm === 'string' && e.nm.trim() ? e.nm.trim() : `type ${e.ty}`;
         this.warnOnce(`layer effect '${name}' is not supported and was ignored`);
       }
@@ -587,6 +587,46 @@ export class Converter {
 
   // --- layer -> rule ------------------------------------------------------
 
+  /**
+   * Map a layer's supported effects to a CSS `filter` declaration, or null.
+   * Calibration mirrors lottie-web's SVG renderer:
+   *   - Gaussian Blur (ty 29): `blur(Blurriness / 4 px)`.
+   *   - Drop Shadow (ty 25, SVGDropShadowEffect): sub-effects in fixed order
+   *     [0]=color (0..1 rgb), [1]=opacity (0..255), [2]=direction (deg),
+   *     [3]=distance, [4]=softness. Offset dx = distance·cos((dir−90)°),
+   *     dy = distance·sin((dir−90)°); blur = softness / 4; alpha = opacity / 255.
+   * Animated effect params are baked to their first value with a warning.
+   */
+  private effectFilterDecl(l: any): string | null {
+    if (!Array.isArray(l.ef)) return null;
+    const name = l.nm || l.ind;
+    const parts: string[] = [];
+    for (const e of l.ef) {
+      if (!e || e.en === 0) continue;
+      if (e.ty === 29) {
+        const sub = (e.ef || []).find((s: any) => s && s.nm === 'Blurriness') || (e.ef || [])[0];
+        const p = sub && prop(sub.v);
+        if (!p) continue;
+        if (p.animated) this.warnOnce(`animated Gaussian Blur on '${name}' baked to its first value`);
+        const px = (p.at(0)[0] ?? 0) / 4;
+        if (px > 0) parts.push(`blur(${num(px)}px)`);
+      } else if (e.ty === 25) {
+        const sub = e.ef || [];
+        const cp = prop(sub[0]?.v), op = prop(sub[1]?.v), dir = prop(sub[2]?.v), dist = prop(sub[3]?.v), soft = prop(sub[4]?.v);
+        if ([cp, op, dir, dist, soft].some((x) => x && x.animated))
+          this.warnOnce(`animated Drop Shadow on '${name}' baked to its first value`);
+        const col = cp ? cp.at(0) : [0, 0, 0];
+        const alpha = op ? (op.at(0)[0] ?? 255) / 255 : 1;
+        const ang = ((dir ? (dir.at(0)[0] ?? 0) : 0) - 90) * Math.PI / 180;
+        const distance = dist ? (dist.at(0)[0] ?? 0) : 0;
+        const blur = (soft ? (soft.at(0)[0] ?? 0) : 0) / 4;
+        const color = `rgba(${Math.round((col[0] ?? 0) * 255)}, ${Math.round((col[1] ?? 0) * 255)}, ${Math.round((col[2] ?? 0) * 255)}, ${num(alpha, 3)})`;
+        parts.push(`drop-shadow(${num(distance * Math.cos(ang))}px ${num(distance * Math.sin(ang))}px ${num(blur)}px ${color})`);
+      }
+    }
+    return parts.length ? `filter: ${parts.join(' ')}` : null;
+  }
+
   private buildLayerRule(l: any, ctx: LayerCtx): Rule {
     const { childrenOf, prefix, ruleByInd, compIp, compOp, indexByInd } = ctx;
     const id = this.uniqueId(prefix ? `${prefix}-${l.nm || `layer-${l.ind}`}` : (l.nm || `layer-${l.ind}`));
@@ -604,6 +644,8 @@ export class Converter {
     const record = (rule: Rule): Rule => {
       if (visFrom != null) rule.decls.push(`visible-from: ${num(visFrom / this.fr, 3)}s`);
       if (visUntil != null) rule.decls.push(`visible-until: ${num(visUntil / this.fr, 3)}s`);
+      const filterDecl = this.effectFilterDecl(l);
+      if (filterDecl) rule.decls.push(filterDecl);
       if (typeof l.ind === 'number') ruleByInd.set(l.ind, rule);
       return rule;
     };

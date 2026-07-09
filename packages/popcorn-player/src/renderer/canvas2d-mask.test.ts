@@ -10,10 +10,15 @@ function recCtx(width: number, height: number, tag: string, log: string[]) {
     canvas: { width, height },
     globalAlpha: 1,
     globalCompositeOperation: 'source-over',
+    filter: 'none', // a string, so supportsFilter() sees it
     setTransform() {},
     clearRect() { log.push(`clear:${tag}`); },
     save() {}, restore() {},
-    drawImage(src: any) { log.push(`blit:${src?.tag ?? '?'}->${tag}`); },
+    // Record the active filter on the blit so compositeFilter can be asserted.
+    drawImage(src: any) {
+      const f = this.filter && this.filter !== 'none' ? ` filter=${this.filter}` : '';
+      log.push(`blit:${src?.tag ?? '?'}->${tag}${f}`);
+    },
   };
   ctx.canvas.tag = tag; // so drawImage(b.canvas) can report the source tag
   return ctx;
@@ -71,6 +76,36 @@ test('compositeMask nests: inner matte claims a distinct buffer pair and depth i
   expect(log).toContain('clear:off3');
 
   // Depth is balanced back to 0 so the next top-level mask starts at buffer 0.
+  expect((r as any).maskDepth).toBe(0);
+});
+
+test('compositeFilter renders content offscreen then blits it back through ctx.filter', () => {
+  const log: string[] = [];
+  const r = new Canvas2DRenderer(mockMain(300, 200, log));
+  stubOffscreen(r as any, log);
+
+  let ran = false;
+  r.compositeFilter('blur(16px)', () => { ran = true; });
+
+  expect(ran).toBe(true);
+  expect(log).toContain('clear:off0');                 // offscreen prepared via beginFrame
+  expect(log).toContain('blit:off0->main filter=blur(16px)'); // blit carries the filter
+  expect((r as any).maskDepth).toBe(0);                // depth balanced
+});
+
+test('compositeFilter shares the composite depth so a nested composite claims a deeper band', () => {
+  const log: string[] = [];
+  const r = new Canvas2DRenderer(mockMain(300, 200, log));
+  const { requested } = stubOffscreen(r as any, log);
+
+  r.compositeFilter('blur(4px)', () => {
+    // A mask nested inside the filter must not reuse the filter's buffer 0.
+    r.compositeMask('alpha', () => {}, () => {});
+  });
+
+  expect(requested).toContain(0); // filter's own buffer
+  expect(requested).toContain(2); // nested mask claimed the next band (depth 1)
+  expect(requested).toContain(3);
   expect((r as any).maskDepth).toBe(0);
 });
 

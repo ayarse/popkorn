@@ -1,4 +1,4 @@
-import type { SceneNode, NodeBase } from '../scene/types';
+import type { SceneNode, NodeBase, FilterOp } from '../scene/types';
 import type { GradientData, RadialGradientData, PathCommand } from '../renderer/types';
 import { parseColor, isGradientData } from '../renderer/types';
 import { lerp } from '../scene/transform';
@@ -195,6 +195,25 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
+  // filter: only the blur radius animates (a plain number). readBase returns
+  // null when there's no blur op so the scheduler skips it (a drop-shadow-only
+  // filter isn't animatable here). apply mutates the live per-frame filter copy.
+  filter: {
+    kind: 'number',
+    readBase: (base) => {
+      const b = base.filter?.find(isBlur);
+      return b ? b.radius : null;
+    },
+    readLive: (node) => {
+      const b = node.filter?.find(isBlur);
+      return b ? b.radius : 0;
+    },
+    apply: (node, value) => {
+      const b = node.filter?.find(isBlur);
+      if (b) b.radius = value as number;
+    },
+  },
+
   // text: font-size lives on shapeData under a different key than its property
   // name, and animating it invalidates the cached text metrics.
   'font-size': {
@@ -210,6 +229,9 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 };
+
+type BlurOp = Extract<FilterOp, { type: 'blur' }>;
+const isBlur = (f: FilterOp): f is BlurOp => f.type === 'blur';
 
 export function getPropHandler(property: string): PropHandler | undefined {
   return PROPERTY_REGISTRY[property];

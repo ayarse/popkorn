@@ -35,6 +35,15 @@ export interface Renderer {
   // canvas. Degrades to drawing the content alone when offscreen isn't available.
   compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void;
 
+  // CSS filter compositing. Optional so backends without a filter concept (or
+  // where the platform ctx.filter is unsupported) simply omit it and the loop
+  // degrades to drawing unfiltered. `supportsFilter` feature-detects at runtime;
+  // `compositeFilter` paints `drawContent` (a subtree, at its own world
+  // transform) into an offscreen and blits it back through `filter` (a CSS
+  // filter string already scaled to device space by the caller).
+  supportsFilter?(): boolean;
+  compositeFilter?(filter: string, drawContent: () => void): void;
+
   // Style (called before draw)
   setFill(color: Color | null): void;
   setFillGradient(gradient: GradientData | null): void;

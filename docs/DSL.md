@@ -294,6 +294,39 @@ their transforms. (Headless/no-canvas environments skip the matte and draw the
 content directly.) A `luminance` matte silently degrades to `alpha` if the
 source canvas is tainted by a cross-origin image (pixel readback is blocked).
 
+### Filters
+
+`filter` applies CSS filter functions to a node and its subtree. Two functions
+are supported — CSS `blur()` is Gaussian by spec, so nothing needs inventing:
+
+```css
+#glow {
+  type: circle;
+  cx: 100px; cy: 100px; r: 40px;
+  fill: #ffcc00;
+  filter: blur(12px);
+}
+
+#card {
+  type: group;
+  /* Multiple functions compose left-to-right, CSS grammar; color is optional
+     on drop-shadow (defaults to black). */
+  filter: blur(2px) drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.4));
+}
+```
+
+- `blur(<length>)` — Gaussian blur; the radius is the `stdDeviation`.
+- `drop-shadow(<dx> <dy> <blur>? <color>?)` — offset, blur radius, and color
+  (color optional, defaults to black).
+
+Filter lengths are authored in the node's **local** space and **scale with the
+node's transform** — a scaled-up element's blur scales too, matching CSS. On a
+node with children the subtree is composited offscreen and blitted back through
+the filter; a leaf shape is filtered the same way. The blur **radius is
+animatable** in `@keyframes` (`filter: blur(...)`); drop-shadow is static.
+Renderers without filter support (e.g. old Safari) skip filters and draw
+unfiltered (warned once).
+
 ### Images
 
 `type: image` draws a bitmap from a URL or `data:` URI into an x/y/width/height

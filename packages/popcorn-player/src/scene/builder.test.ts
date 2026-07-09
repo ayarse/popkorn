@@ -654,6 +654,37 @@ test('clip-path: @keyframes morph the clip commands via the registry', () => {
   }
 });
 
+// --- filter ------------------------------------------------------------------
+
+test('filter: parses blur + drop-shadow in order, color optional -> black', () => {
+  const [a] = build('#a { type: rect; filter: blur(8px) drop-shadow(2px 4px 6px rgba(0, 0, 0, 0.5)); }').children;
+  expect(a.filter).toEqual([
+    { type: 'blur', radius: 8 },
+    { type: 'drop-shadow', dx: 2, dy: 4, blur: 6, color: 'rgba(0, 0, 0, 0.5)' },
+  ]);
+  // Color omitted -> defaults to black; blur length defaults to 0.
+  const [b] = build('#b { type: rect; filter: drop-shadow(3px 5px); }').children;
+  expect(b.filter).toEqual([{ type: 'drop-shadow', dx: 3, dy: 5, blur: 0, color: '#000000' }]);
+});
+
+test('filter: blur radius animates via the registry, base is preserved', () => {
+  const [g] = build(`
+    @keyframes soften { from { filter: blur(4px); } to { filter: blur(12px); } }
+    #g { type: rect; filter: blur(4px); animation: soften 1s linear; }
+  `).children;
+
+  expect(getPropHandler('filter')?.kind).toBe('number');
+  const sched = new AnimationScheduler();
+  resetNodeToBase(g);
+  sched.sampleNode(g, 500); // midway
+  expect((g.filter?.[0] as { radius: number }).radius).toBeCloseTo(8, 5);
+
+  // A fresh reset restores the authored base (4), proving the morph never
+  // corrupts the base snapshot copy.
+  resetNodeToBase(g);
+  expect((g.filter?.[0] as { radius: number }).radius).toBeCloseTo(4, 5);
+});
+
 // --- track masks ------------------------------------------------------------
 
 const MASK_SRC = `
@@ -682,6 +713,34 @@ test('mask: mode variants parse (luminance-invert)', () => {
     #m { type: rect; width: 10px; }
   `);
   expect(root.children[0].mask?.mode).toBe('luminance-invert');
+});
+
+test('mask: content nested inside its own matte source is un-trapped so it renders', () => {
+  // Lottie's track-matte-with-parenting (the fish Tail/Fins: content is BOTH
+  // masked by AND transform-parented to its source). Naively the source is
+  // isMaskSource and the render walk skips its whole subtree, so the nested
+  // content never paints. buildSceneGraph must split the source into a plain
+  // transform group holding a `-matte` sub-group (the real source).
+  const src = `
+    #src { type: group; transform: translate(30px, 40px);
+      > #shape { type: rect; x: 0px; y: 0px; width: 50px; height: 50px; fill: #fff; }
+      > #content { type: rect; x: 0px; y: 0px; width: 50px; height: 50px; fill: #f00; mask: #src alpha; }
+    }`;
+  const root = build(src);
+  const srcNode = root.children[0];
+  // #src is now a plain transform group (no longer the mask source).
+  expect(srcNode.isMaskSource).toBe(false);
+  expect(srcNode.transform.translateX).toBe(30); // its transform is preserved
+  const [matte, content] = srcNode.children;
+  // A `-matte` sub-group takes over as the mask source, holding the own shapes.
+  expect(matte.id).toBe('src-matte');
+  expect(matte.isMaskSource).toBe(true);
+  expect(matte.children.map((c) => c.id)).toEqual(['shape']);
+  // The content stays parented to #src (transform intact) but now masks the
+  // matte holder, so it's no longer inside the mask source's subtree.
+  expect(content.id).toBe('content');
+  expect(content.parent).toBe(srcNode);
+  expect(content.mask?.source).toBe(matte);
 });
 
 // --- image nodes -------------------------------------------------------------

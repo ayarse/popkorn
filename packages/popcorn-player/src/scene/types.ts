@@ -24,6 +24,14 @@ export type ShapeType = 'group' | 'rect' | 'circle' | 'ellipse' | 'path' | 'text
 // the masked node's visibility; the *-invert variants flip it.
 export type MaskMode = 'alpha' | 'alpha-invert' | 'luminance' | 'luminance-invert';
 
+// CSS `filter` functions (the supported subset). Lengths are authored in the
+// node's LOCAL space; the renderer scales them by the node's world scale so a
+// scaled element's blur/shadow scales with it (CSS semantics). The blur radius
+// is animatable via the registry's `filter` handler; drop-shadow is static.
+export type FilterOp =
+  | { type: 'blur'; radius: number }
+  | { type: 'drop-shadow'; dx: number; dy: number; blur: number; color: string };
+
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
 export type FillRule = 'nonzero' | 'evenodd';
 
@@ -202,6 +210,11 @@ export interface SceneNode {
   // painted in the normal walk, only sampled as a mask.
   isMaskSource: boolean;
 
+  // CSS `filter`: an ordered list of filter functions (blur/drop-shadow). When
+  // set, the renderer composites this node's subtree to an offscreen and blits
+  // it back through ctx.filter (see runtime/loop renderFilter). Null = no filter.
+  filter: FilterOp[] | null;
+
   // CSS Motion Path. offsetPath is the (static) motion path with a cached
   // arc-length table, in the node's local space; offsetDistance is the animated
   // position along it (0..1); offsetRotate controls tangent-following rotation.
@@ -306,6 +319,9 @@ export interface NodeBase {
   // masks). Held as a copy so per-frame command morphs never mutate the authored
   // clip (same discipline as gradients above).
   clipPath: ClipPathData | null;
+  // Filter list (blur/drop-shadow). Copied per frame so the registry's `filter`
+  // handler can morph the blur radius on the live node without touching the base.
+  filter: FilterOp[] | null;
 }
 
 export type ShapeData =
@@ -542,6 +558,12 @@ export function cloneClipPath(clip: ClipPathData | null): ClipPathData | null {
   return { ...clip };
 }
 
+// Deep-copy a filter list so the registry's per-frame blur-radius morph writes
+// into a node-local copy, never the authored base (same discipline as gradients).
+export function cloneFilter(filter: FilterOp[] | null): FilterOp[] | null {
+  return filter ? filter.map((f) => ({ ...f })) : null;
+}
+
 // Capture the current authored render state of a node as its immutable base.
 export function snapshotNode(node: SceneNode): NodeBase {
   return {
@@ -559,6 +581,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
     fillGradient: cloneGradient(node.fillGradient),
     strokeGradient: cloneGradient(node.strokeGradient),
     clipPath: cloneClipPath(node.clipPath),
+    filter: cloneFilter(node.filter),
   };
 }
 
@@ -583,6 +606,9 @@ export function resetNodeToBase(node: SceneNode): void {
   // Fresh clip copy each frame so an animated clip-path morph writes into a node
   // copy, never the authored base (mirrors the gradient reset above).
   node.clipPath = cloneClipPath(b.clipPath);
+  // Fresh filter copy each frame so an animated blur radius writes into a node
+  // copy, never the authored base.
+  node.filter = cloneFilter(b.filter);
 }
 
 // Helper to create a default scene node
@@ -620,6 +646,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     clipPath: null,
     mask: null,
     isMaskSource: false,
+    filter: null,
     offsetPath: null,
     offsetDistance: 0,
     offsetRotate: { auto: true, angle: 0 },
@@ -647,6 +674,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       fillGradient: null,
       strokeGradient: null,
       clipPath: null,
+      filter: null,
     },
     bindings: [],
     interactionState: 'normal',

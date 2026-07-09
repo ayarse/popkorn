@@ -39,6 +39,7 @@ import type {
   MaskMode,
   TimeRemapStop,
   AnimationInstance,
+  FilterOp,
 } from './types';
 import type { PathCommand } from '../renderer/types';
 import type { GradientData, GradientStop } from '../renderer/types';
@@ -198,6 +199,7 @@ export class SceneBuilder {
     }
 
     this.resolveMasks(root);
+    this.unTrapMaskedContent(root);
 
     // Attach state machines to the root and flag their pointer-trigger targets
     // as interactive so the shared hit-tester credits them (see loop pointer
@@ -253,6 +255,56 @@ export class SceneBuilder {
       source.isMaskSource = true;
     }
     this.pendingMasks = [];
+  }
+
+  /**
+   * Un-trap matte content that is transform-parented to its own matte source.
+   *
+   * Lottie parenting is transform-only, but a track-matte content layer is often
+   * ALSO parented to its matte source (the fish's Tail/Fins: `parent === tp`), so
+   * the converter nests the content *inside* the source. That collides with the
+   * matte semantics: the source is `isMaskSource`, and the render walk skips a
+   * mask source's whole subtree — so the nested content never paints, and were it
+   * reached it would pollute the source's own matte.
+   *
+   * Fix: for each source `S` that directly parents content masking it, split `S`
+   * into a plain transform group (keeping `S`'s transform) holding a fresh
+   * `#S-matte` sub-group (the real mask source, holding `S`'s own shapes) as a
+   * SIBLING of the content. The content keeps `S` as its transform parent (so its
+   * world transform is unchanged) but is no longer inside the mask source, so it
+   * paints normally and the matte samples only `S`'s own shapes.
+   */
+  private unTrapMaskedContent(root: SceneNode): void {
+    const sources: SceneNode[] = [];
+    const collect = (n: SceneNode) => {
+      // A source S traps content when a direct child of S is masked by S.
+      if (n.isMaskSource && n.children.some((c) => c.mask?.source === n)) sources.push(n);
+      n.children.forEach(collect);
+    };
+    collect(root);
+
+    for (const s of sources) {
+      const content = s.children.filter((c) => c.mask?.source === s);
+      const own = s.children.filter((c) => c.mask?.source !== s); // S's own matte shapes
+
+      const matte = createSceneNode(`${s.id}-matte`, 'group');
+      matte.parent = s;
+      matte.base = snapshotNode(matte);
+      for (const c of own) c.parent = matte;
+      matte.children = own;
+      matte.isMaskSource = true;
+
+      // S becomes a plain transform group; its matte now lives in `matte`.
+      s.isMaskSource = false;
+      s.children = [matte, ...content];
+      // Repoint every node masked by S (trapped or not) at the matte holder.
+      this.repointMaskSource(root, s, matte);
+    }
+  }
+
+  private repointMaskSource(node: SceneNode, from: SceneNode, to: SceneNode): void {
+    if (node.mask?.source === from) node.mask.source = to;
+    node.children.forEach((c) => this.repointMaskSource(c, from, to));
   }
 
   private buildNode(rule: Rule): SceneNode {
@@ -748,6 +800,12 @@ export class SceneBuilder {
 
       case 'mask':
         this.parseMask(node, value);
+        break;
+
+      // CSS filter: one or more space-separated filter functions (blur,
+      // drop-shadow). Static except the blur radius, which the registry animates.
+      case 'filter':
+        node.filter = this.parseFilter(value);
         break;
 
       // CSS Motion Path. offset-path is static (cached arc-length table built
@@ -1418,6 +1476,14 @@ export class SceneBuilder {
           if (clip && clip.type === 'path') props['clip-path'] = clip.commands;
           break;
         }
+        case 'filter': {
+          // Only the blur radius is animatable (a plain number, keyed as
+          // 'filter' in the registry). drop-shadow keyframes are ignored.
+          const ops = this.parseFilter(value);
+          const blur = ops?.find((o) => o.type === 'blur');
+          if (blur && blur.type === 'blur') props.filter = blur.radius;
+          break;
+        }
         default:
           // Store raw numeric/string value
           if (isNumberValue(value) || isLengthValue(value)) {
@@ -1615,6 +1681,49 @@ export class SceneBuilder {
       }
     }
     if (sourceId) this.pendingMasks.push({ node, sourceId, mode });
+  }
+
+  /**
+   * Parse a CSS `filter` value: a space-separated list of filter functions.
+   * Only blur() and drop-shadow() are supported (CSS blur IS Gaussian by spec);
+   * any other function is ignored. Returns null when nothing usable is found.
+   *   blur(<length>)
+   *   drop-shadow(<dx> <dy> <blur>? <color>?)  — color defaults to black (CSS
+   *   defaults to currentcolor, which Popcorn has no concept of).
+   */
+  private parseFilter(value: Value): FilterOp[] | null {
+    const fns = isListValue(value) ? value.values : [value];
+    const ops: FilterOp[] = [];
+    for (const v of fns) {
+      if (!isFunctionValue(v)) continue;
+      if (v.name === 'blur') {
+        ops.push({ type: 'blur', radius: v.args[0] ? getNumericValue(v.args[0]) : 0 });
+      } else if (v.name === 'drop-shadow') {
+        // Parser flattens the space-separated args to a bare list: lengths in
+        // dx/dy/blur order, plus an optional color anywhere.
+        const lengths: number[] = [];
+        let color = '#000000';
+        for (const a of v.args) {
+          if (isLengthValue(a) || isNumberValue(a)) lengths.push(getNumericValue(a));
+          else {
+            const c = this.colorFromValue(a);
+            if (c) color = c;
+          }
+        }
+        ops.push({ type: 'drop-shadow', dx: lengths[0] ?? 0, dy: lengths[1] ?? 0, blur: lengths[2] ?? 0, color });
+      }
+    }
+    return ops.length ? ops : null;
+  }
+
+  /** A CSS color string from a color/keyword/rgb()/rgba() value, else null. */
+  private colorFromValue(value: Value): string | null {
+    if (isColorValue(value)) return value.value;
+    if (isKeywordValue(value)) return value.value === 'none' ? null : value.value;
+    if (isFunctionValue(value) && (value.name === 'rgb' || value.name === 'rgba')) {
+      return this.buildColorString(value);
+    }
+    return null;
   }
 
   /**
