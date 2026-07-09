@@ -1,36 +1,79 @@
-/* Symbols — one @define reused as many instances, plus a text node */
+/* Symbols — a starry night built from one reusable star.
+   The pedagogical payload: @define a shape once, `use:` it many times, and
+   override only what differs per instance (position, colour, size, twinkle
+   timing) right at the use-site. The moon and hills are plain nodes framing it. */
 :root {
   width: 800px;
   height: 600px;
+  background: #0b1026;
 }
 
 @keyframes twinkle {
-  0%, 100% { transform: scale(1);   opacity: 1;   }
-  50%      { transform: scale(1.6); opacity: 0.5; }
+  0%, 100% { transform: scale(1);   opacity: 0.45; }
+  50%      { transform: scale(1.5); opacity: 1;    }
 }
 
-/* A pulsing star symbol; each instance animates on its own independent clone */
+/* The reusable symbol: a real 5-pointed star with a soft glow halo.
+   Every declaration here is a default — any #use-site below can override it.
+   `transform-origin: center` keeps the twinkle pulse scaling in place. */
 @define star {
-  type: circle;
-  r: 12px;
-  fill: #fbbf24;
+  type: star;
+  sides: 5;
+  outer-radius: 15px;
+  inner-radius: 6px;
+  fill: #fdf6d3;
   transform-origin: center;
-  animation: twinkle 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4));
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+
+/* Crescent moon: a pale disc with a sky-coloured disc slid over it to carve
+   the crescent (no subtract-mask needed — just paint order). */
+#moon {
+  type: circle;
+  cx: 660px; cy: 160px; r: 46px;
+  fill: #f6f3d8;
+  filter: drop-shadow(0 0 14px rgba(246, 243, 216, 0.45));
+}
+#moon-shade {
+  type: circle;
+  cx: 640px; cy: 144px; r: 44px;
+  fill: #0b1026;
+}
+
+/* The starfield: twelve instances of the one symbol. Each line overrides only
+   what makes that star different — position (cx/cy), colour (fill), size
+   (outer-/inner-radius, kept off `scale` so it never fights the twinkle
+   animation), and a negative `animation-delay` so the twinkles desync into a
+   shimmer instead of pulsing in lockstep. */
+#s1  { use: star; cx: 110px; cy: 200px; fill: #f8fafc; animation-delay: -0.2s; }
+#s2  { use: star; cx: 250px; cy: 250px; fill: #cfe3ff; outer-radius: 12px; inner-radius: 5px; animation-delay: -1.3s; }
+#s3  { use: star; cx: 200px; cy: 410px; outer-radius: 20px; inner-radius: 9px; animation-delay: -0.7s; animation-duration: 3s; }
+#s4  { use: star; cx: 360px; cy: 200px; fill: #f8fafc; outer-radius: 9px; inner-radius: 4px; animation-delay: -2.0s; }
+#s5  { use: star; cx: 410px; cy: 360px; fill: #e0e7ff; outer-radius: 14px; inner-radius: 6px; animation-delay: -0.5s; }
+#s6  { use: star; cx: 540px; cy: 300px; outer-radius: 11px; inner-radius: 5px; animation-delay: -1.7s; }
+#s7  { use: star; cx: 300px; cy: 150px; fill: #cfe3ff; outer-radius: 13px; inner-radius: 6px; animation-delay: -0.9s; animation-duration: 2.8s; }
+#s8  { use: star; cx: 700px; cy: 380px; fill: #f8fafc; outer-radius: 10px; inner-radius: 4px; animation-delay: -2.3s; }
+#s9  { use: star; cx: 470px; cy: 430px; fill: #cfe3ff; animation-delay: -1.0s; }
+#s10 { use: star; cx: 580px; cy: 420px; outer-radius: 18px; inner-radius: 8px; animation-delay: -0.3s; animation-duration: 3.4s; }
+#s11 { use: star; cx: 740px; cy: 300px; fill: #f8fafc; outer-radius: 8px; inner-radius: 4px; animation-delay: -1.5s; }
+#s12 { use: star; cx: 150px; cy: 330px; fill: #e0e7ff; outer-radius: 10px; inner-radius: 5px; animation-delay: -0.8s; }
+
+/* Hills silhouette along the bottom, darker than the sky for depth. */
+#hills {
+  type: path;
+  d: "M0 490 Q 200 450 400 485 Q 600 515 800 478 L 800 600 L 0 600 Z";
+  fill: #05060f;
 }
 
 #title {
   type: text;
-  content: "Symbols + Text";
+  content: "Symbols: one @define, many stars";
   x: 400px;
-  y: 120px;
-  font-size: 44px;
+  y: 90px;
+  font-size: 34px;
   font-family: sans-serif;
   font-weight: bold;
   text-anchor: middle;
   fill: #e2e8f0;
 }
-
-/* Three instances: repositioned and recoloured at the use-site */
-#star1 { use: star; cx: 260px; cy: 340px; }
-#star2 { use: star; cx: 400px; cy: 340px; fill: #60a5fa; }
-#star3 { use: star; cx: 540px; cy: 340px; fill: #f472b6; }
