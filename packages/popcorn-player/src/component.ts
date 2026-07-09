@@ -8,10 +8,10 @@ import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewpor
 /**
  * PopcornPlayer Web Component
  *
- * Usage:
+ * Usage — `src` is a URL to fetch (http(s), relative, `data:`, `blob:`):
  * ```html
  * <popcorn-player
- *   src="..."
+ *   src="scene.css"
  *   loop
  *   controls
  *   fit="contain"
@@ -19,7 +19,7 @@ import { computeViewport, viewportMatrix, type FitMode } from './runtime/viewpor
  * ></popcorn-player>
  * ```
  *
- * Or set source programmatically:
+ * Or set the DSL source *text* directly (the inline channel — not a URL):
  * ```js
  * const player = document.querySelector('popcorn-player');
  * player.source = myDslCode;
@@ -41,6 +41,10 @@ export class PopcornPlayer extends HTMLElementBase {
   private renderLoop: RenderLoop | null = null;
   private scheduler: AnimationScheduler | null = null;
   private _source: string = '';
+  // Bumped on every load request (a src fetch or a .source set). A fetch that
+  // resolves with a stale token has been superseded and must not clobber the
+  // newer load.
+  private _loadToken = 0;
 
   // Intrinsic scene size (from `:root`, falling back to width/height attrs).
   private sceneWidth: number = 400;
@@ -171,7 +175,7 @@ export class PopcornPlayer extends HTMLElementBase {
     switch (name) {
       case 'src':
         if (newValue !== null) {
-          this.source = newValue;
+          this.loadFromUrl(newValue);
         }
         break;
       case 'width':
@@ -205,9 +209,41 @@ export class PopcornPlayer extends HTMLElementBase {
   }
 
   set source(value: string) {
+    this._loadToken++; // supersede any in-flight src fetch
     this._source = value;
     if (this.isConnected) {
       this.initializePlayer();
+    }
+  }
+
+  /**
+   * The `src` URL to load DSL source from. Reflects the attribute. Accepts any
+   * URL `fetch()` understands — http(s), relative, `data:`, `blob:`. For inline
+   * DSL *text*, set `.source` instead (that's the raw-text channel).
+   */
+  get src(): string | null {
+    return this.getAttribute('src');
+  }
+
+  set src(value: string | null) {
+    if (value === null) this.removeAttribute('src');
+    else this.setAttribute('src', value);
+  }
+
+  /** Fetch DSL source from a URL and load it, guarding against stale fetches. */
+  private async loadFromUrl(url: string): Promise<void> {
+    const token = ++this._loadToken;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} loading ${url}`);
+      const text = await res.text();
+      if (token !== this._loadToken) return; // superseded by a newer load
+      this._source = text;
+      if (this.isConnected) this.initializePlayer();
+    } catch (error) {
+      if (token !== this._loadToken) return;
+      console.error('PopcornPlayer: Failed to load src', error);
+      this.dispatchEvent(new CustomEvent('error', { detail: { error } }));
     }
   }
 
