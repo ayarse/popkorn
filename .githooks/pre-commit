@@ -1,5 +1,5 @@
 #!/bin/sh
-# ponytail: native core.hooksPath hook, no husky/lefthook dep. Auto-formats
+# NOTE: native core.hooksPath hook, no husky/lefthook dep. Auto-formats
 # staged files and blocks the commit on any unfixable biome error.
 biome=./node_modules/.bin/biome
 [ -x "$biome" ] || { echo "biome not installed; run 'bun install'"; exit 1; }

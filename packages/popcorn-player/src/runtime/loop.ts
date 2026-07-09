@@ -610,7 +610,7 @@ export class RenderLoop {
     // Cascade opacity: a group's opacity should dim its children too, so we
     // carry the accumulated product down the walk rather than setting each
     // node's opacity in isolation.
-    // ponytail: this multiplies alpha per-node rather than compositing the
+    // NOTE: this multiplies alpha per-node rather than compositing the
     // group offscreen and fading it as one, so overlapping children in a
     // translucent group show through each other (wrong per CSS/Lottie
     // semantics) — upgrade path is an offscreen group composite.

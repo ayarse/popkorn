@@ -849,7 +849,7 @@ export class Converter {
       // Precomp layer: a group carrying the layer transform, with the referenced
       // comp's layers expanded as nested children (mirrors symbol expansion).
       //
-      // ponytail: precomps are inline-expanded per use site — every reference
+      // NOTE: precomps are inline-expanded per use site — every reference
       // re-runs buildLayerList over the asset, duplicating its whole subtree AND
       // its @keyframes. Fine for the common case (few, shallow precomps), but a
       // heavily-nested composition blows up (Free Interactive Fish Game: 55

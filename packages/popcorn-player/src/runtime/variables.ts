@@ -237,7 +237,7 @@ export class VariableResolver {
         return this.inputState.scroll.x;
       case "scroll.y":
         return this.inputState.scroll.y;
-      // ponytail: headless fallback is the InputState default (0); the tracker
+      // NOTE: headless fallback is the InputState default (0); the tracker
       // only computes real progress from DOM scroll events in a browser.
       case "scroll.progress":
         return this.inputState.scroll.progress;
@@ -253,7 +253,7 @@ export class VariableResolver {
 /**
  * Read a `media.*` built-in input straight from the environment. Static reads
  * per resolve (no subscription) — the values change rarely and lazily.
- * ponytail: headless (no matchMedia/window) falls back to 0 / sensible defaults.
+ * NOTE: headless (no matchMedia/window) falls back to 0 / sensible defaults.
  */
 function resolveMedia(path: string): number {
   const mm = typeof matchMedia !== "undefined" ? matchMedia : undefined;

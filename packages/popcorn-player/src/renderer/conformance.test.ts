@@ -452,7 +452,7 @@ registerConformance({ test, expect }, svgHarness);
 // 0.6em advance approximation, where Canvas2D uses measureText. This is a
 // deliberate divergence: the two backends realize DIFFERENT gradient geometry
 // for the same text fill.
-// ponytail: the cross-backend text-gradient GEOMETRY check is DROPPED — Canvas's
+// NOTE: the cross-backend text-gradient GEOMETRY check is DROPPED — Canvas's
 // measureText is unavailable under bun (recCtx returns width 0), so there is no
 // headless truth to compare SVG's approximation against. We pin SVG's own rule.
 test("divergence [svg] text gradient bounds use the 0.6em advance approximation", () => {

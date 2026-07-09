@@ -192,7 +192,7 @@ function extractTransform(
  * functions): `translate: <x> [<y>]`, `rotate: <angle>`, `scale: <n> [<n>]`.
  * Returns false for any other property.
  *
- * ponytail: these write the SAME channels as the `transform:` shorthand (single
+ * NOTE: these write the SAME channels as the `transform:` shorthand (single
  * source of transform math, invariant #1) rather than modeling CSS's separate
  * translate/rotate/scale/transform layering. So mixing them with `transform:` on
  * one node is last-declaration-wins per channel, not additive layering.

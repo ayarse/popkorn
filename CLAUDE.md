@@ -116,7 +116,11 @@ converter emits it for precomp layers.
   `bun run dev`, `bun --filter <pkg> <cmd>`. A stray `pnpm-lock.yaml` is
   always an accident.
 - Tests are bun-native and DOM-free by design (headless fallbacks are marked
-  `ponytail:`); a few Path2D-dependent tests skip under bun — that's expected.
+  `NOTE:`); a few Path2D-dependent tests skip under bun — that's expected.
+- Deliberate-simplification / known-ceiling comments use the `NOTE:` prefix
+  (e.g. `// NOTE: adaptive subdivision would be tighter here`) — name the
+  ceiling and the upgrade path. Never use a tool/plugin brand as the prefix
+  (no `ponytail:`, etc.); the marker must read as project intent.
 - Verification bar for any player/converter change: `bun run test` green,
   `bun run build` green, corpus batch unchanged-or-better, and a browser
   eyeball of an affected demo scene (screenshots lie less than tests here —

@@ -7,7 +7,7 @@ const ctx = self as unknown as {
   postMessage: (message: unknown, transfer?: Transferable[]) => void;
 };
 
-// ponytail: raster image nodes render blank and custom web fonts aren't
+// NOTE: raster image nodes render blank and custom web fonts aren't
 // registered in the worker — acceptable for now.
 ctx.onmessage = async (e: MessageEvent) => {
   const { source } = e.data as {

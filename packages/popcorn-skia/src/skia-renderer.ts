@@ -57,7 +57,7 @@ const BlendMode_DstOut = 8; // SkBlendMode.DstOut: r = d * (1-sa)
 // Zeroes RGB and writes Rec.709 luma into alpha, so a luminance matte becomes an
 // alpha matte the DstIn/DstOut blend below consumes. Matches Canvas2DRenderer's
 // luminanceToAlpha coefficients.
-// ponytail: unlike the Canvas2D path this ignores the mask's own alpha (can't
+// NOTE: unlike the Canvas2D path this ignores the mask's own alpha (can't
 // express luma*alpha as a linear matrix); fine for the usual opaque luma matte.
 const LUMA_TO_ALPHA_MATRIX = [
   0,
@@ -214,11 +214,11 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
   }
 
-  // ponytail: fonts deferred — RN Skia needs an SkFont/typeface loaded async,
+  // NOTE: fonts deferred — RN Skia needs an SkFont/typeface loaded async,
   // out of scope for the PoC. Text nodes paint nothing.
   drawText(): void {}
 
-  // ponytail: images deferred — no async decode/cache seam wired for RN Skia yet.
+  // NOTE: images deferred — no async decode/cache seam wired for RN Skia yet.
   drawImage(): void {}
 
   clip(clip: ResolvedClip): void {
@@ -508,7 +508,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
    * animated `d` swaps in a fresh array every frame (registry `d.apply`), a
    * natural miss that rebuilds. The WeakMap lets those transient arrays GC.
    *
-   * ponytail: clip paths miss every frame — cloneClipPath re-slices their
+   * NOTE: clip paths miss every frame — cloneClipPath re-slices their
    * commands into a fresh array per reset (scene/types.ts), so reference keying
    * can't hit. They rebuild (as before); caching them would need a per-node
    * cache seam threaded through drawPath/clip, not worth it while clips are rare
@@ -557,7 +557,7 @@ class SkPathSink implements PathSink {
     this.path.quadTo(cpx, cpy, x, y);
   }
 
-  // ponytail: SkPath has no center-parameterized arc that continues from the
+  // NOTE: SkPath has no center-parameterized arc that continues from the
   // current point, so sample the (already SVG->center converted) arc into line
   // segments. Fine for the rare A command; smooth enough at 24 steps.
   ellipse(

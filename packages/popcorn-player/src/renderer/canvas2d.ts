@@ -491,7 +491,7 @@ function createOffscreen(
  * luminance mask can be applied with the same destination-in/out path as an alpha
  * mask. One getImageData/putImageData pass.
  *
- * ponytail: a filter-only fast path (`ctx.filter = 'grayscale(1)'` + a luminance
+ * NOTE: a filter-only fast path (`ctx.filter = 'grayscale(1)'` + a luminance
  * blend) would avoid the CPU round-trip; the pixel loop is the simple version.
  */
 function luminanceToAlpha(ctx: CanvasRenderingContext2D): void {

@@ -535,7 +535,7 @@ export function computePathBounds(commands: PathCommand[]): {
 
 // Samples per curved segment when flattening for length. Fixed-step keeps this
 // allocation-free and deterministic; it is plenty for trim-path visuals.
-// ponytail: adaptive subdivision (error-bounded) would be tighter for extreme curves.
+// NOTE: adaptive subdivision (error-bounded) would be tighter for extreme curves.
 const LENGTH_SAMPLES = 32;
 
 /**

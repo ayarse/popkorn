@@ -11,7 +11,7 @@ export interface StrokeDashDecision {
   dashOffset: number;
 }
 
-// ponytail: composing an authored dash *within* a trim window (dash-of-a-dash)
+// NOTE: composing an authored dash *within* a trim window (dash-of-a-dash)
 // is the real upgrade path; for now trim simply overrides the authored dash.
 export function resolveStrokeDash(
   trim: TrimDescriptor | null,

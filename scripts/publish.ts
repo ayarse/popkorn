@@ -15,7 +15,7 @@
 //
 // Both edits are reverted with `git checkout` afterward, so the working tree
 // keeps its src-pointing dev manifests.
-// ponytail: git-checkout restore; if you add non-tracked manifest edits, revisit.
+// NOTE: git-checkout restore; if you add non-tracked manifest edits, revisit.
 import { $ } from "bun";
 
 const PKGS = [

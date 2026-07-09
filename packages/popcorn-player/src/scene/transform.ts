@@ -93,7 +93,7 @@ export function measureText(
     ctx.font = `${t.fontWeight} ${t.fontSize}px ${t.fontFamily}`;
     bounds = { width: ctx.measureText(t.content).width, height: t.fontSize };
   } else {
-    // ponytail: headless (no canvas) — estimate so tests/bun stay DOM-free.
+    // NOTE: headless (no canvas) — estimate so tests/bun stay DOM-free.
     bounds = { width: 0.6 * t.fontSize * t.content.length, height: t.fontSize };
   }
 

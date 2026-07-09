@@ -364,7 +364,7 @@ export function pathsCompatible(a: PathCommand[], b: PathCommand[]): boolean {
 // Interpolate every numeric argument of each command pairwise. Boolean flags
 // (arc largeArc/sweep) step to the departing value. Caller guarantees the
 // sequences match. Allocates a fresh command list per call.
-// ponytail: path morph isn't a many-instance hot path, so we allocate rather
+// NOTE: path morph isn't a many-instance hot path, so we allocate rather
 // than thread a per-node scratch buffer through the registry's apply signature.
 export function interpolatePath(
   a: PathCommand[],
