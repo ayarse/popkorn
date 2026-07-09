@@ -1,5 +1,5 @@
 import Prism from "prismjs";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Editor from "react-simple-code-editor";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
@@ -7,9 +7,7 @@ import { parse, serialize } from "@popcorn/parser";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AlertCircle,
-  AlertTriangle,
   BookText,
-  Check,
   ChevronDown,
   Film,
   FoldVertical,
@@ -22,16 +20,8 @@ import {
   Sparkles,
   UnfoldVertical,
   Upload,
-  X,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -54,105 +44,29 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { downloadGif, exportGifInWorker } from "@/lib/gif";
+import {
+  buildImportResult,
+  bytes,
+  fmtPct,
+  gzipSizes,
+  humanBytes,
+  type ImportResult,
+  pct,
+  type SizeDelta,
+} from "@/lib/import-size";
 import { cn } from "@/lib/utils";
 import { convertLottie } from "../../../tools/lottie2popcorn";
 import { convertSvg } from "../../../tools/svg2popcorn";
 import AgentChat from "./components/agent-chat";
+import {
+  BgContextMenu,
+  PLAYER_BACKGROUNDS,
+} from "./components/bg-context-menu";
 import { BrandMark } from "./components/brand-mark";
+import { ImportModal } from "./components/import-modal";
+import { ImportStatusChip } from "./components/import-status-chip";
 import { MotionCanvas } from "./components/motion-canvas";
 import { examples } from "./examples";
-
-const enc = new TextEncoder();
-const bytes = (s: string) => enc.encode(s).length;
-
-async function gzipBytes(s: string): Promise<number> {
-  const stream = new Blob([s])
-    .stream()
-    .pipeThrough(new CompressionStream("gzip"));
-  return (await new Response(stream).arrayBuffer()).byteLength;
-}
-
-function humanBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function pct(lottie: number, popcorn: number): number {
-  if (lottie === 0) return 0;
-  return ((popcorn - lottie) / lottie) * 100;
-}
-
-function fmtPct(d: number): string {
-  return `${d > 0 ? "+" : ""}${d.toFixed(1)}%`;
-}
-
-type SizePair = { lottie: number; popcorn: number };
-type SizeDelta = { before: number; after: number };
-
-type ImportResult = {
-  format: string; // source-format label for the size columns ("Lottie" / "SVG")
-  label: string;
-  warnings: string[];
-  blocked: string[];
-  raw: SizePair;
-  min?: SizePair;
-  gz?: SizePair;
-};
-
-function buildImportResult(
-  format: string,
-  label: string,
-  rawSource: string,
-  css: string,
-): ImportResult {
-  const raw: SizePair = { lottie: bytes(rawSource), popcorn: bytes(css) };
-  let min: SizePair | undefined;
-  // Only Lottie has a JSON-minify step; SVG skips the minified row.
-  if (format === "Lottie") {
-    try {
-      min = {
-        lottie: bytes(JSON.stringify(JSON.parse(rawSource))),
-        popcorn: bytes(serialize(parse(css), { minify: true })),
-      };
-    } catch {
-      // Degrade to unminified sizes only rather than breaking the import.
-    }
-  }
-  return { format, label, warnings: [], blocked: [], raw, min };
-}
-
-// Gzipped transfer size of the minified forms (what actually ships over the
-// wire). Async because CompressionStream is; the row fills in once resolved.
-async function gzipSizes(
-  format: string,
-  rawSource: string,
-  css: string,
-): Promise<SizePair | undefined> {
-  try {
-    // Lottie ships as minified JSON; SVG ships as-is.
-    const source =
-      format === "Lottie" ? JSON.stringify(JSON.parse(rawSource)) : rawSource;
-    const [lottie, popcorn] = await Promise.all([
-      gzipBytes(source),
-      gzipBytes(serialize(parse(css), { minify: true })),
-    ]);
-    return { lottie, popcorn };
-  } catch {
-    return undefined;
-  }
-}
-
-const PLAYER_BACKGROUNDS = [
-  { name: "Transparent", value: "transparent", swatch: "transparent" },
-  { name: "White", value: "#ffffff", swatch: "#ffffff" },
-  { name: "Paper", value: "#f4f4f5", swatch: "#f4f4f5" },
-  { name: "Graphite", value: "#1f1f2e", swatch: "#1f1f2e" },
-  { name: "Ink", value: "#0a0a12", swatch: "#0a0a12" },
-  { name: "Crimson", value: "#5e1020", swatch: "#5e1020" },
-  { name: "Forest", value: "#11241a", swatch: "#11241a" },
-  { name: "Cobalt", value: "#1a1f4d", swatch: "#1a1f4d" },
-];
 
 type FitMode = "contain" | "cover" | "fill" | "none";
 
@@ -169,103 +83,6 @@ const RENDERERS: { value: RendererKind; label: string }[] = [
   { value: "canvas", label: "Canvas" },
   { value: "svg", label: "SVG (WIP)" },
 ];
-
-function BgContextMenu({
-  position,
-  onClose,
-  bgIndex,
-  onSelect,
-}: {
-  position: { x: number; y: number };
-  onClose: () => void;
-  bgIndex: number;
-  onSelect: (i: number) => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const onMouseDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    const onScroll = () => onClose();
-    window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onClose);
-    const onBlur = () =>
-      window.addEventListener("focus", onClose, { once: true });
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onClose);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, [onClose]);
-
-  // Position the menu, clamping to the viewport so it never overflows.
-  const [pos, setPos] = useState(position);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    let { x, y } = position;
-    if (x + rect.width > window.innerWidth - 4)
-      x = window.innerWidth - rect.width - 4;
-    if (y + rect.height > window.innerHeight - 4)
-      y = window.innerHeight - rect.height - 4;
-    setPos({ x: Math.max(4, x), y: Math.max(4, y) });
-  }, [position]);
-
-  return (
-    <div
-      ref={ref}
-      role="menu"
-      className="fixed z-50 min-w-[12rem] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-foreground shadow-xl shadow-black/40 animate-in fade-in-0 zoom-in-95"
-      style={{ left: pos.x, top: pos.y }}
-    >
-      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-        Background color
-      </div>
-      <div className="grid grid-cols-2 gap-0.5">
-        {PLAYER_BACKGROUNDS.map((bg, i) => (
-          <button
-            type="button"
-            key={bg.name}
-            onClick={() => {
-              onSelect(i);
-              onClose();
-            }}
-            className={cn(
-              "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none transition-colors hover:bg-secondary/60 focus-visible:bg-secondary/60",
-              bgIndex === i && "bg-secondary/60",
-            )}
-          >
-            <span
-              className="size-3.5 shrink-0 rounded-full border border-border/40"
-              style={
-                bg.value === "transparent"
-                  ? {
-                      backgroundImage:
-                        "linear-gradient(135deg, transparent 47%, #888 47%, #888 53%, transparent 53%)",
-                      backgroundColor: "var(--background)",
-                    }
-                  : { backgroundColor: bg.swatch }
-              }
-            />
-            <span className="truncate">{bg.name}</span>
-            {bgIndex === i && (
-              <Check className="ml-auto size-3.5 text-foreground" />
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function App() {
   const navigate = useNavigate();
@@ -291,10 +108,10 @@ function App() {
     if (exportProgress !== null) return;
     setExportProgress(0);
     try {
-      const bytes = await exportGifInWorker(source, {
+      const gif = await exportGifInWorker(source, {
         onProgress: setExportProgress,
       });
-      downloadGif(bytes);
+      downloadGif(gif);
     } catch (e: any) {
       setError(`GIF export failed: ${e.message}`);
     } finally {
@@ -808,276 +625,6 @@ function App() {
         )}
       </div>
     </TooltipProvider>
-  );
-}
-
-function ImportStatusChip({
-  result,
-  onDismiss,
-}: {
-  result: ImportResult;
-  onDismiss: () => void;
-}) {
-  const { format, label, warnings, blocked, raw, min, gz } = result;
-  const hasIssues = warnings.length > 0 || blocked.length > 0;
-  const deltaPct = pct(raw.lottie, raw.popcorn);
-  const minDeltaPct = min ? pct(min.lottie, min.popcorn) : 0;
-  const gzDeltaPct = gz ? pct(gz.lottie, gz.popcorn) : 0;
-  // Collapsed chip teases the gzipped delta (real wire size); until the async
-  // gzip resolves, fall back to the raw delta.
-  const chipDeltaPct = gz ? gzDeltaPct : deltaPct;
-
-  return (
-    <div className="flex items-center overflow-hidden rounded-md border border-border">
-      {/* Dismiss */}
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="flex h-8 items-center px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-        aria-label="Dismiss"
-      >
-        <X className="size-3.5" />
-      </button>
-
-      {/* Status — opens popover */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40"
-          >
-            {hasIssues ? (
-              <AlertTriangle className="size-3.5 text-amber-500" />
-            ) : (
-              <Check className="size-3.5 text-emerald-500" />
-            )}
-            <span className="max-w-[160px] truncate">{label}</span>
-            {warnings.length > 0 && (
-              <span className="rounded-sm bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-500">
-                {warnings.length}w
-              </span>
-            )}
-            {blocked.length > 0 && (
-              <span className="rounded-sm bg-destructive/15 px-1 text-[10px] font-semibold text-destructive">
-                {blocked.length}b
-              </span>
-            )}
-            <span className="ml-0.5 font-mono text-[11px] text-muted-foreground">
-              {fmtPct(chipDeltaPct)}
-            </span>
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-80">
-          <div className="border-b border-border px-3 py-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              {hasIssues ? (
-                <AlertTriangle className="size-3.5 text-amber-500" />
-              ) : (
-                <Check className="size-3.5 text-emerald-500" />
-              )}
-              Imported {label}
-            </div>
-          </div>
-
-          {/* Size delta */}
-          <div className="px-3 py-2.5 text-xs">
-            <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
-              <span className="w-2/5" />
-              <span className="flex-1 whitespace-nowrap text-center">
-                {format}
-              </span>
-              <span className="flex-1 whitespace-nowrap text-center">
-                Popcorn
-              </span>
-              <span className="w-12 whitespace-nowrap text-center">Δ</span>
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 font-mono">
-                <span className="w-2/5 text-muted-foreground">Raw</span>
-                <span className="flex-1 whitespace-nowrap text-center">
-                  {humanBytes(raw.lottie)}
-                </span>
-                <span className="flex-1 whitespace-nowrap text-center">
-                  {humanBytes(raw.popcorn)}
-                </span>
-                <span
-                  className={`w-12 whitespace-nowrap text-center ${deltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                >
-                  {fmtPct(deltaPct)}
-                </span>
-              </div>
-              {min && (
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="w-2/5 text-muted-foreground">Minified</span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(min.lottie)}
-                  </span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(min.popcorn)}
-                  </span>
-                  <span
-                    className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                  >
-                    {fmtPct(minDeltaPct)}
-                  </span>
-                </div>
-              )}
-              {gz && (
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="w-2/5 text-muted-foreground">Gzipped</span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(gz.lottie)}
-                  </span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(gz.popcorn)}
-                  </span>
-                  <span
-                    className={`w-12 whitespace-nowrap text-center ${gzDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                  >
-                    {fmtPct(gzDeltaPct)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Warnings */}
-          {warnings.length > 0 && (
-            <div className="border-t border-border px-3 py-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-500">
-                <AlertTriangle className="size-3.5" />
-                {warnings.length} warning{warnings.length === 1 ? "" : "s"}
-              </div>
-              <ul className="max-h-40 space-y-1.5 overflow-auto pr-1 text-[11px] leading-relaxed text-muted-foreground">
-                {warnings.map((w, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: warning strings are not guaranteed unique; index is a stable position key
-                  <li key={i} className="flex gap-1.5">
-                    <span className="mt-1 size-1 shrink-0 rounded-full bg-amber-500/70" />
-                    <span>{w}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Blocked */}
-          {blocked.length > 0 && (
-            <div className="border-t border-border px-3 py-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-destructive">
-                <AlertCircle className="size-3.5" />
-                Blocked (not converted)
-              </div>
-              <ul className="max-h-40 space-y-1.5 overflow-auto pr-1 text-[11px] leading-relaxed text-muted-foreground">
-                {blocked.map((b, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: blocked strings are not guaranteed unique; index is a stable position key
-                  <li key={i} className="flex gap-1.5">
-                    <span className="mt-1 size-1 shrink-0 rounded-full bg-destructive/70" />
-                    <span>{b}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-}
-
-function ImportModal({
-  onFile,
-  onText,
-  onClose,
-}: {
-  onFile: (file: File) => void;
-  onText: (text: string) => void;
-  onClose: () => void;
-}) {
-  const [dragOver, setDragOver] = useState(false);
-  const [text, setText] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Import</DialogTitle>
-          <DialogDescription>
-            Drop a bodymovin <code className="font-mono">.json</code> or an{" "}
-            <code className="font-mono">.svg</code> file, or paste Lottie JSON
-            or SVG markup. It will be converted to Popcorn DSL.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Dropzone */}
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOver(false);
-            const file = e.dataTransfer.files?.[0];
-            if (file) onFile(file);
-          }}
-          className={cn(
-            "w-full cursor-pointer rounded-lg border-2 border-dashed p-8 text-center text-sm transition-colors",
-            dragOver
-              ? "border-primary bg-primary/5 text-primary"
-              : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground",
-          )}
-        >
-          Drop a <code className="font-mono">.json</code> or{" "}
-          <code className="font-mono">.svg</code> file here, or click to browse
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".json,application/json,.svg,image/svg+xml"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onFile(file);
-            e.target.value = "";
-          }}
-        />
-
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <div className="h-px flex-1 bg-border" />
-          or paste source
-          <div className="h-px flex-1 bg-border" />
-        </div>
-
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder='{ "v": "5.7.0", "layers": [ ... ] }  or  <svg ...>'
-          spellCheck={false}
-          className="h-36 w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground outline-none focus:ring-2 focus:ring-ring"
-        />
-
-        <div className="flex justify-end">
-          <Button onClick={() => onText(text)}>Import</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
