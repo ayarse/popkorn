@@ -1,5 +1,5 @@
 import { parse, serialize } from "@popcorn/parser";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { examples } from "@/examples";
 import {
   buildImportResult,
@@ -26,15 +26,6 @@ export function useScene() {
   const [minified, setMinified] = useState(false);
   const [sizeDelta, setSizeDelta] = useState<SizeDelta | null>(null);
 
-  useEffect(() => {
-    const ex = examples.find((e) => e.key === currentExample);
-    if (ex) {
-      setSource(ex.source);
-      setMinified(false);
-      setSizeDelta(null);
-    }
-  }, [currentExample]);
-
   // Load a fresh scene from anywhere but an example (import / copilot): clears
   // the example selection and the format/size state that no longer applies.
   function loadSource(css: string) {
@@ -52,7 +43,12 @@ export function useScene() {
   }
 
   function selectExample(key: string) {
+    const ex = examples.find((e) => e.key === key);
+    if (!ex) return;
     setCurrentExample(key);
+    setSource(ex.source);
+    setMinified(false);
+    setSizeDelta(null);
     setImportResult(null);
     setError(null);
   }
