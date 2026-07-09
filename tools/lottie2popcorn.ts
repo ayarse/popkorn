@@ -694,6 +694,20 @@ export class Converter {
     if (l.ty === 0) {
       // Precomp layer: a group carrying the layer transform, with the referenced
       // comp's layers expanded as nested children (mirrors symbol expansion).
+      //
+      // ponytail: precomps are inline-expanded per use site — every reference
+      // re-runs buildLayerList over the asset, duplicating its whole subtree AND
+      // its @keyframes. Fine for the common case (few, shallow precomps), but a
+      // heavily-nested composition blows up (Free Interactive Fish Game: 55
+      // assets referenced 174×, 638 authored layers → 7,522 inlined ≈ 11.8×, a
+      // 680KB JSON → 6.7MB CSS). OPTIMIZATION OPPORTUNITY, deferred as an edge
+      // case: emit each multi-use refId ONCE as an `@define <asset>` symbol
+      // (parser/builder already support use:/@define + global-by-name keyframes)
+      // and make each use site a `use:` reference. The subtlety is the per-
+      // instance window clamp below (aip/aop): build the symbol in native,
+      // unclamped frame space and let the group's own visible-from/until gate it
+      // (the time-remap branch already does exactly this). Only dedupe refIds
+      // used ≥2× so single-use precomps stay byte-identical. ~10× smaller.
       const asset = this.assets.get(l.refId);
       if (!asset || !Array.isArray(asset.layers)) {
         this.blocked.add('precomp layer missing asset');
@@ -985,7 +999,18 @@ export class Converter {
     // Position: motion path when the animated position carries spatial tangents.
     let positionHandled = false;
     if (p && p.animated && p.kfs && hasSpatialTangents(p.kfs)) {
-      this.applyMotionPath(p.kfs, rule, ax, ay, ks.ao === 1, r);
+      // NOTE: auto-orient is passed as false (fixed orientation) here on purpose.
+      // The real auto-orient flag is the LAYER's `l.ao` (not `ks.ao`, which is
+      // always undefined — a latent bug), so this never emits offset-rotate:auto.
+      // That's currently the SAFER behavior: enabling it exposes a player bug —
+      // computeLocalMatrix (scene/transform.ts) applies the node translate BEFORE
+      // the offset transform, so offset-rotate pivots around the pre-offset
+      // origin instead of the placed path anchor. For an anchor-compensated layer
+      // (translate = -anchor, e.g. Mail Box's flying envelope) that swings the art
+      // right off its path. TODO to enable auto-orient: make the offset transform
+      // the OUTERMOST transform in computeLocalMatrix (CSS-correct: offset applies
+      // after the element's own transform), then flip this to `l.ao === 1`.
+      this.applyMotionPath(p.kfs, rule, ax, ay, false, r);
       positionHandled = true;
     }
 
