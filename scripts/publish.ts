@@ -21,7 +21,7 @@ import { $ } from "bun";
 const PKGS = [
   "packages/popcorn-parser/package.json",
   "packages/popcorn-player/package.json",
-  "packages/popcorn-skia/package.json",
+  "packages/popcorn-react-native/package.json",
 ];
 
 // name -> version for every workspace package, to resolve `workspace:` ranges.

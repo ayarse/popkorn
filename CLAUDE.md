@@ -131,7 +131,7 @@ converter emits it for precomp layers.
   lottie-web agree against thorvg, don't chase thorvg).
 - Demo gallery scenes live in `examples/popcorn/*.css` (the source of truth,
   also test-globbed by the parser). The demo loads them dynamically via
-  `import.meta.glob` in `packages/demo/src/examples.ts` — filename
+  `import.meta.glob` in `packages/playground/src/examples.ts` — filename
   `NN-kebab-name.css` sets order + label; drop a file in to add a scene.
   Use the `creating-popcorn-animations` skill when authoring scenes.
 - Commits: straight to main, short conventional messages, no attribution

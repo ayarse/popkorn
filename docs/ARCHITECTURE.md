@@ -21,7 +21,7 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
             │
             ▼
 ┌─────────────────────────┐
-│  @popcorn/demo          │  Demo application
+│  @popcorn/playground          │  Demo application
 │  React wrapper          │
 └─────────────────────────┘
 ```
@@ -45,11 +45,11 @@ AST — synchronously, with no dependencies or build step. Tests live alongside 
 
 ### Player → Demo
 
-**@popcorn/demo** is a React app that:
+**@popcorn/playground** is a React app that:
 
 - Uses the `<popcorn-player>` web component via a thin React wrapper
 - Provides example scenes to demonstrate features (curated in
-  `packages/demo/src/examples.ts`, kept in sync with `examples/*.css`)
+  `packages/playground/src/examples.ts`, kept in sync with `examples/*.css`)
 - Shows the DSL source alongside the rendered output
 - Imports real Lottie JSON via the browser-safe converter core
 

@@ -45,7 +45,7 @@ export type {
 } from "./renderer/gradient-geometry";
 export { resolveGradient } from "./renderer/gradient-geometry";
 export type { Renderer } from "./renderer/interface";
-// Shared renderer paint semantics (consumed by every backend, incl. @popcorn/skia).
+// Shared renderer paint semantics (consumed by every backend, incl. @popcorn/react-native).
 export { PaintStateRenderer } from "./renderer/paint-state";
 export type { StrokeDashDecision } from "./renderer/stroke";
 export { paintOrderSequence, resolveStrokeDash } from "./renderer/stroke";

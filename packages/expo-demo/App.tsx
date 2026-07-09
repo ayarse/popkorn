@@ -17,7 +17,7 @@ import {
 } from 'react-native-safe-area-context';
 import CodeEditor, { CodeEditorSyntaxStyles } from '@rivascva/react-native-code-editor';
 import { parse } from '@popcorn/player';
-import { PopcornView } from '@popcorn/skia';
+import { PopcornView } from '@popcorn/react-native';
 import { TURKEY_SCENE } from './turkey';
 
 const MONOSPACE = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });

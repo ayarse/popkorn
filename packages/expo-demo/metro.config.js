@@ -1,4 +1,4 @@
-// Metro config for the bun-workspace monorepo. @popcorn/skia and @popcorn/player
+// Metro config for the bun-workspace monorepo. @popcorn/react-native and @popcorn/player
 // ship raw TS from their `src/`; watching the repo root lets babel-preset-expo
 // transpile them, and nodeModulesPaths resolves the hoisted deps.
 const { getDefaultConfig } = require('expo/metro-config');
@@ -15,10 +15,10 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ];
 
-// The @popcorn/skia workspace package declares react / react-native /
+// The @popcorn/react-native workspace package declares react / react-native /
 // @shopify/react-native-skia as `*` peers, so its own node_modules can hold a
 // DIFFERENT version than this app. Force these singletons to the app's copy so
-// @popcorn/skia/src resolves the exact react-native + Skia the app links.
+// @popcorn/react-native/src resolves the exact react-native + Skia the app links.
 const forced = ['react', 'react-native', '@shopify/react-native-skia'];
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const match = forced.find((n) => moduleName === n || moduleName.startsWith(n + '/'));

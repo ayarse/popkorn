@@ -1,6 +1,6 @@
 # @popcorn/expo-demo
 
-Minimal Expo app to test the `@popcorn/skia` renderer on a real device. One
+Minimal Expo app to test the `@popcorn/react-native` renderer on a real device. One
 screen: a full-screen `PopcornView`, a floating **Edit CSS** button that opens
 a bottom-sheet editor (syntax-highlighted CSS input + Load/Cancel), swapping
 the scene on Load (parse errors show inline in the sheet, no crash).
@@ -38,7 +38,7 @@ the resulting build, then `bunx expo start --dev-client`.
 ## Notes
 
 - Monorepo Metro resolution is set in `metro.config.js` (watch the repo root,
-  resolve hoisted deps from both node_modules). `@popcorn/skia` and
+  resolve hoisted deps from both node_modules). `@popcorn/react-native` and
   `@popcorn/player` ship raw TS from `src/`; `babel-preset-expo` transpiles it.
 - `@shopify/react-native-skia` 2.x requires `react-native-reanimated` (and its
   `react-native-worklets` peer) as native dependencies, even though this demo

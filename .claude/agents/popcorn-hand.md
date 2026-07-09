@@ -43,4 +43,4 @@ or the requirements are open-ended. Say so plainly and hand back; the
 - `packages/popcorn-parser/src/` — `parser.ts`, `ast.ts`, `parser.test.ts`.
 - `packages/popcorn-player/src/` — `scene/`, `renderer/`, `animation/`,
   `runtime/`, `component.ts`.
-- `packages/demo/` — Vite demo. `examples/*.css` — reference scenes.
+- `packages/playground/` — Vite demo. `examples/*.css` — reference scenes.

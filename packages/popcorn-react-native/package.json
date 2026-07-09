@@ -1,5 +1,5 @@
 {
-  "name": "@popcorn/skia",
+  "name": "@popcorn/react-native",
   "description": "React Native Skia renderer backend for the Popcorn player",
   "license": "MIT",
   "version": "0.1.0",

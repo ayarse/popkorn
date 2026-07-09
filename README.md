@@ -23,8 +23,8 @@ Import button) — phase 1 brings in the artwork; animated SVG is a later phase.
 
 - `@popcorn/parser` - Parser for the Popcorn DSL (hand-rolled, zero-dependency)
 - `@popcorn/player` - Web component and Canvas2D rendering engine
-- `@popcorn/demo` - React demo application
-- `@popcorn/skia` - React Native Skia renderer (proof of concept) — runs the same `.css` scenes on React Native and the web
+- `@popcorn/playground` - React demo application
+- `@popcorn/react-native` - React Native Skia renderer (proof of concept) — runs the same `.css` scenes on React Native and the web
 - `@popcorn/expo-demo` - Expo app demonstrating the Skia renderer
 
 ## Getting Started

@@ -10,20 +10,20 @@ bun, never npm/pnpm (a stray `pnpm-lock.yaml` is always an accident):
 
 ```
 bun install                              # at repo root, installs the workspace
-bun --filter @popcorn/demo dev           # vite dev server
-bun --filter @popcorn/demo build         # tsc -b && vite build
+bun --filter @popcorn/playground dev           # vite dev server
+bun --filter @popcorn/playground build         # tsc -b && vite build
 bun --filter @popcorn-demo test          # repo-wide tests (DOM-free, bun-native)
 ```
 
 Always run from repo root with `--filter`; running `bun add` *inside*
-`packages/demo` works but `--filter` from root is the documented footgun-free
+`packages/playground` works but `--filter` from root is the documented footgun-free
 path — a bare `bun add --filter` at root has been seen to drop deps into the
 root `package.json` by mistake, so verify the dep landed in
-`packages/demo/package.json` after.
+`packages/playground/package.json` after.
 
 ## Stack
 
-- **Vite 6** + `@vitejs/plugin-react`. `@` → `packages/demo/src` alias (in
+- **Vite 6** + `@vitejs/plugin-react`. `@` → `packages/playground/src` alias (in
   `vite.config.ts` *and* `tsconfig.json` `paths` — keep both in sync).
 - **Tailwind v4** via `@tailwindcss/vite` (no `tailwind.config.js`). Theme
   tokens live in `src/globals.css` under `@theme inline`. The `dark` variant is
@@ -215,7 +215,7 @@ for "which is active"); fit mode uses `DropdownMenuRadioGroup`/`RadioItem`
 
 ## Verification bar
 
-After any UI change: `bun --filter @popcorn/demo build` green (runs `tsc -b` +
+After any UI change: `bun --filter @popcorn/playground build` green (runs `tsc -b` +
 Vite) and a browser eyeball of the affected surface. Screenshots lie less than
 tests here — several real bugs were only visible on canvas. After any
 player/converter change, also run the LottieFiles corpus batch

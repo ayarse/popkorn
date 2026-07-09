@@ -87,7 +87,7 @@ Canvas hit-testing (point-in-shape, z-order).
   `renderer/` (canvas2d, interface, types), `animation/` (easing, keyframes,
   scheduler), `runtime/` (loop, inputs, variables, interaction, hit-test),
   `component.ts` (the `<popcorn-player>` web component).
-- `packages/demo/` — Vite demo app. `examples/*.css` — reference scenes.
+- `packages/playground/` — Vite demo app. `examples/*.css` — reference scenes.
 
 When context matters, `codegraph_explore` returns verbatim source across the
 relevant files in one call — prefer it over a grep/read loop.

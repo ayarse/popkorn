@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@popcorn/player": "workspace:*",
-    "@popcorn/skia": "workspace:*",
+    "@popcorn/react-native": "workspace:*",
     "@rivascva/react-native-code-editor": "^1.2.2",
     "@shopify/react-native-skia": "2.2.12",
     "expo": "~54.0.0",

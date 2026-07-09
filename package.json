@@ -7,21 +7,25 @@
   ],
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
-    "dev": "bun --filter @popcorn/demo dev",
-    "build": "bun --filter @popcorn/demo build",
-    "test": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia --filter @popcorn/converters test && bun test tools/",
-    "build:packages": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia --filter @popcorn/converters build",
+    "dev": "bun --filter @popcorn/playground dev",
+    "build": "bun --filter @popcorn/playground build",
+    "test": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/react-native --filter @popcorn/converters test && bun test tools/",
+    "build:packages": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/react-native --filter @popcorn/converters build",
     "changeset": "changeset",
     "version-packages": "changeset version && bun install",
     "release": "bun run build:packages && bun scripts/publish.ts",
     "lint": "biome check",
     "format": "biome check --write",
-    "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/demo --filter @popcorn/converters typecheck",
+    "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/playground --filter @popcorn/converters typecheck",
     "convert": "./packages/popcorn-converters/src/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
     "@changesets/cli": "^2.31.0",
     "typescript": "~5.6.2"
+  },
+  "//": "Single @types/react across the workspace: playground + react-native (and skia's <19 peer) want 18; only expo-demo asked for 19, which leaks into playground's tsc via bun hoisting. Pin 18 so the build is hoist-order-independent.",
+  "overrides": {
+    "@types/react": "18.3.27"
   }
 }

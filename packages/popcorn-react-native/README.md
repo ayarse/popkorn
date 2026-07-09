@@ -1,4 +1,4 @@
-# @popcorn/skia
+# @popcorn/react-native
 
 A React Native Skia renderer for [Popcorn](../../README.md) — proof of concept.
 Plays Popcorn `.css` scenes on `@shopify/react-native-skia`, so the same DSL
@@ -14,13 +14,13 @@ Canvas2D player.
 Peer dependencies (bring your own):
 
 ```sh
-bun add @popcorn/skia @shopify/react-native-skia react react-native
+bun add @popcorn/react-native @shopify/react-native-skia react react-native
 ```
 
 ## React Native usage
 
 ```tsx
-import { PopcornView } from '@popcorn/skia';
+import { PopcornView } from '@popcorn/react-native';
 
 const scene = `
   :root { width: 300px; height: 300px; background: #0f0f23 }
@@ -59,7 +59,7 @@ canvas per frame, then feed it to a `RenderLoop`:
 
 ```ts
 import { Skia } from '@shopify/react-native-skia';
-import { SkiaRenderer } from '@popcorn/skia';
+import { SkiaRenderer } from '@popcorn/react-native';
 
 const renderer = new SkiaRenderer(Skia, { width, height });
 renderer.setCanvas(recorder.beginRecording(bounds));
