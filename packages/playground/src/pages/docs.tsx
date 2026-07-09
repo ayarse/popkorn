@@ -9,8 +9,8 @@ import { ArrowLeft, BookOpen, ListTree } from "lucide-react";
 import { marked } from "marked";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
+import { useToc } from "@/hooks/use-toc";
 import { cn } from "@/lib/utils";
-import { useToc } from "@/use-toc";
 
 const DOCS = [
   { key: "CONCEPT", label: "Concept", file: "CONCEPT.md" },

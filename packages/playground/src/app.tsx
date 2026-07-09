@@ -5,7 +5,7 @@ import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
 import { SourcePanel } from "@/components/source-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useScene } from "@/use-scene";
+import { useScene } from "@/hooks/use-scene";
 
 function App() {
   const scene = useScene();
