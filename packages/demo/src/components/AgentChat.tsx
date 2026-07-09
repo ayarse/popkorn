@@ -93,7 +93,7 @@ const SYSTEM_PROMPT = [
 const GREETING: Message = {
   id: 0,
   role: "agent",
-  text: "I'm your Popcorn Copilot — describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the DSL welcome too.",
+  text: "I'm your Popcorn Copilot. Describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the DSL welcome too.",
 };
 
 const suggestions = [
@@ -574,7 +574,7 @@ function ModelCombobox({
         role="combobox"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors hover:border-border focus:border-primary/50 focus:ring-2 focus:ring-ring"
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors hover:border-border focus:border-primary/50"
       >
         <span className={value ? "truncate" : "text-muted-foreground"}>
           {value || "model id"}
@@ -663,7 +663,7 @@ function SettingsDialog({
         <DialogHeader>
           <DialogTitle>Agent settings</DialogTitle>
           <DialogDescription>
-            Bring your own key. Stored locally in your browser — never sent anywhere except the endpoint. Any OpenAI-compatible chat completions endpoint works; defaults to OpenRouter, switch the base URL for OpenAI or others.
+            Bring your own key. Stored locally in your browser, never sent anywhere except the endpoint. Any OpenAI-compatible chat completions endpoint works; defaults to OpenRouter, switch the base URL for OpenAI or others.
           </DialogDescription>
         </DialogHeader>
 
@@ -676,7 +676,7 @@ function SettingsDialog({
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-or-…"
                 spellCheck={false}
-                className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring"
+                className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50"
               />
               <button
                 type="button"
@@ -695,7 +695,7 @@ function SettingsDialog({
               onChange={(e) => setBaseUrl(e.target.value)}
               spellCheck={false}
               placeholder={DEFAULT_BASE_URL}
-              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring"
+              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50"
             />
           </Field>
 
