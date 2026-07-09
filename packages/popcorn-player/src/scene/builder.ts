@@ -1673,6 +1673,12 @@ export class SceneBuilder {
     let sourceId: string | null = null;
     let mode: MaskMode = 'alpha';
     for (const v of values) {
+      // A hex-digit-only id (`#fade`, `#cafe`) lexes as a color token; a literal
+      // color is never valid in `mask:`, so a color here is always an id reference.
+      if (isColorValue(v) && v.value.startsWith('#')) {
+        sourceId = v.value.slice(1);
+        continue;
+      }
       if (!isKeywordValue(v)) continue;
       if (v.value.startsWith('#')) {
         sourceId = v.value.slice(1);

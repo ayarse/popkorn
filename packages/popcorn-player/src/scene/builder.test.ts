@@ -702,6 +702,17 @@ test('mask: resolves the source by id, flags it, and links the mode', () => {
   expect(content.isMaskSource).toBe(false);
 });
 
+test('mask: a hex-digit-only source id (#fade lexes as a color) still resolves', () => {
+  const root = build(`
+#content { type: rect; width: 50px; height: 50px; fill: #f00; mask: #fade luminance; }
+#fade { type: rect; width: 50px; height: 50px; fill: #fff; }
+`);
+  const [content, fade] = root.children;
+  expect(content.mask?.source).toBe(fade);
+  expect(content.mask?.mode).toBe('luminance');
+  expect(fade.isMaskSource).toBe(true);
+});
+
 test('mask: an unknown source id throws', () => {
   expect(() => build('#c { type: rect; width: 10px; mask: #nope alpha; }'))
     .toThrow(/mask on 'c' references unknown node '#nope'/);
