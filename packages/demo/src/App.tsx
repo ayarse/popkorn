@@ -674,7 +674,10 @@ function App() {
           <ImportModal
             onFile={handleImportFile}
             onText={(text) => {
-              if (importLottie(text, "pasted JSON")) setShowImport(false);
+              const ok = /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<(svg|!DOCTYPE svg)/i.test(text)
+                ? importSvg(text, "pasted SVG")
+                : importLottie(text, "pasted JSON");
+              if (ok) setShowImport(false);
             }}
             onClose={() => setShowImport(false)}
           />
@@ -884,8 +887,8 @@ function ImportModal({
           <DialogTitle>Import</DialogTitle>
           <DialogDescription>
             Drop a bodymovin <code className="font-mono">.json</code> or an{" "}
-            <code className="font-mono">.svg</code> file, or paste Lottie JSON.
-            It will be converted to Popcorn DSL.
+            <code className="font-mono">.svg</code> file, or paste Lottie JSON
+            or SVG markup. It will be converted to Popcorn DSL.
           </DialogDescription>
         </DialogHeader>
 
@@ -927,20 +930,20 @@ function ImportModal({
 
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <div className="h-px flex-1 bg-border" />
-          or paste JSON
+          or paste source
           <div className="h-px flex-1 bg-border" />
         </div>
 
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder='{ "v": "5.7.0", "layers": [ ... ] }'
+          placeholder='{ "v": "5.7.0", "layers": [ ... ] }  or  <svg ...>'
           spellCheck={false}
           className="h-36 w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground outline-none focus:ring-2 focus:ring-ring"
         />
 
         <div className="flex justify-end">
-          <Button onClick={() => onText(text)}>Import JSON</Button>
+          <Button onClick={() => onText(text)}>Import</Button>
         </div>
       </DialogContent>
     </Dialog>
