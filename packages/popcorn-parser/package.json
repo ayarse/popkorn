@@ -20,6 +20,9 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "bin": {
+      "popcorn-minify": "./dist/minify-cli.js"
     }
   },
   "scripts": {
@@ -28,6 +31,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@popcorn/config": "workspace:*"
+    "@popcorn/config": "workspace:*",
+    "@types/node": "^22"
+  },
+  "bin": {
+    "popcorn-minify": "./src/minify-cli.ts"
   }
 }

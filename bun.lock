@@ -92,8 +92,12 @@
     "packages/popcorn-parser": {
       "name": "@popcorn/parser",
       "version": "0.1.0",
+      "bin": {
+        "popcorn-minify": "./src/minify-cli.ts",
+      },
       "devDependencies": {
         "@popcorn/config": "workspace:*",
+        "@types/node": "^22",
       },
     },
     "packages/popcorn-player": {

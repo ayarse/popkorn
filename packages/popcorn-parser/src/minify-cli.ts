@@ -4,14 +4,14 @@
  * parser and serializer. The output is guaranteed to parse to the same AST as
  * the input — minification is value-preserving, not lossy.
  *
- *   bun tools/popcorn-minify.ts <in.css> [-o out.css] [--pretty]
+ *   popcorn-minify <in.css> [-o out.css] [--pretty]
  *
  * Default minifies; --pretty reformats (2-space indent). With -o the result is
  * written to a file, otherwise it goes to stdout. Byte counts are printed to
  * stderr either way.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { format, minify } from "../packages/popcorn-parser/src/index.ts";
+import { format, minify } from "./index";
 
 const args = process.argv.slice(2);
 let input: string | undefined;
@@ -30,9 +30,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!input) {
-  console.error(
-    "usage: bun tools/popcorn-minify.ts <in.css> [-o out.css] [--pretty]",
-  );
+  console.error("usage: popcorn-minify <in.css> [-o out.css] [--pretty]");
   process.exit(1);
 }
 
