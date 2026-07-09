@@ -27,18 +27,24 @@
   animation: twinkle 2.4s ease-in-out infinite;
 }
 
-/* Crescent moon: a pale disc with a sky-coloured disc slid over it to carve
-   the crescent (no subtract-mask needed — just paint order). */
+/* Crescent moon: a pale disc with a second disc masked out of it
+   (`alpha-invert` = destination-out = subtract) to carve the crescent. The
+   drop-shadow lives on the *group*, not the disc, so it glows the composited
+   crescent — put it on the disc and the shadow is computed from the full
+   circle's alpha (before the mask), ghosting a ring around the whole disc. */
 #moon {
-  type: circle;
-  cx: 660px; cy: 160px; r: 46px;
-  fill: #f6f3d8;
   filter: drop-shadow(0 0 14px rgba(246, 243, 216, 0.45));
+  > #moon-disc {
+    type: circle;
+    cx: 660px; cy: 160px; r: 46px;
+    fill: #f6f3d8;
+    mask: #moon-shade alpha-invert;
+  }
 }
 #moon-shade {
   type: circle;
   cx: 640px; cy: 144px; r: 44px;
-  fill: #0b1026;
+  fill: #f6f3d8;
 }
 
 /* The starfield: twelve instances of the one symbol. Each line overrides only
