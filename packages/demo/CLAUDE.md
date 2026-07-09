@@ -26,14 +26,14 @@ root `package.json` by mistake, so verify the dep landed in
 - **Vite 6** + `@vitejs/plugin-react`. `@` → `packages/demo/src` alias (in
   `vite.config.ts` *and* `tsconfig.json` `paths` — keep both in sync).
 - **Tailwind v4** via `@tailwindcss/vite` (no `tailwind.config.js`). Theme
-  tokens live in `src/index.css` under `@theme inline`. The `dark` variant is
+  tokens live in `src/globals.css` under `@theme inline`. The `dark` variant is
   `@custom-variant dark (&:is(.dark *))`.
 - **shadcn-style UI** built by hand from Radix primitives + CVA — there is no
   `components.json`, no shadcn CLI. Components live in `src/components/ui/*`
   and are edited directly.
 - **lucide-react** for icons. Import named: `import { Repeat } from "lucide-react"`.
 - **Fonts**: Inter via `@import url("https://rsms.me/inter/inter.css")` at the
-  *top* of `index.css` (CSS requires `@import` before any other rule — moving it
+  *top* of `globals.css` (CSS requires `@import` before any other rule — moving it
   below the Tailwind imports silently drops the font). JetBrains Mono via
   `@fontsource/jetbrains-mono` (400 + 700 weights imported in `main.tsx`); Vite
   emits the woff/woff2 as hashed assets, loaded on demand. `--font-mono` puts
@@ -65,7 +65,7 @@ and `<MotionCanvas source={source}>`.
 
 **Dark mode is always on.** `main.tsx` does `document.documentElement.classList.add('dark')`.
 There is no light theme and no toggle. All color comes from the oklch tokens in
-`index.css` (`--background`, `--foreground`, `--card`, `--popover`, `--primary`,
+`globals.css` (`--background`, `--foreground`, `--card`, `--popover`, `--primary`,
 `--secondary`, `--muted`, `--border`, `--destructive`, `--ring`, …) mapped into
 Tailwind via `@theme inline`. Reference tokens (`bg-background`, `text-muted-foreground`,
 `border-border`, …) — never raw hex/oklch in components.
@@ -196,7 +196,7 @@ for "which is active"); fit mode uses `DropdownMenuRadioGroup`/`RadioItem`
   not relative paths. Relative imports are for same-package non-alias files
   (`./MotionCanvas`, `./examples`).
 - **No comments in code** unless asked.
-- **Scrollbar styling** lives in `index.css` (`@layer base`): a thin dark thumb
+- **Scrollbar styling** lives in `globals.css` (`@layer base`): a thin dark thumb
   on a faint always-visible rail that brightens on `:hover`. Do not reintroduce
   `::-webkit-scrollbar:hover ::-webkit-scrollbar-thumb` — a descendant combinator
   between two pseudo-elements is invalid CSS and the browser discards the whole
