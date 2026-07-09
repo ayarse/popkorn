@@ -2,6 +2,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
@@ -10,7 +11,6 @@ import { createRoot } from "react-dom/client";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
 import App from "@/app";
-import Docs from "@/pages/docs";
 import "@/globals.css";
 
 document.documentElement.classList.add("dark");
@@ -28,7 +28,7 @@ const indexRoute = createRoute({
 const docsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/docs",
-  component: Docs,
+  component: lazyRouteComponent(() => import("@/pages/docs")),
 });
 
 const routeTree = rootRoute.addChildren([indexRoute, docsRoute]);

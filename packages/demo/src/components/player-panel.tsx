@@ -33,7 +33,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { downloadGif, exportGifInWorker } from "@/lib/gif";
 import { cn } from "@/lib/utils";
 
 type FitMode = "contain" | "cover" | "fill" | "none";
@@ -75,6 +74,7 @@ export function PlayerPanel({
     if (exportProgress !== null) return;
     setExportProgress(0);
     try {
+      const { exportGifInWorker, downloadGif } = await import("@/lib/gif");
       const gif = await exportGifInWorker(source, {
         onProgress: setExportProgress,
       });
