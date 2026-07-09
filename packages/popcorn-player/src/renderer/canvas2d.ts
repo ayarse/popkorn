@@ -34,6 +34,10 @@ export class Canvas2DRenderer implements Renderer {
   // In-flight image decodes; each promise settles (never rejects) on load/error.
   private pendingImages = new Set<Promise<void>>();
   private offscreen: (CanvasRenderingContext2D | null)[] = [];
+  // Re-entrancy depth for compositeMask: nested track mattes each claim a
+  // distinct offscreen pair so an inner matte's beginFrame() can't clear the
+  // outer content mid-composite.
+  private maskDepth = 0;
   private fillColor: string | null = '#000000';
   private strokeColor: string | null = null;
   private strokeWidth: number = 1;
@@ -196,20 +200,28 @@ export class Canvas2DRenderer implements Renderer {
   }
 
   compositeMask(mode: MaskMode, drawContent: () => void, drawMask: () => void): void {
-    const a = this.ensureOffscreen(0);
-    const b = this.ensureOffscreen(1);
+    const base = this.maskDepth * 2;
+    const a = this.ensureOffscreen(base);
+    const b = this.ensureOffscreen(base + 1);
     if (!a || !b) { drawContent(); return; } // headless / no offscreen: content only
 
     const main = this.ctx;
 
     // Content -> A, mask source -> B; each closure sets its own world transform.
-    this.ctx = a;
-    this.beginFrame();
-    drawContent();
+    // A nested matte encountered inside these closures re-enters here at a
+    // deeper depth, so it claims its own buffer pair rather than clearing ours.
+    this.maskDepth++;
+    try {
+      this.ctx = a;
+      this.beginFrame();
+      drawContent();
 
-    this.ctx = b;
-    this.beginFrame();
-    drawMask();
+      this.ctx = b;
+      this.beginFrame();
+      drawMask();
+    } finally {
+      this.maskDepth--;
+    }
 
     // Turn a luminance mask into an alpha mask in place, so a single
     // destination-in/out handles every mode.
