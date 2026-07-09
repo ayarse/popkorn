@@ -20,6 +20,7 @@
     "@tanstack/react-router": "^1.170.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "gifenc": "^1.0.3",
     "lucide-react": "^1.23.0",
     "marked": "^18.0.5",

@@ -23,6 +23,13 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 import skillMd from "../../../../.claude/skills/creating-popcorn-animations/SKILL.md?raw";
 import referenceMd from "../../../../.claude/skills/creating-popcorn-animations/reference.md?raw";
 
@@ -512,6 +519,122 @@ function TypingBubble() {
   );
 }
 
+function ModelCombobox({
+  value,
+  onChange,
+  presets,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  presets: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const trimmed = search.trim();
+  const lower = trimmed.toLowerCase();
+  const exact = presets.some((p) => p === trimmed);
+  const filtered = trimmed
+    ? presets.filter((p) => p.toLowerCase().includes(lower))
+    : presets;
+  const showCustom = trimmed.length > 0 && !exact;
+
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setSearch("");
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setSearch("");
+      }
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors hover:border-border focus:border-primary/50 focus:ring-2 focus:ring-ring"
+      >
+        <span className={value ? "truncate" : "text-muted-foreground"}>
+          {value || "model id"}
+        </span>
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 opacity-60 transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-border bg-popover p-0 shadow-xl">
+          <Command shouldFilter={false} className="rounded-lg">
+            <CommandInput
+              placeholder="Search or type a model id…"
+              value={search}
+              onValueChange={setSearch}
+              autoFocus
+            />
+            <CommandList>
+              {filtered.length === 0 && !showCustom && (
+                <div className="py-6 text-center text-sm text-muted-foreground">
+                  No preset matches.
+                </div>
+              )}
+              <CommandGroup>
+                {filtered.map((p) => (
+                  <CommandItem
+                    key={p}
+                    value={p}
+                    onSelect={() => pick(p)}
+                  >
+                    <Check
+                      className={cn(
+                        "size-4 shrink-0",
+                        value === p ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    {p}
+                  </CommandItem>
+                ))}
+                {showCustom && (
+                  <CommandItem
+                    value={trimmed}
+                    onSelect={() => pick(trimmed)}
+                  >
+                    <Sparkles className="size-4 shrink-0 text-primary" />
+                    <span className="truncate">Use “{trimmed}”</span>
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SettingsDialog({
   current,
   onSave,
@@ -577,22 +700,11 @@ function SettingsDialog({
           </Field>
 
           <Field label="Model">
-            <div className="relative">
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                spellCheck={false}
-                list="agent-model-presets"
-                className="h-9 w-full rounded-lg border border-border bg-background px-3 pr-8 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring"
-                placeholder="model id"
-              />
-              <datalist id="agent-model-presets">
-                {MODEL_PRESETS.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            </div>
+            <ModelCombobox
+              value={model}
+              onChange={setModel}
+              presets={MODEL_PRESETS}
+            />
           </Field>
         </div>
 
