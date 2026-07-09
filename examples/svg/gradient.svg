@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">
+  <defs>
+    <!-- objectBoundingBox units (default) + gradientTransform + stop-opacity -->
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"
+                    gradientTransform="rotate(20 0.5 0.5)">
+      <stop offset="0"   stop-color="#38bdf8" />
+      <stop offset="0.6" stop-color="#6366f1" stop-opacity="0.85" />
+      <stop offset="1"   stop-color="#1e1b4b" stop-opacity="0.4" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5" fx="0.35" fy="0.35">
+      <stop offset="0" stop-color="#fef08a" />
+      <stop offset="1" stop-color="#f97316" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="200" height="120" fill="url(#sky)" />
+  <circle cx="150" cy="40" r="34" fill="url(#glow)" />
+</svg>

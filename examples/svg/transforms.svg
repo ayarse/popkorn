@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <!-- Nested groups exercising matrix() decompose, rotate-about-point,
+       and skewX() (shear bake into the leaf transform). -->
+  <g transform="matrix(1 0 0 1 40 40)">
+    <g transform="rotate(30 60 60)">
+      <rect x="20" y="20" width="80" height="50" fill="#0ea5e9" />
+      <g transform="skewX(-18)">
+        <rect x="20" y="90" width="80" height="30" fill="#f43f5e" />
+      </g>
+    </g>
+  </g>
+</svg>

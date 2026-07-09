@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <!-- Phase-2 target: CSS @keyframes animation embedded in <style>.
+       Phase 1 imports the static frame and warns the animation is dropped. -->
+  <style>
+    @keyframes rotate { to { transform: rotate(360deg); } }
+    .spin { transform-origin: 24px 24px; animation: rotate 1s linear infinite; }
+  </style>
+  <circle cx="24" cy="24" r="20" fill="none" stroke="#e5e7eb" stroke-width="5" />
+  <path class="spin" fill="none" stroke="#6366f1" stroke-width="5"
+        stroke-linecap="round" d="M24 4 a20 20 0 0 1 20 20" />
+</svg>

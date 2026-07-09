@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Filled compound path: gear body + inner circle subpath punched out
+       via fill-rule="evenodd" (the hub hole). One <path>, two contours. -->
+  <path fill="#374151" fill-rule="evenodd" d="
+    M28 4 h8 l2 7 6 3 7-3 4 7 -5 5 0 7 5 5 -4 7 -7-3 -6 3 -2 7 h-8
+    l-2-7 -6-3 -7 3 -4-7 5-5 0-7 -5-5 4-7 7 3 6-3 z
+    M32 22 a10 10 0 1 0 0.01 0 z
+  " />
+</svg>
