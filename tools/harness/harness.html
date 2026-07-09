@@ -482,6 +482,13 @@ document.getElementById('stepFwd').addEventListener('click', () => seekBoth(+doc
 document.getElementById('stepBack').addEventListener('click', () => seekBoth(+document.getElementById('tInput').value - 1 / FPS));
 document.getElementById('diffBtn').addEventListener('click', () => window.__diff());
 
+// Sync all three to a common frame on load. Without this the references sit at
+// frame 0 (blank for any file whose content starts later, e.g. layers with
+// ip>0) while popcorn autoplays — which reads as "the references are broken"
+// when they simply were never seeked. ?t= sets the initial time (seconds).
+// Runs here, after seekBoth is defined and the players are loaded.
+if (jsonParam || cssParam) await seekBoth(+(q.get('t') || 0));
+
 log('harness ready (thorvg ' + (thorvgAvailable ? 'available' : 'unavailable') + '). ready() = ' + window.__ready());
 </script>
 </body>
