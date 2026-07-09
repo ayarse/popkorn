@@ -8,6 +8,7 @@ import AgentChat from "./components/AgentChat";
 import { useNavigate } from "@tanstack/react-router";
 import { Sparkles, BookText } from "lucide-react";
 import { convertLottie } from "../../../tools/lottie2popcorn";
+import { convertSvg } from "../../../tools/svg2popcorn";
 import { parse, serialize } from "@popcorn/parser";
 import { examples } from "./examples";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -88,6 +89,7 @@ type SizePair = { lottie: number; popcorn: number };
 type SizeDelta = { before: number; after: number };
 
 type ImportResult = {
+  format: string; // source-format label for the size columns ("Lottie" / "SVG")
   label: string;
   warnings: string[];
   blocked: string[];
@@ -97,32 +99,40 @@ type ImportResult = {
 };
 
 function buildImportResult(
+  format: string,
   label: string,
-  rawLottie: string,
+  rawSource: string,
   css: string,
 ): ImportResult {
-  const raw: SizePair = { lottie: bytes(rawLottie), popcorn: bytes(css) };
+  const raw: SizePair = { lottie: bytes(rawSource), popcorn: bytes(css) };
   let min: SizePair | undefined;
-  try {
-    min = {
-      lottie: bytes(JSON.stringify(JSON.parse(rawLottie))),
-      popcorn: bytes(serialize(parse(css), { minify: true })),
-    };
-  } catch {
-    // Degrade to unminified sizes only rather than breaking the import.
+  // Only Lottie has a JSON-minify step; SVG skips the minified row.
+  if (format === "Lottie") {
+    try {
+      min = {
+        lottie: bytes(JSON.stringify(JSON.parse(rawSource))),
+        popcorn: bytes(serialize(parse(css), { minify: true })),
+      };
+    } catch {
+      // Degrade to unminified sizes only rather than breaking the import.
+    }
   }
-  return { label, warnings: [], blocked: [], raw, min };
+  return { format, label, warnings: [], blocked: [], raw, min };
 }
 
 // Gzipped transfer size of the minified forms (what actually ships over the
 // wire). Async because CompressionStream is; the row fills in once resolved.
 async function gzipSizes(
-  rawLottie: string,
+  format: string,
+  rawSource: string,
   css: string,
 ): Promise<SizePair | undefined> {
   try {
+    // Lottie ships as minified JSON; SVG ships as-is.
+    const source =
+      format === "Lottie" ? JSON.stringify(JSON.parse(rawSource)) : rawSource;
     const [lottie, popcorn] = await Promise.all([
-      gzipBytes(JSON.stringify(JSON.parse(rawLottie))),
+      gzipBytes(source),
       gzipBytes(serialize(parse(css), { minify: true })),
     ]);
     return { lottie, popcorn };
@@ -223,17 +233,7 @@ function App() {
     }
     try {
       const { css, warnings, blocked } = convertLottie(lottie);
-      setCurrentExample(null);
-      setSource(css);
-      setMinified(false);
-      setSizeDelta(null);
-      const result = buildImportResult(label, text, css);
-      result.warnings = warnings;
-      result.blocked = blocked;
-      setImportResult(result);
-      void gzipSizes(text, css).then((gz) =>
-        setImportResult((prev) => (prev === result ? { ...prev, gz } : prev)),
-      );
+      applyImport("Lottie", label, text, css, warnings, blocked);
       return true;
     } catch (e: any) {
       setError(`Lottie conversion failed: ${e.message}`);
@@ -241,11 +241,48 @@ function App() {
     }
   }
 
-  function handleLottieFile(file: File) {
+  function importSvg(text: string, label: string): boolean {
+    setError(null);
+    try {
+      const { css, warnings, blocked } = convertSvg(text);
+      applyImport("SVG", label, text, css, warnings, blocked);
+      return true;
+    } catch (e: any) {
+      setError(`SVG conversion failed: ${e.message}`);
+      return false;
+    }
+  }
+
+  function applyImport(
+    format: string,
+    label: string,
+    text: string,
+    css: string,
+    warnings: string[],
+    blocked: string[],
+  ) {
+    setCurrentExample(null);
+    setSource(css);
+    setMinified(false);
+    setSizeDelta(null);
+    const result = buildImportResult(format, label, text, css);
+    result.warnings = warnings;
+    result.blocked = blocked;
+    setImportResult(result);
+    void gzipSizes(format, text, css).then((gz) =>
+      setImportResult((prev) => (prev === result ? { ...prev, gz } : prev)),
+    );
+  }
+
+  function handleImportFile(file: File) {
+    const isSvg = /\.svg$/i.test(file.name) || file.type === "image/svg+xml";
     const reader = new FileReader();
     reader.onload = () => {
-      if (importLottie(reader.result as string, `"${file.name}"`))
-        setShowImport(false);
+      const text = reader.result as string;
+      const ok = isSvg
+        ? importSvg(text, `"${file.name}"`)
+        : importLottie(text, `"${file.name}"`);
+      if (ok) setShowImport(false);
     };
     reader.onerror = () => setError(`Could not read file: ${file.name}`);
     reader.readAsText(file);
@@ -320,7 +357,7 @@ function App() {
               onClick={() => setShowImport(true)}
             >
               <Upload className="size-3.5" />
-              Import Lottie
+              Import
             </Button>
             <Button
               variant={chatOpen ? "default" : "secondary"}
@@ -635,7 +672,7 @@ function App() {
 
         {showImport && (
           <ImportModal
-            onFile={handleLottieFile}
+            onFile={handleImportFile}
             onText={(text) => {
               if (importLottie(text, "pasted JSON")) setShowImport(false);
             }}
@@ -654,7 +691,7 @@ function ImportStatusChip({
   result: ImportResult;
   onDismiss: () => void;
 }) {
-  const { label, warnings, blocked, raw, min, gz } = result;
+  const { format, label, warnings, blocked, raw, min, gz } = result;
   const hasIssues = warnings.length > 0 || blocked.length > 0;
   const deltaPct = pct(raw.lottie, raw.popcorn);
   const minDeltaPct = min ? pct(min.lottie, min.popcorn) : 0;
@@ -716,7 +753,7 @@ function ImportStatusChip({
             <div className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
               <span className="w-2/5" />
               <span className="flex-1 whitespace-nowrap text-center">
-                Lottie
+                {format}
               </span>
               <span className="flex-1 whitespace-nowrap text-center">
                 Popcorn
@@ -844,10 +881,11 @@ function ImportModal({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Import Lottie</DialogTitle>
+          <DialogTitle>Import</DialogTitle>
           <DialogDescription>
-            Drop a bodymovin <code className="font-mono">.json</code> file or
-            paste its contents. It will be converted to Popcorn DSL.
+            Drop a bodymovin <code className="font-mono">.json</code> or an{" "}
+            <code className="font-mono">.svg</code> file, or paste Lottie JSON.
+            It will be converted to Popcorn DSL.
           </DialogDescription>
         </DialogHeader>
 
@@ -872,13 +910,13 @@ function ImportModal({
               : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground",
           )}
         >
-          Drop a <code className="font-mono">.json</code> file here, or click to
-          browse
+          Drop a <code className="font-mono">.json</code> or{" "}
+          <code className="font-mono">.svg</code> file here, or click to browse
         </div>
         <input
           ref={fileRef}
           type="file"
-          accept=".json,application/json"
+          accept=".json,application/json,.svg,image/svg+xml"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
