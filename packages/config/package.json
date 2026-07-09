@@ -1,0 +1,6 @@
+{
+  "name": "@popcorn/config",
+  "version": "0.0.0",
+  "private": true,
+  "files": ["tsconfig"]
+}
