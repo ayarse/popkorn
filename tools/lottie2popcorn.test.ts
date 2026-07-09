@@ -474,3 +474,25 @@ test('a transform-parented child is NOT nested inside its parent precomp clip/ma
   expect(preHead).not.toContain('clip-path');
   expect(preHead).not.toContain('mask:');
 });
+
+test('an orphan track-matte source (td with no tt consumer) is dropped, not painted', () => {
+  const ks = { p: { a: 0, k: [50, 50] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, o: { a: 0, k: 100 }, r: { a: 0, k: 0 } };
+  const rect = (c: number[]) => [{ ty: 'rc', p: { a: 0, k: [0, 0] }, s: { a: 0, k: [40, 40] } }, { ty: 'fl', c: { a: 0, k: c }, o: { a: 0, k: 100 } }];
+  const css = new Converter().convert({
+    v: '5', fr: 30, ip: 0, op: 60, w: 100, h: 100,
+    layers: [
+      // A proper matte pair: source (td) consumed by the content below (tt/tp).
+      { ty: 4, nm: 'good-src', ind: 1, td: 1, ip: 0, op: 60, st: 0, ks, shapes: rect([0, 0, 0]) },
+      { ty: 4, nm: 'content', ind: 2, tt: 1, tp: 1, ip: 0, op: 60, st: 0, ks, shapes: rect([0, 1, 0]) },
+      // An orphan matte source: td set, but the layer below has NO tt — degenerate.
+      { ty: 4, nm: 'orphan-src', ind: 3, td: 1, ip: 0, op: 60, st: 0, ks, shapes: rect([0, 0, 1]) },
+      { ty: 4, nm: 'plain', ind: 4, ip: 0, op: 60, st: 0, ks, shapes: rect([1, 0, 0]) },
+    ],
+  });
+  // The orphan is dropped entirely — no rule and no blue fill leaks into paint.
+  expect(css).not.toContain('#orphan-src');
+  expect(css).not.toContain('#0000ff');
+  // The consumed source survives (as the matte) and the plain layer paints.
+  expect(css).toContain('mask: #good-src alpha');
+  expect(css).toContain('#plain');
+});

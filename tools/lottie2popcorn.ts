@@ -533,13 +533,30 @@ export class Converter {
       }
     }
 
+    // A `td` layer is a track-matte source: never painted on its own, only
+    // consumed as the matte for its `tt` partner. The linking loop below marks
+    // consumed sources (the player then skips painting them). An *orphan* td
+    // source with no tt consumer (a degenerate/minified export where a matte
+    // sits over a non-matte layer) contributes nothing visible — shipping
+    // players drop it; painting it floods the frame with the matte shape. So
+    // collect the consumed source inds and drop the orphaned td layers.
+    const consumedSrc = new Set<number>();
+    for (let i = 0; i < layers.length; i++) {
+      const l = layers[i];
+      if (l.tt === undefined) continue;
+      const srcInd = typeof l.tp === 'number' ? l.tp : layers[i - 1]?.ind;
+      if (typeof srcInd === 'number') consumedSrc.add(srcInd);
+    }
+    const isOrphanMatte = (l: any) => !!l && !!l.td && typeof l.ind === 'number' && !consumedSrc.has(l.ind);
+
     // children[parentInd] = convertible child layers, array order preserved.
     const childrenOf = new Map<number, any[]>();
     const roots: any[] = [];
     for (const l of layers) {
       if (!this.isConvertible(l)) continue;
+      if (isOrphanMatte(l)) { this.warnOnce(`orphan track-matte source '${l.nm ?? l.ind}' dropped (no tt consumer)`); continue; }
       const parent = l.parent;
-      if (typeof parent === 'number' && this.isConvertible(byInd.get(parent))) {
+      if (typeof parent === 'number' && this.isConvertible(byInd.get(parent)) && !isOrphanMatte(byInd.get(parent))) {
         (childrenOf.get(parent) ?? childrenOf.set(parent, []).get(parent)!).push(l);
       } else {
         if (typeof parent === 'number') this.warnOnce(`layer ${l.ind} references missing parent ${parent}; treated as unparented`);
