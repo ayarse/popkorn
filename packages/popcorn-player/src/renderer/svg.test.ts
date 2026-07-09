@@ -215,7 +215,7 @@ function findAll(root: FakeElement, pred: (e: FakeElement) => boolean): FakeElem
 }
 function makeRenderer(svg: FakeElement) {
   const r = new SVGRenderer(svg as unknown as SVGSVGElement);
-  r.setSize(100, 100);
+  r.resize(100, 100);
   return { r, defs: svg.childNodes[0], rootG: svg.childNodes[1] };
 }
 
@@ -377,7 +377,7 @@ test('compositeFilter: wraps content in a CSS-filtered group; nests a matte insi
 test('setSize: writes a device-px viewBox so DPR scaling inverts on the CSS box', () => {
   const svg = installFakeDom();
   const { r } = makeRenderer(svg);
-  r.setSize(1411, 1140);
+  r.resize(1411, 1140);
   expect(svg.getAttribute('width')).toBe('1411');
   expect(svg.getAttribute('height')).toBe('1140');
   expect(svg.getAttribute('viewBox')).toBe('0 0 1411 1140');

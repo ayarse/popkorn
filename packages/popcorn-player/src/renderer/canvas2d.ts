@@ -1,7 +1,10 @@
 import type { Renderer } from './interface';
-import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MaskMode, PaintOrder } from '../scene/types';
-import { colorToCSS } from './types';
+import type { PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
+import type { TextAnchor, MaskMode } from '../scene/types';
+import { LUMA_COEFFICIENTS } from './types';
+import { PaintStateRenderer } from './paint-state';
+import { resolveGradient } from './gradient-geometry';
+import { resolveStrokeDash, paintOrderSequence } from './stroke';
 import { applyCommandsToPath, computePathBounds } from '../scene/path-parser';
 
 type Bounds = { x: number; y: number; width: number; height: number };
@@ -27,7 +30,7 @@ function imgHeight(img: HTMLImageElement | ImageBitmap): number {
   return 'naturalHeight' in img ? img.naturalHeight : img.height;
 }
 
-export class Canvas2DRenderer implements Renderer {
+export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   private ctx: CanvasRenderingContext2D;
   // Image cache and lazily-created offscreen buffers for track masks.
   private images = new Map<string, ImageEntry>();
@@ -40,21 +43,9 @@ export class Canvas2DRenderer implements Renderer {
   // Filter and mask share the counter so they interleave (filter-in-matte,
   // matte-in-filter) without clobbering each other's buffers.
   private maskDepth = 0;
-  private fillColor: string | null = '#000000';
-  private strokeColor: string | null = null;
-  private strokeWidth: number = 1;
-  private fillGradient: GradientData | null = null;
-  private strokeGradient: GradientData | null = null;
-  private lineCap: StrokeLineCap = 'butt';
-  private lineJoin: StrokeLineJoin = 'miter';
-  private miterLimit: number = 4;
-  private trim: TrimDescriptor | null = null;
-  private dashArray: number[] = [];
-  private dashOffset: number = 0;
-  private fillRule: FillRule = 'nonzero';
-  private paintOrder: PaintOrder = 'normal';
 
   constructor(canvas: HTMLCanvasElement) {
+    super();
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw new Error('Failed to get 2D rendering context');
@@ -325,52 +316,9 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.clip(path, this.fillRule);
   }
 
-  setFill(color: Color | null): void {
-    this.fillColor = color ? colorToCSS(color) : null;
-  }
-
-  setFillGradient(gradient: GradientData | null): void {
-    this.fillGradient = gradient;
-  }
-
-  setStroke(color: Color | null, width: number): void {
-    this.strokeColor = color ? colorToCSS(color) : null;
-    this.strokeWidth = width;
-  }
-
-  setStrokeGradient(gradient: GradientData | null): void {
-    this.strokeGradient = gradient;
-  }
-
-  setStrokeLineCap(cap: StrokeLineCap): void {
-    this.lineCap = cap;
-  }
-
-  setStrokeLineJoin(join: StrokeLineJoin): void {
-    this.lineJoin = join;
-  }
-
-  setStrokeMiterLimit(limit: number): void {
-    this.miterLimit = limit;
-  }
-
-  setTrim(trim: TrimDescriptor | null): void {
-    this.trim = trim;
-  }
-
-  setDash(dashArray: number[], dashOffset: number): void {
-    this.dashArray = dashArray;
-    this.dashOffset = dashOffset;
-  }
-
-  setFillRule(rule: FillRule): void {
-    this.fillRule = rule;
-  }
-
-  setPaintOrder(order: PaintOrder): void {
-    this.paintOrder = order;
-  }
-
+  // Paint state (fill/stroke/trim/dash/…) is inherited from PaintStateRenderer.
+  // Opacity is the exception: Canvas2D drives it through the native globalAlpha
+  // rather than a tracked field.
   setOpacity(opacity: number): void {
     this.ctx.globalAlpha = opacity;
   }
@@ -403,15 +351,16 @@ export class Canvas2DRenderer implements Renderer {
     return this.ctx.canvas.height;
   }
 
+  resize(width: number, height: number): void {
+    const c = this.ctx.canvas;
+    if (c.width !== width) c.width = width;
+    if (c.height !== height) c.height = height;
+  }
+
   private applyFillAndStroke(bounds: Bounds): void {
-    // paint-order: stroke draws the stroke first so the fill sits on top of it
-    // (only the stroke's exposed outer edge shows) — otherwise fill then stroke.
-    if (this.paintOrder === 'stroke') {
-      this.strokePath(bounds);
-      this.fillPath(bounds);
-    } else {
-      this.fillPath(bounds);
-      this.strokePath(bounds);
+    for (const which of paintOrderSequence(this.paintOrder)) {
+      if (which === 'fill') this.fillPath(bounds);
+      else this.strokePath(bounds);
     }
   }
 
@@ -433,24 +382,13 @@ export class Canvas2DRenderer implements Renderer {
       : this.strokeColor;
     if (!stroke) return;
 
-    // An empty trim window strokes nothing.
-    if (this.trim && !this.trim.visible) return;
-
-    // Trim maps to a dash pattern over the outline; reset it per stroke so it
-    // can't leak to the next shape. Trim wins over an authored stroke-dasharray
-    // when both are set (both use the single Canvas dash slot).
-    // ponytail: composing an authored dash *within* a trim window (dash-of-a-dash)
-    // is the real upgrade path; for now trim simply overrides the dash array.
-    if (this.trim && this.trim.dashArray.length > 0) {
-      this.ctx.setLineDash(this.trim.dashArray);
-      this.ctx.lineDashOffset = this.trim.dashOffset;
-    } else if (!this.trim && this.dashArray.length > 0) {
-      this.ctx.setLineDash(this.dashArray);
-      this.ctx.lineDashOffset = this.dashOffset;
-    } else {
-      this.ctx.setLineDash([]);
-      this.ctx.lineDashOffset = 0;
-    }
+    // Resolve trim/dash precedence (trim wins over an authored dasharray; an
+    // empty trim window strokes nothing). Reset the dash per stroke so a trim
+    // pattern can't leak to the next shape.
+    const dash = resolveStrokeDash(this.trim, this.dashArray, this.dashOffset);
+    if (!dash.stroke) return;
+    this.ctx.setLineDash(dash.dashArray);
+    this.ctx.lineDashOffset = dash.dashOffset;
 
     this.ctx.lineCap = this.lineCap;
     this.ctx.lineJoin = this.lineJoin;
@@ -461,42 +399,14 @@ export class Canvas2DRenderer implements Renderer {
     this.ctx.setLineDash([]);
   }
 
-  /**
-   * Realize a gradient descriptor against a shape's local bounding box.
-   * Linear angle follows CSS: 0deg = up, 90deg = right. Radial is centered on
-   * the box with radius = half the box diagonal.
-   */
+  /** Realize a gradient descriptor (via the shared geometry resolver) into a
+   *  CanvasGradient. */
   private realizeGradient(g: GradientData, b: Bounds): CanvasGradient {
-    const cx = b.x + b.width / 2;
-    const cy = b.y + b.height / 2;
-    let grad: CanvasGradient;
-
-    if (g.type === 'linear-gradient') {
-      if (g.from && g.to) {
-        grad = this.ctx.createLinearGradient(g.from.x, g.from.y, g.to.x, g.to.y);
-      } else {
-        const rad = (g.angle * Math.PI) / 180;
-        const dx = Math.sin(rad);
-        const dy = -Math.cos(rad);
-        const len = Math.abs(b.width * dx) + Math.abs(b.height * dy);
-        grad = this.ctx.createLinearGradient(
-          cx - (dx * len) / 2, cy - (dy * len) / 2,
-          cx + (dx * len) / 2, cy + (dy * len) / 2
-        );
-      }
-    } else if (g.at && g.radius != null) {
-      // Exact circle. Inner circle at the focal point (Lottie highlight offset)
-      // when given, else concentric with the outer.
-      const f = g.focal ?? g.at;
-      grad = this.ctx.createRadialGradient(f.x, f.y, 0, g.at.x, g.at.y, g.radius);
-    } else {
-      const r = Math.hypot(b.width, b.height) / 2;
-      grad = this.ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-    }
-
-    for (const stop of g.stops) {
-      grad.addColorStop(Math.max(0, Math.min(1, stop.offset)), stop.color);
-    }
+    const r = resolveGradient(g, b);
+    const grad = r.type === 'linear'
+      ? this.ctx.createLinearGradient(r.x1, r.y1, r.x2, r.y2)
+      : this.ctx.createRadialGradient(r.fx, r.fy, 0, r.cx, r.cy, r.r);
+    for (const stop of r.stops) grad.addColorStop(stop.offset, stop.color);
     return grad;
   }
 }
@@ -538,7 +448,7 @@ function luminanceToAlpha(ctx: CanvasRenderingContext2D): void {
   }
   const px = data.data;
   for (let i = 0; i < px.length; i += 4) {
-    const lum = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+    const lum = LUMA_COEFFICIENTS.r * px[i] + LUMA_COEFFICIENTS.g * px[i + 1] + LUMA_COEFFICIENTS.b * px[i + 2];
     px[i + 3] = (px[i + 3] * lum) / 255;
   }
   ctx.putImageData(data, 0, 0);

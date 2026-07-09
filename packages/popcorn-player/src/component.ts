@@ -561,13 +561,9 @@ export class PopcornPlayer extends HTMLElementBase {
 
     const bw = Math.max(1, Math.round(elemW * dpr));
     const bh = Math.max(1, Math.round(elemH * dpr));
-    // Both backends work in the same device-px space (viewport folds in DPR/fit).
-    if (this.useSvg && this.renderer instanceof SVGRenderer) {
-      this.renderer.setSize(bw, bh);
-    } else {
-      if (this.canvas.width !== bw) this.canvas.width = bw;
-      if (this.canvas.height !== bh) this.canvas.height = bh;
-    }
+    // Both backends work in the same device-px space (viewport folds in DPR/fit);
+    // each backend's resize() sizes its own surface (canvas w/h vs SVG viewBox).
+    this.renderer?.resize(bw, bh);
 
     const vp = computeViewport(this.sceneWidth, this.sceneHeight, elemW, elemH, dpr, this.fit);
     this.renderLoop.setViewport(viewportMatrix(vp));

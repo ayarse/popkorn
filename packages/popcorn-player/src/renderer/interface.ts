@@ -85,4 +85,8 @@ export interface Renderer {
   // Canvas dimensions
   getWidth(): number;
   getHeight(): number;
+  // Resize the render surface's backing store to device px. Canvas2D sizes the
+  // canvas element; SVG rewrites width/height + viewBox; Skia updates its
+  // tracked dimensions. Called by the host on layout/DPR changes.
+  resize(width: number, height: number): void;
 }

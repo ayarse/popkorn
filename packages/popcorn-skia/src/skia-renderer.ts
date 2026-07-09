@@ -1,25 +1,20 @@
 import type {
   Renderer,
-  Color,
   PathCommand,
   Matrix3x3,
   GradientData,
   ResolvedClip,
-  TrimDescriptor,
-  StrokeLineCap,
-  StrokeLineJoin,
-  FillRule,
   MaskMode,
-  PaintOrder,
   PathSink,
 } from '@popcorn/player';
 import {
-  colorToCSS,
+  PaintStateRenderer,
+  resolveGradient,
+  resolveStrokeDash,
+  paintOrderSequence,
   applyCommandsToPath,
   computePathBounds,
-  multiplyMatrices,
-  invertMatrix,
-  IDENTITY_MATRIX,
+  LUMA_COEFFICIENTS,
 } from '@popcorn/player';
 
 // react-native-skia types only — inline `import(...)` type refs are erased at
@@ -68,10 +63,8 @@ const LUMA_TO_ALPHA_MATRIX = [
   0, 0, 0, 0, 0,
   0, 0, 0, 0, 0,
   0, 0, 0, 0, 0,
-  0.2126, 0.7152, 0.0722, 0, 0,
+  LUMA_COEFFICIENTS.r, LUMA_COEFFICIENTS.g, LUMA_COEFFICIENTS.b, 0, 0,
 ];
-
-const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
 /**
  * React Native Skia implementation of the Renderer interface (PoC).
@@ -81,37 +74,21 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
  * stroke (or stroke-then-fill for paint-order: stroke), gradient geometry ported
  * verbatim, opacity multiplied into paint alpha with save/restore nesting.
  */
-export class SkiaRenderer implements Renderer {
+export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   private skia: SkiaApi;
   private canvas: SkCanvas | null = null;
   private width: number;
   private height: number;
 
-  private fillColor: string | null = '#000000';
-  private strokeColor: string | null = null;
-  private strokeWidth = 1;
-  private fillGradient: GradientData | null = null;
-  private strokeGradient: GradientData | null = null;
-  private lineCap: StrokeLineCap = 'butt';
-  private lineJoin: StrokeLineJoin = 'miter';
-  private miterLimit = 4;
-  private trim: TrimDescriptor | null = null;
-  private dashArray: number[] = [];
-  private dashOffset = 0;
-  private fillRule: FillRule = 'nonzero';
-  private paintOrder: PaintOrder = 'normal';
+  // Sticky paint state (fill/stroke/trim/dash/opacity/…) and the JS CTM mirror
+  // (ctm + ctmStack) are inherited from PaintStateRenderer. SkCanvas has no
+  // setMatrix (only relative concat), so setTransform reaches an ABSOLUTE matrix
+  // via the base's setCtmAbsolute (concat of invert(current)·target) — kept
+  // alongside the native save/restore so it never disturbs active clips.
 
-  // Opacity is Skia's missing globalAlpha: track it and push/pop it with the
-  // native save/restore so a group's alpha cascades to its children.
-  private opacity = 1;
+  // Opacity is Skia's missing globalAlpha: the base tracks the value; we push/pop
+  // it with the native save/restore so a group's alpha cascades to its children.
   private opacityStack: number[] = [];
-
-  // SkCanvas has no setMatrix, only concat (relative). We mirror the CTM in JS
-  // and push/pop it in lockstep with the native save/restore, so setTransform can
-  // reach an ABSOLUTE matrix via `concat(invert(current) · target)`. Kept alongside
-  // (not via restoreToCount) so setTransform never disturbs active clips.
-  private ctm: Matrix3x3 = IDENTITY_MATRIX;
-  private ctmStack: Matrix3x3[] = [];
 
   // Reused across every shape so we don't allocate a native SkPaint per draw (the
   // hot-path allocation the profile flagged). `reset()` returns each to its
@@ -135,6 +112,7 @@ export class SkiaRenderer implements Renderer {
   private dashCache = new Map<string, SkPathEffect>();
 
   constructor(skia: SkiaApi, opts: { width: number; height: number }) {
+    super();
     this.skia = skia;
     this.width = opts.width;
     this.height = opts.height;
@@ -167,8 +145,7 @@ export class SkiaRenderer implements Renderer {
     this.opacity = 1;
     this.opacityStack.length = 0;
     // Fresh recorder canvas starts at identity; resync the mirror to match.
-    this.ctm = IDENTITY_MATRIX;
-    this.ctmStack.length = 0;
+    this.resetCtm();
   }
 
   endFrame(): void {
@@ -249,15 +226,21 @@ export class SkiaRenderer implements Renderer {
 
     const invert = mode === 'alpha-invert' || mode === 'luminance-invert';
     const maskPaint = (this.maskPaint ??= this.skia.Paint());
+
+    canvas.save();          // outer bracket: restores CTM + clip afterwards
+    canvas.saveLayer();     // L1: content
+    drawContent();
+    // Re-entrancy: a nested track matte inside drawContent reuses this single
+    // pooled maskPaint, so we must configure it *after* drawContent — right
+    // before the layer that reads it — or the nested call's reset/reconfigure
+    // would clobber our blend + luma filter. saveLayer snapshots the paint into
+    // the layer at call time, so a nested matte in drawMask can't corrupt this
+    // already-opened layer either. (Mirrors Canvas2D's per-depth buffer bands.)
     maskPaint.reset();
     maskPaint.setBlendMode(invert ? BlendMode_DstOut : BlendMode_DstIn);
     if (mode === 'luminance' || mode === 'luminance-invert') {
       maskPaint.setColorFilter(this.skia.ColorFilter.MakeMatrix(LUMA_TO_ALPHA_MATRIX));
     }
-
-    canvas.save();          // outer bracket: restores CTM + clip afterwards
-    canvas.saveLayer();     // L1: content
-    drawContent();
     canvas.saveLayer(maskPaint); // L2: mask (blended down onto L1 on restore)
     drawMask();
     canvas.restore();       // composite L2 -> L1 (DstIn / DstOut)
@@ -270,39 +253,8 @@ export class SkiaRenderer implements Renderer {
 
   // --- Style -----------------------------------------------------------------
 
-  setFill(color: Color | null): void {
-    this.fillColor = color ? colorToCSS(color) : null;
-  }
-
-  setFillGradient(gradient: GradientData | null): void {
-    this.fillGradient = gradient;
-  }
-
-  setStroke(color: Color | null, width: number): void {
-    this.strokeColor = color ? colorToCSS(color) : null;
-    this.strokeWidth = width;
-  }
-
-  setStrokeGradient(gradient: GradientData | null): void {
-    this.strokeGradient = gradient;
-  }
-
-  setStrokeLineCap(cap: StrokeLineCap): void {
-    this.lineCap = cap;
-  }
-
-  setStrokeLineJoin(join: StrokeLineJoin): void {
-    this.lineJoin = join;
-  }
-
-  setStrokeMiterLimit(limit: number): void {
-    this.miterLimit = limit;
-  }
-
-  setTrim(trim: TrimDescriptor | null): void {
-    this.trim = trim;
-  }
-
+  // Sticky paint state setters are inherited from PaintStateRenderer, except
+  // setDash, which even-izes the interval array for Skia's PathEffect.MakeDash.
   setDash(dashArray: number[], dashOffset: number): void {
     // PathEffect.MakeDash requires an even-length interval array; an odd array
     // means [on,off,on] — duplicate it so the pattern repeats correctly (Canvas2D
@@ -311,30 +263,18 @@ export class SkiaRenderer implements Renderer {
     this.dashOffset = dashOffset;
   }
 
-  setFillRule(rule: FillRule): void {
-    this.fillRule = rule;
-  }
-
-  setPaintOrder(order: PaintOrder): void {
-    this.paintOrder = order;
-  }
-
-  setOpacity(opacity: number): void {
-    this.opacity = opacity;
-  }
-
   // --- Transform stack -------------------------------------------------------
 
   save(): void {
     this.canvas?.save();
     this.opacityStack.push(this.opacity);
-    this.ctmStack.push(this.ctm);
+    this.pushCtm();
   }
 
   restore(): void {
     this.canvas?.restore();
     this.opacity = this.opacityStack.pop() ?? 1;
-    this.ctm = this.ctmStack.pop() ?? IDENTITY_MATRIX;
+    this.popCtm();
   }
 
   // Matrix3x3 is row-major [a,b,tx,c,d,ty,0,0,1] — Skia's concat takes exactly
@@ -343,18 +283,16 @@ export class SkiaRenderer implements Renderer {
     // concat copies the floats synchronously (never retains/mutates the array),
     // so pass `m` straight through — no defensive spread.
     this.canvas?.concat(m);
-    this.ctm = multiplyMatrices(this.ctm, m);
+    this.concatCtm(m);
   }
 
   // ABSOLUTE set (mirrors Canvas2DRenderer.setTransform, which replaces the CTM).
   // SkCanvas only has relative concat, so reach `m` by pre-cancelling the current
-  // CTM: concat(invert(current) · m). Leaves any active clip untouched, unlike a
-  // restoreToCount reset (mask closures call this mid-walk under ancestor clips).
+  // CTM (base.setCtmAbsolute returns that delta). Leaves any active clip untouched,
+  // unlike a restoreToCount reset (mask closures call this mid-walk under clips).
   setTransform(m: Matrix3x3): void {
-    const delta = multiplyMatrices(invertMatrix(this.ctm), m);
-    // `delta` is already a fresh array and concat copies it synchronously.
-    this.canvas?.concat(delta);
-    this.ctm = m;
+    // `delta` is a fresh array and concat copies it synchronously.
+    this.canvas?.concat(this.setCtmAbsolute(m));
   }
 
   getWidth(): number {
@@ -363,6 +301,13 @@ export class SkiaRenderer implements Renderer {
 
   getHeight(): number {
     return this.height;
+  }
+
+  resize(width: number, height: number): void {
+    // The PictureRecorder canvas is bound per frame via setCanvas at the host's
+    // chosen size; we just track the reported dimensions for getWidth/getHeight.
+    this.width = width;
+    this.height = height;
   }
 
   // --- Internals -------------------------------------------------------------
@@ -378,12 +323,9 @@ export class SkiaRenderer implements Renderer {
       const p = this.makeStrokePaint(bounds);
       if (p) draw(p);
     };
-    if (this.paintOrder === 'stroke') {
-      stroke();
-      fill();
-    } else {
-      fill();
-      stroke();
+    for (const which of paintOrderSequence(this.paintOrder)) {
+      if (which === 'fill') fill();
+      else stroke();
     }
   }
 
@@ -413,8 +355,10 @@ export class SkiaRenderer implements Renderer {
   private makeStrokePaint(bounds: Bounds): SkPaint | null {
     const hasStroke = this.strokeGradient || this.strokeColor;
     if (!hasStroke) return null;
-    // An empty trim window strokes nothing.
-    if (this.trim && !this.trim.visible) return null;
+    // Trim/dash precedence shared with the other backends (trim wins over an
+    // authored dasharray; an empty trim window strokes nothing).
+    const dash = resolveStrokeDash(this.trim, this.dashArray, this.dashOffset);
+    if (!dash.stroke) return null;
 
     const paint = this.strokePaint;
     paint.reset();
@@ -425,12 +369,8 @@ export class SkiaRenderer implements Renderer {
     paint.setStrokeJoin(StrokeJoin[this.lineJoin]);
     paint.setStrokeMiter(this.miterLimit);
 
-    // Trim wins over an authored dasharray (both share the single dash slot),
-    // matching Canvas2DRenderer.
-    if (this.trim && this.trim.dashArray.length > 0) {
-      paint.setPathEffect(this.dashEffect(this.trim.dashArray, this.trim.dashOffset));
-    } else if (!this.trim && this.dashArray.length > 0) {
-      paint.setPathEffect(this.dashEffect(this.dashArray, this.dashOffset));
+    if (dash.dashArray.length > 0) {
+      paint.setPathEffect(this.dashEffect(dash.dashArray, dash.dashOffset));
     }
 
     if (this.strokeGradient) {
@@ -466,40 +406,24 @@ export class SkiaRenderer implements Renderer {
   }
 
   private buildShader(g: GradientData, b: Bounds): SkShader {
-    const cx = b.x + b.width / 2;
-    const cy = b.y + b.height / 2;
-    const colors = g.stops.map((s) => this.color(s.color));
-    const pos = g.stops.map((s) => clamp01(s.offset));
+    const r = resolveGradient(g, b);
+    const colors = r.stops.map((s) => this.color(s.color));
+    const pos = r.stops.map((s) => s.offset);
 
-    if (g.type === 'linear-gradient') {
-      let p0: { x: number; y: number };
-      let p1: { x: number; y: number };
-      if (g.from && g.to) {
-        p0 = g.from;
-        p1 = g.to;
-      } else {
-        const rad = (g.angle * Math.PI) / 180;
-        const dx = Math.sin(rad);
-        const dy = -Math.cos(rad);
-        const len = Math.abs(b.width * dx) + Math.abs(b.height * dy);
-        p0 = { x: cx - (dx * len) / 2, y: cy - (dy * len) / 2 };
-        p1 = { x: cx + (dx * len) / 2, y: cy + (dy * len) / 2 };
-      }
-      return this.skia.Shader.MakeLinearGradient(p0, p1, colors, pos, TileMode_Clamp);
+    if (r.type === 'linear') {
+      return this.skia.Shader.MakeLinearGradient(
+        { x: r.x1, y: r.y1 }, { x: r.x2, y: r.y2 }, colors, pos, TileMode_Clamp,
+      );
     }
 
-    if (g.at && g.radius != null) {
-      const f = g.focal ?? g.at;
-      // Focal highlight => two-point conical (inner radius 0 at the focal point),
-      // exactly mirroring canvas createRadialGradient(f, 0, at, radius).
-      if (f.x !== g.at.x || f.y !== g.at.y) {
-        return this.skia.Shader.MakeTwoPointConicalGradient(f, 0, g.at, g.radius, colors, pos, TileMode_Clamp);
-      }
-      return this.skia.Shader.MakeRadialGradient(g.at, g.radius, colors, pos, TileMode_Clamp);
+    // Focal highlight => two-point conical (inner radius 0 at the focal point),
+    // exactly mirroring canvas createRadialGradient(focal, 0, centre, radius).
+    if (r.fx !== r.cx || r.fy !== r.cy) {
+      return this.skia.Shader.MakeTwoPointConicalGradient(
+        { x: r.fx, y: r.fy }, 0, { x: r.cx, y: r.cy }, r.r, colors, pos, TileMode_Clamp,
+      );
     }
-
-    const r = Math.hypot(b.width, b.height) / 2;
-    return this.skia.Shader.MakeRadialGradient({ x: cx, y: cy }, r, colors, pos, TileMode_Clamp);
+    return this.skia.Shader.MakeRadialGradient({ x: r.cx, y: r.cy }, r.r, colors, pos, TileMode_Clamp);
   }
 
   /** Memoize the dash PathEffect by interval-contents + offset (rebuilt each frame otherwise). */

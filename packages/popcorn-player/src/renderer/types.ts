@@ -91,6 +91,11 @@ export type PathCommand =
   | { type: 'A'; rx: number; ry: number; angle: number; largeArc: boolean; sweep: boolean; x: number; y: number }
   | { type: 'Z' };
 
+// Rec.709 luma coefficients (sRGB), shared by every backend's luminance matte
+// so a luminance mask reads identically across Canvas2D and Skia. (The SVG
+// backend uses feColorMatrix type="luminanceToAlpha", the browser built-in.)
+export const LUMA_COEFFICIENTS = { r: 0.2126, g: 0.7152, b: 0.0722 } as const;
+
 // 3x3 transformation matrix (row-major)
 // [a, b, c]
 // [d, e, f]

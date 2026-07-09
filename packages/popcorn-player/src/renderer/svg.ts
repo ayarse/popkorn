@@ -1,7 +1,10 @@
 import type { Renderer } from './interface';
-import type { Color, PathCommand, Matrix3x3, GradientData, ResolvedClip, TrimDescriptor } from './types';
-import type { StrokeLineCap, StrokeLineJoin, TextAnchor, FillRule, MaskMode, PaintOrder } from '../scene/types';
-import { colorToCSS, parseColor, multiplyMatrices, invertMatrix, IDENTITY_MATRIX } from './types';
+import type { PathCommand, Matrix3x3, GradientData, ResolvedClip } from './types';
+import type { TextAnchor, MaskMode } from '../scene/types';
+import { parseColor, multiplyMatrices, invertMatrix, IDENTITY_MATRIX } from './types';
+import { PaintStateRenderer } from './paint-state';
+import { resolveGradient } from './gradient-geometry';
+import { resolveStrokeDash } from './stroke';
 import { computePathBounds } from '../scene/path-parser';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -57,39 +60,24 @@ interface GradientRealized {
  * stop colors are split into stop-color + stop-opacity for SVG 1.1 compat.
  */
 export function realizeGradientAttrs(g: GradientData, b: Bounds): GradientRealized {
-  const cx = b.x + b.width / 2;
-  const cy = b.y + b.height / 2;
-  const stops = g.stops.map((s) => {
-    const offset = Math.max(0, Math.min(1, s.offset));
+  const resolved = resolveGradient(g, b);
+  const stops = resolved.stops.map(({ offset, color }) => {
     // Named/hex6/rgb pass through; only rgba()/hex8 split out an opacity.
-    if (s.color.startsWith('rgba') || (s.color.startsWith('#') && s.color.length === 9)) {
-      const c = parseColor(s.color);
+    if (color.startsWith('rgba') || (color.startsWith('#') && color.length === 9)) {
+      const c = parseColor(color);
       return { offset, color: `rgb(${c.r}, ${c.g}, ${c.b})`, opacity: c.a };
     }
-    return { offset, color: s.color };
+    return { offset, color };
   });
 
-  if (g.type === 'linear-gradient') {
-    if (g.from && g.to) {
-      return { tag: 'linearGradient', coords: { x1: g.from.x, y1: g.from.y, x2: g.to.x, y2: g.to.y }, stops };
-    }
-    const rad = (g.angle * Math.PI) / 180;
-    const dx = Math.sin(rad);
-    const dy = -Math.cos(rad);
-    const len = Math.abs(b.width * dx) + Math.abs(b.height * dy);
-    return {
-      tag: 'linearGradient',
-      coords: { x1: cx - (dx * len) / 2, y1: cy - (dy * len) / 2, x2: cx + (dx * len) / 2, y2: cy + (dy * len) / 2 },
-      stops,
-    };
+  if (resolved.type === 'linear') {
+    return { tag: 'linearGradient', coords: { x1: resolved.x1, y1: resolved.y1, x2: resolved.x2, y2: resolved.y2 }, stops };
   }
-
-  if (g.at && g.radius != null) {
-    const f = g.focal ?? g.at;
-    return { tag: 'radialGradient', coords: { cx: g.at.x, cy: g.at.y, r: g.radius, fx: f.x, fy: f.y }, stops };
-  }
-  const r = Math.hypot(b.width, b.height) / 2;
-  return { tag: 'radialGradient', coords: { cx, cy, r, fx: cx, fy: cy }, stops };
+  return {
+    tag: 'radialGradient',
+    coords: { cx: resolved.cx, cy: resolved.cy, r: resolved.r, fx: resolved.fx, fy: resolved.fy },
+    stops,
+  };
 }
 
 /** Diff-set an attribute against a per-element cache; null removes. Testable
@@ -212,7 +200,7 @@ interface MaskEntry {
  * (invert(parentWorld) · ctm), letting the nested <g>s recompose the world the
  * same way Canvas's CTM does — so output stays pixel-comparable.
  */
-export class SVGRenderer implements Renderer {
+export class SVGRenderer extends PaintStateRenderer implements Renderer {
   private svg: SVGSVGElement;
   private defs: SVGDefsElement;
   private root: GroupEntry;            // persistent base layer (background + scene root nest here)
@@ -230,9 +218,8 @@ export class SVGRenderer implements Renderer {
   private frame = 0;
   private idp: string;                 // per-build def-id prefix (see rendererBuildSeq)
 
-  // CTM mirror (see class doc) + stack, driven by save/restore/transform/setTransform.
-  private ctm: Matrix3x3 = IDENTITY_MATRIX;
-  private ctmStack: Matrix3x3[] = [];
+  // CTM mirror (ctm + ctmStack) is inherited from PaintStateRenderer, driven by
+  // save/restore/transform/setTransform below (see class doc).
   private groupStack: GroupEntry[] = [];
 
   // Key namespace pushed while drawing a mask source (see compositeMask). A mask
@@ -243,24 +230,11 @@ export class SVGRenderer implements Renderer {
   // retained <g> tree per mask; prefixes stack for nested mattes.
   private keyPrefix = '';
 
-  // Sticky paint state accumulated by set* calls, applied at the next draw
-  // (same discipline as Canvas2DRenderer).
-  private fillColor: string | null = '#000000';
-  private strokeColor: string | null = null;
-  private strokeWidth = 1;
-  private fillGradient: GradientData | null = null;
-  private strokeGradient: GradientData | null = null;
-  private lineCap: StrokeLineCap = 'butt';
-  private lineJoin: StrokeLineJoin = 'miter';
-  private miterLimit = 4;
-  private trim: TrimDescriptor | null = null;
-  private dashArray: number[] = [];
-  private dashOffset = 0;
-  private fillRule: FillRule = 'nonzero';
-  private paintOrder: PaintOrder = 'normal';
-  private opacity = 1;
+  // Sticky paint state (fill/stroke/trim/dash/opacity/…) is inherited from
+  // PaintStateRenderer, applied at the next draw (same discipline as Canvas2D).
 
   constructor(svg: SVGSVGElement) {
+    super();
     this.svg = svg;
     this.idp = `b${rendererBuildSeq++}_`;
     // The component reuses one <svg> element across scene swaps, building a fresh
@@ -289,7 +263,7 @@ export class SVGRenderer implements Renderer {
    *  viewBox maps the device-px user space (into which the loop's fit/DPR
    *  transforms draw) back onto the logical CSS box — exactly inverting the DPR
    *  scale, without which geometry overflows the viewport on DPR>1 displays. */
-  setSize(width: number, height: number): void {
+  resize(width: number, height: number): void {
     this.width = width;
     this.height = height;
     this.svg.setAttribute('width', String(width));
@@ -305,8 +279,7 @@ export class SVGRenderer implements Renderer {
 
   beginFrame(): void {
     this.frame++;
-    this.ctm = IDENTITY_MATRIX;
-    this.ctmStack.length = 0;
+    this.resetCtm();
     // Reset the root layer for this frame and make it the current group. Loose
     // draws (the scene background, drawn before any node opens) land here.
     this.root.drawCursor = 0;
@@ -604,26 +577,13 @@ export class SVGRenderer implements Renderer {
     this.restore();
   }
 
-  // --- sticky paint state ----------------------------------------------------
-
-  setFill(color: Color | null): void { this.fillColor = color ? colorToCSS(color) : null; }
-  setFillGradient(gradient: GradientData | null): void { this.fillGradient = gradient; }
-  setStroke(color: Color | null, width: number): void { this.strokeColor = color ? colorToCSS(color) : null; this.strokeWidth = width; }
-  setStrokeGradient(gradient: GradientData | null): void { this.strokeGradient = gradient; }
-  setStrokeLineCap(cap: StrokeLineCap): void { this.lineCap = cap; }
-  setStrokeLineJoin(join: StrokeLineJoin): void { this.lineJoin = join; }
-  setStrokeMiterLimit(limit: number): void { this.miterLimit = limit; }
-  setTrim(trim: TrimDescriptor | null): void { this.trim = trim; }
-  setDash(dashArray: number[], dashOffset: number): void { this.dashArray = dashArray; this.dashOffset = dashOffset; }
-  setFillRule(rule: FillRule): void { this.fillRule = rule; }
-  setPaintOrder(order: PaintOrder): void { this.paintOrder = order; }
-  setOpacity(opacity: number): void { this.opacity = opacity; }
+  // Sticky paint state setters are inherited from PaintStateRenderer.
 
   // --- transform stack (CTM mirror) ------------------------------------------
 
-  save(): void { this.ctmStack.push(this.ctm); }
-  restore(): void { const m = this.ctmStack.pop(); if (m) this.ctm = m; }
-  transform(m: Matrix3x3): void { this.ctm = multiplyMatrices(this.ctm, m); }
+  save(): void { this.pushCtm(); }
+  restore(): void { this.popCtm(); }
+  transform(m: Matrix3x3): void { this.concatCtm(m); }
   setTransform(m: Matrix3x3): void { this.ctm = m; }
 
   getWidth(): number { return this.width; }
@@ -685,10 +645,10 @@ export class SVGRenderer implements Renderer {
     }
     this.setAttr(el, 'fill-rule', this.fillRule);
 
-    // Stroke — trim/dash mirror Canvas2DRenderer.strokePath.
-    const trimInvisible = !!this.trim && !this.trim.visible;
+    // Stroke — trim/dash precedence shared with the other backends.
+    const dashDecision = resolveStrokeDash(this.trim, this.dashArray, this.dashOffset);
     let stroke: string | null;
-    if (trimInvisible) {
+    if (!dashDecision.stroke) {
       stroke = 'none';
     } else if (this.strokeGradient) {
       const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_stroke`;
@@ -705,10 +665,8 @@ export class SVGRenderer implements Renderer {
       this.setAttr(el, 'stroke-linejoin', this.lineJoin);
       this.setAttr(el, 'stroke-miterlimit', String(this.miterLimit));
 
-      let dash: number[] = [];
-      let dashOff = 0;
-      if (this.trim && this.trim.dashArray.length > 0) { dash = this.trim.dashArray; dashOff = this.trim.dashOffset; }
-      else if (!this.trim && this.dashArray.length > 0) { dash = this.dashArray; dashOff = this.dashOffset; }
+      const dash = dashDecision.dashArray;
+      const dashOff = dashDecision.dashOffset;
       this.setAttr(el, 'stroke-dasharray', dash.length > 0 ? dash.join(' ') : null);
       this.setAttr(el, 'stroke-dashoffset', dashOff !== 0 ? String(dashOff) : null);
     } else {

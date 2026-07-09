@@ -207,6 +207,48 @@ test('compositeMask maps every mode to its blend mode and luma filter', () => {
   }
 });
 
+// Re-entrancy: a nested track matte inside drawContent reuses the single pooled
+// mask paint. Configuring it before drawContent (as the copied code once did)
+// let the nested matte clobber the outer's blend + luma filter; configuring it
+// right before the outer's mask layer keeps each layer correct.
+test('compositeMask is re-entrant: a nested matte does not corrupt the outer mask layer', () => {
+  const { Skia, canvas, calls } = mockSkia();
+  const r = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  r.setCanvas(canvas);
+  r.beginFrame();
+
+  let innerRan = false;
+  r.compositeMask(
+    'luminance', // outer: DstIn (6) + luma filter
+    () => {
+      // A nested matte with a DIFFERENT mode reuses the pooled mask paint.
+      r.compositeMask('alpha-invert', () => { innerRan = true; }, () => {});
+    },
+    () => {},
+  );
+
+  expect(innerRan).toBe(true);
+
+  // Two composites => four layers, each a content L1 + a mask L2, in the order
+  // [outer L1, inner L1, inner L2, outer L2].
+  const layers = calls.filter((c) => c.op === 'saveLayer');
+  expect(layers.length).toBe(4);
+
+  // The OUTER mask layer (last) must still carry the outer mode (luminance =>
+  // DstIn + luma filter), not the nested alpha-invert that ran in between.
+  const outerMask = layers[3];
+  expect(outerMask.blend).toBe(6);            // DstIn
+  expect(outerMask.filter != null).toBe(true);
+
+  // The nested mask layer carries its own mode (alpha-invert => DstOut, no filter).
+  expect(layers[2].blend).toBe(8);
+  expect(layers[2].filter != null).toBe(false);
+
+  // Balanced: two composites => two outer saves + three restores each.
+  expect(calls.filter((c) => c.op === 'save').length).toBe(2);
+  expect(calls.filter((c) => c.op === 'restore').length).toBe(6);
+});
+
 // Paint reuse: the renderer holds one persistent fill + one stroke paint and
 // resets them per shape, so no SkPaint is allocated on the hot draw path. The
 // only Paint() calls are the two in the constructor — flat across shapes/frames.

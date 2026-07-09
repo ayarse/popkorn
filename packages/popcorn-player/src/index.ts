@@ -27,8 +27,16 @@ export {
   translationMatrix,
   rotationMatrix,
   scaleMatrix,
-  IDENTITY_MATRIX
+  IDENTITY_MATRIX,
+  LUMA_COEFFICIENTS
 } from './renderer/types';
+
+// Shared renderer paint semantics (consumed by every backend, incl. @popcorn/skia).
+export { PaintStateRenderer } from './renderer/paint-state';
+export { resolveGradient } from './renderer/gradient-geometry';
+export type { PaintBox, ResolvedGradient, ResolvedLinearGradient, ResolvedRadialGradient } from './renderer/gradient-geometry';
+export { resolveStrokeDash, paintOrderSequence } from './renderer/stroke';
+export type { StrokeDashDecision } from './renderer/stroke';
 
 // Scene
 export type {
