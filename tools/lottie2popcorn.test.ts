@@ -152,6 +152,21 @@ test('precomp time remap (tm) emits a time-remap curve, not a blocked feature', 
   expect([...c.blocked].some((b) => b.includes('time remap'))).toBe(false);
 });
 
+test('an unsupported layer effect (ef) warns instead of silently dropping, and still converts', () => {
+  const doc = comp(30, [0, 30]);
+  // A Gaussian Blur "glow" effect, plus a disabled one that must stay silent.
+  doc.layers[0].ef = [
+    { ty: 29, nm: 'Gaussian Blur', en: 1, ef: [{ ty: 0, nm: 'Blurriness', v: { a: 0, k: 89.3 } }] },
+    { ty: 25, nm: 'Drop Shadow', en: 0 },
+  ];
+  const c = new Converter();
+  const css = c.convert(doc);
+  expect(validate(css)).toEqual([]); // conversion still succeeds
+  expect(c.warnings.some((w) => w.includes("layer effect 'Gaussian Blur'"))).toBe(true);
+  expect(c.warnings.some((w) => w.includes('Drop Shadow'))).toBe(false); // en:0 stays quiet
+  expect([...c.blocked].some((b) => b.includes('effect'))).toBe(false); // warn, not block
+});
+
 test('a hoisted union stroke samples the combined d on the UNION of every input grid', () => {
   // Two grouped rects animate on DIFFERENT keyframe grids ({0,10} and {5,15})
   // with different per-segment easings, sharing one group stroke. The hoisted

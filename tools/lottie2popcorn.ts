@@ -487,6 +487,21 @@ export class Converter {
       this.blocked.add(feat);
     }
 
+    // Layer effects (`ef`) aren't rendered — surface each so the drop isn't
+    // silent (e.g. a Gaussian Blur "glow" would otherwise vanish with no
+    // signal that the layer won't look soft). Ignoring layer effects is a
+    // deliberate skip that matches shipping canvas players (lottie-web's own
+    // canvas renderer likewise skips them); it's a warning, not a hard block,
+    // so the layer still converts — just without the effect.
+    for (const l of layers) {
+      if (!this.isConvertible(l) || !Array.isArray(l.ef)) continue;
+      for (const e of l.ef) {
+        if (!e || e.en === 0) continue;
+        const name = typeof e.nm === 'string' && e.nm.trim() ? e.nm.trim() : `type ${e.ty}`;
+        this.warnOnce(`layer effect '${name}' is not supported and was ignored`);
+      }
+    }
+
     // children[parentInd] = convertible child layers, array order preserved.
     const childrenOf = new Map<number, any[]>();
     const roots: any[] = [];
