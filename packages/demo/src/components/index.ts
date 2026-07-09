@@ -1,2 +1,2 @@
-export type { MotionCanvasProps } from "./MotionCanvas";
-export { MotionCanvas } from "./MotionCanvas";
+export type { MotionCanvasProps } from "./motion-canvas";
+export { MotionCanvas } from "./motion-canvas";

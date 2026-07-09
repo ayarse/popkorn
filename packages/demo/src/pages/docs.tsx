@@ -7,7 +7,7 @@ import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-css";
 import { ArrowLeft, BookOpen, ListTree } from "lucide-react";
 import { marked } from "marked";
-import { BrandMark } from "@/components/BrandMark";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

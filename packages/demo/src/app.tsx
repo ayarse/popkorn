@@ -57,9 +57,9 @@ import { downloadGif, exportGifInWorker } from "@/lib/gif";
 import { cn } from "@/lib/utils";
 import { convertLottie } from "../../../tools/lottie2popcorn";
 import { convertSvg } from "../../../tools/svg2popcorn";
-import AgentChat from "./components/AgentChat";
-import { BrandMark } from "./components/BrandMark";
-import { MotionCanvas } from "./components/MotionCanvas";
+import AgentChat from "./components/agent-chat";
+import { BrandMark } from "./components/brand-mark";
+import { MotionCanvas } from "./components/motion-canvas";
 import { examples } from "./examples";
 
 const enc = new TextEncoder();
