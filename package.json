@@ -9,6 +9,10 @@
     "dev": "bun --filter @popcorn/demo dev",
     "build": "bun --filter @popcorn/demo build",
     "test": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia test && bun test tools/",
+    "build:packages": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/skia build",
+    "changeset": "changeset",
+    "version-packages": "changeset version && bun install",
+    "release": "bun run build:packages && bun scripts/publish.ts",
     "lint": "biome check",
     "format": "biome check --write",
     "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/demo typecheck",
@@ -16,6 +20,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
+    "@changesets/cli": "^2.31.0",
     "typescript": "~5.6.2"
   }
 }
