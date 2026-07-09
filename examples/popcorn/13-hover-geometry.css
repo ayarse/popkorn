@@ -1,9 +1,7 @@
-/* Hover geometry — a small gallery of shapes that grow, resize, and re-draw
-   their outline on :hover, exercising generic :hover overrides of registry
-   properties (not just paint/transform). The circle's radius-on-hover only
-   takes effect once that override lands; its fill flip proves the rule
-   matches TODAY regardless. Each shape idles gently so the row isn't dead
-   before you touch it. */
+/* Hover geometry — shapes that grow, resize, and re-draw their outline on
+   :hover, exercising registry-property overrides (r, width/height,
+   stroke-dashoffset, trim-end) beyond the classic paint/transform set.
+   Each shape idles gently so the row isn't dead before you touch it. */
 :root {
   width: 800px;
   height: 400px;
@@ -18,13 +16,8 @@
   0%, 100% { opacity: 0.85; }
   50%      { opacity: 1; }
 }
-@keyframes dash-drift {
-  0%   { stroke-dashoffset: 0px; }
-  100% { stroke-dashoffset: -48px; }
-}
 
-/* ---- circle: r grows on hover (lands with the parallel change), fill flips
-   today so the rule visibly does something right now ---- */
+/* ---- circle: r grows on hover (cx/cy fixed, so it swells in place) ---- */
 #dot {
   type: circle; cx: 140px; cy: 180px; r: 46px;
   fill: #4ecdc4;
@@ -33,18 +26,19 @@
   &:hover { r: 66px; fill: #ff6b6b; }
 }
 
-/* ---- rect: width/height change on hover ---- */
+/* ---- rect: squashes wide on hover — x/y move with width/height so it
+   reshapes around its center instead of growing from a corner ---- */
 #box {
   type: rect; x: 300px; y: 140px; width: 90px; height: 90px; rx: 12px; ry: 12px;
   fill: #ffd93d;
-  transform-origin: 345px 185px;
   animation: bob 2.4s ease-in-out infinite 0.15s;
-  transition: width 200ms ease, height 200ms ease, fill 200ms ease;
-  &:hover { width: 130px; height: 60px; fill: #ffb703; }
+  transition: x 200ms ease, y 200ms ease, width 200ms ease, height 200ms ease, fill 200ms ease;
+  &:hover { x: 280px; y: 155px; width: 130px; height: 60px; fill: #ffb703; }
 }
 
-/* ---- stroked path: stroke-dashoffset resets/animates on hover, revealing
-   the dash pattern racing around the shape ---- */
+/* ---- stroked path: hovering spins the dash pattern around the loop.
+   The idle animation deliberately does NOT touch stroke-dashoffset — a hover
+   override replaces the animated value, which would freeze the dashes. ---- */
 #loop {
   type: path;
   d: 'M 500 140 C 560 140 560 230 500 230 C 440 230 440 140 500 140 Z';
@@ -53,8 +47,8 @@
   stroke-width: 8px;
   stroke-linecap: round;
   stroke-dasharray: 16px 8px;
-  animation: dash-drift 3s linear infinite;
-  transition: stroke-dashoffset 200ms ease, stroke 200ms ease;
+  animation: bob 2.4s ease-in-out infinite 0.3s;
+  transition: stroke-dashoffset 250ms ease, stroke 200ms ease;
   &:hover { stroke-dashoffset: -96px; stroke: #f472b6; }
 }
 
