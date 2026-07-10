@@ -39,13 +39,15 @@ export interface NormGradient {
 
 // One fill or stroke, in paint order within the frame. Solid paints carry
 // `color` (the shared colorToCSS string every backend applies); gradient paints
-// carry `gradient`. Strokes carry the applied `dashArray` (post trim/dash
-// resolution), so trim-wins-over-dash and empty-trim→no-stroke are observable.
+// carry `gradient`. Strokes carry the applied `dashArray` + `dashOffset` (post
+// trim/dash resolution), so dash-inside-trim composition, trim-only, dash-only,
+// and empty-trim→no-stroke are all observable.
 export interface PaintObs {
   kind: "fill" | "stroke";
   color?: string;
   gradient?: NormGradient;
   dashArray?: number[];
+  dashOffset?: number;
 }
 
 // One realized track-matte composite, its platform primitive reverse-mapped to
@@ -224,9 +226,12 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
 
-  // --- #2 trim wins over authored dash; empty trim window strokes nothing ----
+  // --- #2 trim/dash composition; empty trim window strokes nothing -----------
   {
-    name: "trim window overrides an authored dasharray on the stroke",
+    // Authored dash composed *inside* the trim window (dash-of-a-dash): trim
+    // window is total 30, arc [5,15]; the [3,3] dash's ON runs land at [6,9] and
+    // [12,15] within it -> [3,3,3,21] offset -6 over the length-30 outline.
+    name: "authored dash composes inside a trim window",
     ops: (r) => {
       r.setFill(null);
       r.setStroke("#000000", 2);
@@ -240,8 +245,68 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       const stroke = t.paints.find((p) => p.kind === "stroke");
       expect(stroke !== undefined).toBe(true);
-      // Trim's dash, not the authored [3,3].
+      expect(stroke!.dashArray).toEqual([3, 3, 3, 21]);
+      expect(stroke!.dashOffset).toBe(-6);
+    },
+  },
+  {
+    // Trim-only stays byte-identical to pre-composition behavior.
+    name: "trim window with no authored dash is unchanged",
+    ops: (r) => {
+      r.setFill(null);
+      r.setStroke("#000000", 2);
+      r.setTrim({ visible: true, dashArray: [10, 20], dashOffset: -5 });
+      r.drawPath([
+        { type: "M", x: 0, y: 0 },
+        { type: "L", x: 40, y: 0 },
+      ]);
+    },
+    assert: (t, expect) => {
+      const stroke = t.paints.find((p) => p.kind === "stroke");
+      expect(stroke !== undefined).toBe(true);
       expect(stroke!.dashArray).toEqual([10, 20]);
+      expect(stroke!.dashOffset).toBe(-5);
+    },
+  },
+  {
+    // Dash-only stays byte-identical: no trim, authored dash passes through.
+    name: "authored dash with no trim is unchanged",
+    ops: (r) => {
+      r.setFill(null);
+      r.setStroke("#000000", 2);
+      r.setDash([4, 6], 2);
+      r.drawPath([
+        { type: "M", x: 0, y: 0 },
+        { type: "L", x: 40, y: 0 },
+      ]);
+    },
+    assert: (t, expect) => {
+      const stroke = t.paints.find((p) => p.kind === "stroke");
+      expect(stroke !== undefined).toBe(true);
+      expect(stroke!.dashArray).toEqual([4, 6]);
+      expect(stroke!.dashOffset).toBe(2);
+    },
+  },
+  {
+    // Trim offset (marching window) composed with a dash. Window total 40, arc
+    // [10,30]; [5,5] dash ON runs at [10,15],[20,25] within it -> [5,5,5,25]
+    // offset -10.
+    name: "trim offset composes with a dash",
+    ops: (r) => {
+      r.setFill(null);
+      r.setStroke("#000000", 2);
+      r.setDash([5, 5], 0);
+      r.setTrim({ visible: true, dashArray: [20, 20], dashOffset: -10 });
+      r.drawPath([
+        { type: "M", x: 0, y: 0 },
+        { type: "L", x: 40, y: 0 },
+      ]);
+    },
+    assert: (t, expect) => {
+      const stroke = t.paints.find((p) => p.kind === "stroke");
+      expect(stroke !== undefined).toBe(true);
+      expect(stroke!.dashArray).toEqual([5, 5, 5, 25]);
+      expect(stroke!.dashOffset).toBe(-10);
     },
   },
   {

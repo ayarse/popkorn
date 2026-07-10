@@ -142,8 +142,14 @@ function recCtx(
               kind: "stroke",
               gradient: normRecGradient(style),
               dashArray: dash.slice(),
+              dashOffset: ctx.lineDashOffset,
             }
-          : { kind: "stroke", color: style, dashArray: dash.slice() };
+          : {
+              kind: "stroke",
+              color: style,
+              dashArray: dash.slice(),
+              dashOffset: ctx.lineDashOffset,
+            };
       log.push({ type: "paint", index, obs });
     },
     fillText() {},
@@ -368,6 +374,8 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
     const strokeAttr = el.getAttribute("stroke");
     const dashAttr = el.getAttribute("stroke-dasharray");
     const dashArray = dashAttr ? dashAttr.split(" ").map(Number) : [];
+    const dashOffAttr = el.getAttribute("stroke-dashoffset");
+    const dashOffset = dashOffAttr ? Number(dashOffAttr) : 0;
     const order =
       el.getAttribute("paint-order") === "stroke"
         ? ["stroke", "fill"]
@@ -388,8 +396,8 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
           : undefined;
         paints.push(
           grad
-            ? { kind: "stroke", gradient: grad, dashArray }
-            : { kind: "stroke", color: strokeAttr, dashArray },
+            ? { kind: "stroke", gradient: grad, dashArray, dashOffset }
+            : { kind: "stroke", color: strokeAttr, dashArray, dashOffset },
         );
       }
     }

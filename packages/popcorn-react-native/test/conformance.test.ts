@@ -16,7 +16,7 @@ import { SkiaRenderer } from '../src/skia-renderer';
 // return normalized geometry so gradient realization can be cross-checked.
 
 type SkColorMock = Float32Array & { __css: string };
-interface DrawRecord { op: string; style?: number; colorCss?: string; shader?: NormGradient; dash?: number[] }
+interface DrawRecord { op: string; style?: number; colorCss?: string; shader?: NormGradient; dash?: number[]; dashOffset?: number }
 interface LayerRecord { op: 'saveLayer'; blend?: number; filter?: unknown }
 
 const SkBlend = { DstIn: 6, DstOut: 8 } as const;
@@ -36,10 +36,10 @@ function mockSkia() {
     p.setAlphaf = () => p;
     p.setColor = (c: SkColorMock) => { p.__colorCss = c?.__css; return p; };
     p.setShader = (s: NormGradient) => { p.__shader = s; return p; };
-    p.setPathEffect = (e: any) => { p.__dash = e?.__dash; return p; };
+    p.setPathEffect = (e: any) => { p.__dash = e?.__dash; p.__dashOffset = e?.__dashOffset; return p; };
     p.setBlendMode = (b: number) => { p.__blend = b; return p; };
     p.setColorFilter = (f: unknown) => { p.__filter = f; return p; };
-    p.reset = () => { p.__style = undefined; p.__colorCss = undefined; p.__shader = undefined; p.__dash = undefined; p.__blend = undefined; p.__filter = undefined; return p; };
+    p.reset = () => { p.__style = undefined; p.__colorCss = undefined; p.__shader = undefined; p.__dash = undefined; p.__dashOffset = undefined; p.__blend = undefined; p.__filter = undefined; return p; };
     return p;
   };
 
@@ -51,7 +51,7 @@ function mockSkia() {
 
   // Snapshot the paint's observable fields at draw time (the paint is reused +
   // reset for the next shape, so we must not hold a live reference).
-  const record = (op: string, p: any) => { draws.push({ op, style: p.__style, colorCss: p.__colorCss, shader: p.__shader, dash: p.__dash }); };
+  const record = (op: string, p: any) => { draws.push({ op, style: p.__style, colorCss: p.__colorCss, shader: p.__shader, dash: p.__dash, dashOffset: p.__dashOffset }); };
 
   const canvas: any = {
     save: () => {}, restore: () => {}, concat: () => {}, clipRect: () => {}, clipPath: () => {},
@@ -81,7 +81,7 @@ function mockSkia() {
       MakeTwoPointConicalGradient: (f: any, _r0: number, c: any, r: number, colors: SkColorMock[], pos: number[]): NormGradient =>
         ({ type: 'radial', coords: [c.x, c.y, r, f.x, f.y], stops: stops(colors, pos) }),
     },
-    PathEffect: { MakeDash: (arr: number[]) => ({ __dash: arr }) },
+    PathEffect: { MakeDash: (arr: number[], offset?: number) => ({ __dash: arr, __dashOffset: offset ?? 0 }) },
     ColorFilter: { MakeMatrix: (matrix: number[]) => ({ __matrix: matrix }) },
     // A system font manager + font whose measureText reports a fixed advance,
     // so anchor placement and gradient-box geometry are observable in tests.
@@ -107,7 +107,7 @@ function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], width: number, he
   const paints: PaintObs[] = draws.map((d) => {
     const kind = d.style === 1 ? 'stroke' : 'fill';
     const base: PaintObs = d.shader ? { kind, gradient: d.shader } : { kind, color: d.colorCss };
-    if (kind === 'stroke') base.dashArray = d.dash ?? [];
+    if (kind === 'stroke') { base.dashArray = d.dash ?? []; base.dashOffset = d.dashOffset ?? 0; }
     return base;
   });
   // The mask-carrying layer is the one whose paint set a blend mode.
