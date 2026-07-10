@@ -398,9 +398,9 @@ bare number as a `0..1` fraction as well as a percentage; values clamp to range.
 }
 ```
 
-Trim paths and dashes share Canvas's single dash slot, so when both are set on
-one node **trim wins** and the dash array is ignored (compositing a dash inside a
-trim window is a future upgrade).
+Trim paths and dashes compose: when both are set on one node the authored dash
+is realized *inside* the trim window (a dash-of-a-dash), and this works
+identically on all three backends.
 
 Other stroke properties:
 
@@ -655,8 +655,10 @@ Notes on bindings:
   color can't be wired to a live input.
 - An unknown `var(--x)` or `input()` path resolves to `0` (no error). Custom
   properties can reference other custom properties (resolved recursively).
-- The CSS `var(--x, fallback)` two-argument form is **not** parsed — give the
-  fallback by defining the variable in `:root` instead.
+- The CSS `var(--x, fallback)` two-argument form is parsed: the fallback is used
+  when `--x` is undefined, and a nested `var()`/`input()` fallback works. A
+  comma-separated fallback *list* (`var(--x, a, b)`) is not supported — give a
+  single fallback value.
 
 ### States, Transitions & Hit-Testing
 
@@ -681,8 +683,11 @@ states.
 }
 ```
 
-- State blocks only set a fixed subset: `fill`, `stroke`, `stroke-width`,
-  `opacity`, `transform` (and the individual `translate`/`rotate`/`scale`).
+- A state block can override any animatable property (anything with a registry
+  handler) as an instant snap — `fill`, `stroke`, `stroke-width`, `opacity`, and
+  `transform` (with the individual `translate`/`rotate`/`scale`) are the common
+  ones, but geometry and other animatable properties work too. Only the
+  properties listed under `transition` below actually *tween* in and out.
 - The parser accepts any `&:<ident>`, but only `hover` and `active` are driven;
   other state names parse but never activate.
 
@@ -777,8 +782,10 @@ when style(state-time > 2s)            /* time in current state → timeouts */
 
 `state-time` is a reserved per-machine input measuring time in the current state.
 
-`mix <duration> [<easing>]` parses on a `to:` but currently applies as a **hard
-cut** (tweened state cross-fade is not yet wired). Environment `media.*` inputs
+`mix <duration> [<easing>]` on a `to:` tweens the state change as a cross-fade:
+each animatable channel is blended through the registry over the duration, while
+incompatible gradient/path channels step at the eased midpoint. Interrupting a
+mix drops the old outgoing side. Environment `media.*` inputs
 (`media.prefers-reduced-motion`, `media.hover`, `media.width`, `media.height`)
 work in guards and anywhere `input()` is read.
 

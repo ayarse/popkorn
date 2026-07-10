@@ -50,7 +50,7 @@ AST, synchronously, with no dependencies or build step. Tests live alongside it 
 
 - Uses the `<popcorn-player>` web component via a thin React wrapper
 - Provides example scenes to demonstrate features (curated in
-  `packages/playground/src/examples.ts`, kept in sync with `examples/*.css`)
+  `packages/playground/src/examples.ts`, kept in sync with `examples/popcorn/*.css`)
 - Shows the scene source alongside the rendered output
 - Imports real Lottie JSON via the browser-safe converter core
 

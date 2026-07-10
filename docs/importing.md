@@ -18,7 +18,7 @@ For batch work or a build step, the converter ships as a command in
 ```sh
 popcorn-convert animation.json -o animation.css   # Lottie -> Popcorn
 popcorn-convert logo.svg -o logo.css              # SVG -> Popcorn
-popcorn-convert --validate animation.json         # report what won't convert, write nothing
+popcorn-convert --validate animation.json         # report only: list what won't convert, write no CSS
 popcorn-convert --batch ./animations              # convert a whole folder
 ```
 
@@ -30,7 +30,8 @@ formats.
 **From Lottie:** vector shapes, fills and gradients, strokes and dashes, masks
 and track mattes, transforms (including baked anchor points and layer parenting),
 and keyframe animation with easing, trim paths, and precomp time remapping.
-Real-world files, including minified bodymovin output, are normalized on the way
+Basic static text layers come across too — font, size, fill, stroke, and
+justification. Real-world files, including minified bodymovin output, are normalized on the way
 in, so the quirks of exported JSON mostly sort themselves out. The importer is
 checked continuously against a corpus of real Lottie files.
 
@@ -46,14 +47,18 @@ converter emits a **warning naming exactly what it dropped**, so an import is
 never silently wrong, and everything that does map still produces a working
 scene.
 
-- **Lottie:** JavaScript expressions, text animators, and a few rare shape
-  modifiers.
+- **Lottie:** JavaScript expressions and a few rare shape modifiers. Text is
+  partly supported: static layers convert, but animated text documents, text
+  animators, tracking, line-height, and multi-line text are dropped with a
+  warning (the first line/document is kept).
 - **SVG:** `<pattern>`, `<marker>`, `<foreignObject>`, `<textPath>`, and
   animation channels that don't map (such as gradient keyframes, `<set>`, and
   `<animateMotion>`).
 
 These match what shipping players skip too. Run `--validate` first if you want to
-see the warnings for a file before converting it.
+see the warnings for a file before converting it — it writes no CSS and exits
+with a nonzero status when the output has validation errors (a `--batch` run
+likewise exits nonzero if any file fails).
 
 ## After importing
 

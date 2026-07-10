@@ -65,12 +65,14 @@ const renderer = new SkiaRenderer(Skia, { width, height });
 renderer.setCanvas(recorder.beginRecording(bounds));
 ```
 
+Text, images, track mattes, and touch input all render now: text goes through a
+system font manager, images through a per-source decode cache (transparent until
+the decode lands), track mattes composite via nested `saveLayer` blends, and
+touch is wired through React Native's responder so taps fire state-machine
+triggers.
+
 ## WIP
 
-- **Fonts / text.** `drawText` paints nothing (needs an async SkFont/typeface).
-- **Images.** `drawImage` is a no-op (no async decode/cache seam yet).
-- **Track masks.** `compositeMask` degrades to content-only; the upgrade is a
-  `saveLayer` + `DstIn` blend once absolute-transform mask closures are wired.
-- **Touch input.** No responder wiring; the seam is
-  `renderLoop.getInputTracker().getState().cursor`.
+- **Custom fonts.** Text uses the platform's system fonts only — there is no
+  custom-font/typeface loading yet.
 - **Arcs.** SVG `A` commands are polyline-approximated (24 segments).

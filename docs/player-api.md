@@ -58,7 +58,7 @@ point the `src` attribute at a file to fetch.
 
 | Event      | Detail                     | Fires when                                        |
 | ---------- | -------------------------- | ------------------------------------------------- |
-| `ready`    | `{ sceneRoot }`            | the scene is parsed and ready.                    |
+| `ready`    | `{ sceneRoot, duration }`  | the scene is parsed and ready (`duration` in ms). |
 | `complete` | none                       | a non-looping timeline reaches its end.           |
 | `error`    | `{ error }`                | a parse, load, or initialization error occurs.    |
 

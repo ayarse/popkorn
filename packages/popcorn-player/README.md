@@ -70,7 +70,7 @@ The simplest way to use the player is via the `<popcorn-player>` custom element:
 
 | Event | Detail | Description |
 |-------|--------|-------------|
-| `ready` | `{ sceneRoot: SceneNode }` | Fired when scene is parsed and ready |
+| `ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations) |
 | `complete` | — | Fired once when a non-looping timeline reaches its end |
 | `error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
 
@@ -161,7 +161,6 @@ loop.stop();
 ### Animation
 - `AnimationScheduler` - Animation timing controller
 - `applyEasing` - Apply easing functions
-- `EasingFunctions` - Collection of easing functions
 - `interpolateKeyframes` - Keyframe interpolation
 
 ### Runtime

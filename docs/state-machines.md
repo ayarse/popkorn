@@ -179,11 +179,24 @@ player.addEventListener("machine-event", (e) => console.log(e.detail.name)); // 
   runs forward and the state lives off the timeline. (The player's `loop`
   attribute is inert for these scenes.)
 
+## Smooth state transitions: `mix`
+
+By default a transition is an instant cut. Add `mix <duration> [easing]` to a
+`to:` and the change cross-fades instead: each animatable property blends from
+its old value to its new one over the duration.
+
+```css
+state off { to: on  on click(#bulb) mix 300ms ease-in-out; }
+state on  { to: off on click(#bulb) mix 300ms ease-in-out; }
+```
+
+Numbers, lengths, and colors tween channel by channel. Channels that can't be
+interpolated (mismatched gradients or path shapes) step at the midpoint of the
+mix rather than blending. If a new transition fires mid-mix, the in-progress
+mix is dropped and the machine cross-fades from where it is to the new state.
+
 ## Not here yet
 
-- **Smooth state transitions.** `mix 300ms ease-in-out` parses on a `to:`, but
-  today a switch is an instant cut; tweened cross-fades between states are
-  planned.
 - Hierarchical states, history states, string inputs, and event payloads are
   deliberately left out, matching what shipping interactive-animation runtimes
   settle on.

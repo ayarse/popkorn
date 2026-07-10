@@ -230,8 +230,8 @@ By default the page loads lottie-web from a CDN
 `unpkg.com/@thorvg/lottie-player@1.0.9/dist/lottie-player.js`, so nothing
 binary is committed to the repo. For offline use, drop local copies at
 `tools/harness/vendor/lottie.min.js` / `tools/harness/vendor/lottie-player.js`
-(gitignored via the repo's `dist/` pattern doesn't cover it — create the
-files yourself, they won't be tracked unless you `git add` them) and pass
+(these vendor files aren't tracked — create them yourself, and don't `git add`
+them) and pass
 `?lottie=./vendor/lottie.min.js&thorvg=./vendor/lottie-player.js`. Note
 thorvg's own WASM binary is fetched from a version-pinned unpkg URL baked
 into its bundle at build time regardless of where you loaded the JS from —

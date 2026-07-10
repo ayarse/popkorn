@@ -2,9 +2,9 @@ import type { PaintOrder } from "../scene/types";
 import type { TrimDescriptor } from "./types";
 
 // Which dash pattern applies to a stroke, given the sticky trim descriptor and
-// the authored stroke-dasharray. Trim wins over an authored dash when both are
-// set (both share the single dash slot), matching Lottie. `stroke: false` means
-// the trim window is empty — stroke nothing.
+// the authored stroke-dasharray. When both are set they compose: the authored
+// dash is realized inside the trim window (both share the single dash slot).
+// `stroke: false` means nothing is visible — stroke nothing.
 export interface StrokeDashDecision {
   stroke: boolean;
   dashArray: number[];
