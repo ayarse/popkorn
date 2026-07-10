@@ -16,7 +16,7 @@ Never rewrite a doc from the commit message alone.
 ## Docs in scope
 
 - `CLAUDE.md` (root) and `README.md`
-- `docs/*.md` (ARCHITECTURE, CONCEPT, DSL, STATE-MACHINES, …)
+- `docs/*.md` (ARCHITECTURE, REFERENCE, STATE-MACHINES, …)
 - `.claude/skills/*/SKILL.md` (the authoring/parity skills)
 
 ## Process
@@ -53,7 +53,7 @@ Never rewrite a doc from the commit message alone.
 5. **Edit stale docs, pulling wording from the source of truth** (header
    comments, the registry, CLAUDE.md invariants) so the fix stays true. Fix
    every doc carrying the same stale claim — one drift often lives in 2–3
-   files (CLAUDE.md + README + docs/DSL.md commonly echo each other).
+   files (CLAUDE.md + README + docs/REFERENCE.md commonly echo each other).
 
 6. **Commit** with a `docs:` message naming what changed, not "sync docs".
 

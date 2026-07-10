@@ -1,6 +1,6 @@
 # Popcorn Architecture
 
-How the pipeline fits together. See the [README](../README.md) for setup and the [DSL reference](DSL.md) for syntax.
+How the pipeline fits together. See the [README](../README.md) for setup and the [DSL reference](REFERENCE.md) for syntax.
 
 ## Architecture
 

@@ -1,6 +1,6 @@
-# Popcorn DSL Syntax
+# Popcorn Format Reference
 
-The complete reference for the Popcorn CSS-subset DSL. See the [README](../README.md) for setup and usage.
+The complete reference for the Popcorn format. See the [README](../README.md) for setup and usage.
 
 ### Canvas Configuration
 
@@ -848,7 +848,7 @@ scrollable range (the raw offset stays available as `scroll.y`).
 
 Alongside the Lottie converter, `packages/popcorn-converters/src/svg2popcorn.ts` (CLI:
 `packages/popcorn-converters/src/cli.ts`, or the demo's **Import** button) turns a static SVG
-into Popcorn DSL. The mapping is the natural one:
+into a Popcorn scene. The mapping is the natural one:
 
 - `<rect>`/`<circle>`/`<ellipse>`/`<line>`/`<polyline>`/`<polygon>`/`<path>` →
   the matching Popcorn shapes; `<g>` → a group.

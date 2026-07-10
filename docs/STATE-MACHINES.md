@@ -6,7 +6,7 @@
 `statechange`/`machine-event` events, and `animation-timeline` scrubbing
 (`var()`/`input(scroll.progress)`) and `media.*` inputs in guards all ship.
 **Not yet wired:** `mix` tweening (parses, but a transition is currently a
-hard cut). This document is kept as design rationale; see [DSL.md](DSL.md)
+hard cut). This document is kept as design rationale; see [REFERENCE.md](REFERENCE.md)
 for the shipping syntax.
 
 ## Motivation

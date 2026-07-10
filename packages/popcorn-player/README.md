@@ -1,6 +1,6 @@
 # @popcorn/player
 
-A web component and rendering engine for the Popcorn DSL - a CSS-like declarative language for interactive motion graphics.
+The `<popcorn-player>` web component and Canvas2D engine that plays the Popcorn format, a small, CSS-like format for interactive motion graphics. See the [main README](../../README.md) for what Popcorn is and why.
 
 ## Installation
 
@@ -46,13 +46,13 @@ The simplest way to use the player is via the `<popcorn-player>` custom element:
 | `width` | number | Canvas width in pixels (default: 400) |
 | `height` | number | Canvas height in pixels (default: 300) |
 | `background` | string | Background color (CSS color value) |
-| `src` | string | URL to fetch DSL source from (http(s), relative, `data:`, `blob:`). For inline DSL *text*, use the `.source` property instead. |
+| `src` | string | URL to fetch scene source from (http(s), relative, `data:`, `blob:`). For inline scene *text*, use the `.source` property instead. |
 
 ### Web Component Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `source` | string | Get/set the DSL source *text* directly (the inline channel — not a URL) |
+| `source` | string | Get/set the scene source *text* directly (the inline channel, not a URL) |
 | `src` | string \| null | Get/set the `src` URL attribute (fetched into `source`) |
 | `width` | number | Get/set canvas width |
 | `height` | number | Get/set canvas height |
@@ -116,7 +116,7 @@ import {
   AnimationScheduler,
 } from '@popcorn/player';
 
-// Parse DSL
+// Parse the scene source
 const ast = parse(source);
 
 // Build scene graph
@@ -169,9 +169,9 @@ loop.stop();
 - `InputTracker` - Mouse/scroll input tracking
 - `VariableResolver` - CSS variable resolution
 
-## DSL Syntax
+## Scene syntax
 
-See the main project README for full DSL documentation.
+See [docs/REFERENCE.md](../../docs/REFERENCE.md) for the full format reference.
 
 ### Basic Shapes
 

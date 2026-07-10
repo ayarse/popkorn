@@ -183,7 +183,7 @@ shipped bug; the serializer was forgotten once and broke round-trip):
 6. **Serializer**: emit it, both pretty and minify — the round-trip test
    globs every `examples/popcorn/*.css`, so a missing emitter fails CI only
    *after* someone authors a scene using the feature.
-7. Docs: `docs/DSL.md` section, terse and code-first.
+7. Docs: `docs/REFERENCE.md` section, terse and code-first.
 8. Example: `examples/popcorn/NN-name.css` — the demo gallery **auto-globs**
    this directory (any "sync to examples.ts" note is stale). Author the
    example in the SAME change — it's what makes the round-trip glob
