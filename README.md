@@ -4,7 +4,7 @@
 
 **What if a CSS animation could leave the browser?**
 
-<video src="https://github.com/ayarse/popcorn/raw/main/demo.mp4" autoplay loop muted playsinline width="720"></video>
+https://github.com/ayarse/popcorn/raw/main/demo.mp4
 
 [**▶ Playground**](https://ayarse.github.io/popcorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
