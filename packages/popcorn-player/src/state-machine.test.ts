@@ -320,3 +320,100 @@ test("animation-timeline scrubs a node's animation to a var()-supplied 0..1", ()
   loop.seek(0);
   expect(cx(root, "bar")).toBeCloseTo(80);
 });
+
+// --- mix cross-fades ----------------------------------------------------------
+
+// A machine whose `a -> b` transition carries `mix <clause>`; `b` drives the
+// dot's cx to 100 (base 0), so the blended cx directly reads the mix weight.
+const mixScene = (transition: string) => `
+  :root { width: 100px; height: 100px; }
+  @machine m { initial: a; state a { to: b on event(go)${transition}; } state b {} }
+  #dot { type: circle; r: 5; cx: 0; &:state(b) { cx: 100; } }
+`;
+
+// Enter state b at machineTime 500 (as the live loop would), returning the loop.
+function enterB(src: string) {
+  const { root, loop } = loopFor(src);
+  const runner = loop.getStateMachineRunner();
+  runner.enqueueEvent("go");
+  runner.evaluate(500, {
+    variableResolver: loop.getVariableResolver(),
+    pointerEvents: [],
+  });
+  expect(runner.currentState("m")).toBe("b");
+  return { root, loop };
+}
+
+test("mix: linear cross-fade blends the incoming state over the window", () => {
+  const { root, loop } = enterB(mixScene(" mix 1000ms"));
+  loop.seek(500); // entry: progress 0 -> outgoing (base cx 0)
+  expect(cx(root, "dot")).toBeCloseTo(0);
+  loop.seek(1000); // 500ms in -> halfway
+  expect(cx(root, "dot")).toBeCloseTo(50);
+  loop.seek(1500); // window end -> fully incoming
+  expect(cx(root, "dot")).toBeCloseTo(100);
+  loop.seek(3000); // well past the window -> steady incoming
+  expect(cx(root, "dot")).toBeCloseTo(100);
+});
+
+test("mix: no mix clause is a hard cut (no blend)", () => {
+  const { root, loop } = enterB(mixScene(""));
+  loop.seek(500); // the instant of entry already shows the full incoming value
+  expect(cx(root, "dot")).toBeCloseTo(100);
+  loop.seek(750);
+  expect(cx(root, "dot")).toBeCloseTo(100);
+});
+
+test("mix: easing shapes the blend (ease-in trails linear at mid-window)", () => {
+  const linear = enterB(mixScene(" mix 1000ms linear"));
+  linear.loop.seek(1000);
+  const linearMid = cx(linear.root, "dot");
+
+  const eased = enterB(mixScene(" mix 1000ms ease-in"));
+  eased.loop.seek(1000); // same raw progress 0.5, but ease-in is slow early
+  const easedMid = cx(eased.root, "dot");
+
+  expect(linearMid).toBeCloseTo(50);
+  expect(easedMid).toBeLessThan(linearMid - 5);
+  expect(easedMid).toBeGreaterThan(0);
+});
+
+test("mix: determinism — seek(t) twice yields identical blended frames", () => {
+  const { root, loop } = enterB(mixScene(" mix 1000ms ease-in-out"));
+  loop.seek(1000);
+  const first = cx(root, "dot");
+  loop.seek(0); // move away
+  loop.seek(1000); // and back — machine state unchanged
+  expect(cx(root, "dot")).toBeCloseTo(first);
+});
+
+test("mix: an interrupting transition drops the old outgoing contribution", () => {
+  // a -> b (mix), then b -> a (mix) mid-window. The second mix must blend from
+  // the current b contribution, not resurrect the original `a` outgoing.
+  const src = `
+    :root { width: 100px; height: 100px; }
+    @machine m {
+      initial: a;
+      state a { to: b on event(go) mix 1000ms; }
+      state b { to: a on event(back) mix 1000ms; }
+    }
+    #dot { type: circle; r: 5; cx: 0; &:state(b) { cx: 100; } }
+  `;
+  const { root, loop } = loopFor(src);
+  const runner = loop.getStateMachineRunner();
+  const resolver = loop.getVariableResolver();
+  runner.enqueueEvent("go");
+  runner.evaluate(500, { variableResolver: resolver, pointerEvents: [] });
+  loop.seek(1000); // halfway into a->b: cx ~50
+  expect(cx(root, "dot")).toBeCloseTo(50);
+  // Interrupt back to a at machineTime 1000; new mix fades from b (cx ~100)
+  // toward a (cx 0). At its own entry (progress 0) it shows the b value.
+  runner.enqueueEvent("back");
+  runner.evaluate(1000, { variableResolver: resolver, pointerEvents: [] });
+  loop.seek(1000);
+  expect(cx(root, "dot")).toBeCloseTo(100);
+  loop.seek(1500); // halfway back
+  expect(cx(root, "dot")).toBeCloseTo(50);
+  loop.seek(2000); // fully back to a
+  expect(cx(root, "dot")).toBeCloseTo(0);
+});

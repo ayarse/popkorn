@@ -28,8 +28,9 @@ import type {
   MachineRule,
   MachineTrigger,
 } from "@popcorn/parser";
+import { applyEasing, parseTimingString } from "../animation/easing";
 import { animationsEndTime } from "../animation/scheduler";
-import type { SceneNode } from "../scene/types";
+import type { SceneNode, TimingFunction } from "../scene/types";
 import type { VariableResolver } from "./variables";
 
 // A pointer event detected this frame, credited to the top hit node (nearest
@@ -57,6 +58,24 @@ interface MachineInstance {
   current: string;
   entryTime: number; // global timeline ms at entry into `current`
   completeAt: number; // machineTime at which `current`'s animations finish (Infinity if none/looping)
+  // Cross-fade (`mix`) bookkeeping, off the timeline like the rest of machine
+  // state. `prevState` is the state we're fading OUT of; null when no mix is in
+  // flight (a hard-cut transition clears it). The outgoing state keeps sampling
+  // its own animations from `prevEntryTime` for the window's duration.
+  prevState: string | null;
+  prevEntryTime: number;
+  mixDuration: number; // 0 => no mix
+  mixEasing: TimingFunction;
+}
+
+// A `:state()` entry's contribution to a node this frame. `side` distinguishes
+// the steady state (`solid`, weight 1) from the two ends of a running mix
+// (`in` = fading in / incoming, `out` = fading out / outgoing). `weight` is the
+// eased blend weight and `entryTime` anchors that state's own animations.
+export interface StateBlend {
+  weight: number;
+  entryTime: number;
+  side: "solid" | "in" | "out";
 }
 
 export class StateMachineRunner {
@@ -80,6 +99,10 @@ export class StateMachineRunner {
         current: def.initial,
         entryTime: now,
         completeAt: Infinity,
+        prevState: null,
+        prevEntryTime: now,
+        mixDuration: 0,
+        mixEasing: "linear",
       };
       inst.completeAt = this.computeCompleteAt(def.name, def.initial, now);
       return inst;
@@ -129,6 +152,44 @@ export class StateMachineRunner {
   }
 
   /**
+   * The blend contribution of a `:state()` entry `(machine, name)` this frame,
+   * or null if that state is neither current nor a still-fading outgoing state.
+   * Outside a mix window the current state returns a `solid` weight-1
+   * contribution (the hard-cut fast path). During a mix, the incoming state
+   * returns `side:"in"` at eased progress and the outgoing returns `side:"out"`
+   * at `1 - progress`; once the window has elapsed the incoming state collapses
+   * back to `solid`. Pure in `machineTime` — no instance mutation — so seek(t)
+   * twice yields identical contributions.
+   */
+  stateBlend(
+    machine: string | null,
+    name: string,
+    machineTime: number,
+  ): StateBlend | null {
+    for (const inst of this.instances) {
+      if (machine !== null && inst.def.name !== machine) continue;
+      const mixing = inst.prevState !== null && inst.mixDuration > 0;
+      let p = 1;
+      if (mixing) {
+        const raw = (machineTime - inst.entryTime) / inst.mixDuration;
+        p = raw <= 0 ? 0 : raw >= 1 ? 1 : applyEasing(raw, inst.mixEasing);
+      }
+      if (inst.current === name) {
+        const solid = !mixing || p >= 1;
+        return {
+          weight: solid ? 1 : p,
+          entryTime: inst.entryTime,
+          side: solid ? "solid" : "in",
+        };
+      }
+      if (mixing && p < 1 && inst.prevState === name) {
+        return { weight: 1 - p, entryTime: inst.prevEntryTime, side: "out" };
+      }
+    }
+    return null;
+  }
+
+  /**
    * Advance every machine at most once. Returns the transitions/emits produced,
    * in order. Consumes the external-event queue and the frame's pointer events
    * (the caller supplies a fresh `pointerEvents` list each frame).
@@ -165,8 +226,22 @@ export class StateMachineRunner {
         continue;
 
       const from = inst.current;
+      const fromEntry = inst.entryTime;
       inst.current = tr.to;
       inst.entryTime = machineTime;
+      if (tr.mix && tr.mix.duration > 0) {
+        // Start (or, if one was already running, restart from) a cross-fade. On
+        // an interrupted mix we simply re-anchor here: the new outgoing state is
+        // whatever `current` just was — i.e. the interrupted mix's INCOMING
+        // state — so the old outgoing contribution is dropped.
+        // NOTE: acceptable v1 interrupt semantics — no multi-way blend snapshot.
+        inst.prevState = from;
+        inst.prevEntryTime = fromEntry;
+        inst.mixDuration = tr.mix.duration;
+        inst.mixEasing = parseTimingString(tr.mix.easing);
+      } else {
+        inst.prevState = null; // hard cut
+      }
       inst.completeAt = this.computeCompleteAt(def.name, tr.to, machineTime);
       out.push({ type: "statechange", machine: def.name, from, to: tr.to });
       const toState = def.states.find((s) => s.name === tr.to);

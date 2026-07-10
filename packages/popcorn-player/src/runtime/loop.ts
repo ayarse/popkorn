@@ -33,13 +33,18 @@ import { hitTest } from "./hit-test";
 import { createInputTracker, type InputTracker } from "./inputs";
 import {
   applyStateStyles,
+  blendProp,
   createInteractionManager,
   type InteractionManager,
+  involvedStateKeys,
+  readLiveProp,
+  writeProp,
 } from "./interaction";
 import {
   createStateMachineRunner,
   type MachineOutput,
   type PointerTriggerEvent,
+  type StateBlend,
   type StateMachineRunner,
 } from "./state-machine";
 import { createVariableResolver, type VariableResolver } from "./variables";
@@ -437,28 +442,113 @@ export class RenderLoop {
   }
 
   /**
-   * Merge every active `:state()` set on a node: apply its static declarations,
-   * then sample its animations entry-anchored on the global machine clock
-   * (`machineTime - entryTime`). Reuses the scheduler's clock sampling by
-   * temporarily pointing node.animations at the state's instances — the
-   * scheduler's documented `sampleNode(node, t - entryTime)` anchoring, with the
-   * state's set as `node.animations`.
+   * Merge every active `:state()` set on a node. Steady state (no `mix` in
+   * flight) is a straight apply of each active entry — static declarations plus
+   * entry-anchored animations. During a `mix` cross-fade window the outgoing and
+   * incoming states are each fully resolved into the node in turn, then blended
+   * channel-by-channel at the mix's eased progress (invariant #2: this all
+   * happens inside the state-override step, between bindings and the node's own
+   * animation sampling).
    */
   private applyMachineStates(node: SceneNode, machineTime: number): void {
+    // Contribution of each active :state() entry, in document order.
+    const active: {
+      entry: SceneNode["stateStyles"][number];
+      blend: StateBlend;
+    }[] = [];
+    let mixing = false;
     for (const entry of node.stateStyles) {
-      if (!this.machineRunner.isStateActive(entry.machine, entry.name))
-        continue;
-      applyStateStyles(node, entry.styles);
-      if (entry.animations.length > 0) {
-        const entryTime = this.machineRunner.entryTimeFor(
-          entry.machine,
-          entry.name,
-        );
-        const saved = node.animations;
-        node.animations = entry.animations;
-        this.scheduler.sampleNode(node, machineTime - entryTime);
-        node.animations = saved;
-      }
+      const blend = this.machineRunner.stateBlend(
+        entry.machine,
+        entry.name,
+        machineTime,
+      );
+      if (!blend) continue;
+      if (blend.side !== "solid") mixing = true;
+      active.push({ entry, blend });
+    }
+    if (active.length === 0) return;
+
+    // Fast path: no cross-fade — apply every active state directly (also the
+    // hard-cut path when a transition carried no `mix`).
+    if (!mixing) {
+      for (const { entry, blend } of active)
+        this.applyStateEntry(node, entry, blend.entryTime, machineTime);
+      return;
+    }
+
+    // Cross-fade. Solid contributions (other machines' steady states) apply
+    // first and form the baseline both mix ends share.
+    for (const { entry, blend } of active)
+      if (blend.side === "solid")
+        this.applyStateEntry(node, entry, blend.entryTime, machineTime);
+
+    const keys = new Set<string>();
+    for (const { entry, blend } of active)
+      if (blend.side !== "solid") involvedStateKeys(entry, keys);
+
+    // Baseline (post-bindings + solid states) each mix end starts from.
+    const baseline = new Map<string, ReturnType<typeof readLiveProp>>();
+    for (const key of keys) baseline.set(key, readLiveProp(node, key));
+
+    // Outgoing end: apply the fading-out states, snapshot the result.
+    for (const { entry, blend } of active)
+      if (blend.side === "out")
+        this.applyStateEntry(node, entry, blend.entryTime, machineTime);
+    const from = new Map<string, ReturnType<typeof readLiveProp>>();
+    for (const key of keys) from.set(key, readLiveProp(node, key));
+
+    // Reset the involved channels to baseline, then apply the incoming end.
+    for (const key of keys) writeProp(node, key, baseline.get(key) ?? null);
+    for (const { entry, blend } of active)
+      if (blend.side === "in")
+        this.applyStateEntry(node, entry, blend.entryTime, machineTime);
+
+    // Eased blend weight: the incoming ("in") weight is the mix progress; with
+    // no incoming entry on this node it's 1 minus the outgoing weight.
+    const inSide = active.find((a) => a.blend.side === "in");
+    const outSide = active.find((a) => a.blend.side === "out");
+    // NOTE: concurrent mixes on the same node (multiple machines) share this one
+    // progress; rare enough to not warrant per-machine channel partitioning.
+    const e = inSide
+      ? inSide.blend.weight
+      : outSide
+        ? 1 - outSide.blend.weight
+        : 1;
+
+    // Blend each involved channel from the outgoing snapshot toward the incoming
+    // (now-live) value. Incompatible gradients/paths step at the eased midpoint
+    // (blendProp), matching the incompatible-gradient stepping precedent.
+    for (const key of keys) {
+      const handler = getPropHandler(key);
+      if (!handler) continue;
+      writeProp(
+        node,
+        key,
+        blendProp(handler, from.get(key) ?? null, readLiveProp(node, key), e),
+      );
+    }
+  }
+
+  /**
+   * Apply one `:state()` entry onto a node: its static declarations, then its
+   * animations entry-anchored on the global machine clock (`machineTime -
+   * entryTime`). Reuses the scheduler's documented `sampleNode(node, t -
+   * entryTime)` anchoring by temporarily pointing `node.animations` at the
+   * state's instances.
+   */
+  private applyStateEntry(
+    node: SceneNode,
+    entry: SceneNode["stateStyles"][number],
+    entryTime: number,
+    machineTime: number,
+  ): void {
+    applyStateStyles(node, entry.styles);
+    if (entry.animations.length > 0) {
+      const saved = node.animations;
+      node.animations = entry.animations;
+      this.scheduler.sampleNode(node, machineTime - entryTime);
+      node.animations = saved;
     }
   }
 

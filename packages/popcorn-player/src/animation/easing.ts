@@ -93,6 +93,53 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
   return t;
 }
 
+// Named keywords that are valid TimingFunction values on their own.
+const NAMED_EASINGS = new Set([
+  "linear",
+  "ease",
+  "ease-in",
+  "ease-out",
+  "ease-in-out",
+  "step-start",
+  "step-end",
+]);
+
+/**
+ * Parse an easing written as a raw source string (e.g. a state-machine `mix`
+ * easing, which the parser slurps verbatim) into a TimingFunction usable with
+ * applyEasing. Named keywords pass straight through; `cubic-bezier(...)` and
+ * `steps(...)` are parsed with a compact regex (this is not the animation
+ * property path — that goes through the builder's Value-based parser — so a
+ * dependency-free string parser keeps the runtime self-contained). Anything
+ * unrecognized (or null) falls back to "linear", the sensible cross-fade default.
+ */
+export function parseTimingString(
+  raw: string | null | undefined,
+): TimingFunction {
+  if (!raw) return "linear";
+  const s = raw.trim();
+  if (NAMED_EASINGS.has(s)) return s as TimingFunction;
+  const cb = s.match(
+    /^cubic-bezier\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)$/,
+  );
+  if (cb)
+    return {
+      type: "cubic-bezier",
+      x1: +cb[1],
+      y1: +cb[2],
+      x2: +cb[3],
+      y2: +cb[4],
+    };
+  const st = s.match(/^steps\(\s*(\d+)\s*(?:,\s*([a-z-]+)\s*)?\)$/);
+  if (st)
+    return {
+      type: "steps",
+      count: +st[1],
+      position: (st[2] as StepPosition) || "jump-end",
+    };
+  return "linear";
+}
+
 /**
  * CSS linear() easing (Easing Level 2). Evaluate the piecewise-linear curve at
  * input `t`; `points` are pre-normalized (input ascending in [0,1]). The output

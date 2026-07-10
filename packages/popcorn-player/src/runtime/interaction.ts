@@ -34,6 +34,7 @@ import { cloneGradient, isGradientData } from "../renderer/types";
 import { clamp01 } from "../scene/transform";
 import type {
   InteractionState,
+  NodeStateStyle,
   SceneNode,
   StateStyles,
   TransitionSpec,
@@ -94,12 +95,26 @@ function collectInvolvedKeys(
   if (styles.overrides) for (const k in styles.overrides) out.add(k);
 }
 
+// Every registry-property key a machine `:state()` entry can touch: its static
+// declarations (via collectInvolvedKeys) plus every property named by its
+// entry-anchored animations' keyframes. Used to bound a mix cross-fade to the
+// channels the two states actually drive.
+export function involvedStateKeys(
+  entry: NodeStateStyle,
+  out: Set<string>,
+): void {
+  collectInvolvedKeys(entry.styles, out);
+  for (const anim of entry.animations)
+    for (const kf of anim.keyframes)
+      for (const key in kf.properties) out.add(key);
+}
+
 // Read the current LIVE (post-animation, pre-override) value of a property as an
 // interpolation endpoint. Numerics (incl. transform channels) go through the
 // registry's readLive; paint reads the gradient-or-solid the node currently
 // shows (gradient deep-copied so the snapshot is never aliased onto authored
 // state); path props read their live command list.
-function readLiveProp(node: SceneNode, key: string): PropValue | null {
+export function readLiveProp(node: SceneNode, key: string): PropValue | null {
   if (key === "fill")
     return node.fillGradient ? cloneGradient(node.fillGradient) : node.fill;
   if (key === "stroke")
@@ -218,7 +233,7 @@ function blendable(from: PropValue | null, to: PropValue | null): boolean {
 // Blend one property from `from` toward `to` at eased progress `e`. Blendable
 // endpoints interpolate (numbers/colors/compatible gradients+paths); the rest
 // step discretely at the eased midpoint (CSS discrete transition).
-function blendProp(
+export function blendProp(
   handler: PropHandler,
   from: PropValue | null,
   to: PropValue | null,
@@ -234,7 +249,7 @@ function blendProp(
 // mutually exclusive (a gradient clears the solid and vice-versa); every other
 // property goes straight through its registry handler (which sets its own dirty
 // flags — invariant #3).
-function writeProp(
+export function writeProp(
   node: SceneNode,
   key: string,
   value: PropValue | null,
