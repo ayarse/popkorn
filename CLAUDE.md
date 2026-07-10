@@ -2,11 +2,13 @@
 
 ## Vision
 
-Popcorn is **"Lottie you can write by hand"**: a CSS-subset DSL + Canvas2D
-player targeting parity with Lottie players in *rendering and animation
-capability* — not After Effects tooling. The differentiator is that the format
-is hand-authorable, diffable, and LLM-friendly, where Lottie JSON is
-machine-generated and opaque. Every feature decision flows from that:
+Popcorn is a portable **format** for motion graphics and a small **runtime**
+that plays it: a hand-authored CSS-subset format, played by a zero-dependency
+Canvas2D engine (with SVG and React Native/Skia backends). Its capability target
+is parity with Lottie players in *rendering and animation*, not After Effects
+tooling. The differentiator is that the format is hand-authorable, diffable, and
+LLM-friendly, where Lottie JSON is machine-generated and opaque. Every feature
+decision flows from that:
 
 - **CSS idiom first.** When adding a capability, use the existing CSS
   property/semantics if one exists: motion paths are `offset-path`/

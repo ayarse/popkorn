@@ -18,11 +18,20 @@ New here? The fastest way to get a feel for it is the
 - [State machines](state-machines.md): named states and transitions for
   toggles, taps, and app-driven behavior.
 
+## Working with existing art
+
+- [Importing Lottie and SVG](importing.md): bring an existing animation or
+  drawing into a scene.
+
+## Putting a scene in your project
+
+- [Player API](player-api.md): the web component, the low-level API, and the
+  React Native player.
+
 ## Reference
 
 - [Format reference](reference.md): every shape, property, and value.
 - [Architecture](architecture.md): how the pipeline fits together, for
   contributors.
 
-More guides are on the way: importing Lottie and SVG, the player API, animation,
-and interactivity.
+More guides are on the way: animation and interactivity.

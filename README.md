@@ -155,9 +155,7 @@ Popcorn covers most of what people reach for in real motion graphics:
   ([docs/state-machines.md](docs/state-machines.md)).
 
 The [playground](packages/playground) shows each of these as a live scene, and
-the sources live in [`examples/popcorn/`](examples/popcorn). The full format
-reference is in [docs/reference.md](docs/reference.md); the design and internals are in
-[docs/architecture.md](docs/architecture.md).
+the sources live in [`examples/popcorn/`](examples/popcorn).
 
 ## Why CSS
 
@@ -183,6 +181,19 @@ audiences already read.
 
 The payoff is a format that's hand-authorable, diffable in a pull request, and
 generatable by an LLM, all at once.
+
+## Documentation
+
+The full docs live in [`docs/`](docs/README.md) and render live in the playground
+under **/docs**:
+
+- [Introduction](docs/introduction.md) and
+  [Getting Started](docs/getting-started.md)
+- [State machines](docs/state-machines.md),
+  [Importing Lottie and SVG](docs/importing.md), and the
+  [Player API](docs/player-api.md)
+- [Format reference](docs/reference.md) and
+  [Architecture](docs/architecture.md)
 
 ## Status & what's next
 
