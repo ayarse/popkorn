@@ -6,6 +6,7 @@ import type {
   PathSink,
   Renderer,
   ResolvedClip,
+  TextAnchor,
 } from "@popcorn/player";
 import {
   applyCommandsToPath,
@@ -28,8 +29,19 @@ type SkPath = import("@shopify/react-native-skia").SkPath;
 type SkShader = import("@shopify/react-native-skia").SkShader;
 type SkColor = import("@shopify/react-native-skia").SkColor;
 type SkPathEffect = import("@shopify/react-native-skia").SkPathEffect;
+type SkFont = import("@shopify/react-native-skia").SkFont;
+type SkFontMgr = import("@shopify/react-native-skia").SkFontMgr;
+type SkImage = import("@shopify/react-native-skia").SkImage;
 
 type Bounds = { x: number; y: number; width: number; height: number };
+
+// Cache entry for a decoded (or decoding) image, keyed by src. `image` stays
+// null until MakeImageFromEncoded lands (guarded by `loaded`).
+interface ImageEntry {
+  image: SkImage | null;
+  loaded: boolean;
+  errored: boolean;
+}
 
 // Bounds only feed gradient shaders; a shape with no gradient never reads them,
 // so we hand it this shared zero box instead of scanning its geometry.
@@ -49,6 +61,7 @@ const StrokeCap = { butt: 0, round: 1, square: 2 } as const; // SkStrokeCap
 const StrokeJoin = { miter: 0, round: 1, bevel: 2 } as const; // SkStrokeJoin
 const FillType = { nonzero: 0, evenodd: 1 } as const; // Winding, EvenOdd
 const TileMode_Clamp = 0; // TileMode.Clamp
+const FontSlant_Upright = 0; // SkFontSlant.Upright
 const ClipOp_Intersect = 1; // ClipOp.Intersect
 const BlendMode_DstIn = 6; // SkBlendMode.DstIn:  r = d * sa
 const BlendMode_DstOut = 8; // SkBlendMode.DstOut: r = d * (1-sa)
@@ -126,6 +139,20 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   private pathCache = new WeakMap<PathCommand[], SkPath>();
   private shaderCache = new Map<string, SkShader>();
   private dashCache = new Map<string, SkPathEffect>();
+
+  // Font realization: the system font manager (lazy — construction touches the
+  // native module, so a text-free scene never pays for it) plus an SkFont cache
+  // keyed by (family, weight, size). matchFamilyStyle is synchronous in RN Skia,
+  // so text paints on the first frame with no async seam. `null` means the
+  // platform has no usable font manager (headless bun); text renders nothing.
+  private fontMgr: SkFontMgr | null | undefined;
+  private fontCache = new Map<string, SkFont>();
+  // Lazily pooled paint for images (reset + alpha per draw, like fill/stroke).
+  private imagePaint: SkPaint | null = null;
+  // Image cache keyed by src (mirrors Canvas2DRenderer): transparent until the
+  // async decode lands, decode failure warns once and renders nothing.
+  private images = new Map<string, ImageEntry>();
+  private pendingImages = new Set<Promise<void>>();
 
   constructor(skia: SkiaApi, opts: { width: number; height: number }) {
     super();
@@ -214,12 +241,155 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
   }
 
-  // NOTE: fonts deferred — RN Skia needs an SkFont/typeface loaded async,
-  // out of scope for the PoC. Text nodes paint nothing.
-  drawText(): void {}
+  drawText(
+    text: string,
+    x: number,
+    y: number,
+    fontSize: number,
+    fontFamily: string,
+    fontWeight: string,
+    anchor: TextAnchor,
+  ): void {
+    if (!this.canvas) return;
+    const font = this.font(fontFamily, fontWeight, fontSize);
+    if (!font) return; // no system font manager (headless): paint nothing
 
-  // NOTE: images deferred — no async decode/cache seam wired for RN Skia yet.
-  drawImage(): void {}
+    // Advance width for anchor placement + gradient box. Skia draws left-aligned
+    // from the alphabetic baseline, matching Canvas2D's textAlign:left/baseline;
+    // we shift x ourselves so middle/end anchors line up.
+    const width = font.measureText(text).width;
+    const ax =
+      anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
+    // Bounding box (for gradients) mirrors Canvas2DRenderer.drawText.
+    const bounds: Bounds = { x: ax, y: y - fontSize, width, height: fontSize };
+
+    this.fillAndStroke(bounds, (p) =>
+      this.canvas!.drawText(text, ax, y, p, font),
+    );
+  }
+
+  drawImage(src: string, x: number, y: number, w: number, h: number): void {
+    if (!this.canvas || !src) return;
+    let entry = this.images.get(src);
+    if (!entry) entry = this.loadImage(src);
+    if (!entry.loaded || !entry.image) return; // repaints in once decoded
+    const img = entry.image;
+    const iw = img.width();
+    const ih = img.height();
+    const dw = w > 0 ? w : iw;
+    const dh = h > 0 ? h : ih;
+    if (!this.imagePaint) this.imagePaint = this.skia.Paint();
+    const paint = this.imagePaint;
+    paint.reset();
+    paint.setAntiAlias(true);
+    paint.setAlphaf(this.opacity); // cascade group opacity onto the image
+    this.canvas.drawImageRect(
+      img,
+      this.skia.XYWHRect(0, 0, iw, ih),
+      this.skia.XYWHRect(x, y, dw, dh),
+      paint,
+    );
+  }
+
+  // Resolve (family, weight, size) to a cached SkFont via the system font
+  // manager. matchFamilyStyle is synchronous; an unknown family falls back to
+  // the platform default face (matching CSS's generic-family behaviour).
+  private font(family: string, weight: string, size: number): SkFont | null {
+    const mgr = this.fontManager();
+    if (!mgr) return null;
+    const key = `${family}|${weight}|${size}`;
+    let font = this.fontCache.get(key);
+    if (!font) {
+      // CSS font-family is a comma list; take the first name (unquoted).
+      const name = family
+        .split(",")[0]
+        .trim()
+        .replace(/^["']|["']$/g, "");
+      const typeface = mgr.matchFamilyStyle(name, {
+        weight: cssFontWeight(weight),
+        slant: FontSlant_Upright,
+      });
+      font = this.skia.Font(typeface ?? undefined, size);
+      this.fontCache.set(key, font);
+    }
+    return font;
+  }
+
+  private fontManager(): SkFontMgr | null {
+    if (this.fontMgr === undefined) {
+      // System() touches the native module; guard so headless bun (no font
+      // manager) degrades to text-renders-nothing instead of throwing.
+      try {
+        this.fontMgr = this.skia.FontMgr.System();
+      } catch {
+        this.fontMgr = null;
+      }
+    }
+    return this.fontMgr;
+  }
+
+  // Kick off an async decode, caching the entry immediately so each src decodes
+  // once. Mirrors Canvas2DRenderer.loadImage: transparent until the decode
+  // lands, failure warns once. data: URIs decode synchronously via fromBase64;
+  // http(s)/file URIs go through the async Data.fromURI fetch.
+  private loadImage(src: string): ImageEntry {
+    const entry: ImageEntry = { image: null, loaded: false, errored: false };
+    this.images.set(src, entry);
+
+    const decode = (
+      data: import("@shopify/react-native-skia").SkData,
+    ): void => {
+      const img = this.skia.Image.MakeImageFromEncoded(data);
+      if (img) {
+        entry.image = img;
+        entry.loaded = true;
+      } else {
+        entry.errored = true;
+        console.warn(
+          `SkiaRenderer: failed to decode image ${src.slice(0, 64)}`,
+        );
+      }
+    };
+
+    const base64 = /^data:[^,]*;base64,(.*)$/s.exec(src);
+    if (base64) {
+      try {
+        decode(this.skia.Data.fromBase64(base64[1]));
+      } catch {
+        entry.errored = true;
+        console.warn(
+          `SkiaRenderer: failed to decode image ${src.slice(0, 64)}`,
+        );
+      }
+      return entry;
+    }
+
+    this.trackImageLoad(
+      this.skia.Data.fromURI(src)
+        .then(decode)
+        .catch(() => {
+          entry.errored = true;
+          console.warn(
+            `SkiaRenderer: failed to load image ${src.slice(0, 64)}`,
+          );
+        }),
+    );
+    return entry;
+  }
+
+  private trackImageLoad(p: Promise<void>): void {
+    this.pendingImages.add(p);
+    void p.finally(() => {
+      this.pendingImages.delete(p);
+    });
+  }
+
+  // Resolves once no image decodes are in flight (immediately if none). A
+  // seek-driven offline export awaits this after seeking so decoded images
+  // paint; the live loop ignores it and repaints naturally.
+  whenImagesSettled(): Promise<void> {
+    return Promise.all([...this.pendingImages]).then(() => undefined);
+  }
 
   clip(clip: ResolvedClip): void {
     if (!this.canvas) return;
@@ -525,6 +695,17 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     }
     return path;
   }
+}
+
+/**
+ * Map a CSS font-weight (keyword or numeric string) to the numeric weight
+ * SkFontStyle expects. `bold` -> 700, `normal`/anything unrecognized -> 400
+ * (bolder/lighter are relative and have no absolute mapping here).
+ */
+function cssFontWeight(weight: string): number {
+  if (weight === "bold") return 700;
+  const n = parseInt(weight, 10);
+  return Number.isFinite(n) && n > 0 ? n : 400;
 }
 
 /**

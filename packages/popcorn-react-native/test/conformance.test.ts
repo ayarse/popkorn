@@ -61,6 +61,8 @@ function mockSkia() {
     drawOval: (_r: unknown, p: any) => record('drawOval', p),
     drawCircle: (_x: number, _y: number, _r: number, p: any) => record('drawCircle', p),
     drawPath: (_path: unknown, p: any) => record('drawPath', p),
+    drawText: (_t: string, _x: number, _y: number, p: any) => record('drawText', p),
+    drawImageRect: (_img: unknown, _src: unknown, _dest: unknown, _p: any) => draws.push({ op: 'drawImageRect' }),
   };
 
   const stops = (colors: SkColorMock[], pos: number[]) => colors.map((c, i) => ({ offset: pos[i], color: c.__css }));
@@ -81,6 +83,15 @@ function mockSkia() {
     },
     PathEffect: { MakeDash: (arr: number[]) => ({ __dash: arr }) },
     ColorFilter: { MakeMatrix: (matrix: number[]) => ({ __matrix: matrix }) },
+    // A system font manager + font whose measureText reports a fixed advance,
+    // so anchor placement and gradient-box geometry are observable in tests.
+    FontMgr: { System: () => ({ matchFamilyStyle: (_n: string, _s: unknown) => ({ __typeface: true }) }) },
+    Font: (_typeface: unknown, size: number) => ({ __size: size, measureText: (t: string) => ({ width: t.length * size * 0.5 }) }),
+    Data: {
+      fromBase64: (b64: string) => ({ __b64: b64 }),
+      fromURI: (uri: string) => Promise.resolve({ __uri: uri }),
+    },
+    Image: { MakeImageFromEncoded: (_data: unknown) => ({ width: () => 4, height: () => 4 }) },
   };
 
   return { Skia, canvas, draws, layers };
@@ -145,17 +156,29 @@ test('divergence [skia] luminance matte uses a pure luma->alpha matrix (ignores 
   expect(matrix[18]).toBe(0); // no source-alpha contribution (the divergence)
 });
 
-// Skia's text + image draws are deliberate no-ops in this PoC backend (fonts
-// need an async typeface; images need an async decode seam — neither wired yet).
-// Canvas2D and SVG paint both. Pin the no-op so a future implementation is a
-// conscious change, not a silent one.
-test('divergence [skia] drawText and drawImage paint nothing', () => {
+// Text now paints: a filled text node draws once through the system font
+// manager, with the fill colour carried on the reused fill paint. (Previously a
+// deliberate no-op; the capability landed, so the pin is a real paint assertion.)
+test('[skia] drawText paints a filled glyph run', () => {
   const { Skia, canvas, draws } = mockSkia();
   const r = new SkiaRenderer(Skia, { width: 20, height: 20 });
   r.setCanvas(canvas);
   r.beginFrame();
   r.setFill('#ff0000');
   r.drawText('hello', 0, 10, 12, 'sans-serif', 'normal', 'start');
+  const text = draws.filter((d) => d.op === 'drawText');
+  expect(text.length).toBe(1);
+  expect(text[0].colorCss).toBe('#ff0000');
+});
+
+// Images now decode + paint. A data: URI decodes synchronously (fromBase64), so
+// the first frame after drawImage already paints it (an http URI would go async
+// and paint in on a later frame once whenImagesSettled resolves).
+test('[skia] drawImage decodes a data URI and paints it', () => {
+  const { Skia, canvas, draws } = mockSkia();
+  const r = new SkiaRenderer(Skia, { width: 20, height: 20 });
+  r.setCanvas(canvas);
+  r.beginFrame();
   r.drawImage('data:image/png;base64,AAAA', 0, 0, 10, 10);
-  expect(draws.length).toBe(0);
+  expect(draws.filter((d) => d.op === 'drawImageRect').length).toBe(1);
 });
