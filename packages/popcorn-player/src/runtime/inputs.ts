@@ -10,6 +10,12 @@ export interface InputState {
     x: number;
     y: number;
     isDown: boolean;
+    // Latched press edge: set true on every press, cleared once the loop's
+    // per-frame pointer-edge detection consumes it. Survives a press+release
+    // that both land between two frames (a quick tap), which `isDown` alone
+    // loses — the loop samples `isDown` once per frame and would see only the
+    // final `false`, missing the rising edge (no pointerdown/click).
+    pressed: boolean;
   };
   scroll: {
     x: number;
@@ -23,7 +29,7 @@ export interface InputState {
 
 export class InputTracker {
   private state: InputState = {
-    cursor: { x: 0, y: 0, isDown: false },
+    cursor: { x: 0, y: 0, isDown: false, pressed: false },
     scroll: { x: 0, y: 0, progress: 0 },
     time: 0,
   };
@@ -103,6 +109,7 @@ export class InputTracker {
 
   private handleMouseDown(_e: MouseEvent): void {
     this.state.cursor.isDown = true;
+    this.state.cursor.pressed = true;
   }
 
   private handleMouseUp(_e: MouseEvent): void {

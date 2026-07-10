@@ -596,11 +596,18 @@ export class RenderLoop {
     }
 
     const down = st.cursor.isDown;
-    if (down && !this.prevIsDown) {
+    // `pressed` latches a press that happened since the last frame even if the
+    // release already flipped `isDown` back to false — so a quick tap whose
+    // down+up both land between two frames still produces a rising edge (and,
+    // below, a matching falling edge + click). Consumed here, once per frame.
+    const pressed = st.cursor.pressed;
+    st.cursor.pressed = false;
+
+    if ((down || pressed) && !this.prevIsDown) {
       events.push({ event: "pointerdown", node: hit });
       this.downHit = hit;
     }
-    if (!down && this.prevIsDown) {
+    if (!down && (this.prevIsDown || pressed)) {
       events.push({ event: "pointerup", node: hit });
       if (hit && hit === this.downHit)
         events.push({ event: "click", node: hit });

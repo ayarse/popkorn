@@ -268,6 +268,10 @@ export const PopcornView = forwardRef<PopcornViewRef, PopcornViewProps>(
       cursor.x = p.x;
       cursor.y = p.y;
       cursor.isDown = true;
+      // Latch the press so a quick tap (grant+release between two frames) still
+      // produces a pointerdown/click edge — the loop samples isDown once per
+      // live frame and would otherwise miss a release that beats the next frame.
+      cursor.pressed = true;
       pokeRef.current?.();
     };
 

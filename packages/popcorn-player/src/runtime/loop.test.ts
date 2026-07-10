@@ -357,3 +357,51 @@ test("chained matte: a matte source with its own mask composites nested, not sol
   loop.seek(0);
   expect(composites).toBe(2); // outer content->src, nested src->src2 (was 1 before the fix)
 });
+
+// Regression: a quick tap whose press AND release both land between two live
+// frames must still fire a machine click(). The loop samples cursor.isDown once
+// per live frame; without the `pressed` edge latch (set by the input layer on
+// press, consumed here) the rising edge is lost — isDown reads false at sample
+// time — so pointerdown/click never fire. This is the Expo/RN "tapping a shape
+// does nothing" bug: onResponderGrant+Release beat the next rAF tick.
+test("tap between frames fires machine click (pressed edge latch)", () => {
+  const g = globalThis as unknown as {
+    requestAnimationFrame?: (cb: (t: number) => void) => number;
+    cancelAnimationFrame?: (id: number) => void;
+  };
+  const prevRaf = g.requestAnimationFrame;
+  const prevCancel = g.cancelAnimationFrame;
+  const q: ((t: number) => void)[] = [];
+  g.requestAnimationFrame = (cb) => q.push(cb);
+  g.cancelAnimationFrame = () => {};
+  try {
+    const root = buildSceneGraph(
+      parse(`
+        :root { width: 100px; height: 100px; }
+        @machine m { initial: off; state off { to: on on click(#bulb); } state on {} }
+        #bulb { type: circle; cx: 50; cy: 50; r: 50; }
+      `),
+    );
+    const loop = new RenderLoop(createRecordingRenderer());
+    loop.setScene(root);
+    loop.start(); // live frame 0, schedules frame 1
+
+    // Emulate the input layer for a tap that lands entirely between frames:
+    // grant sets position + isDown + the pressed latch, release clears isDown.
+    const cursor = loop.getInputTracker().getState().cursor;
+    cursor.x = 50;
+    cursor.y = 50;
+    cursor.isDown = true;
+    cursor.pressed = true; // set by InputTracker.handleMouseDown / RN onTouch
+    cursor.isDown = false; // release before the next frame samples
+
+    q.shift()?.(16); // live frame 1 — detects the latched tap
+
+    expect(loop.getStateMachineRunner().currentState("m")).toBe("on");
+    expect(cursor.pressed).toBe(false); // latch consumed exactly once
+    loop.stop();
+  } finally {
+    g.requestAnimationFrame = prevRaf;
+    g.cancelAnimationFrame = prevCancel;
+  }
+});

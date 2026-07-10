@@ -108,7 +108,7 @@ export class VariableResolver {
    * Update input state for dynamic variables
    */
   private inputState: InputState = {
-    cursor: { x: 0, y: 0, isDown: false },
+    cursor: { x: 0, y: 0, isDown: false, pressed: false },
     scroll: { x: 0, y: 0, progress: 0 },
     time: 0,
   };
