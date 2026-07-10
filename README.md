@@ -2,6 +2,8 @@
 
 **What if a CSS animation could leave the browser?**
 
+![Demo](./demo.gif)
+
 Popcorn is a portable format for motion graphics, and a small runtime that plays
 it. A scene is a self-contained file written in syntax you already know
 (`@keyframes`, `transform`, `offset-path`, `z-index`), and the same file runs on
