@@ -93,10 +93,13 @@ checks live in the sticker/demo files under `examples/lottie/`.
 free XML reader) + `packages/popcorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`,
 raw-string input, matches `.svg`). Shares the same `Converter`/`convertSvg`/
 `validate` contract shape as the Lottie converter, so the demo's **Import**
-button branches on file type into either. **Phase 1 is static import only** — the
-first frame; embedded `<style>`/SMIL animation is dropped with a warning (animated
-SVG is phase 2). Skips mirror Lottie's plus SVG-only ones: `<pattern>`,
-`<marker>`, `<foreignObject>`, `<textPath>`, SMIL. Batch gate: run `--batch
+button branches on file type into either. **Animation imports too:** CSS
+`@keyframes` from `<style>` blocks and basic SMIL `<animate>`/`<animateTransform>`
+map into Popcorn `@keyframes` + `animation-*` (opacity/fill/stroke/transform/dash);
+unmappable channels degrade to a warning (`@media`-wrapped keyframes, gradient
+keyframes, `<set>`, `<animateMotion>`, event/sync-base begins, additive/accumulate,
+skew). Static skips mirror Lottie's plus SVG-only ones: `<pattern>`,
+`<marker>`, `<foreignObject>`, `<textPath>`. Batch gate: run `--batch
 examples/svg` over the fixtures in `examples/svg/` before/after converter changes.
 
 ## Deliberate skips (don't "helpfully" add these)

@@ -860,7 +860,10 @@ into Popcorn DSL. The mapping is the natural one:
   is decomposed onto each node's `transform`; shear bakes into geometry.
 - `<clipPath>` and luminance `<mask>` → Popcorn clip/mask.
 
-**Phase 1 is static only** — the first frame is imported. An embedded
-`<style>`/SMIL animation is dropped with a warning (animated import is phase 2).
-Deliberately skipped, matching the Lottie skips: SMIL timing, `<pattern>`,
-`<marker>`, `<foreignObject>`, and `<textPath>`.
+**Animation imports too** — CSS `@keyframes` from `<style>` blocks and basic
+SMIL `<animate>`/`<animateTransform>` map into Popcorn `@keyframes` +
+`animation-*` (opacity/fill/stroke/transform/dash channels). Unmappable cases
+degrade to a warning: `@media`-wrapped keyframes, gradient keyframes, `<set>`,
+`<animateMotion>`, event/sync-base begins, additive/accumulate, and skew.
+Deliberately skipped, matching the Lottie skips: `<pattern>`, `<marker>`,
+`<foreignObject>`, and `<textPath>`.

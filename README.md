@@ -16,8 +16,8 @@ rather than inventing syntax. Interactivity is declarative — `var()` and
 `input(cursor.x)` bindings — not a scripting engine. Real Lottie files convert
 into the DSL via the bundled converter (`packages/popcorn-converters/src/cli.ts`, or the
 demo's Import button), validated continuously against the LottieFiles
-conformance corpus. Static SVG imports too, via `packages/popcorn-converters/src/cli.ts` (same
-Import button) — phase 1 brings in the artwork; animated SVG is a later phase.
+conformance corpus. SVG imports too, via `packages/popcorn-converters/src/cli.ts` (same
+Import button) — artwork plus CSS `@keyframes` and basic SMIL animation.
 
 ## Packages
 
