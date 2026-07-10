@@ -14,13 +14,9 @@ import {
   transformPoint,
 } from "../renderer/types";
 import { resolveClip } from "../scene/clip";
-import { applyCommandsToPath } from "../scene/path-parser";
+import { flattenToSubpaths } from "../scene/path-parser";
 import { polystarCommands } from "../scene/polystar";
-import {
-  computeWorldMatrix,
-  getScratchContext,
-  getShapeBounds,
-} from "../scene/transform";
+import { computeWorldMatrix, getShapeBounds } from "../scene/transform";
 import type {
   CircleData,
   EllipseData,
@@ -129,8 +125,8 @@ function hitTestNode(
 
 /**
  * Test whether a local-space point lies inside a resolved clip region.
- * circle/rect are pure math; path reuses the Path2D scratch context and, like
- * path hit-testing, degrades to `false` (rejects) when no DOM is available.
+ * All three cases are pure math (no DOM/Path2D), so clipping works headless and
+ * on React Native exactly as it does in the browser.
  */
 function isPointInClip(
   clip: ResolvedClip,
@@ -150,16 +146,8 @@ function isPointInClip(
       const dy = point.y - clip.cy;
       return dx * dx + dy * dy <= clip.r * clip.r;
     }
-    case "path": {
-      const ctx = getScratchContext();
-      if (!ctx || typeof Path2D === "undefined") return false;
-      return ctx.isPointInPath(
-        buildPath2D(clip.commands),
-        point.x,
-        point.y,
-        fillRule,
-      );
-    }
+    case "path":
+      return isPointInCommands(clip.commands, point, fillRule);
   }
 }
 
@@ -224,28 +212,84 @@ function isPointInEllipse(ellipse: EllipseData, point: Point): boolean {
 }
 
 /**
- * Path hit-testing via Path2D + ctx.isPointInPath on a shared scratch context.
- * Falls back to false when neither Path2D nor a canvas context is available
- * (e.g. a headless test runner without a DOM).
+ * Path (and star/polygon) hit-testing by pure math: flatten the commands to
+ * polyline subpaths via the shared flattener, then run a point-in-polygon test.
+ * No Path2D, no canvas — so this works identically headless and on React Native
+ * (where the old Path2D scratch-context path silently missed every path shape).
+ * Each subpath is implicitly closed, matching canvas fill semantics.
  */
 function isPointInCommands(
   commands: PathCommand[],
   point: Point,
   fillRule: FillRule,
 ): boolean {
-  const ctx = getScratchContext();
-  if (!ctx || typeof Path2D === "undefined") return false;
-  const path = buildPath2D(commands);
-  return ctx.isPointInPath(path, point.x, point.y, fillRule);
+  const subpaths = flattenToSubpaths(commands);
+  if (fillRule === "evenodd") {
+    // Even-odd: total ray-crossings parity across every subpath.
+    let crossings = 0;
+    for (const poly of subpaths) crossings += rayCrossings(poly, point);
+    return (crossings & 1) === 1;
+  }
+  // Nonzero: signed winding number summed across every subpath.
+  let winding = 0;
+  for (const poly of subpaths) winding += windingNumber(poly, point);
+  return winding !== 0;
 }
 
 /**
- * Build a Path2D from parsed path commands using the same emitter as the
- * renderer (scene/path-parser), so hit geometry matches paint exactly —
- * including real elliptical arcs.
+ * `> 0` if `point` is left of the directed edge a→b, `< 0` if right, `0` if
+ * collinear (the sign of the edge's 2D cross product with the point).
  */
-function buildPath2D(commands: PathCommand[]): Path2D {
-  const path = new Path2D();
-  applyCommandsToPath(path, commands);
-  return path;
+function isLeft(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  px: number,
+  py: number,
+): number {
+  return (bx - ax) * (py - ay) - (px - ax) * (by - ay);
+}
+
+/**
+ * Winding number of an implicitly-closed polyline around `point` (Sunday's
+ * algorithm). Nonzero ⇒ inside for fillRule: "nonzero".
+ */
+function windingNumber(poly: Point[], point: Point): number {
+  let wn = 0;
+  const n = poly.length;
+  for (let i = 0; i < n; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % n]; // wrap closes the subpath
+    if (a.y <= point.y) {
+      if (b.y > point.y && isLeft(a.x, a.y, b.x, b.y, point.x, point.y) > 0)
+        wn++;
+    } else if (
+      b.y <= point.y &&
+      isLeft(a.x, a.y, b.x, b.y, point.x, point.y) < 0
+    )
+      wn--;
+  }
+  return wn;
+}
+
+/**
+ * Number of times a rightward ray from `point` crosses an implicitly-closed
+ * polyline. Odd total across subpaths ⇒ inside for fillRule: "evenodd".
+ */
+function rayCrossings(poly: Point[], point: Point): number {
+  let cn = 0;
+  const n = poly.length;
+  for (let i = 0; i < n; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % n]; // wrap closes the subpath
+    if (
+      (a.y <= point.y && b.y > point.y) ||
+      (a.y > point.y && b.y <= point.y)
+    ) {
+      const t = (point.y - a.y) / (b.y - a.y);
+      if (point.x < a.x + t * (b.x - a.x)) cn++;
+    }
+  }
+  return cn;
 }

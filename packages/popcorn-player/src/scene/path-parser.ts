@@ -708,6 +708,29 @@ export function computePathLength(commands: PathCommand[]): number {
 }
 
 /**
+ * Flatten parsed path commands into per-subpath polylines (one point array per
+ * `M` jump), reusing the shared flattener so hit-testing sees exactly the curve
+ * that gets drawn. Each subpath is left open — consumers close it implicitly if
+ * their test (e.g. point-in-fill) needs it, matching canvas fill semantics.
+ * NOTE: fixed LENGTH_SAMPLES-per-curve, same accepted ceiling as the other
+ * flatten consumers; adaptive subdivision would be tighter for extreme curves.
+ */
+export function flattenToSubpaths(
+  commands: PathCommand[],
+): { x: number; y: number }[][] {
+  const subpaths: { x: number; y: number }[][] = [];
+  let current: { x: number; y: number }[] | null = null;
+  flattenPath(commands, (x, y, isMove) => {
+    if (isMove || current === null) {
+      current = [];
+      subpaths.push(current);
+    }
+    current.push({ x, y });
+  });
+  return subpaths;
+}
+
+/**
  * A motion path: the outline flattened to points with a cumulative arc-length
  * table, so a distance 0..1 maps to a position + tangent by binary search.
  * Built once (offset-path is static); see buildMotionPath / samplePathAt.
