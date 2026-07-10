@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="48" viewBox="0 0 120 48">
+  <!-- Phase-2 fixture: CSS @keyframes imported into Popcorn. Exercises opacity
+       + transform (scale) keyframes, per-keyframe easing, the animation
+       shorthand, infinite iteration, and staggered negative delays. -->
+  <style>
+    @keyframes pulse {
+      0%   { opacity: 0.3; transform: scale(0.6); animation-timing-function: ease-in; }
+      50%  { opacity: 1;   transform: scale(1);   animation-timing-function: ease-out; }
+      100% { opacity: 0.3; transform: scale(0.6); }
+    }
+    .dot { transform-origin: 0 0; animation: pulse 1.2s linear infinite; }
+    #d2 { animation-delay: -0.4s; }
+    #d3 { animation-delay: -0.8s; }
+    @keyframes sweep { to { stroke-dashoffset: 0; } }
+    .bar { animation: sweep 1.2s ease-in-out infinite; }
+  </style>
+  <circle id="d1" class="dot" cx="24" cy="24" r="8" fill="#6366f1" />
+  <circle id="d2" class="dot" cx="60" cy="24" r="8" fill="#8b5cf6" />
+  <circle id="d3" class="dot" cx="96" cy="24" r="8" fill="#ec4899" />
+  <line class="bar" x1="12" y1="42" x2="108" y2="42" stroke="#94a3b8"
+        stroke-width="3" stroke-dasharray="96" stroke-dashoffset="96" />
+</svg>

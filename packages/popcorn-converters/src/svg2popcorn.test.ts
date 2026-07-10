@@ -398,20 +398,198 @@ test("image with a data URI maps to content: url()", () => {
 
 // --- warnings / blocked -----------------------------------------------------
 
-test("SMIL animation is skipped with a warning", () => {
-  const { warnings } = conv(
-    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="x" to="5"/></rect></svg>`,
+// --- SMIL <animate> / <animateTransform> import (phase 2 part 2) ------------
+
+test("SMIL <animate> values + keyTimes → keyframe stops", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="opacity" values="1;0.2;1" keyTimes="0;0.25;1" dur="2s" repeatCount="indefinite"/></rect></svg>`,
   );
-  expect(warnings.some((w) => w.includes("SMIL"))).toBe(true);
+  expect(warnings).toEqual([]);
+  expect(css).toContain("0% { opacity: 1;");
+  expect(css).toContain("25% { opacity: 0.2;");
+  expect(css).toContain("100% { opacity: 1;");
+  expect(block(css, "rect1")).toContain(
+    "animation: rect1-opacity 2s linear infinite",
+  );
 });
 
-test("<style> @keyframes + CSS animation are skipped with warnings", () => {
-  const { css, warnings } = conv(
-    `<svg viewBox="0 0 48 48"><style>@keyframes spin { to { transform: rotate(360deg); } } .s{animation: spin 1s linear infinite}</style><rect class="s" width="10" height="10"/></svg>`,
+test("SMIL <animate> from/to → two stops with even spacing", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="opacity" from="1" to="0" dur="1s"/></rect></svg>`,
   );
-  expect(warnings.some((w) => w.includes("@keyframes"))).toBe(true);
-  expect(warnings.some((w) => w.includes("CSS animation"))).toBe(true);
+  expect(css).toContain("0% { opacity: 1;");
+  expect(css).toContain("100% { opacity: 0;");
+});
+
+test("SMIL <animate> from/by computes the endpoint", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="stroke-width" from="2" by="3" dur="1s"/></rect></svg>`,
+  );
+  expect(css).toContain("stroke-width: 5px");
+});
+
+test("SMIL animateTransform rotate without center", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 48 48"><rect width="10" height="10"><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1s" repeatCount="indefinite"/></rect></svg>`,
+  );
+  expect(warnings).toEqual([]);
+  expect(css).toContain("transform: rotate(360deg)");
+  expect(block(css, "rect1")).not.toContain("transform-origin");
+});
+
+test("SMIL animateTransform rotate with center → transform-origin", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 48 48"><rect width="10" height="10"><animateTransform attributeName="transform" type="rotate" from="0 24 24" to="360 24 24" dur="1s"/></rect></svg>`,
+  );
+  expect(block(css, "rect1")).toContain("transform-origin: 24px 24px");
+});
+
+test("SMIL calcMode=spline → per-stop cubic-bezier easing", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="opacity" values="0;1" dur="1s" calcMode="spline" keySplines="0.42 0 0.58 1"/></rect></svg>`,
+  );
+  expect(css).toContain(
+    "animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1)",
+  );
+});
+
+test("SMIL calcMode=discrete → step-end easing", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="opacity" values="0;1" dur="1s" calcMode="discrete"/></rect></svg>`,
+  );
+  expect(css).toContain("animation-timing-function: step-end");
+});
+
+test("SMIL fill=freeze → forwards fill mode", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="opacity" from="1" to="0" dur="1s" fill="freeze"/></rect></svg>`,
+  );
+  expect(block(css, "rect1")).toContain("forwards");
+});
+
+test("SMIL unmappable attributeName warns and drops", () => {
+  const { warnings, css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="width" from="5" to="8" dur="1s"/></rect></svg>`,
+  );
+  expect(warnings.some((w) => w.includes("not supported"))).toBe(true);
+  expect(block(css, "rect1")).not.toContain("animation:");
+});
+
+test("SMIL <set> is still skipped with a warning", () => {
+  const { warnings, css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><set attributeName="opacity" to="0"/></rect></svg>`,
+  );
+  expect(warnings.some((w) => w.includes("<set>"))).toBe(true);
+  expect(block(css, "rect1")).not.toContain("animation:");
+});
+
+test("SMIL same-channel conflict warns and keeps the first", () => {
+  const { warnings, css } = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5"><animate attributeName="opacity" from="1" to="0" dur="1s"/><animate attributeName="opacity" from="0" to="1" dur="2s"/></rect></svg>`,
+  );
+  expect(warnings.some((w) => w.includes("only the first kept"))).toBe(true);
+  const b = block(css, "rect1");
+  expect(b).toContain("animation: rect1-opacity 1s linear");
+  expect(b).not.toContain("2s");
+});
+
+// --- CSS @keyframes animation import (phase 2) ------------------------------
+
+test("imports a transform @keyframes + animation shorthand (spinner)", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 48 48"><style>@keyframes spin { to { transform: rotate(360deg); } } .s{transform-origin:24px 24px;animation: spin 1s linear infinite}</style><path class="s" d="M24 4 a20 20 0 0 1 20 20"/></svg>`,
+  );
+  expect(warnings).toEqual([]);
+  expect(css).toContain("@keyframes spin {");
+  expect(css).toContain("100% { transform: rotate(360deg); }");
+  const b = block(css, "path1");
+  expect(b).toContain("animation: spin 1s linear infinite");
+  expect(b).toContain("transform-origin: 24px 24px");
+});
+
+test("imports opacity + fill keyframes with percentage stops", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><style>@keyframes blink { 0%{opacity:1;fill:#f00} 50%{opacity:0.2;fill:#00ff00} 100%{opacity:1;fill:red} }</style><rect class="b" width="5" height="5" style="animation:blink 2s ease-in-out infinite"/></svg>`,
+  );
+  expect(css).toContain("@keyframes blink {");
+  expect(css).toContain("0% { opacity: 1; fill: #ff0000; }");
+  expect(css).toContain("50% { opacity: 0.2; fill: #00ff00; }");
+  expect(block(css, "rect1")).toContain(
+    "animation: blink 2s ease-in-out infinite",
+  );
+});
+
+test("animation shorthand: duration/iteration/direction/fill-mode round-trip", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><style>@keyframes m { to{opacity:0} }</style><rect class="x" width="5" height="5" style="animation:m 500ms 1s 3 alternate forwards"/></svg>`,
+  );
+  const b = block(css, "rect1");
+  expect(b).toContain("animation: m 500ms 1s 3 alternate forwards");
+});
+
+test("infinite iteration is preserved", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><style>@keyframes p { to{opacity:0} }</style><rect class="x" width="5" height="5" style="animation:p 1s infinite"/></svg>`,
+  );
+  expect(block(css, "rect1")).toContain("animation: p 1s infinite");
+});
+
+test("per-keyframe cubic-bezier and steps easing map through", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><style>@keyframes e { 0%{opacity:1;animation-timing-function:cubic-bezier(0.3,0,1,1)} 50%{opacity:0.5;animation-timing-function:steps(4, jump-end)} 100%{opacity:1} }</style><rect class="x" width="5" height="5" style="animation:e 1s linear infinite"/></svg>`,
+  );
+  expect(css).toContain(
+    "0% { opacity: 1; animation-timing-function: cubic-bezier(0.3,0,1,1); }",
+  );
+  expect(css).toContain("animation-timing-function: steps(4, jump-end);");
+});
+
+test("unmappable animated property warns and is dropped, mappable kept", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 10 10"><style>@keyframes w { 0%{opacity:1;width:5} 100%{opacity:0;width:10} }</style><rect class="x" width="5" height="5" style="animation:w 1s linear"/></svg>`,
+  );
+  expect(warnings.some((m) => m.includes("'width' not supported"))).toBe(true);
+  expect(css).toContain("0% { opacity: 1; }");
+  expect(css).not.toContain("width: 10;");
+});
+
+test("referencing an undefined @keyframes warns and drops the animation", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 10 10"><style>.x{animation:ghost 1s linear}</style><rect class="x" width="5" height="5"/></svg>`,
+  );
+  expect(warnings.some((m) => m.includes("no matching @keyframes"))).toBe(true);
   expect(css).not.toContain("animation:");
+});
+
+test("animated transform on a sheared/baked element is NOT baked live — dropped with warning", () => {
+  // The outer skew forces geometry baking; the inner element's animated
+  // transform can't ride the baked path, so it must degrade with a warning
+  // (never silently apply in the wrong space).
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 100 100"><style>@keyframes r { to{transform:rotate(90deg)} }</style><g transform="skewX(20)"><rect class="s" width="10" height="10" style="animation:r 1s linear infinite"/></g></svg>`,
+  );
+  expect(warnings.some((m) => m.includes("baked/sheared"))).toBe(true);
+  // Geometry stayed baked to a path; no transform channel emitted.
+  expect(css).toContain("type: path");
+  expect(css).not.toContain("transform: rotate(90deg)");
+});
+
+test("animated transform on an un-sheared element stays live (native shape kept)", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 100 100"><style>@keyframes r { to{transform:rotate(90deg)} }</style><rect class="s" width="10" height="10" transform-origin="5px 5px" style="animation:r 1s linear infinite"/></svg>`,
+  );
+  expect(warnings).toEqual([]);
+  const b = block(css, "rect1");
+  expect(b).toContain("type: rect"); // NOT baked to a path
+  expect(b).toContain("animation: r 1s linear infinite");
+  expect(css).toContain("100% { transform: rotate(90deg); }");
+});
+
+test("@media-wrapped @keyframes degrades to a warning", () => {
+  const { warnings } = conv(
+    `<svg viewBox="0 0 10 10"><style>@media (min-width:1px){@keyframes q{to{opacity:0}}}</style><rect width="5" height="5"/></svg>`,
+  );
+  expect(warnings.some((m) => m.includes("@media"))).toBe(true);
 });
 
 test("pattern / marker / foreignObject / textPath land in the blocked set", () => {

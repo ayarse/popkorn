@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+  <!-- Phase-2 (part 2) target: SMIL <animate>/<animateTransform> import.
+       The gear rotates about its center; the dot pulses opacity via a spline. -->
+  <g transform="translate(60 60)">
+    <path fill="#6366f1"
+          d="M-8 -30 h16 l3 9 8 5 9 -3 8 14 -6 7 0 10 6 7 -8 14 -9 -3 -8 5 -3 9 h-16 l-3 -9 -8 -5 -9 3 -8 -14 6 -7 0 -10 -6 -7 8 -14 9 3 8 -5 z">
+      <animateTransform attributeName="transform" type="rotate"
+                        from="0" to="360" dur="6s" repeatCount="indefinite" />
+    </path>
+    <circle cx="0" cy="0" r="10" fill="#0ea5e9">
+      <animate attributeName="opacity" values="1;0.3;1" keyTimes="0;0.5;1"
+               dur="1.6s" calcMode="spline"
+               keySplines="0.42 0 0.58 1;0.42 0 0.58 1"
+               repeatCount="indefinite" />
+    </circle>
+  </g>
+</svg>

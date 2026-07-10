@@ -16,7 +16,19 @@
  * element; inheritable paint flows down the tree. `<use>`/`<symbol>` expand
  * inline; gradients/clipPaths/masks/filters resolve from `<defs>`.
  *
- * Phase 1 is static: SMIL and `<style>` @keyframes are skipped with a warning.
+ * Phase 2 (part 1): CSS `@keyframes` from `<style>` blocks import into Popcorn
+ * `@keyframes` + `animation-*` decls (opacity/fill/stroke/transform/dash channels;
+ * timing/easing/iteration/direction/fill-mode). Unmappable properties, gradient
+ * keyframes, `@media`-wrapped keyframes, and animated transforms on baked/sheared
+ * geometry degrade to a warning.
+ *
+ * Phase 2 (part 2): SMIL `<animate>`/`<animateTransform>` import through the same
+ * IR — attributeName routes through the CSS property mapping; animateTransform
+ * translate/rotate/scale become transform keyframes (rotate center → transform-
+ * origin). values/keyTimes, from/to/by, calcMode spline/discrete/paced, dur,
+ * clock-value begin, repeatCount, and fill="freeze" are honored. `<set>`,
+ * `<animateMotion>`, event/sync-base begins, additive/accumulate, and skew
+ * degrade to a warning.
  */
 import { parse } from "@popcorn/parser";
 import { buildSceneGraph, parsePath } from "@popcorn/player";
@@ -361,36 +373,99 @@ interface StyleBlock {
   decls: Style;
 }
 
-/** Parse a `<style>` element's CSS into flat selector->decls blocks. */
-function parseCss(css: string, warn: (m: string) => void): StyleBlock[] {
+/** One `@keyframes` stop: its offset selectors (0..100) and raw declarations. */
+interface RawStop {
+  offsets: number[];
+  decls: Style;
+}
+
+interface StyleSheet {
+  blocks: StyleBlock[];
+  keyframes: Map<string, RawStop[]>;
+}
+
+/** Split CSS into top-level `{prelude, body}` rules, respecting brace nesting. */
+function splitTopLevelRules(css: string): { prelude: string; body: string }[] {
+  const out: { prelude: string; body: string }[] = [];
+  let i = 0;
+  const nStart = css.length;
+  while (i < nStart) {
+    // Read a prelude up to the next '{' (or end).
+    const brace = css.indexOf("{", i);
+    if (brace < 0) break;
+    const prelude = css.slice(i, brace);
+    // Capture a balanced body.
+    let depth = 1,
+      j = brace + 1;
+    for (; j < nStart && depth > 0; j++) {
+      if (css[j] === "{") depth++;
+      else if (css[j] === "}") depth--;
+    }
+    out.push({ prelude, body: css.slice(brace + 1, j - 1) });
+    i = j;
+  }
+  return out;
+}
+
+function parseDecls(body: string): Style {
+  const decls: Style = {};
+  for (const d of body.split(";")) {
+    const i = d.indexOf(":");
+    if (i < 0) continue;
+    decls[d.slice(0, i).trim().toLowerCase()] = d.slice(i + 1).trim();
+  }
+  return decls;
+}
+
+/** Parse a `@keyframes` body into its stops (from/to/percent selectors + decls). */
+function parseKeyframeStops(body: string): RawStop[] {
+  const stops: RawStop[] = [];
+  for (const { prelude, body: stopBody } of splitTopLevelRules(body)) {
+    const offsets: number[] = [];
+    for (const sel of prelude.split(",")) {
+      const s = sel.trim().toLowerCase();
+      if (s === "from") offsets.push(0);
+      else if (s === "to") offsets.push(100);
+      else {
+        const v = parseFloat(s);
+        if (!isNaN(v)) offsets.push(v);
+      }
+    }
+    if (offsets.length) stops.push({ offsets, decls: parseDecls(stopBody) });
+  }
+  return stops;
+}
+
+/** Parse a `<style>` element's CSS into flat selector->decls blocks + keyframes. */
+function parseCss(css: string, warn: (m: string) => void): StyleSheet {
   // Strip comments.
   css = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const blocks: StyleBlock[] = [];
+  const keyframes = new Map<string, RawStop[]>();
   let order = 0;
-  const re = /([^{}]+)\{([^{}]*)\}/g;
-  let m: RegExpExecArray | null = re.exec(css);
-  let sawAt = false;
-  for (; m !== null; m = re.exec(css)) {
-    const selText = m[1].trim();
-    if (selText.startsWith("@")) {
-      sawAt = true;
+  for (const { prelude, body } of splitTopLevelRules(css)) {
+    const selText = prelude.trim();
+    if (selText[0] === "@") {
+      const kf = selText.match(/^@(?:-webkit-)?keyframes\s+([\w-]+)/i);
+      if (kf) {
+        keyframes.set(kf[1], parseKeyframeStops(body));
+      } else if (/^@media/i.test(selText)) {
+        // Nested keyframes/rules inside @media aren't cascaded here.
+        if (/@(?:-webkit-)?keyframes/i.test(body))
+          warn("SVG <style> @media-wrapped @keyframes skipped");
+        else warn("SVG <style> @media rule skipped");
+      } else {
+        warn("SVG <style> at-rule skipped");
+      }
       continue;
-    } // @keyframes/@media body — skipped
-    const decls: Style = {};
-    for (const d of m[2].split(";")) {
-      const i = d.indexOf(":");
-      if (i < 0) continue;
-      decls[d.slice(0, i).trim().toLowerCase()] = d.slice(i + 1).trim();
     }
+    const decls = parseDecls(body);
     for (const one of selText.split(",")) {
       const sel = parseSelector(one.trim(), warn);
       if (sel) blocks.push({ sel: { ...sel, order: order++ }, decls });
     }
   }
-  if (css.includes("@keyframes"))
-    warn("SVG <style> @keyframes animation skipped (phase 1 static import)");
-  else if (sawAt) warn("SVG <style> at-rule skipped");
-  return blocks;
+  return { blocks, keyframes };
 }
 
 function parseSelector(
@@ -786,6 +861,11 @@ export class Converter {
   private counter = 0;
   private byId = new Map<string, SvgNode>();
   private sheet: StyleBlock[] = [];
+  private keyframes = new Map<string, RawStop[]>();
+  // Emitted @keyframes blocks (top-level), and the dedup/name maps that back them.
+  private keyframeBlocks: string[] = [];
+  private emittedKf = new Map<string, string>(); // `${name}|${allowTransform}` -> emitted name
+  private usedKfNames = new Set<string>();
   private vbW = 0;
   private vbH = 0;
   private useStack = new Set<string>();
@@ -824,7 +904,11 @@ export class Converter {
 
     // Collect <style> element CSS.
     const styleText = collectStyles(svg);
-    if (styleText) this.sheet = parseCss(styleText, (m) => this.warnOnce(m));
+    if (styleText) {
+      const parsed = parseCss(styleText, (m) => this.warnOnce(m));
+      this.sheet = parsed.blocks;
+      this.keyframes = parsed.keyframes;
+    }
 
     // Stage from viewBox (preferred) or width/height attrs.
     const vb = (svg.attrs.get("viewBox") || "")
@@ -880,6 +964,10 @@ export class Converter {
     out.push(`  height: ${num(h)}px;`);
     out.push(`}`);
     out.push("");
+    for (const kf of this.keyframeBlocks) {
+      out.push(kf);
+      out.push("");
+    }
     for (const r of top) out.push(serializeRule(r, 0, true));
     return (
       out
@@ -924,20 +1012,8 @@ export class Converter {
         this.blocked.add("textPath");
         return null;
     }
-    // SMIL animation children present -> phase 2.
-    if (
-      el.children.some((c) =>
-        ["animate", "animatetransform", "set", "animatemotion"].includes(c.tag),
-      )
-    )
-      this.warnOnce(
-        "SVG SMIL animation (<animate>/<set>) skipped (phase 1 static import)",
-      );
-
     const style = computeStyle(el, ancestors, inherited, this.sheet);
     if (style.display === "none" || style.visibility === "hidden") return null;
-    if (style.animation)
-      this.warnOnce("SVG CSS animation skipped (phase 1 static import)");
 
     // Own transform, composed under the accumulated bake matrix.
     const tf = el.attrs.get("transform") || style.transform;
@@ -982,6 +1058,8 @@ export class Converter {
         children: kids,
       };
       this.applyContainer(el, style, group, ctx.emitCTM, ctx.bakeM);
+      this.emitAnimation(style, group, baking);
+      this.emitSmil(el, group, baking);
       return [group];
     }
 
@@ -1128,7 +1206,334 @@ export class Converter {
     this.applyClip(el, rule);
     this.applyMaskRef(el, rule);
     this.applyFilter(el, rule);
+    this.emitAnimation(style, rule, baking);
+    this.emitSmil(el, rule, baking);
     return rule;
+  }
+
+  // --- CSS @keyframes animation -------------------------------------------
+
+  /** Map raw CSS keyframe decls into Popcorn decl strings (registry-checked). */
+  private mapAnimDecls(decls: Style, allowTransform: boolean): string[] {
+    const out: string[] = [];
+    for (const [prop, raw] of Object.entries(decls)) {
+      switch (prop) {
+        case "animation-timing-function":
+          break; // hoisted to per-keyframe easing, not a value channel
+        case "opacity": {
+          const o = parseFloat(raw);
+          if (!isNaN(o)) out.push(`opacity: ${num(o, 3)}`);
+          break;
+        }
+        case "fill":
+        case "stroke": {
+          if (/^url\(/i.test(raw.trim())) {
+            this.warnOnce(`animated ${prop} gradient not supported — dropped`);
+            break;
+          }
+          if (raw.trim() === "none") {
+            this.warnOnce(`animated ${prop}: none keyframe dropped`);
+            break;
+          }
+          out.push(`${prop}: ${this.solid(raw, 1)}`);
+          break;
+        }
+        case "stroke-width":
+          out.push(`stroke-width: ${num(parseFloat(raw))}px`);
+          break;
+        case "stroke-dashoffset":
+          out.push(`stroke-dashoffset: ${num(parseFloat(raw))}px`);
+          break;
+        case "transform": {
+          if (!allowTransform) {
+            this.warnOnce(
+              "animated transform on a baked/sheared element dropped — geometry stays static",
+            );
+            break;
+          }
+          const t = mapAnimTransform(raw, (m) => this.warnOnce(m));
+          if (t) out.push(`transform: ${t}`);
+          break;
+        }
+        default:
+          this.warnOnce(`animated property '${prop}' not supported — dropped`);
+      }
+    }
+    return out;
+  }
+
+  /** Map a CSS timing-function to a Popcorn one, or undefined (defaults to ease). */
+  private mapEasing(raw: string): string | undefined {
+    const s = raw.trim();
+    if (
+      s === "linear" ||
+      s === "ease" ||
+      s === "ease-in" ||
+      s === "ease-out" ||
+      s === "ease-in-out" ||
+      s === "step-start" ||
+      s === "step-end"
+    )
+      return s;
+    if (/^(cubic-bezier|steps|linear)\s*\(/i.test(s))
+      return s.replace(/\s+/g, " ");
+    this.warnOnce(
+      `animation-timing-function '${s}' not supported — defaulted to ease`,
+    );
+    return undefined;
+  }
+
+  /** Resolve a referenced @keyframes to an emitted Popcorn name, or null. */
+  private resolveKeyframes(
+    name: string,
+    allowTransform: boolean,
+  ): string | null {
+    const raw = this.keyframes.get(name);
+    if (!raw) {
+      this.warnOnce(
+        `@keyframes '${name}' referenced but not defined — animation dropped`,
+      );
+      return null;
+    }
+    const key = `${name}|${allowTransform}`;
+    const cached = this.emittedKf.get(key);
+    if (cached) return cached;
+
+    const stops: AnimStop[] = [];
+    for (const rs of raw) {
+      const easingRaw = rs.decls["animation-timing-function"];
+      const mapped = this.mapAnimDecls(rs.decls, allowTransform);
+      if (mapped.length === 0 && !easingRaw) continue;
+      stops.push({
+        offsets: rs.offsets,
+        decls: mapped,
+        easing: easingRaw ? this.mapEasing(easingRaw) : undefined,
+      });
+    }
+    if (stops.every((s) => s.decls.length === 0)) {
+      this.warnOnce(
+        `@keyframes '${name}' had no supported animated properties — animation dropped`,
+      );
+      return null;
+    }
+
+    let base = name.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!base || !/^[a-zA-Z_]/.test(base)) base = `kf-${base}`;
+    let emitted = base,
+      k = 2;
+    while (this.usedKfNames.has(emitted)) emitted = `${base}-${k++}`;
+    this.usedKfNames.add(emitted);
+    this.emittedKf.set(key, emitted);
+    this.keyframeBlocks.push(emitKeyframes({ name: emitted, stops }));
+    return emitted;
+  }
+
+  /** Emit `animation:`/`transform-origin` decls for an element from its style. */
+  private emitAnimation(style: Style, rule: Rule, baked: boolean) {
+    const shorthand = style.animation;
+    const nameLong = style["animation-name"];
+    if (!shorthand && !nameLong) return;
+
+    const allowTransform = !baked;
+    const groups = shorthand ? splitTopLevelCommas(shorthand) : [nameLong!];
+    const emitted: string[] = [];
+    for (const g of groups) {
+      const tokens = splitSpaceTokens(g);
+      let name: string | undefined;
+      const rest: string[] = [];
+      for (const t of tokens) {
+        if (name === undefined && this.keyframes.has(t)) name = t;
+        else rest.push(t);
+      }
+      if (!name) {
+        this.warnOnce(
+          "CSS animation with no matching @keyframes name — dropped",
+        );
+        continue;
+      }
+      const resolved = this.resolveKeyframes(name, allowTransform);
+      if (!resolved) continue;
+      emitted.push([resolved, ...rest].join(" ").trim());
+    }
+    if (emitted.length === 0) return;
+
+    // Any `animation-*` longhand present overrides the shorthand's slots (the
+    // builder applies them onto existing slots in source order); a bare
+    // `animation-delay: -0.4s` on a higher-specificity rule is how CSS staggers.
+    // `animation-name` is deliberately excluded — the shorthand already carries
+    // the (renamed) keyframes reference and a raw name would point at the SVG id.
+    const longhands: string[] = [];
+    for (const p of [
+      "animation-duration",
+      "animation-delay",
+      "animation-timing-function",
+      "animation-iteration-count",
+      "animation-direction",
+      "animation-fill-mode",
+    ])
+      if (style[p]) longhands.push(`${p}: ${style[p].trim()}`);
+
+    rule.decls.push(`animation: ${emitted.join(", ")}`);
+    for (const l of longhands) rule.decls.push(l);
+
+    const origin = style["transform-origin"];
+    if (origin && !baked) rule.decls.push(`transform-origin: ${origin.trim()}`);
+  }
+
+  // --- SMIL <animate> / <animateTransform> --------------------------------
+
+  /** Convert an element's SMIL animation children into Popcorn animations. */
+  private emitSmil(el: SvgNode, rule: Rule, baked: boolean) {
+    const anims = el.children.filter((c) =>
+      ["animate", "animatetransform", "set", "animatemotion"].includes(c.tag),
+    );
+    if (anims.length === 0) return;
+
+    const claimed = new Set<string>(); // channel -> already taken
+    const shorthands: string[] = [];
+    const originDecls: string[] = [];
+    for (const a of anims) {
+      if (a.tag === "set") {
+        this.warnOnce("SVG SMIL <set> skipped (not an interpolated animation)");
+        continue;
+      }
+      if (a.tag === "animatemotion") {
+        this.warnOnce("SVG SMIL <animateMotion> skipped");
+        continue;
+      }
+      const track = this.buildSmilTrack(a, baked);
+      if (!track) continue;
+      if (claimed.has(track.channel)) {
+        this.warnOnce(
+          `multiple SMIL animations target '${track.channel}' — only the first kept`,
+        );
+        continue;
+      }
+      claimed.add(track.channel);
+
+      let base = `${rule.id}-${track.channel}`.replace(/[^a-zA-Z0-9_-]+/g, "-");
+      base = base.replace(/^-+|-+$/g, "");
+      if (!base || !/^[a-zA-Z_]/.test(base)) base = `smil-${base}`;
+      let name = base,
+        k = 2;
+      while (this.usedKfNames.has(name)) name = `${base}-${k++}`;
+      this.usedKfNames.add(name);
+      this.keyframeBlocks.push(emitKeyframes({ name, stops: track.stops }));
+      shorthands.push([name, ...track.timing].join(" "));
+      if (track.origin) originDecls.push(`transform-origin: ${track.origin}`);
+    }
+    if (shorthands.length === 0) return;
+    rule.decls.push(`animation: ${shorthands.join(", ")}`);
+    for (const o of originDecls) rule.decls.push(o);
+  }
+
+  /**
+   * Normalize one <animate>/<animateTransform> into a keyframe track + timing.
+   * Returns null (having warned) for anything unrepresentable.
+   */
+  private buildSmilTrack(
+    a: SvgNode,
+    baked: boolean,
+  ): {
+    channel: string;
+    stops: AnimStop[];
+    timing: string[];
+    origin?: string;
+  } | null {
+    const warn = (m: string) => this.warnOnce(m);
+
+    // additive/accumulate compose onto the base value — can't express as
+    // absolute keyframes, so drop the channel.
+    if (
+      a.attrs.get("additive") === "sum" ||
+      a.attrs.get("accumulate") === "sum"
+    ) {
+      warn("SMIL additive/accumulate='sum' not supported — channel dropped");
+      return null;
+    }
+
+    // begin: clock-value offsets only (event / sync-base begins are out of scope).
+    let delay = 0;
+    const begin = a.attrs.get("begin");
+    if (begin !== undefined && begin.trim() !== "") {
+      const d = parseClock(begin);
+      if (d === null) {
+        warn("SMIL event/sync-base begin not supported — animation dropped");
+        return null;
+      }
+      delay = d;
+    }
+
+    const dur = parseClock(a.attrs.get("dur"));
+    if (dur === null || dur <= 0) {
+      warn("SMIL animation without a finite dur dropped");
+      return null;
+    }
+
+    const rawValues = smilValues(a, warn);
+    if (!rawValues) return null;
+
+    // Map each raw value to a Popcorn declaration string.
+    let channel: string;
+    let origin: string | undefined;
+    const decls: (string | null)[] = [];
+    if (a.tag === "animatetransform") {
+      channel = "transform";
+      if (baked) {
+        warn(
+          "animated transform on a baked/sheared element dropped — geometry stays static",
+        );
+        return null;
+      }
+      const type = (a.attrs.get("type") || "translate").toLowerCase();
+      if (type === "skewx" || type === "skewy") {
+        warn(`animated transform '${type}' not supported — dropped`);
+        return null;
+      }
+      let center: string | null = null;
+      for (const v of rawValues) {
+        const r = smilTransformValue(type, v, warn);
+        if (!r) {
+          decls.push(null);
+          continue;
+        }
+        const t = mapAnimTransform(r.value, warn);
+        decls.push(t === null ? null : `transform: ${t}`);
+        if (r.center) {
+          if (center && center !== r.center)
+            warn(
+              "SMIL rotate center varies across keyframes — using the first",
+            );
+          center = center ?? r.center;
+        }
+      }
+      origin = center ?? undefined;
+    } else {
+      channel = a.attrs.get("attributeName") || "";
+      for (const v of rawValues)
+        decls.push(this.mapAnimDecls({ [channel]: v }, false)[0] ?? null);
+    }
+    if (decls.some((d) => d === null)) return null; // mapper already warned
+
+    const offsets = smilOffsets(a, rawValues.length, warn);
+    if (!offsets) return null;
+    const easings = smilEasings(a, rawValues.length, warn);
+
+    const stops: AnimStop[] = decls.map((d, i) => ({
+      offsets: [offsets[i]],
+      decls: [d as string],
+      easing: easings[i],
+    }));
+
+    // Timing tokens: `<dur>s linear [<delay>s] [<iter>] [forwards]`.
+    const timing: string[] = [`${num(dur)}s`, "linear"];
+    if (delay !== 0) timing.push(`${num(delay)}s`);
+    const iter = smilIterations(a, warn);
+    if (iter !== "1") timing.push(iter);
+    if ((a.attrs.get("fill") || "").trim() === "freeze")
+      timing.push("forwards");
+
+    return { channel, stops, timing, origin };
   }
 
   /** fill / stroke / stroke-* / opacity / fill-rule decls from computed style. */
@@ -1622,6 +2027,288 @@ function decls_transform(d: {
         : `scale(${num(d.sx)}, ${num(d.sy)})`,
     );
   return parts.length ? `transform: ${parts.join(" ")}` : "";
+}
+
+// ---------------------------------------------------------------------------
+// Animation IR + emitter (shared by the CSS-@keyframes path; the future SMIL
+// <animate> path should build the same AnimTrack and reuse emitKeyframes()).
+// ---------------------------------------------------------------------------
+
+/** One normalized keyframe stop: offsets 0..100, Popcorn decl strings, easing. */
+export interface AnimStop {
+  offsets: number[];
+  /** Already-Popcorn declaration strings, e.g. `opacity: 0.5`, `transform: rotate(90deg)`. */
+  decls: string[];
+  /** Popcorn timing-function string (per-keyframe easing), if any. */
+  easing?: string;
+}
+export interface AnimTrack {
+  name: string;
+  stops: AnimStop[];
+}
+
+/** Serialize a normalized track to a Popcorn `@keyframes` block. */
+export function emitKeyframes(track: AnimTrack): string {
+  const lines = [`@keyframes ${track.name} {`];
+  for (const s of track.stops) {
+    const sel = s.offsets.map((o) => `${num(o)}%`).join(", ");
+    const parts = [...s.decls];
+    if (s.easing) parts.push(`animation-timing-function: ${s.easing}`);
+    lines.push(`  ${sel} { ${parts.map((p) => `${p};`).join(" ")} }`);
+  }
+  lines.push(`}`);
+  return lines.join("\n");
+}
+
+/** Split on top-level commas (respecting parentheses) — for animation lists. */
+function splitTopLevelCommas(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0,
+    start = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "," && depth === 0) {
+      out.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(s.slice(start));
+  return out.map((x) => x.trim()).filter(Boolean);
+}
+
+/** Split on whitespace, keeping parenthesized groups (cubic-bezier(...)) intact. */
+function splitSpaceTokens(s: string): string[] {
+  const out: string[] = [];
+  let depth = 0,
+    cur = "";
+  for (const c of s) {
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    if (/\s/.test(c) && depth === 0) {
+      if (cur) out.push(cur);
+      cur = "";
+    } else cur += c;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+/** Keep only representable transform functions (translate/rotate/scale); reject
+ *  skew/matrix. Values pass through verbatim (CSS transform syntax == Popcorn's). */
+function mapAnimTransform(
+  raw: string,
+  warn: (m: string) => void,
+): string | null {
+  const allowed = new Set([
+    "translate",
+    "translatex",
+    "translatey",
+    "rotate",
+    "scale",
+    "scalex",
+    "scaley",
+  ]);
+  const re = /([a-zA-Z]+)\s*\(([^)]*)\)/g;
+  const parts: string[] = [];
+  for (let m = re.exec(raw); m !== null; m = re.exec(raw)) {
+    if (!allowed.has(m[1].toLowerCase())) {
+      warn(
+        `animated transform '${m[1]}()' not supported — transform keyframe dropped`,
+      );
+      return null;
+    }
+    parts.push(m[0].replace(/\s+/g, ""));
+  }
+  return parts.length ? parts.join(" ") : null;
+}
+
+// ---------------------------------------------------------------------------
+// SMIL helpers (shared by buildSmilTrack)
+// ---------------------------------------------------------------------------
+
+/** Parse a SMIL clock-value (`2s`, `500ms`, `1min`, `-0.5`, `0`) to seconds. */
+function parseClock(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const s = raw.trim();
+  const m = s.match(/^(-?\d*\.?\d+)(h|min|ms|s)?$/i);
+  if (!m) return null; // clock lists, event, sync-base
+  const v = parseFloat(m[1]);
+  switch ((m[2] || "s").toLowerCase()) {
+    case "h":
+      return v * 3600;
+    case "min":
+      return v * 60;
+    case "ms":
+      return v / 1000;
+    default:
+      return v;
+  }
+}
+
+/** Extract the ordered raw value list from values / from-to / from-by / to. */
+function smilValues(a: SvgNode, warn: (m: string) => void): string[] | null {
+  const values = a.attrs.get("values");
+  if (values !== undefined) {
+    const list = values.split(";").map((v) => v.trim());
+    while (list.length && list[list.length - 1] === "") list.pop();
+    if (list.length === 0 || list.some((v) => v === "")) {
+      warn("SMIL values list malformed — animation dropped");
+      return null;
+    }
+    return list;
+  }
+  const from = a.attrs.get("from");
+  const to = a.attrs.get("to");
+  const by = a.attrs.get("by");
+  if (to !== undefined) return from !== undefined ? [from, to] : [to];
+  if (by !== undefined) {
+    if (from === undefined) {
+      warn("SMIL by-animation without from not supported — dropped");
+      return null;
+    }
+    const sum = smilAddBy(from, by);
+    if (sum === null) {
+      warn("SMIL by-animation on a non-numeric value not supported — dropped");
+      return null;
+    }
+    return [from, sum];
+  }
+  warn("SMIL animation without values/from/to dropped");
+  return null;
+}
+
+/** Componentwise `from + by` for numeric SMIL values, or null if non-numeric. */
+function smilAddBy(from: string, by: string): string | null {
+  const fa = from
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  const ba = by
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+  if (fa.length !== ba.length || fa.some(isNaN) || ba.some(isNaN)) return null;
+  return fa.map((v, i) => v + ba[i]).join(" ");
+}
+
+/** Stop offsets (0..100) from keyTimes, or even spacing across n values. */
+function smilOffsets(
+  a: SvgNode,
+  n: number,
+  warn: (m: string) => void,
+): number[] | null {
+  const kt = a.attrs.get("keyTimes");
+  if (kt !== undefined) {
+    const list = kt
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s !== "");
+    if (list.length !== n) {
+      warn("SMIL keyTimes length ≠ values length — animation dropped");
+      return null;
+    }
+    const nums = list.map(Number);
+    if (nums.some((x) => isNaN(x))) {
+      warn("SMIL keyTimes malformed — animation dropped");
+      return null;
+    }
+    return nums.map((x) => x * 100);
+  }
+  if (n === 1) return [100];
+  return Array.from({ length: n }, (_, i) => (i / (n - 1)) * 100);
+}
+
+/** Per-stop easing from calcMode (linear default / spline / discrete / paced). */
+function smilEasings(
+  a: SvgNode,
+  n: number,
+  warn: (m: string) => void,
+): (string | undefined)[] {
+  const mode = (a.attrs.get("calcMode") || "linear").toLowerCase();
+  const out: (string | undefined)[] = new Array(n).fill(undefined);
+  if (mode === "discrete") {
+    for (let i = 0; i < n; i++) out[i] = "step-end";
+    return out;
+  }
+  if (mode === "paced") {
+    warn("SMIL calcMode='paced' approximated as linear");
+    return out;
+  }
+  if (mode === "spline") {
+    const ks = (a.attrs.get("keySplines") || "")
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (let i = 0; i < n - 1; i++) {
+      const parts = (ks[i] || "").split(/[\s,]+/).map(Number);
+      if (parts.length === 4 && parts.every((x) => !isNaN(x)))
+        out[i] = `cubic-bezier(${parts.join(", ")})`;
+      else {
+        warn("SMIL keySplines malformed — segment defaulted to linear");
+        out[i] = "linear";
+      }
+    }
+  }
+  return out;
+}
+
+/** repeatCount → Popcorn iteration-count token (`infinite`, or a number). */
+function smilIterations(a: SvgNode, warn: (m: string) => void): string {
+  const rc = a.attrs.get("repeatCount");
+  if (rc === undefined) {
+    if (a.attrs.get("repeatDur") !== undefined)
+      warn("SMIL repeatDur approximated — using a single iteration");
+    return "1";
+  }
+  const s = rc.trim();
+  if (s === "indefinite") return "infinite";
+  const v = parseFloat(s);
+  if (isNaN(v) || v <= 0) {
+    warn("SMIL repeatCount malformed — using a single iteration");
+    return "1";
+  }
+  return num(v);
+}
+
+/** One <animateTransform> value → CSS transform syntax (+ rotate center). */
+function smilTransformValue(
+  type: string,
+  raw: string,
+  warn: (m: string) => void,
+): { value: string; center?: string } | null {
+  const p = raw
+    .trim()
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(Number);
+  if (p.length === 0 || p.some(isNaN)) {
+    warn(`SMIL animateTransform value '${raw}' malformed — dropped`);
+    return null;
+  }
+  switch (type) {
+    case "translate": {
+      const tx = p[0] ?? 0,
+        ty = p[1] ?? 0;
+      return { value: `translate(${num(tx)}px, ${num(ty)}px)` };
+    }
+    case "scale": {
+      const sx = p[0] ?? 1;
+      const sy = p.length > 1 ? p[1] : sx;
+      return { value: `scale(${num(sx)}, ${num(sy)})` };
+    }
+    case "rotate": {
+      const out: { value: string; center?: string } = {
+        value: `rotate(${num(p[0] ?? 0)}deg)`,
+      };
+      if (p.length >= 3) out.center = `${num(p[1])}px ${num(p[2])}px`;
+      return out;
+    }
+    default:
+      warn(`animated transform '${type}' not supported — dropped`);
+      return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
