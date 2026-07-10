@@ -2,7 +2,7 @@
 
 The complete reference for the Popcorn format. See the [README](../README.md) for setup and usage.
 
-### Canvas Configuration
+## Canvas Configuration
 
 Canvas size and background go in the `:root` rule (the same rule that holds
 `--variables`):
@@ -15,7 +15,7 @@ Canvas size and background go in the `:root` rule (the same rule that holds
 }
 ```
 
-### Selectors & Values
+## Selectors & Values
 
 Selectors are `#id`, `.class`, or `:root` — any other `:pseudo` selector at the
 top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
@@ -25,7 +25,7 @@ counts for `sides`). Hex colors accept 3–8 digits (`#rgb` … `#rrggbbaa`), an
 `rgb()`/`rgba()` work for both solid colors and gradient stops. Block comments
 (`/* … */`) and a trailing `;` before `}` are allowed.
 
-### Shapes
+## Shapes
 
 ```css
 /* Rectangle */
@@ -88,7 +88,7 @@ counts for `sides`). Hex colors accept 3–8 digits (`#rgb` … `#rrggbbaa`), an
 (absolute and relative), including smooth-curve reflection (`S`/`T`) and true
 elliptical arcs (`A`); a degenerate arc collapses to a straight line.
 
-### Text
+## Text
 
 ```css
 #label {
@@ -107,7 +107,7 @@ elliptical arcs (`A`); a degenerate arc collapses to a straight line.
 Text nodes carry `fill`/`stroke`/gradients/opacity/transforms/clipping like any
 other shape. `x`, `y`, and `font-size` are animatable and bindable.
 
-### Star & Polygon
+## Star & Polygon
 
 `type: star` and `type: polygon` are pure-geometry shapes (radius, points,
 rotation) synthesized into the path pipeline — so they get fill, stroke, trim,
@@ -139,10 +139,11 @@ Effects: with `rotation: 0` the first point faces straight up.
 ```
 
 `outer-radius`, `inner-radius`, `rotation`, `cx` and `cy` are animatable and
-bindable; `sides` is static. `outer-roundness`/`inner-roundness` are Lottie's
-`os`/`is` (a percentage of the edge length turned into a bezier handle).
+bindable; `sides` is static. `outer-roundness`/`inner-roundness` round the tips
+and valleys (a percentage of the edge length turned into a bezier handle), and
+correspond one-to-one to After Effects' star roundness.
 
-### Symbols
+## Symbols
 
 `@define <name> { ... }` declares a reusable symbol whose body is an ordinary
 rule body (declarations, `>` children, `&:hover`/`&:active`). Instantiate it
@@ -163,7 +164,7 @@ Symbols are expanded at build time by deep-cloning; each instance gets its own
 animation state, and cloned children get namespaced ids (`spark1.tail`) so
 instances never collide.
 
-### Transforms
+## Transforms
 
 ```css
 #shape {
@@ -193,7 +194,7 @@ lengths; a single value fills the other axis with `50%`.
 }
 ```
 
-### Gradient Fills
+## Gradient Fills
 
 `fill` and `stroke` accept CSS gradients. Color stops are hex or `rgb()`/`rgba()`
 (as are solid `fill`/`stroke` colors). Omitting a stop's percentage
@@ -233,7 +234,7 @@ of interpolating.
 }
 ```
 
-### Clipping
+## Clipping
 
 `clip-path` clips a node and all its descendants (most useful on a group).
 
@@ -263,7 +264,7 @@ of them is kept) — this maps Lottie's additive multi-mask:
 (same command-sequence compatibility rule as `d`); `circle()`/`inset()` clips
 can't be tweened.
 
-### Track Mattes
+## Track Mattes
 
 `mask` masks a node by another node's **alpha** or **luminance**. The matte
 source is referenced by id (it can live anywhere in the scene) and is *not*
@@ -290,11 +291,10 @@ painted on its own — only sampled as the matte:
 - Given only an id, the mode defaults to `alpha`.
 
 Compositing is done offscreen, so both subtrees line up exactly regardless of
-their transforms. (Headless/no-canvas environments skip the matte and draw the
-content directly.) A `luminance` matte silently degrades to `alpha` if the
+their transforms. A `luminance` matte silently degrades to `alpha` if the
 source canvas is tainted by a cross-origin image (pixel readback is blocked).
 
-### Filters
+## Filters
 
 `filter` applies CSS filter functions to a node and its subtree. Two functions
 are supported — CSS `blur()` is Gaussian by spec, so nothing needs inventing:
@@ -327,7 +327,7 @@ animatable** in `@keyframes` (`filter: blur(...)`); drop-shadow is static.
 Renderers without filter support (e.g. old Safari) skip filters and draw
 unfiltered (warned once).
 
-### Images
+## Images
 
 `type: image` draws a bitmap from a URL or `data:` URI into an x/y/width/height
 box. Omit width/height to use the image's natural size once it loads. The source
@@ -345,7 +345,7 @@ Images load asynchronously; the node is transparent until the bitmap decodes,
 then the running loop paints it in. A decode failure logs a warning and the node
 renders nothing.
 
-### Trim Paths
+## Trim Paths
 
 Trim paths reveal only part of a node's **stroke** (the fill is always drawn in
 full) — the effect behind Lottie-style progressive line drawing. Valid on any
@@ -378,7 +378,7 @@ of the outline length and are animatable.
 `trim-start >= trim-end` hides the stroke entirely. The trim properties accept a
 bare number as a `0..1` fraction as well as a percentage; values clamp to range.
 
-### Stroke Dashes
+## Stroke Dashes
 
 `stroke-dasharray` sets a repeating dash/gap pattern (in local units, like SVG);
 `stroke-dashoffset` shifts the pattern along the stroke and is animatable.
@@ -410,7 +410,7 @@ Other stroke properties:
 - `paint-order: stroke` — draw the stroke *behind* the fill (so only its outer
   edge shows). Default `normal` is fill first, stroke on top.
 
-### Fill Rule
+## Fill Rule
 
 `fill-rule` chooses the winding rule for `path`, `star` and `polygon` fills (and
 their hit-testing and clipping): `nonzero` (default) or `evenodd`. With
@@ -425,13 +425,13 @@ their hit-testing and clipping): `nonzero` (default) or `evenodd`. With
 }
 ```
 
-The Lottie converter (`packages/popcorn-converters/src/lottie2popcorn.ts`) leans on this for **union-only
-merge paths**: Lottie merge modes 1/2 (normal/add) become a single `nonzero`
-path with one subpath per merged shape (a Canvas2D union of fills). Modes 3/4/5
-(subtract/intersect/exclude) stay blocked. Fills union exactly; a **stroke** on a
-merged path shows interior seams (subpath outlines aren't booleaned away).
+The Lottie importer leans on this to turn merged shapes into a single `nonzero`
+path with one subpath per shape — a union of fills. Fills union exactly; a
+**stroke** on a merged path shows interior seams (subpath outlines aren't
+booleaned away). Subtract/intersect/exclude merge modes don't convert (see
+[Importing](importing.md)).
 
-### Animations
+## Animations
 
 ```css
 @keyframes bounce {
@@ -528,7 +528,7 @@ included) — handy for staggering copies of the same animation:
 #b { animation: drift 3s linear infinite; animation: drift 3s linear infinite -1s; }
 ```
 
-### Motion Paths
+## Motion Paths
 
 Move a node along an arbitrary curve with the CSS Motion Path idiom. `offset-path`
 is an SVG path in the node's local space; `offset-distance` is the position along
@@ -558,7 +558,7 @@ it by arc length (`0%`–`100%`, animatable); `offset-rotate` orients the node.
   tangent, an angle is a fixed orientation, `auto <angle>` is tangent plus a
   fixed offset. Default `auto`.
 
-### Time Scoping
+## Time Scoping
 
 `time-offset` and `time-scale` retime a node **and its whole subtree** — the
 node's own animations plus every descendant's. They rewrite the local timeline
@@ -583,7 +583,7 @@ local time it inherits — which is how imported compositions (Lottie precomps,
 with per-instance start time and stretch) keep independent clocks.
 
 `time-remap` maps inherited time through an explicit curve instead of a linear
-offset/scale (Lottie `tm` — the converter emits it for precomp time remapping).
+offset/scale — this is how imported After Effects time remapping plays.
 It's a comma list of stops, each `<input-time> <output-time> [easing]` (times in
 `s`/`ms`, easing governs the segment to the next stop); outside the input domain
 the endpoints hold. When present it **replaces** `time-offset`/`time-scale`.
@@ -595,7 +595,7 @@ the endpoints hold. When present it **replaces** `time-offset`/`time-scale`.
 }
 ```
 
-### Layering & Visibility
+## Layering & Visibility
 
 By default siblings paint in document order (first child behind, last in front).
 `z-index` overrides that: siblings paint in **ascending** z-index, with document
@@ -623,7 +623,7 @@ without an opacity hack. Static; defaults are "always visible".
 }
 ```
 
-### Variables & Interactivity
+## Variables & Interactivity
 
 ```css
 :root {
@@ -641,10 +641,10 @@ without an opacity hack. Static; defaults are "always visible".
 }
 ```
 
-Available inputs (mouse only — no touch, despite the `cursor` name):
+Available inputs (mouse on the web; touch on React Native):
 - `cursor.x`, `cursor.y` - Pointer position in **scene coordinates** (mapped back
   through the inverse viewport, so bindings stay correct under any fit/DPR)
-- `cursor.isDown` - Mouse button state (1 or 0)
+- `cursor.isDown` - Pointer/press state (1 or 0)
 - `scroll.x`, `scroll.y` - Scroll position (`window.scrollX`/`scrollY`)
 - `time` - Monotonic clock timestamp in milliseconds (`performance.now()`)
 
@@ -660,7 +660,7 @@ Notes on bindings:
   comma-separated fallback *list* (`var(--x, a, b)`) is not supported — give a
   single fallback value.
 
-### States, Transitions & Hit-Testing
+## States, Transitions & Hit-Testing
 
 Nodes respond to pointer state with `&:hover` / `&:active` blocks inside the
 rule body (also valid in an `@define`). A state block restyles the node while
@@ -712,7 +712,7 @@ state block overrides the node-level transition when entering that state
 - `pointer-events: none` removes a node **and its whole subtree** from
   hit-testing; unlike CSS, a descendant can't opt back in.
 
-### State Machines
+## State Machines
 
 `&:hover`/`&:active` restyle a node while a pointer is on it; a `@machine` adds
 named states that **outlive the pointer** and can start animations — toggles,
@@ -831,7 +831,7 @@ player.addEventListener('statechange', (e) => console.log(e.detail.from, '→', 
 player.addEventListener('machine-event', (e) => console.log(e.detail.name));
 ```
 
-### Scrubbing (`animation-timeline`)
+## Scrubbing (`animation-timeline`)
 
 `animation-timeline` scrubs an animation to a 0..1 value source instead of playing
 it on the clock. It accepts the same `var()`/`input()` vocabulary used everywhere
@@ -853,9 +853,9 @@ scrollable range (the raw offset stays available as `scroll.y`).
 
 ## Importing SVG
 
-Alongside the Lottie converter, `packages/popcorn-converters/src/svg2popcorn.ts` (CLI:
-`packages/popcorn-converters/src/cli.ts`, or the demo's **Import** button) turns a static SVG
-into a Popcorn scene. The mapping is the natural one:
+Alongside the Lottie importer, `@popcorn/converters` turns an SVG into a Popcorn
+scene (the `popcorn-convert` CLI, or the playground's **Import** button). The
+mapping is the natural one:
 
 - `<rect>`/`<circle>`/`<ellipse>`/`<line>`/`<polyline>`/`<polygon>`/`<path>` →
   the matching Popcorn shapes; `<g>` → a group.

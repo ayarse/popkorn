@@ -7,7 +7,7 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
 ```
 ┌─────────────────────────┐
 │  @popcorn/parser        │  parse(source) → AST
-│  (hand-rolled, sync)    │
+│  (zero deps, sync)      │
 └───────────┬─────────────┘
             │
             ▼
@@ -56,8 +56,7 @@ AST, synchronously, with no dependencies or build step. Tests live alongside it 
 
 ### Engine principles
 
-The player's correctness rests on a few structural rules (spelled out with
-their rationale in `CLAUDE.md`; read that before changing the engine):
+The player's correctness rests on a few structural rules:
 
 - One transform implementation: render and hit-testing both consume the
   matrices in `scene/transform.ts` (transform-origin and motion-path placement
@@ -83,6 +82,9 @@ that mainstream Lottie players also skip.
 
 ### Comparison harness
 
-`tools/harness/` is a frame-accurate lottie-web vs `<popcorn-player>`
-side-by-side page, the visual-truth step of the verification bar (see its
-README). lottie-web is the parity floor, not the ceiling.
+`tools/harness/` is a frame-accurate side-by-side page comparing
+`<popcorn-player>` against lottie-web and ThorVG at the same paused frame, with
+per-region pixel diffing (see its README). It's how rendering changes get
+checked visually. The goal is matching the intended After Effects motion, not
+matching any one reference renderer byte-for-byte — the references sometimes
+disagree with each other.

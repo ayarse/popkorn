@@ -1,6 +1,6 @@
 # @popcorn/player
 
-The `<popcorn-player>` web component and Canvas2D engine that plays the Popcorn format, a small, CSS-like format for interactive motion graphics. See the [main README](../../README.md) for what Popcorn is and why.
+The `<popcorn-player>` web component and Canvas2D engine that plays the Popcorn format, a small, CSS-like format for interactive motion graphics. See the [main README](https://github.com/ayarse/popcorn#readme) for what Popcorn is and why.
 
 ## Installation
 
@@ -73,6 +73,10 @@ The simplest way to use the player is via the `<popcorn-player>` custom element:
 | `ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations) |
 | `complete` | — | Fired once when a non-looping timeline reaches its end |
 | `error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
+
+For interactive scenes the player also dispatches `statechange` and
+`machine-event` — see the
+[state machines guide](https://github.com/ayarse/popcorn/blob/main/docs/state-machines.md).
 
 ## React Integration
 
@@ -170,7 +174,7 @@ loop.stop();
 
 ## Scene syntax
 
-See [docs/reference.md](../../docs/reference.md) for the full format reference.
+See [docs/reference.md](https://github.com/ayarse/popcorn/blob/main/docs/reference.md) for the full format reference.
 
 ### Basic Shapes
 

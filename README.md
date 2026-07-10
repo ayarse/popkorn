@@ -221,7 +221,7 @@ interesting to you as it was to build. Feedback and curiosity welcome.
 
 | Package                                                  | What it is                                                                    |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`@popcorn/parser`](packages/popcorn-parser)             | The format parser: source to typed AST. Hand-rolled, zero dependencies.       |
+| [`@popcorn/parser`](packages/popcorn-parser)             | The format parser: source to typed AST. Zero dependencies, no build step.     |
 | [`@popcorn/player`](packages/popcorn-player)             | The `<popcorn-player>` web component and the Canvas2D + SVG runtimes.         |
 | [`@popcorn/converters`](packages/popcorn-converters)     | Lottie and SVG to Popcorn importers (CLI + library).                          |
 | [`@popcorn/react-native`](packages/popcorn-react-native) | React Native / Skia renderer, running scenes natively on mobile.              |

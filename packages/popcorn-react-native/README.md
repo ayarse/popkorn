@@ -1,6 +1,6 @@
 # @popcorn/react-native
 
-A React Native Skia renderer for [Popcorn](../../README.md), a proof of concept.
+A React Native Skia renderer for [Popcorn](https://github.com/ayarse/popcorn#readme), a proof of concept.
 It plays Popcorn scenes on `@shopify/react-native-skia`, so the same file runs on
 React Native **and** the web (via `react-native-web` + CanvasKit).
 

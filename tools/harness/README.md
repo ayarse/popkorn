@@ -242,6 +242,6 @@ works fully offline either way).
 ## Fixtures
 
 This harness intentionally ships with no JSON/CSS fixtures of its own — pull
-them from `examples/lottie/` (real-file smoke scenes) or the LottieFiles
-conformance corpus referenced in the root `CLAUDE.md`, or use the file
-pickers.
+them from `examples/lottie/` (real-file smoke scenes) or a clone of the
+LottieFiles conformance corpus (`LottieFiles/test-files` on GitHub), or use the
+file pickers.
