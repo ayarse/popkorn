@@ -19,7 +19,7 @@ const SVG_RE =
 // (which modal/sidebar is open) and wires these into the panels.
 export function useScene() {
   const [currentExample, setCurrentExample] = useState<string | null>("motion");
-  const [source, setSource] = useState(examples[1].source);
+  const [source, setSource] = useState(examples[5].source);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [minified, setMinified] = useState(false);
