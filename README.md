@@ -121,7 +121,7 @@ Driving the renderer yourself? The parser, scene builder, and renderers are all
 exported from [`@popcorn/player`](packages/popcorn-player); its README covers the
 programmatic API.
 
-To run the demo gallery or hack on Popcorn locally:
+To run the playground or hack on Popcorn locally:
 
 ```bash
 bun install
@@ -150,12 +150,12 @@ Popcorn covers most of what people reach for in real motion graphics:
   all runs on one continuous timeline, interactive states compose cleanly on top
   of running animations instead of restarting them. There's no script engine; the
   reactivity is part of the format
-  ([docs/STATE-MACHINES.md](docs/STATE-MACHINES.md)).
+  ([docs/state-machines.md](docs/state-machines.md)).
 
-The [demo gallery](packages/playground) shows each of these as a live scene, and
+The [playground](packages/playground) shows each of these as a live scene, and
 the sources live in [`examples/popcorn/`](examples/popcorn). The full format
-reference is in [docs/REFERENCE.md](docs/REFERENCE.md); the design and internals are in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+reference is in [docs/reference.md](docs/reference.md); the design and internals are in
+[docs/architecture.md](docs/architecture.md).
 
 ## Why CSS
 

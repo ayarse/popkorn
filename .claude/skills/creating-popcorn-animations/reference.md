@@ -660,7 +660,7 @@ For interaction a `:hover`/`:active` override **can't** express — a state that
 outlives the pointer (toggles, "intro once then loop", timeouts, app-state
 driven looks). `:hover`/`:active` still cover plain hover/press buttons; reach
 for `@machine` only when a state must persist. **Full spec + rationale:
-[docs/STATE-MACHINES.md](../../../docs/STATE-MACHINES.md); worked scenes:
+[docs/state-machines.md](../../../docs/state-machines.md); worked scenes:
 `examples/popcorn/11-state-machine.css` and `12-toggle-lamp.css`.**
 
 ```css

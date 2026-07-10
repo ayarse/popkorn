@@ -13,10 +13,19 @@ import { useToc } from "@/hooks/use-toc";
 import { cn } from "@/lib/utils";
 
 const DOCS = [
-  { key: "CONCEPT", label: "Concept", file: "CONCEPT.md" },
-  { key: "DSL", label: "DSL Reference", file: "DSL.md" },
-  { key: "STATE-MACHINES", label: "State Machines", file: "STATE-MACHINES.md" },
-  { key: "ARCHITECTURE", label: "Architecture", file: "ARCHITECTURE.md" },
+  { key: "introduction", label: "Introduction", file: "introduction.md" },
+  {
+    key: "getting-started",
+    label: "Getting Started",
+    file: "getting-started.md",
+  },
+  {
+    key: "state-machines",
+    label: "State Machines",
+    file: "state-machines.md",
+  },
+  { key: "reference", label: "Reference", file: "reference.md" },
+  { key: "architecture", label: "Architecture", file: "architecture.md" },
 ] as const;
 
 const files = import.meta.glob("../../../../docs/*.md", {
@@ -34,7 +43,8 @@ marked.use({ gfm: true, breaks: false });
 
 export default function Docs() {
   const navigate = useNavigate();
-  const [active, setActive] = useState<(typeof DOCS)[number]["key"]>("CONCEPT");
+  const [active, setActive] =
+    useState<(typeof DOCS)[number]["key"]>("introduction");
   const activeDoc = DOCS.find((d) => d.key === active)!;
   const html = useMemo(
     () => marked.parse(docSource(activeDoc.file)) as string,

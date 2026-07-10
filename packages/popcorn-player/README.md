@@ -171,7 +171,7 @@ loop.stop();
 
 ## Scene syntax
 
-See [docs/REFERENCE.md](../../docs/REFERENCE.md) for the full format reference.
+See [docs/reference.md](../../docs/reference.md) for the full format reference.
 
 ### Basic Shapes
 
