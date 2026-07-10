@@ -74,6 +74,27 @@ function lottieColor(c: number[], opacity = 1): string {
   return `rgba(${r}, ${g}, ${b}, ${num(a, 3)})`;
 }
 
+/**
+ * Count animatable properties carrying a Lottie expression. An expression is a
+ * string `x` on a property object (which also carries `k`/`a`); a split-position
+ * axis also uses `x`, but there it's an object/array, never a string — so the
+ * string test alone distinguishes the two. We only count, never evaluate.
+ */
+function countExpressions(node: any): number {
+  let n = 0;
+  const walk = (v: any) => {
+    if (!v || typeof v !== "object") return;
+    if (Array.isArray(v)) {
+      for (const item of v) walk(item);
+      return;
+    }
+    if (typeof v.x === "string" && ("k" in v || "a" in v)) n++;
+    for (const key in v) walk(v[key]);
+  };
+  walk(node);
+  return n;
+}
+
 // ---------------------------------------------------------------------------
 // Lottie property accessors
 // ---------------------------------------------------------------------------
@@ -447,6 +468,8 @@ export class Converter {
   private ids = new Set<string>();
   private synthId = 1;
   private assets = new Map<string, any>();
+  // Font descriptors keyed by fName (referenced by a text document's `f`).
+  private fonts = new Map<string, any>();
   // Each emitted image node's content decl list + its asset id/data URI, so a data
   // URI referenced by more than one node can be hoisted into a single :root
   // custom property instead of being inlined (and duplicated) at every use.
@@ -499,6 +522,18 @@ export class Converter {
           this.warnOnce(`duplicate asset id '${a.id}'; last one wins`);
         this.assets.set(a.id, a);
       }
+
+    // Index fonts by fName for text (ty 5) layers.
+    if (lottie.fonts && Array.isArray(lottie.fonts.list))
+      for (const f of lottie.fonts.list)
+        if (f && f.fName != null) this.fonts.set(f.fName, f);
+
+    // Lottie expressions (`x` on an animatable property) are not evaluated — warn
+    // once per file so the drop isn't silent, then convert the static/keyframe
+    // values as usual.
+    const exprCount = countExpressions(lottie);
+    if (exprCount)
+      this.warnOnce(`expressions dropped (${exprCount} properties)`);
 
     const layers: any[] = Array.isArray(lottie.layers) ? lottie.layers : [];
     const topRules = this.buildLayerList(layers, "", this.ip, op);
@@ -578,7 +613,13 @@ export class Converter {
 
   private isConvertible(l: any): boolean {
     return (
-      l && (l.ty === 0 || l.ty === 1 || l.ty === 2 || l.ty === 3 || l.ty === 4)
+      l &&
+      (l.ty === 0 ||
+        l.ty === 1 ||
+        l.ty === 2 ||
+        l.ty === 3 ||
+        l.ty === 4 ||
+        l.ty === 5)
     );
   }
 
@@ -617,8 +658,7 @@ export class Converter {
     // Record blocked non-convertible layer types.
     for (const l of layers) {
       if (this.isConvertible(l)) continue;
-      const feat = l.ty === 5 ? "text layer (ty 5)" : `layer type ${l.ty}`;
-      this.blocked.add(feat);
+      this.blocked.add(`layer type ${l.ty}`);
     }
 
     // Layer effects (`ef`): Gaussian Blur (ty 29) and Drop Shadow (ty 25) map to
@@ -1022,6 +1062,34 @@ export class Converter {
       return record(group);
     }
 
+    if (l.ty === 5) {
+      const text = this.buildTextRule(l, id);
+      this.applyTransform(l.ks, text, st);
+      if (childRules.length === 0) {
+        if (mask) this.applyMask(text, mask);
+        this.finalizeAnim(text);
+        return record(text);
+      }
+      // Text used as a transform parent: wrap it in a group carrying the
+      // transform (mirrors the solid case), so the text's own opacity stays on
+      // the text node and doesn't inherit onto parented children.
+      const wrap: Rule = {
+        id,
+        type: "group",
+        decls: [],
+        channels: [],
+        children: [],
+      };
+      this.applyTransform(l.ks, wrap, st, { skipOpacity: true });
+      if (mask) this.applyMask(wrap, mask);
+      text.id = this.uniqueId(id + "-text");
+      text.decls = text.decls.filter((d) => !d.startsWith("transform"));
+      text.channels = [];
+      wrap.children.push(text, ...childRules);
+      this.finalizeAnim(wrap);
+      return record(wrap);
+    }
+
     // Null (ty 3) and shape (ty 4) are both groups.
     const group: Rule = {
       id,
@@ -1043,6 +1111,71 @@ export class Converter {
     group.children.push(...childRules);
     this.finalizeAnim(group);
     return record(group);
+  }
+
+  /**
+   * Static text layer (ty 5). Maps the first text document in `t.d.k` to a
+   * `type: text` node: string, font-size (s.s), fill (s.fc), justification
+   * (s.j → text-anchor), and best-effort font family (s.f → fonts.list fFamily).
+   * The text is drawn at the origin; the layer transform (with the anchor as
+   * transform-origin) positions it, same as every other layer type.
+   *
+   * NOTE: static only — animated text documents, text animators (t.a), tracking
+   * and line-height are not mapped (each surfaces a warning). Multi-line strings
+   * keep the first line plus a warning; that covers the common single-line case
+   * without guessing at baseline/leading conventions.
+   */
+  private buildTextRule(l: any, id: string): Rule {
+    const docs = l.t?.d?.k;
+    const doc = Array.isArray(docs) ? docs[0] : undefined;
+    const s = doc?.s;
+    if (!s) throw new Error(`text layer '${l.nm ?? l.ind}' has no document`);
+    if (Array.isArray(docs) && docs.length > 1)
+      this.warnOnce("animated text document; only the first document was used");
+    if (Array.isArray(l.t?.a) && l.t.a.length)
+      this.warnOnce("text animators are not supported and were ignored");
+
+    const rule: Rule = {
+      id,
+      type: "text",
+      decls: [],
+      channels: [],
+      children: [],
+    };
+
+    let str = typeof s.t === "string" ? s.t : "";
+    if (/[\r\n]/.test(str)) {
+      this.warnOnce("multi-line text collapsed to its first line");
+      str = str.split(/[\r\n]/)[0];
+    }
+    rule.decls.push(`content: ${JSON.stringify(str)}`, `x: 0`, `y: 0`);
+
+    if (typeof s.s === "number") rule.decls.push(`font-size: ${num(s.s)}px`);
+
+    const anchor = { 0: "start", 1: "end", 2: "middle" }[s.j as number];
+    if (anchor && anchor !== "start") rule.decls.push(`text-anchor: ${anchor}`);
+
+    if (Array.isArray(s.fc)) rule.decls.push(`fill: ${lottieColor(s.fc)}`);
+
+    const font = typeof s.f === "string" ? this.fonts.get(s.f) : undefined;
+    const family =
+      (font && (font.fFamily || font.fName)) ||
+      (typeof s.f === "string" ? s.f : "");
+    if (family) {
+      // Bare generic keyword stays unquoted; anything else is a family name.
+      const generic = /^(sans-serif|serif|monospace|cursive|fantasy)$/i.test(
+        family,
+      );
+      rule.decls.push(
+        `font-family: ${generic ? family.toLowerCase() : JSON.stringify(family)}`,
+      );
+    }
+
+    if (s.tr) this.warnOnce("text tracking is not supported and was ignored");
+    if (typeof s.lh === "number")
+      this.warnOnce("text line-height is not supported and was ignored");
+
+    return rule;
   }
 
   /**

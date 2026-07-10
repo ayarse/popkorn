@@ -148,10 +148,25 @@ function main() {
     );
     process.exit(1);
   }
+  const { css, warnings, blocked } = convertFile(input);
+
+  // --validate is a report-only mode: it converts, checks the result, and prints
+  // a report — it never emits CSS (no stdout dump, no -o write). Exits nonzero
+  // when the converted CSS fails to parse/build.
+  if (doValidate) {
+    for (const w of warnings) console.error(`warning: ${w}`);
+    for (const b of blocked) console.error(`blocked: ${b}`);
+    const errors = formatFor(input).mod.validate(css);
+    if (errors.length) {
+      for (const e of errors) console.error(`validate error: ${e}`);
+      process.exit(1);
+    }
+    console.error("validate: ok");
+    return;
+  }
+
   const oIdx = argv.indexOf("-o");
   const outPath = oIdx >= 0 ? argv[oIdx + 1] : null;
-
-  const { css, warnings, blocked } = convertFile(input);
   if (outPath) {
     writeFileSync(outPath, css);
     console.error(`wrote ${outPath}`);
@@ -159,14 +174,6 @@ function main() {
 
   for (const w of warnings) console.error(`warning: ${w}`);
   for (const b of blocked) console.error(`blocked: ${b}`);
-  if (doValidate) {
-    const errors = formatFor(input).mod.validate(css);
-    if (errors.length) {
-      for (const e of errors) console.error(`validate error: ${e}`);
-      process.exit(1);
-    }
-    console.error("validate: ok");
-  }
 }
 
 // Only run the CLI when executed directly, so tests can import helpers.

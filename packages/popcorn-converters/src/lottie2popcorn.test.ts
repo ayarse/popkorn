@@ -986,3 +986,146 @@ test("an orphan track-matte source (td with no tt consumer) is dropped, not pain
   expect(css).toContain("mask: #good-src alpha");
   expect(css).toContain("#plain");
 });
+
+// --- text layers (ty 5) -----------------------------------------------------
+
+const TEXT_KS = {
+  r: { a: 0, k: 0 },
+  p: { a: 0, k: [100, 50] },
+  a: { a: 0, k: [0, 0] },
+  s: { a: 0, k: [100, 100] },
+  o: { a: 0, k: 100 },
+};
+
+/** A minimal comp with one text layer; `doc` overrides the text document `s`. */
+function textComp(doc: any, extra: any = {}, fonts?: any) {
+  return {
+    v: "5",
+    fr: 30,
+    ip: 0,
+    op: 30,
+    w: 200,
+    h: 100,
+    ...(fonts ? { fonts } : {}),
+    layers: [
+      {
+        ty: 5,
+        nm: "label",
+        ind: 1,
+        ip: 0,
+        op: 30,
+        st: 0,
+        ks: TEXT_KS,
+        t: { d: { k: [{ t: 0, s: doc }] }, ...extra },
+      },
+    ],
+  };
+}
+
+test("text layer maps to a text node (string, size, fill, anchor)", () => {
+  const c = new Converter();
+  const css = c.convert(
+    textComp({ t: "Hi", s: 24, fc: [1, 0, 0], j: 2, f: "Helvetica" }),
+  );
+  expect(css).toContain("type: text");
+  expect(css).toContain('content: "Hi"');
+  expect(css).toContain("font-size: 24px");
+  expect(css).toContain("fill: #ff0000");
+  expect(css).toContain("text-anchor: middle");
+  // No document remains blocked.
+  expect(c.blocked.size).toBe(0);
+  expect(validate(css)).toEqual([]);
+});
+
+test("text justification maps to text-anchor (start omitted, end explicit)", () => {
+  const start = new Converter().convert(textComp({ t: "L", s: 12, j: 0 }));
+  expect(start).not.toContain("text-anchor");
+  const end = new Converter().convert(textComp({ t: "R", s: 12, j: 1 }));
+  expect(end).toContain("text-anchor: end");
+});
+
+test("text font-family resolves via the fonts list, generics unquoted", () => {
+  const c = new Converter();
+  const css = c.convert(
+    textComp(
+      { t: "x", s: 12, f: "F1" },
+      {},
+      {
+        list: [{ fName: "F1", fFamily: "Roboto" }],
+      },
+    ),
+  );
+  expect(css).toContain('font-family: "Roboto"');
+  const g = new Converter().convert(
+    textComp({ t: "y", s: 12, f: "sans-serif" }),
+  );
+  expect(g).toContain("font-family: sans-serif");
+});
+
+test("multi-keyframe text document uses the first and warns", () => {
+  // Inject a second document to trip the animated-document path.
+  const comp = textComp({ t: "First", s: 12 });
+  comp.layers[0].t.d.k.push({ t: 15, s: { t: "Second", s: 12 } });
+  const c2 = new Converter();
+  const css2 = c2.convert(comp);
+  expect(css2).toContain('content: "First"');
+  expect(css2).not.toContain("Second");
+  expect(c2.warnings.some((w) => /animated text document/.test(w))).toBe(true);
+});
+
+test("text animators and multi-line warn but do not block", () => {
+  const c = new Converter();
+  const comp = textComp({ t: "line1\rline2", s: 12 });
+  comp.layers[0].t.a = [{ nm: "anim" }];
+  const css = c.convert(comp);
+  expect(css).toContain('content: "line1"');
+  expect(css).not.toContain("line2");
+  expect(c.warnings.some((w) => /text animators/.test(w))).toBe(true);
+  expect(c.warnings.some((w) => /multi-line/.test(w))).toBe(true);
+  expect(c.blocked.size).toBe(0);
+});
+
+// --- expressions ------------------------------------------------------------
+
+test("expressions on animatable properties emit one warning", () => {
+  const c = new Converter();
+  const css = c.convert({
+    v: "5",
+    fr: 30,
+    ip: 0,
+    op: 30,
+    w: 100,
+    h: 100,
+    layers: [
+      {
+        ty: 4,
+        nm: "e",
+        ind: 1,
+        ip: 0,
+        op: 30,
+        st: 0,
+        ks: {
+          r: { a: 0, k: 0 },
+          // Expression on position.
+          p: { a: 0, k: [50, 50], x: "wiggle(2,10);" },
+          a: { a: 0, k: [0, 0] },
+          s: { a: 0, k: [100, 100] },
+          o: { a: 1, k: 100, x: "time*10;" },
+        },
+        shapes: [
+          {
+            ty: "gr",
+            it: [
+              { ty: "rc", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [10, 10] } },
+              { ...IDENTITY_TR },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const exprWarn = c.warnings.filter((w) => /expressions dropped/.test(w));
+  expect(exprWarn.length).toBe(1);
+  expect(exprWarn[0]).toContain("2 properties");
+  expect(validate(css)).toEqual([]);
+});
