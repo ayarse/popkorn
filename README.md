@@ -4,7 +4,7 @@
 
 **What if a CSS animation could leave the browser?**
 
-https://github.com/ayarse/popcorn/pull/1#issue-4858329976
+https://github.com/user-attachments/assets/3b12477a-96ac-42f2-a7e6-0bdec74f26f8
 
 [**▶ Playground**](https://ayarse.github.io/popcorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
