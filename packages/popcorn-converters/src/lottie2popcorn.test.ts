@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { parse } from "@popcorn/parser";
 import { Converter, validate } from "./lottie2popcorn";
 
 const IDENTITY_TR = {
@@ -1128,4 +1129,68 @@ test("expressions on animatable properties emit one warning", () => {
   expect(exprWarn.length).toBe(1);
   expect(exprWarn[0]).toContain("2 properties");
   expect(validate(css)).toEqual([]);
+});
+
+// --- text: content escaping + stroke ---------------------------------------
+
+/** Convert a text doc, parse the CSS, and return the label's content string. */
+function roundTripContent(doc: any): string {
+  const css = new Converter().convert(textComp(doc));
+  const sheet = parse(css);
+  let found: string | undefined;
+  const walk = (rules: any[]) => {
+    for (const r of rules) {
+      for (const d of r.declarations)
+        if (d.property === "content" && d.value.type === "string")
+          found = d.value.value;
+      if (r.children) walk(r.children);
+    }
+  };
+  walk(sheet.rules);
+  if (found === undefined) throw new Error("no content decl parsed");
+  return found;
+}
+
+test("text content with double quotes round-trips (single delimiter)", () => {
+  expect(roundTripContent({ t: 'Say "hi"', s: 12 })).toBe('Say "hi"');
+});
+
+test("text content with single quotes round-trips (double delimiter)", () => {
+  expect(roundTripContent({ t: "it's fine", s: 12 })).toBe("it's fine");
+});
+
+test("text content with both quote kinds substitutes and warns", () => {
+  const c = new Converter();
+  const css = c.convert(textComp({ t: `he said "it's"`, s: 12 }));
+  expect(c.warnings.some((w) => /both quote characters/.test(w))).toBe(true);
+  const sheet = parse(css);
+  // Double quotes were replaced with single; the literal still parses cleanly.
+  expect(css).toContain("content:");
+  expect(validate(css)).toEqual([]);
+  expect(sheet.rules.length).toBeGreaterThan(0);
+});
+
+test("text content with backslashes passes through raw", () => {
+  expect(roundTripContent({ t: "path\\to\\file", s: 12 })).toBe(
+    "path\\to\\file",
+  );
+});
+
+test("stroke-only text maps stroke and emits no fill", () => {
+  const css = new Converter().convert(
+    textComp({ t: "S", s: 12, sc: [0, 0, 1], sw: 3 }),
+  );
+  expect(css).toContain("stroke: #0000ff");
+  expect(css).toContain("stroke-width: 3px");
+  expect(css).not.toContain("fill:");
+  expect(validate(css)).toEqual([]);
+});
+
+test("filled + stroked text keeps both", () => {
+  const css = new Converter().convert(
+    textComp({ t: "S", s: 12, fc: [1, 0, 0], sc: [0, 0, 1], sw: 2 }),
+  );
+  expect(css).toContain("fill: #ff0000");
+  expect(css).toContain("stroke: #0000ff");
+  expect(css).toContain("stroke-width: 2px");
 });

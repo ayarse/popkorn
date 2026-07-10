@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -42,17 +42,33 @@ function writeDoc(): string {
   return p;
 }
 
+/** A batch dir with one good doc plus, optionally, a malformed one that FAILs. */
+function writeBatch(withBad: boolean): string {
+  const dir = mkdtempSync(join(tmpdir(), "popcorn-batch-"));
+  writeFileSync(join(dir, "good.json"), JSON.stringify(DOC));
+  if (withBad) writeFileSync(join(dir, "bad.json"), "{ not valid lottie");
+  return dir;
+}
+
 async function run(args: string[]) {
-  const proc = Bun.spawn(["bun", CLI, ...args], {
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
+  // Route the child's stdout/stderr to real files via shell redirection. Bun's
+  // own pipe/fd capture drops child stdout when the parent is the bun-test
+  // runner (a Bun quirk — even `bun -e "console.log"` comes back empty), so we
+  // redirect at the shell and read the files back instead.
+  const dir = mkdtempSync(join(tmpdir(), "popcorn-io-"));
+  const outPath = join(dir, "out");
+  const errPath = join(dir, "err");
+  const quoted = [CLI, ...args].map((a) => `'${a.replace(/'/g, "'\\''")}'`);
+  const proc = Bun.spawn(
+    ["sh", "-c", `bun ${quoted.join(" ")} >'${outPath}' 2>'${errPath}'`],
+    { stdout: "ignore", stderr: "ignore" },
+  );
   const code = await proc.exited;
-  return { stdout, stderr, code };
+  return {
+    stdout: readFileSync(outPath, "utf8"),
+    stderr: readFileSync(errPath, "utf8"),
+    code,
+  };
 }
 
 test("no -o dumps CSS to stdout", async () => {
@@ -67,4 +83,15 @@ test("--validate writes no CSS and reports ok", async () => {
   // Report-only: nothing on stdout, the report goes to stderr.
   expect(stdout).toBe("");
   expect(stderr).toContain("validate: ok");
+});
+
+test("--batch exits 0 when every file converts", async () => {
+  const { code } = await run(["--batch", writeBatch(false)]);
+  expect(code).toBe(0);
+});
+
+test("--batch exits nonzero when a file fails", async () => {
+  const { stdout, code } = await run(["--batch", writeBatch(true)]);
+  expect(code).not.toBe(0);
+  expect(stdout).toContain("failed 1");
 });

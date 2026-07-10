@@ -119,6 +119,7 @@ function runBatch(dir: string) {
         console.log(`  ${v}x  ${k}`);
       });
   }
+  return failed;
 }
 
 function main() {
@@ -131,7 +132,10 @@ function main() {
       console.error("--batch requires a directory");
       process.exit(1);
     }
-    runBatch(dir);
+    // Batch already validates every file (parse + buildSceneGraph); a FAIL row
+    // is a conversion or validation error. Exit nonzero so CI/gates catch it.
+    const failed = runBatch(dir);
+    if (failed > 0) process.exit(1);
     return;
   }
 

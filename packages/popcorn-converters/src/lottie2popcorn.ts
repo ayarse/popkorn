@@ -1125,6 +1125,22 @@ export class Converter {
    * keep the first line plus a warning; that covers the common single-line case
    * without guessing at baseline/leading conventions.
    */
+  /**
+   * Serialize a string as a Popcorn string literal. The parser's readString does
+   * NO escape processing — it copies raw chars up to the next quote char — so a
+   * literal is just the text wrapped in whichever quote it doesn't contain
+   * (backslashes pass through raw). When the text contains BOTH quote kinds one
+   * can't be represented, so substitute the double quotes with single and warn.
+   */
+  private cssString(str: string): string {
+    if (!str.includes('"')) return `"${str}"`;
+    if (!str.includes("'")) return `'${str}'`;
+    this.warnOnce(
+      "text contains both quote characters; double quotes replaced with single",
+    );
+    return `"${str.replace(/"/g, "'")}"`;
+  }
+
   private buildTextRule(l: any, id: string): Rule {
     const docs = l.t?.d?.k;
     const doc = Array.isArray(docs) ? docs[0] : undefined;
@@ -1148,14 +1164,19 @@ export class Converter {
       this.warnOnce("multi-line text collapsed to its first line");
       str = str.split(/[\r\n]/)[0];
     }
-    rule.decls.push(`content: ${JSON.stringify(str)}`, `x: 0`, `y: 0`);
+    rule.decls.push(`content: ${this.cssString(str)}`, `x: 0`, `y: 0`);
 
     if (typeof s.s === "number") rule.decls.push(`font-size: ${num(s.s)}px`);
 
     const anchor = { 0: "start", 1: "end", 2: "middle" }[s.j as number];
     if (anchor && anchor !== "start") rule.decls.push(`text-anchor: ${anchor}`);
 
+    // Fill (s.fc) and/or stroke (s.sc/s.sw). A stroke-only doc must NOT get a
+    // synthesized fill, or it would paint solid where Lottie draws only outline.
     if (Array.isArray(s.fc)) rule.decls.push(`fill: ${lottieColor(s.fc)}`);
+    if (Array.isArray(s.sc)) rule.decls.push(`stroke: ${lottieColor(s.sc)}`);
+    if (typeof s.sw === "number" && s.sw > 0)
+      rule.decls.push(`stroke-width: ${num(s.sw)}px`);
 
     const font = typeof s.f === "string" ? this.fonts.get(s.f) : undefined;
     const family =
@@ -1167,7 +1188,7 @@ export class Converter {
         family,
       );
       rule.decls.push(
-        `font-family: ${generic ? family.toLowerCase() : JSON.stringify(family)}`,
+        `font-family: ${generic ? family.toLowerCase() : this.cssString(family)}`,
       );
     }
 
