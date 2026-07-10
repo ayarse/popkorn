@@ -463,8 +463,17 @@ function parseValue(c: Cursor): Value {
   if (name === "var" && c.peek() === "(") {
     c.expect("(");
     const varName = c.match(CUSTOM)!;
+    let fallback: Value | undefined;
+    if (c.eat(",")) {
+      // Fallback is a single value; nested var()/input() are allowed since
+      // parseValue already handles those, but a fallback-of-a-fallback list
+      // (`var(--x, 1px, 2px)`) is NOT supported — CSS's comma-list fallback
+      // form is out of scope here (fine-grained property parsing doesn't
+      // need it). Tolerate a trailing comma with no fallback value.
+      if (c.peek() !== ")") fallback = parseValue(c);
+    }
     c.expect(")");
-    return { type: "variable", name: varName };
+    return { type: "variable", name: varName, fallback };
   }
   if (c.peek() === "(") {
     c.expect("(");

@@ -107,6 +107,52 @@ test("var() reference", () => {
   ).toEqual({ type: "variable", name: "--cursor-x" });
 });
 
+test("var() with fallback number", () => {
+  expect(
+    parse("#f { opacity: var(--o, 0.5); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "variable",
+    name: "--o",
+    fallback: { type: "number", value: 0.5 },
+  });
+});
+
+test("var() with fallback color", () => {
+  expect(
+    parse("#f { fill: var(--c, #ff0000); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "variable",
+    name: "--c",
+    fallback: { type: "color", value: "#ff0000" },
+  });
+});
+
+test("var() with fallback length", () => {
+  expect(
+    parse("#s { cx: var(--x, 10px); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "variable",
+    name: "--x",
+    fallback: { type: "length", value: 10, unit: "px" },
+  });
+});
+
+test("var() with nested var() fallback", () => {
+  expect(
+    parse("#s { cx: var(--x, var(--y)); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "variable",
+    name: "--x",
+    fallback: { type: "variable", name: "--y" },
+  });
+});
+
+test("var() with trailing comma and no fallback value", () => {
+  expect(parse("#s { cx: var(--x,); }").rules[0].declarations[0].value).toEqual(
+    { type: "variable", name: "--x", fallback: undefined },
+  );
+});
+
 test("function call with dimension args", () => {
   expect(
     parse("#s { transform: translate(100px, 200px); }").rules[0].declarations[0]

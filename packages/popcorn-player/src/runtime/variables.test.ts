@@ -29,6 +29,50 @@ test("getVariable returns undefined for unknown variables", () => {
   expect(r.getVariable("--nope")).toBeUndefined();
 });
 
+// --- var() fallback -----------------------------------------------------------
+
+test("resolveVariable uses the defined value when the var is defined, ignoring fallback", () => {
+  const r = createVariableResolver();
+  r.setVariables([{ name: "--o", value: { type: "number", value: 1 } }]);
+  expect(
+    r.resolveNumeric({
+      type: "variable",
+      name: "--o",
+      fallback: { type: "number", value: 99 },
+    }),
+  ).toBe(1);
+});
+
+test("resolveVariable uses the fallback when the var is undefined", () => {
+  const r = createVariableResolver();
+  r.setVariables([]);
+  expect(
+    r.resolveNumeric({
+      type: "variable",
+      name: "--missing",
+      fallback: { type: "number", value: 0.5 },
+    }),
+  ).toBe(0.5);
+});
+
+test("undefined var without a fallback resolves to 0", () => {
+  const r = createVariableResolver();
+  r.setVariables([]);
+  expect(r.resolveNumeric({ type: "variable", name: "--missing" })).toBe(0);
+});
+
+test("fallback can itself be a var() reference", () => {
+  const r = createVariableResolver();
+  r.setVariables([{ name: "--y", value: { type: "number", value: 7 } }]);
+  expect(
+    r.resolveNumeric({
+      type: "variable",
+      name: "--x",
+      fallback: { type: "variable", name: "--y" },
+    }),
+  ).toBe(7);
+});
+
 // --- Boolean resolution ------------------------------------------------------
 
 test("boolean variables resolve as booleans", () => {

@@ -2167,8 +2167,15 @@ export class SceneBuilder {
   private resolveStaticVars(value: Value): Value {
     if (isVariableRefValue(value)) {
       const resolved = this.variablesMap.get(value.name);
-      if (!resolved || this.hasVariableReference(resolved)) return value;
-      return this.resolveStaticVars(resolved);
+      if (resolved) {
+        if (this.hasVariableReference(resolved)) return value;
+        return this.resolveStaticVars(resolved);
+      }
+      // Undefined var: fall back to the authored fallback (if static).
+      if (value.fallback && !this.hasVariableReference(value.fallback)) {
+        return this.resolveStaticVars(value.fallback);
+      }
+      return value;
     }
     if (isFunctionValue(value)) {
       if (value.name === "input") return value; // reactive; leave args alone
