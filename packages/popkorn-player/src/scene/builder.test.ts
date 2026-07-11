@@ -11,6 +11,7 @@ import { buildSceneGraph } from "./builder";
 import { getShapeBounds } from "./transform";
 import type {
   CircleData,
+  EllipseData,
   ImageData,
   PathData,
   PolystarData,
@@ -157,6 +158,54 @@ test("bubbling: an unpainted (fill: none) child still hits, crediting the intera
 });
 
 // --- symbols (@define / use) -------------------------------------------------
+
+test("circle: x/y (bounding-box top-left) convert to cx/cy", () => {
+  const root = build(`#c { type: circle; x: 10px; y: 20px; r: 5px; }`);
+  const c = root.children[0].shapeData as CircleData;
+  expect(c.cx).toBe(15);
+  expect(c.cy).toBe(25);
+});
+
+test("circle: left/top alias also converts (via parser expandAliases)", () => {
+  const root = build(`#c { type: circle; left: 10px; top: 20px; r: 5px; }`);
+  const c = root.children[0].shapeData as CircleData;
+  expect(c.cx).toBe(15);
+  expect(c.cy).toBe(25);
+});
+
+test("ellipse: x/y convert to cx/cy using rx/ry", () => {
+  const root = build(
+    `#e { type: ellipse; x: 10px; y: 20px; rx: 5px; ry: 8px; }`,
+  );
+  const e = root.children[0].shapeData as EllipseData;
+  expect(e.cx).toBe(15);
+  expect(e.cy).toBe(28);
+});
+
+test("circle: x/y conversion is declaration-order independent (r declared after x/y)", () => {
+  const root = build(`#c { type: circle; x: 10px; y: 20px; r: 5px; }`);
+  const reordered = build(`#c { type: circle; r: 5px; x: 10px; y: 20px; }`);
+  const a = root.children[0].shapeData as CircleData;
+  const b = reordered.children[0].shapeData as CircleData;
+  expect(a.cx).toBe(b.cx);
+  expect(a.cy).toBe(b.cy);
+  expect(a.cx).toBe(15);
+  expect(a.cy).toBe(25);
+});
+
+test("circle: explicit cx/cy wins over x/y regardless of order", () => {
+  const before = build(
+    `#c { type: circle; x: 10px; y: 20px; cx: 99px; cy: 98px; r: 5px; }`,
+  );
+  const after = build(
+    `#c { type: circle; cx: 99px; cy: 98px; x: 10px; y: 20px; r: 5px; }`,
+  );
+  for (const root of [before, after]) {
+    const c = root.children[0].shapeData as CircleData;
+    expect(c.cx).toBe(99);
+    expect(c.cy).toBe(98);
+  }
+});
 
 const SYMBOL_SRC = `
 @keyframes grow { from { r: 5px; } to { r: 50px; } }

@@ -419,6 +419,12 @@ export interface CircleData {
   cx: number;
   cy: number;
   r: number;
+  // Builder-internal scratch for `x`/`y` bounding-box sugar (left/top alias
+  // input). Never read past buildNode — see resolveCircleEllipseBoxPosition.
+  __boxX?: number;
+  __boxY?: number;
+  __cxSet?: boolean;
+  __cySet?: boolean;
 }
 
 export interface EllipseData {
@@ -427,6 +433,10 @@ export interface EllipseData {
   cy: number;
   rx: number;
   ry: number;
+  __boxX?: number;
+  __boxY?: number;
+  __cxSet?: boolean;
+  __cySet?: boolean;
 }
 
 export interface PathData {

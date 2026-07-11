@@ -434,6 +434,11 @@ export class SceneBuilder {
     // Apply declarations
     this.applyDeclarations(node, rule.declarations);
 
+    // Resolve `x`/`y` bounding-box sugar on circle/ellipse (left/top aliases
+    // land here too) into cx/cy, now that r/rx/ry and any explicit cx/cy are
+    // final — order-independent by construction.
+    this.resolveCircleEllipseBoxPosition(node);
+
     // Resolve the `animation` shorthand together with the `animation-*`
     // longhands (CSS composition: later declarations win per sub-property).
     this.resolveAnimations(node, rule.declarations);
@@ -698,6 +703,33 @@ export class SceneBuilder {
     return transform;
   }
 
+  /**
+   * `x`/`y` (and thus the `left`/`top` parser aliases) on circle/ellipse are
+   * input sugar for the bounding-box top-left, converted to the canonical
+   * `cx`/`cy` center form: `cx = x + r` (ellipse: `+ rx`), `cy = y + r`
+   * (`+ ry`). Explicit `cx`/`cy` wins if both are given. Static placement
+   * only — not wired into the animation registry.
+   */
+  private resolveCircleEllipseBoxPosition(node: SceneNode): void {
+    if (node.shapeData.type === "circle") {
+      const d = node.shapeData as CircleData;
+      if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + d.r;
+      if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + d.r;
+      delete d.__boxX;
+      delete d.__boxY;
+      delete d.__cxSet;
+      delete d.__cySet;
+    } else if (node.shapeData.type === "ellipse") {
+      const d = node.shapeData as EllipseData;
+      if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + d.rx;
+      if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + d.ry;
+      delete d.__boxX;
+      delete d.__boxY;
+      delete d.__cxSet;
+      delete d.__cySet;
+    }
+  }
+
   private applyDeclarations(
     node: SceneNode,
     declarations: Declaration[],
@@ -771,6 +803,16 @@ export class SceneBuilder {
           (node.shapeData as TextData).x = getNumericValue(value);
         } else if (node.shapeData.type === "image") {
           (node.shapeData as ImageData).x = getNumericValue(value);
+        } else if (
+          node.shapeData.type === "circle" ||
+          node.shapeData.type === "ellipse"
+        ) {
+          // NOTE: input sugar only (bounding-box top-left → center), resolved
+          // once all of the node's declarations are known — see
+          // resolveCircleEllipseBoxPosition. cx/cy stay the canonical,
+          // serialized form; x/y here are not animatable.
+          (node.shapeData as CircleData | EllipseData).__boxX =
+            getNumericValue(value);
         }
         break;
       case "y":
@@ -780,6 +822,12 @@ export class SceneBuilder {
           (node.shapeData as TextData).y = getNumericValue(value);
         } else if (node.shapeData.type === "image") {
           (node.shapeData as ImageData).y = getNumericValue(value);
+        } else if (
+          node.shapeData.type === "circle" ||
+          node.shapeData.type === "ellipse"
+        ) {
+          (node.shapeData as CircleData | EllipseData).__boxY =
+            getNumericValue(value);
         }
         break;
 
@@ -853,18 +901,26 @@ export class SceneBuilder {
       // Circle/ellipse properties
       case "cx":
         if (node.shapeData.type === "circle") {
-          (node.shapeData as CircleData).cx = getNumericValue(value);
+          const d = node.shapeData as CircleData;
+          d.cx = getNumericValue(value);
+          d.__cxSet = true;
         } else if (node.shapeData.type === "ellipse") {
-          (node.shapeData as EllipseData).cx = getNumericValue(value);
+          const d = node.shapeData as EllipseData;
+          d.cx = getNumericValue(value);
+          d.__cxSet = true;
         } else if (isPolystar(node.shapeData)) {
           (node.shapeData as PolystarData).cx = getNumericValue(value);
         }
         break;
       case "cy":
         if (node.shapeData.type === "circle") {
-          (node.shapeData as CircleData).cy = getNumericValue(value);
+          const d = node.shapeData as CircleData;
+          d.cy = getNumericValue(value);
+          d.__cySet = true;
         } else if (node.shapeData.type === "ellipse") {
-          (node.shapeData as EllipseData).cy = getNumericValue(value);
+          const d = node.shapeData as EllipseData;
+          d.cy = getNumericValue(value);
+          d.__cySet = true;
         } else if (isPolystar(node.shapeData)) {
           (node.shapeData as PolystarData).cy = getNumericValue(value);
         }

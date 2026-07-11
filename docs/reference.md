@@ -33,7 +33,7 @@ format always uses the canonical name):
 
 | You may write | Rewrites to | Notes |
 | --- | --- | --- |
-| `left` / `top` | `x` / `y` | `right` / `bottom` are rejected — no containing box; position with `x`/`y`. |
+| `left` / `top` | `x` / `y` | `right` / `bottom` are rejected — no containing box; position with `x`/`y`. On `circle`/`ellipse`, `x`/`y` set the bounding-box top-left and are converted to `cx`/`cy` (static only; explicit `cx`/`cy` wins). |
 | `color` | `fill` | Handy for text. |
 | `background` | `fill` | On `:root` this still sets the stage color. |
 | `border-radius: <r>` | `rx` + `ry` | Single value only; multi-value/elliptical → use `type: path`. |
