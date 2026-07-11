@@ -244,13 +244,41 @@ A `linear-gradient` may instead give explicit `from`/`to` endpoints, and a
 `radial-gradient` an explicit center/`radius` and a `focal` highlight point
 (Lottie's highlight offset), rather than the bbox-derived defaults.
 
+`conic-gradient` sweeps its stops around a center (pie slices, sunbursts). It
+takes an optional `from <angle>` start (0deg = up, clockwise, as CSS) and an
+optional `at <x>px <y>px` center in the shape's local space (defaults to the
+bbox center). Stop positions may be `%` or an angle in `deg` (fraction of the
+turn):
+
+```css
+#pie {
+  type: circle;
+  fill: conic-gradient(from 0deg, #ff0000 0deg, #00ff00 120deg, #0000ff 240deg);
+}
+```
+
+Each gradient has a `repeating-` variant — `repeating-linear-gradient`,
+`repeating-radial-gradient`, `repeating-conic-gradient` — that tiles the stop
+run across the whole extent (stripes, rings, checker sweeps):
+
+```css
+#stripes {
+  type: rect;
+  fill: repeating-linear-gradient(45deg, #222 0%, #222 10%, #eee 10%, #eee 20%);
+}
+```
+
 A gradient `fill`/`stroke` is animatable in `@keyframes`: each stop's offset and
-color are interpolated, along with the linear angle and the radial
-radius/center/focal. The two endpoints must be *compatible* — same gradient
-type, same stop count, and the same explicit-geometry presence (both or neither
-specify `from`/`to`, both or neither `at`/`focal`) — so stops pair up
-index-for-index. Incompatible gradients step (hold the departing value) instead
-of interpolating.
+color are interpolated, along with the linear angle, the conic `from`/`at`, and
+the radial radius/center/focal. The two endpoints must be *compatible* — same
+gradient type, same stop count, the same `repeating` flag, and the same
+explicit-geometry presence (both or neither specify `from`/`to`, `at`/`focal`)
+— so stops pair up index-for-index. Incompatible gradients step (hold the
+departing value) instead of interpolating.
+
+> Renderer note: conic gradients paint natively on the Canvas2D and Skia
+> backends; the SVG backend has no conic primitive and degrades a conic to a
+> flat fill of its middle stop.
 
 ```css
 @keyframes recolor {

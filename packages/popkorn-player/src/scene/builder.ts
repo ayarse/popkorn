@@ -99,6 +99,17 @@ const STATE_BLOCK_IGNORED = new Set([
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
   sd.type === "star" || sd.type === "polygon";
 
+// CSS gradient functions accepted as a fill/stroke paint (+ their repeating
+// tiled variants). conic and every repeating-* form route through parseGradient.
+const GRADIENT_FN = new Set([
+  "linear-gradient",
+  "radial-gradient",
+  "conic-gradient",
+  "repeating-linear-gradient",
+  "repeating-radial-gradient",
+  "repeating-conic-gradient",
+]);
+
 // One warning per animation whose object-valued keyframes (gradients/paths)
 // can't interpolate — interpolation will step to the departing value instead.
 const warnedAnimations = new Set<string>();
@@ -1864,10 +1875,7 @@ export class SceneBuilder {
     | { type: "gradient"; gradient: GradientData | null }
     | { type: "color"; color: string | null }
     | null {
-    if (
-      isFunctionValue(value) &&
-      (value.name === "linear-gradient" || value.name === "radial-gradient")
-    ) {
+    if (isFunctionValue(value) && GRADIENT_FN.has(value.name)) {
       return { type: "gradient", gradient: this.parseGradient(value) };
     }
     if (isColorValue(value)) {
@@ -1899,11 +1907,18 @@ export class SceneBuilder {
     name: string;
     args: Value[];
   }): GradientData | null {
-    const isLinear = func.name === "linear-gradient";
+    // `repeating-<kind>()` tiles the stop run; otherwise the kind carries through.
+    const repeating = func.name.startsWith("repeating-");
+    const kind = repeating ? func.name.slice("repeating-".length) : func.name;
+    const isLinear = kind === "linear-gradient";
+    const isConic = kind === "conic-gradient";
     const args = func.args;
     let i = 0;
 
-    // CSS default gradient direction is `to bottom` (180deg).
+    const num = (v?: Value): number | null =>
+      v && (isLengthValue(v) || isNumberValue(v)) ? v.value : null;
+
+    // CSS default linear direction is `to bottom` (180deg).
     let angle = 180;
     if (
       isLinear &&
@@ -1915,19 +1930,45 @@ export class SceneBuilder {
       i = 1;
     }
 
+    // `at <x>px <y>px` — sweep/radial centre in local space; shared by conic and
+    // radial, so it is declared before both keyword loops.
+    let at: { x: number; y: number } | undefined;
+
+    // conic-gradient([from <angle>] [at <x>px <y>px], stops...). `from` is a
+    // single start angle (0 = up, clockwise); `at` is the sweep centre in local
+    // space (px, mirroring radial `at`), defaulting to the box centre.
+    let fromAngle = 0;
+    if (isConic) {
+      while (i < args.length && isKeywordValue(args[i])) {
+        const kw = (args[i] as { value: string }).value;
+        if (kw === "from" && args[i + 1] && num(args[i + 1]) != null) {
+          fromAngle = num(args[i + 1])!;
+          i += 2;
+          continue;
+        }
+        if (kw === "at") {
+          const x = num(args[i + 1]);
+          const y = num(args[i + 2]);
+          if (x != null && y != null) {
+            at = { x, y };
+            i += 3;
+            continue;
+          }
+        }
+        break;
+      }
+    }
+
     // Explicit geometry keywords lead the arg list (from the Lottie converter):
     //   linear-gradient(from <x>px <y>px to <x>px <y>px, stops...)
     //   radial-gradient(circle <r>px at <cx>px <cy>px [from <fx>px <fy>px], stops...)
     // Coordinates are in the shape's local space; `from` is endpoint for linear,
     // focal (inner-circle center) for radial.
-    const num = (v?: Value): number | null =>
-      v && (isLengthValue(v) || isNumberValue(v)) ? v.value : null;
     let from: { x: number; y: number } | undefined;
     let to: { x: number; y: number } | undefined;
     let radius: number | undefined;
-    let at: { x: number; y: number } | undefined;
     let focal: { x: number; y: number } | undefined;
-    while (i < args.length && isKeywordValue(args[i])) {
+    while (!isConic && i < args.length && isKeywordValue(args[i])) {
       const kw = (args[i] as { value: string }).value;
       const x = num(args[i + 1]);
       if (kw === "circle" && x != null) {
@@ -1961,8 +2002,18 @@ export class SceneBuilder {
       if (color === null) continue; // skip anything that isn't a color
       let offset: number | null = null;
       const next = args[i];
+      // Stop position: `%` for every kind, plus `deg` for conic (fraction of the
+      // full turn) so `red 90deg` reads as CSS does.
       if (next && isLengthValue(next) && next.unit === "%") {
         offset = next.value / 100;
+        i++;
+      } else if (
+        isConic &&
+        next &&
+        isLengthValue(next) &&
+        next.unit === "deg"
+      ) {
+        offset = next.value / 360;
         i++;
       }
       stops.push({ color, offset: offset ?? -1 });
@@ -1978,9 +2029,11 @@ export class SceneBuilder {
       }
     }
 
+    if (isConic)
+      return { type: "conic-gradient", from: fromAngle, stops, at, repeating };
     return isLinear
-      ? { type: "linear-gradient", angle, stops, from, to }
-      : { type: "radial-gradient", stops, radius, at, focal };
+      ? { type: "linear-gradient", angle, stops, from, to, repeating }
+      : { type: "radial-gradient", stops, radius, at, focal, repeating };
   }
 
   private colorArgToString(value: Value): string | null {

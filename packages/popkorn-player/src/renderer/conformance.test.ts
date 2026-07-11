@@ -31,7 +31,7 @@ type CanvasEvent =
   | { type: "luma"; index: number };
 
 interface RecGradient {
-  __grad: "linear" | "radial";
+  __grad: "linear" | "radial" | "conic";
   coords: number[];
   stops: { offset: number; color: string }[];
   addColorStop(offset: number, color: string): void;
@@ -119,6 +119,18 @@ function recCtx(
       const g: RecGradient = {
         __grad: "radial",
         coords: [x1, y1, r1, x0, y0],
+        stops: [],
+        addColorStop(o, c) {
+          this.stops.push({ offset: o, color: c });
+        },
+      };
+      return g;
+    },
+    createConicGradient(startAngle: number, x: number, y: number): RecGradient {
+      // Canvas args are (startAngle, cx, cy); normalize to [cx,cy,startAngle].
+      const g: RecGradient = {
+        __grad: "conic",
+        coords: [x, y, startAngle],
         stops: [],
         addColorStop(o, c) {
           this.stops.push({ offset: o, color: c });
@@ -500,6 +512,30 @@ test("divergence [svg] text gradient bounds use the 0.6em advance approximation"
   const expected = rg.type === "linear" ? [rg.x1, rg.y1, rg.x2, rg.y2] : [];
   for (let i = 0; i < expected.length; i++)
     expect(grad.coords[i]).toBeCloseTo(expected[i], 4);
+});
+
+// SVG has no conic-gradient primitive, so the backend degrades a conic paint to
+// a flat fill of its middle stop (see svg.conicFallbackColor). Deliberate: the
+// same GradientData paints an angular sweep on Canvas/Skia but a solid on SVG.
+test("divergence [svg] conic gradient degrades to a flat middle-stop fill", () => {
+  const g: GradientData = {
+    type: "conic-gradient",
+    from: 0,
+    stops: [
+      { offset: 0, color: "#ff0000" },
+      { offset: 0.5, color: "#00ff00" },
+      { offset: 1, color: "#0000ff" },
+    ],
+  };
+  const s = svgHarness.run((r) => {
+    r.setFill(null);
+    r.setFillGradient(g);
+    r.drawRect(0, 0, 20, 10);
+  });
+  const fill = s.paints.find((p) => p.kind === "fill");
+  // Middle stop (index floor((3-1)/2) = 1) is #00ff00; NOT a url() gradient ref.
+  expect(fill?.gradient).toBeUndefined();
+  expect(fill?.color).toBe("#00ff00");
 });
 
 // A sanity check that the canvas + svg gradient realizations genuinely agree on

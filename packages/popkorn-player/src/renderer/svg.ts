@@ -117,17 +117,32 @@ export function realizeGradientAttrs(
       stops,
     };
   }
-  return {
-    tag: "radialGradient",
-    coords: {
-      cx: resolved.cx,
-      cy: resolved.cy,
-      r: resolved.r,
-      fx: resolved.fx,
-      fy: resolved.fy,
-    },
-    stops,
-  };
+  if (resolved.type === "radial") {
+    return {
+      tag: "radialGradient",
+      coords: {
+        cx: resolved.cx,
+        cy: resolved.cy,
+        r: resolved.r,
+        fx: resolved.fx,
+        fy: resolved.fy,
+      },
+      stops,
+    };
+  }
+  // Conic never reaches here — applyPaint intercepts it with conicFallbackColor
+  // (SVG has no conic primitive). Guard so the union is exhaustive.
+  throw new Error("SVG has no conic-gradient primitive");
+}
+
+// SVG has no conic-gradient primitive (no <conicGradient>, and userSpaceOnUse
+// radial/linear can't express an angular sweep). Rather than rasterize or fake
+// it with dozens of wedge <path>s, the backend degrades a conic to a flat fill
+// of its middle stop — a DELIBERATE divergence pinned in the conformance test.
+// The middle stop reads as the sweep's "average" hue better than the first.
+export function conicFallbackColor(g: GradientData): string {
+  if (g.type !== "conic-gradient" || g.stops.length === 0) return "none";
+  return g.stops[Math.floor((g.stops.length - 1) / 2)].color;
 }
 
 /** Diff-set an attribute against a per-element cache; null removes. Testable
@@ -803,7 +818,10 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     const top = this.top();
 
     // Fill
-    if (this.fillGradient) {
+    if (this.fillGradient && this.fillGradient.type === "conic-gradient") {
+      // No SVG conic primitive — degrade to a flat fill (pinned divergence).
+      this.setAttr(el, "fill", conicFallbackColor(this.fillGradient));
+    } else if (this.fillGradient) {
       const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_fill`;
       this.ensureGradient(id, this.fillGradient, bounds);
       this.setAttr(el, "fill", `url(#${id})`);
@@ -821,6 +839,8 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     let stroke: string | null;
     if (!dashDecision.stroke) {
       stroke = "none";
+    } else if (this.strokeGradient?.type === "conic-gradient") {
+      stroke = conicFallbackColor(this.strokeGradient); // pinned divergence
     } else if (this.strokeGradient) {
       const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_stroke`;
       this.ensureGradient(id, this.strokeGradient, bounds);

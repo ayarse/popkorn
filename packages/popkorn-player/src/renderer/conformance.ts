@@ -32,8 +32,9 @@ import type { GradientData } from "./types";
 // platform gradient (CanvasGradient args / SVG attrs / SkShader args) to this,
 // so all three must realize the SAME endpoints from one GradientData + box.
 export interface NormGradient {
-  type: "linear" | "radial";
-  coords: number[]; // linear: [x1,y1,x2,y2]; radial: [cx,cy,r,fx,fy]
+  type: "linear" | "radial" | "conic";
+  // linear: [x1,y1,x2,y2]; radial: [cx,cy,r,fx,fy]; conic: [cx,cy,startAngle]
+  coords: number[];
   stops: { offset: number; color: string }[];
 }
 
@@ -127,11 +128,13 @@ function expectGradient(
   const expected: NormGradient =
     r.type === "linear"
       ? { type: "linear", coords: [r.x1, r.y1, r.x2, r.y2], stops: r.stops }
-      : {
-          type: "radial",
-          coords: [r.cx, r.cy, r.r, r.fx, r.fy],
-          stops: r.stops,
-        };
+      : r.type === "conic"
+        ? { type: "conic", coords: [r.cx, r.cy, r.startAngle], stops: r.stops }
+        : {
+            type: "radial",
+            coords: [r.cx, r.cy, r.r, r.fx, r.fy],
+            stops: r.stops,
+          };
   expect(actual !== undefined).toBe(true);
   expect(actual!.type).toBe(expected.type);
   expectCoords(actual!.coords, expected.coords, expect);
@@ -170,6 +173,25 @@ const GRAD_RADIAL_FOCAL: GradientData = {
   stops: [
     { offset: 0, color: "#ffffff" },
     { offset: 1, color: "#000000" },
+  ],
+};
+const GRAD_CONIC: GradientData = {
+  type: "conic-gradient",
+  from: 90,
+  stops: [
+    { offset: 0, color: "#ff0000" },
+    { offset: 1, color: "#0000ff" },
+  ],
+};
+// Repeating linear: a quarter-turn stop run tiled across the axis. The shared
+// resolveGradient expands the tile, so every non-conic backend realizes it.
+const GRAD_REPEAT_LINEAR: GradientData = {
+  type: "linear-gradient",
+  angle: 90,
+  repeating: true,
+  stops: [
+    { offset: 0, color: "#ff0000" },
+    { offset: 0.25, color: "#0000ff" },
   ],
 };
 const BOX_20x10 = { x: 0, y: 0, width: 20, height: 10 };
@@ -360,6 +382,39 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       const fill = t.paints.find((p) => p.kind === "fill");
       expectGradient(fill?.gradient, GRAD_RADIAL_FOCAL, BOX_10x10, expect);
+    },
+  },
+
+  {
+    // Conic realizes its centre + start angle. SVG has no conic primitive (it
+    // degrades to a flat fill — pinned as a divergence test), so this case is
+    // scoped to the backends that realize an angular sweep.
+    name: "conic gradient realizes centre and start angle",
+    backends: ["canvas2d", "skia"],
+    ops: (r) => {
+      r.setFill(null);
+      r.setFillGradient(GRAD_CONIC);
+      r.drawRect(BOX_20x10.x, BOX_20x10.y, BOX_20x10.width, BOX_20x10.height);
+    },
+    assert: (t, expect) => {
+      const fill = t.paints.find((p) => p.kind === "fill");
+      expectGradient(fill?.gradient, GRAD_CONIC, BOX_20x10, expect);
+    },
+  },
+  {
+    // Repeating gradients tile the stop run in the shared helper, so all three
+    // backends realize the SAME expanded stop list (no native spread/tile mode).
+    name: "repeating linear gradient tiles the stop run",
+    ops: (r) => {
+      r.setFill(null);
+      r.setFillGradient(GRAD_REPEAT_LINEAR);
+      r.drawRect(BOX_20x10.x, BOX_20x10.y, BOX_20x10.width, BOX_20x10.height);
+    },
+    assert: (t, expect) => {
+      const fill = t.paints.find((p) => p.kind === "fill");
+      expectGradient(fill?.gradient, GRAD_REPEAT_LINEAR, BOX_20x10, expect);
+      // Sanity: tiling produced more than the two authored stops.
+      expect((fill?.gradient?.stops.length ?? 0) > 2).toBe(true);
     },
   },
 

@@ -307,12 +307,18 @@ export function interpolateProp(
 // same stop count (so stops pair up index-for-index).
 export function gradientsCompatible(a: GradientData, b: GradientData): boolean {
   if (a.type !== b.type || a.stops.length !== b.stops.length) return false;
+  // The repeating flag is a discrete paint mode, not an interpolable value — a
+  // mismatch replaces rather than morphs (the registry's gradient contract).
+  if (!!a.repeating !== !!b.repeating) return false;
   // Explicit geometry must be present on both (or neither) so fields pair up.
   if (a.type === "linear-gradient" && b.type === "linear-gradient") {
     return !!a.from === !!b.from && !!a.to === !!b.to;
   }
   if (a.type === "radial-gradient" && b.type === "radial-gradient") {
     return !!a.at === !!b.at && !!a.focal === !!b.focal;
+  }
+  if (a.type === "conic-gradient" && b.type === "conic-gradient") {
+    return !!a.at === !!b.at;
   }
   return true;
 }
@@ -344,6 +350,16 @@ export function interpolateGradient(
       stops,
       from: a.from && b.from ? lerpPt(a.from, b.from, t) : undefined,
       to: a.to && b.to ? lerpPt(a.to, b.to, t) : undefined,
+      repeating: a.repeating,
+    };
+  }
+  if (a.type === "conic-gradient" && b.type === "conic-gradient") {
+    return {
+      type: "conic-gradient",
+      from: lerp(a.from, b.from, t),
+      stops,
+      at: a.at && b.at ? lerpPt(a.at, b.at, t) : undefined,
+      repeating: a.repeating,
     };
   }
   const ra = a as RadialGradientData,
@@ -357,6 +373,7 @@ export function interpolateGradient(
         : undefined,
     at: ra.at && rb.at ? lerpPt(ra.at, rb.at, t) : undefined,
     focal: ra.focal && rb.focal ? lerpPt(ra.focal, rb.focal, t) : undefined,
+    repeating: ra.repeating,
   };
 }
 

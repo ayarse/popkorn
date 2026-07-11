@@ -666,6 +666,24 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       );
     }
 
+    if (r.type === "conic") {
+      // Sweep gradient. Skia's start/end angles are DEGREES from the +x axis
+      // (clockwise) — the same convention resolveGradient's radians use, so just
+      // convert; the [start, start+360] window places offset 0 at startAngle.
+      const startDeg = (r.startAngle * 180) / Math.PI;
+      return this.skia.Shader.MakeSweepGradient(
+        r.cx,
+        r.cy,
+        colors,
+        pos,
+        TileMode_Clamp,
+        null,
+        0,
+        startDeg,
+        startDeg + 360,
+      );
+    }
+
     // Focal highlight => two-point conical (inner radius 0 at the focal point),
     // exactly mirroring canvas createRadialGradient(focal, 0, centre, radius).
     if (r.fx !== r.cx || r.fy !== r.cy) {

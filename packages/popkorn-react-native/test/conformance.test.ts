@@ -80,6 +80,10 @@ function mockSkia() {
         ({ type: 'radial', coords: [c.x, c.y, r, c.x, c.y], stops: stops(colors, pos) }),
       MakeTwoPointConicalGradient: (f: any, _r0: number, c: any, r: number, colors: SkColorMock[], pos: number[]): NormGradient =>
         ({ type: 'radial', coords: [c.x, c.y, r, f.x, f.y], stops: stops(colors, pos) }),
+      // Sweep args: (cx, cy, colors, pos, mode, localMatrix, flags, startDeg, endDeg).
+      // Reverse-map to the shared conic form [cx, cy, startAngle(radians)].
+      MakeSweepGradient: (cx: number, cy: number, colors: SkColorMock[], pos: number[], _m: number, _lm: unknown, _f: number, startDeg: number): NormGradient =>
+        ({ type: 'conic', coords: [cx, cy, (startDeg * Math.PI) / 180], stops: stops(colors, pos) }),
     },
     PathEffect: { MakeDash: (arr: number[], offset?: number) => ({ __dash: arr, __dashOffset: offset ?? 0 }) },
     ColorFilter: { MakeMatrix: (matrix: number[]) => ({ __matrix: matrix }) },

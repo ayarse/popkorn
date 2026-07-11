@@ -461,7 +461,9 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     const grad =
       r.type === "linear"
         ? this.ctx.createLinearGradient(r.x1, r.y1, r.x2, r.y2)
-        : this.ctx.createRadialGradient(r.fx, r.fy, 0, r.cx, r.cy, r.r);
+        : r.type === "conic"
+          ? this.ctx.createConicGradient(r.startAngle, r.cx, r.cy)
+          : this.ctx.createRadialGradient(r.fx, r.fy, 0, r.cx, r.cy, r.r);
     for (const stop of r.stops) grad.addColorStop(stop.offset, stop.color);
     return grad;
   }

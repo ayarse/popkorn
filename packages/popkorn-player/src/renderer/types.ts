@@ -29,6 +29,9 @@ export interface LinearGradientData {
   // renderer draws point-to-point and ignores `angle`/the bbox approximation.
   from?: GradientPoint;
   to?: GradientPoint;
+  // `repeating-linear-gradient()`: the stop run tiles across the axis. Not
+  // interpolable (a mismatch replaces rather than morphs — see registry).
+  repeating?: boolean;
 }
 
 export interface RadialGradientData {
@@ -39,9 +42,21 @@ export interface RadialGradientData {
   radius?: number;
   at?: GradientPoint;
   focal?: GradientPoint; // inner-circle center (Lottie highlight); defaults to `at`
+  repeating?: boolean; // `repeating-radial-gradient()` — tiles outward
 }
 
-export type GradientData = LinearGradientData | RadialGradientData;
+export interface ConicGradientData {
+  type: "conic-gradient";
+  from: number; // CSS degrees the sweep starts at (0 = up, clockwise)
+  stops: GradientStop[]; // offsets are 0-1 fractions of the full turn
+  at?: GradientPoint; // sweep centre in local space; defaults to the box centre
+  repeating?: boolean; // `repeating-conic-gradient()` — tiles around the turn
+}
+
+export type GradientData =
+  | LinearGradientData
+  | RadialGradientData
+  | ConicGradientData;
 
 // Runtime type guard: a GradientData carries a `stops` array. Used by the
 // animation registry to dispatch fill/stroke interpolation by value type
@@ -58,21 +73,31 @@ export function cloneGradient(g: GradientData | null): GradientData | null {
   if (!g) return null;
   const stops = g.stops.map((s) => ({ offset: s.offset, color: s.color }));
   const pt = (p?: GradientPoint) => (p ? { x: p.x, y: p.y } : undefined);
-  return g.type === "linear-gradient"
-    ? {
-        type: "linear-gradient",
-        angle: g.angle,
-        stops,
-        from: pt(g.from),
-        to: pt(g.to),
-      }
-    : {
-        type: "radial-gradient",
-        stops,
-        radius: g.radius,
-        at: pt(g.at),
-        focal: pt(g.focal),
-      };
+  if (g.type === "linear-gradient")
+    return {
+      type: "linear-gradient",
+      angle: g.angle,
+      stops,
+      from: pt(g.from),
+      to: pt(g.to),
+      repeating: g.repeating,
+    };
+  if (g.type === "conic-gradient")
+    return {
+      type: "conic-gradient",
+      from: g.from,
+      stops,
+      at: pt(g.at),
+      repeating: g.repeating,
+    };
+  return {
+    type: "radial-gradient",
+    stops,
+    radius: g.radius,
+    at: pt(g.at),
+    focal: pt(g.focal),
+    repeating: g.repeating,
+  };
 }
 
 // Resolved trim-path descriptor for the stroke, expressed in the shape's local

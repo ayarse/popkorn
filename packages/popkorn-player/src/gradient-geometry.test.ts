@@ -2,7 +2,9 @@ import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
 import { gradientsCompatible, interpolateGradient } from "./animation/registry";
 import { Canvas2DRenderer } from "./renderer/canvas2d";
+import { resolveGradient } from "./renderer/gradient-geometry";
 import type {
+  ConicGradientData,
   GradientData,
   LinearGradientData,
   RadialGradientData,
@@ -26,6 +28,10 @@ function mockGradCanvas() {
     },
     createRadialGradient(...args: number[]) {
       calls.push({ op: "radial", args });
+      return grad;
+    },
+    createConicGradient(...args: number[]) {
+      calls.push({ op: "conic", args });
       return grad;
     },
   };
@@ -185,4 +191,70 @@ test("explicit and bbox-derived gradients are incompatible (step, no lerp)", () 
     stops: [{ offset: 0, color: "#000" }],
   };
   expect(gradientsCompatible(a, b)).toBe(false);
+});
+
+// --- conic + repeating ------------------------------------------------------
+
+test("parses conic-gradient(from <angle> at x y) and deg stop positions", () => {
+  const g = gradientOf(
+    "#r { type: rect; width: 50px; height: 50px; fill: conic-gradient(from 90deg at 5px 6px, #f00 0deg, #0f0 90deg, #00f 360deg) }",
+  ) as ConicGradientData;
+  expect(g.type).toBe("conic-gradient");
+  expect(g.from).toBe(90);
+  expect(g.at).toEqual({ x: 5, y: 6 });
+  // 0deg/90deg/360deg -> 0 / 0.25 / 1 fractions of the turn.
+  expect(g.stops.map((s) => s.offset)).toEqual([0, 0.25, 1]);
+  expect(g.repeating).toBe(false);
+});
+
+test("repeating-linear / repeating-conic set the repeating flag", () => {
+  const lin = gradientOf(
+    "#r { type: rect; width: 50px; height: 50px; fill: repeating-linear-gradient(90deg, #f00 0%, #00f 25%) }",
+  );
+  expect(lin.repeating).toBe(true);
+  const con = gradientOf(
+    "#c { type: rect; width: 50px; height: 50px; fill: repeating-conic-gradient(#f00 0deg, #00f 60deg) }",
+  );
+  expect(con.type).toBe("conic-gradient");
+  expect(con.repeating).toBe(true);
+});
+
+test("conic renders createConicGradient(startAngle, cx, cy) with the -90° shift", () => {
+  const g: ConicGradientData = {
+    type: "conic-gradient",
+    from: 90, // CSS 90 (pointing right) -> canvas startAngle 0 (from +x axis)
+    stops: [{ offset: 0, color: "#000" }],
+  };
+  const call = realize(g, { x: 0, y: 0, width: 20, height: 10 });
+  expect(call.op).toBe("conic");
+  expect(call.args[0]).toBeCloseTo(0, 6); // (90-90)deg in radians
+  expect(call.args.slice(1)).toEqual([10, 5]); // box centre
+});
+
+test("repeating gradient tiles the stop run past the two authored stops", () => {
+  const g: LinearGradientData = {
+    type: "linear-gradient",
+    angle: 90,
+    repeating: true,
+    stops: [
+      { offset: 0, color: "#ff0000" },
+      { offset: 0.25, color: "#0000ff" },
+    ],
+  };
+  const r = resolveGradient(g, { x: 0, y: 0, width: 20, height: 10 });
+  // A quarter-turn tile repeated across [0,1] => several stops, all in range.
+  expect(r.stops.length).toBeGreaterThan(2);
+  for (const s of r.stops) {
+    expect(s.offset).toBeGreaterThanOrEqual(0);
+    expect(s.offset).toBeLessThanOrEqual(1);
+  }
+});
+
+test("repeating flag mismatch is incompatible (replace, not morph)", () => {
+  const base: LinearGradientData = {
+    type: "linear-gradient",
+    angle: 0,
+    stops: [{ offset: 0, color: "#000" }],
+  };
+  expect(gradientsCompatible(base, { ...base, repeating: true })).toBe(false);
 });
