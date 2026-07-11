@@ -29,8 +29,8 @@ function App() {
 
         <div ref={split.containerRef} className="flex flex-1 overflow-hidden">
           <div
-            className="flex shrink-0 overflow-hidden"
-            style={{ width: `${split.frac * 100}%` }}
+            className="flex min-w-0 overflow-hidden"
+            style={{ flex: `${split.frac} 1 0` }}
           >
             <SourcePanel
               source={scene.source}
@@ -49,11 +49,18 @@ function App() {
             onKeyDown={split.onKeyDown}
           />
 
-          <PlayerPanel
-            source={scene.source}
-            error={scene.error}
-            onError={scene.setError}
-          />
+          {/* flex-grow of (1-frac) mirrors the source's frac, so both panels
+              shrink together when the chat sidebar opens. */}
+          <div
+            className="flex min-w-0 overflow-hidden"
+            style={{ flex: `${1 - split.frac} 1 0` }}
+          >
+            <PlayerPanel
+              source={scene.source}
+              error={scene.error}
+              onError={scene.setError}
+            />
+          </div>
 
           {/* Agent chat sidebar — toggled from the header */}
           <AgentChat
