@@ -16,6 +16,7 @@ import {
   paintOrderSequence,
   resolveGradient,
   resolveStrokeDash,
+  setTextMeasurer,
 } from "@popcorn/player";
 
 // react-native-skia types only — inline `import(...)` type refs are erased at
@@ -161,6 +162,22 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     this.height = opts.height;
     this.fillPaint = skia.Paint();
     this.strokePaint = skia.Paint();
+
+    // Feed the scene layer the SAME advance width drawText uses for anchor
+    // placement, so text hit-boxes, transform-origin %, and text clips line up
+    // with the painted glyphs (the scratch-canvas measurer is null on RN). Reuses
+    // font() — the shared typeface resolver — so no matchFamilyStyle duplication.
+    // NOTE: process-global registration; the last renderer constructed wins. Fine
+    // for the usual single-player app; a shared measurer would need a registry.
+    setTextMeasurer((text, style) => {
+      const font = this.font(
+        style.fontFamily,
+        String(style.fontWeight),
+        style.fontSize,
+      );
+      if (!font) return null; // headless / no font manager: fall back to estimate
+      return { width: font.measureText(text).width, height: style.fontSize };
+    });
   }
 
   /** Parse a CSS colour to an SkColor once, then reuse the cached (immutable) value. */
@@ -389,6 +406,14 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   // paint; the live loop ignores it and repaints naturally.
   whenImagesSettled(): Promise<void> {
     return Promise.all([...this.pendingImages]).then(() => undefined);
+  }
+
+  // True while at least one async image decode (file://, http(s)) is in
+  // flight. Lets a caller that just went dormant on a settled frame know
+  // whether to schedule a wake-up for when the decode lands — data: URIs
+  // decode synchronously so they never appear here.
+  hasPendingImages(): boolean {
+    return this.pendingImages.size > 0;
   }
 
   clip(clip: ResolvedClip): void {

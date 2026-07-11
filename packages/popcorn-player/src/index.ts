@@ -98,11 +98,13 @@ export {
   parsePath,
 } from "./scene/path-parser";
 export { polystarToCommands } from "./scene/polystar";
+export type { TextMeasurer } from "./scene/transform";
 export {
   computeAllWorldTransforms,
   computeLocalMatrix,
   computeWorldMatrix,
   lerp,
+  setTextMeasurer,
 } from "./scene/transform";
 // Scene
 export type {

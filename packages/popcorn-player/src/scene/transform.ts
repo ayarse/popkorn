@@ -76,29 +76,77 @@ export function getShapeBounds(node: SceneNode): {
 }
 
 /**
+ * A platform text measurer. Backends whose paint engine measures real glyph
+ * advances (e.g. Skia on React Native) register one so the scene layer's boxes
+ * match the painted text. Returns null to defer to the next resolution stage
+ * (e.g. a headless font manager that can't measure).
+ */
+export type TextMeasurer = (
+  text: string,
+  style: { fontSize: number; fontFamily: string; fontWeight: number | string },
+) => { width: number; height: number } | null;
+
+let textMeasurer: TextMeasurer | null = null;
+// Bumped whenever the measurer is swapped. measureText stamps each node's cache
+// with the generation it was measured under, so a measurer registered AFTER some
+// text was already measured (against the estimate) invalidates those caches on
+// next read instead of pinning the stale width. Kept off the node type (module
+// WeakMap) so no per-node field is added.
+let measurerGeneration = 0;
+const measuredGeneration = new WeakMap<SceneNode, number>();
+
+/**
+ * Register (or clear, with null) the platform text measurer. Registering after
+ * nodes were measured still takes effect — see measurerGeneration above.
+ */
+export function setTextMeasurer(fn: TextMeasurer | null): void {
+  textMeasurer = fn;
+  measurerGeneration++;
+}
+
+/**
  * Measure a text node's width/height, cached on the node (invalidated by the
- * registry when font-size animates). Uses a lazily-created scratch 2D context —
- * the same pattern as the Path2D scratch in runtime/hit-test.ts.
+ * registry when font-size animates, and by a measurer swap via the generation
+ * stamp). Resolution order: registered platform measurer (if it returns a box) →
+ * a lazily-created scratch 2D context (web; same pattern as the Path2D scratch in
+ * runtime/hit-test.ts) → a headless em-estimate.
  */
 export function measureText(
   node: SceneNode,
   t: TextData,
 ): { width: number; height: number } {
-  if (node.cachedTextBounds && !node.textBoundsDirty)
+  if (
+    node.cachedTextBounds &&
+    !node.textBoundsDirty &&
+    measuredGeneration.get(node) === measurerGeneration
+  )
     return node.cachedTextBounds;
 
-  const ctx = getScratchContext();
-  let bounds: { width: number; height: number };
-  if (ctx) {
-    ctx.font = `${t.fontWeight} ${t.fontSize}px ${t.fontFamily}`;
-    bounds = { width: ctx.measureText(t.content).width, height: t.fontSize };
-  } else {
-    // NOTE: headless (no canvas) — estimate so tests/bun stay DOM-free.
-    bounds = { width: 0.6 * t.fontSize * t.content.length, height: t.fontSize };
+  let bounds: { width: number; height: number } | null = null;
+  if (textMeasurer) {
+    bounds = textMeasurer(t.content, {
+      fontSize: t.fontSize,
+      fontFamily: t.fontFamily,
+      fontWeight: t.fontWeight,
+    });
+  }
+  if (!bounds) {
+    const ctx = getScratchContext();
+    if (ctx) {
+      ctx.font = `${t.fontWeight} ${t.fontSize}px ${t.fontFamily}`;
+      bounds = { width: ctx.measureText(t.content).width, height: t.fontSize };
+    } else {
+      // NOTE: headless (no canvas) — estimate so tests/bun stay DOM-free.
+      bounds = {
+        width: 0.6 * t.fontSize * t.content.length,
+        height: t.fontSize,
+      };
+    }
   }
 
   node.cachedTextBounds = bounds;
   node.textBoundsDirty = false;
+  measuredGeneration.set(node, measurerGeneration);
   return bounds;
 }
 
