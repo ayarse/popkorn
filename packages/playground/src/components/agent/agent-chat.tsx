@@ -558,7 +558,12 @@ function Bubble({
         isUser ? "items-end" : "items-start",
       )}
     >
-      <div className={cn("flex items-end gap-2", isUser && "flex-row-reverse")}>
+      <div
+        className={cn(
+          "flex w-full min-w-0 items-end gap-2",
+          isUser && "flex-row-reverse",
+        )}
+      >
         {!isUser && (
           <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
             <Sparkles className="size-3.5" />
@@ -584,7 +589,7 @@ function Bubble({
                   // biome-ignore lint/suspicious/noArrayIndexKey: append-only log, index is stable
                   key={i}
                   className={cn(
-                    "flex items-center gap-1.5 text-[11px] leading-snug",
+                    "flex min-w-0 items-center gap-1.5 text-[11px] leading-snug",
                     ev.ok ? "text-muted-foreground" : "text-destructive",
                   )}
                 >

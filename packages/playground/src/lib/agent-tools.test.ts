@@ -188,11 +188,64 @@ test("apply_edit success commits and reports line count", () => {
   expect(ctx.source).toContain("#0f0");
 });
 
-test("apply_edit non-unique match returns error without committing", () => {
+test("apply_edit non-unique match reports count and lines without committing", () => {
   const ctx = ctxOf("a a");
   const out = executeTool("apply_edit", { search: "a", replace: "b" }, ctx);
-  expect(out).toContain("didn't match");
+  expect(out).toContain("matched 2 times");
+  expect(out).toContain("lines 1, 1");
+  expect(out).toContain("replace_all");
   expect(ctx.source).toBe("a a");
+});
+
+test("apply_edit near-miss: whitespace-drift search returns the anchored region", () => {
+  const ctx = ctxOf(SCENE);
+  // Same content, wrong indentation → no exact match, but the trimmed first
+  // line anchors the closest region, shown verbatim and line-numbered.
+  const out = executeTool(
+    "apply_edit",
+    { search: "    radius: 20px;", replace: "  radius: 40px;" },
+    ctx,
+  );
+  expect(out).toContain("Closest region");
+  expect(out).toContain("copy EXACTLY");
+  expect(out).toContain("2\t  radius: 20px;");
+  expect(ctx.source).toBe(SCENE);
+});
+
+test("apply_edit near-miss: whitespace-insensitive probe locates the region", () => {
+  const ctx = ctxOf(SCENE);
+  // First line "radius:" trims to nothing that exists as a whole line, so the
+  // trimmed-anchor step misses; the collapsed-whitespace probe still finds it.
+  const out = executeTool(
+    "apply_edit",
+    { search: "radius:\n  20px;", replace: "radius: 40px;" },
+    ctx,
+  );
+  expect(out).toContain("Closest region");
+  expect(out).toContain("2\t  radius: 20px;");
+});
+
+test("apply_edit near-miss: unknown search falls back gracefully", () => {
+  const ctx = ctxOf(SCENE);
+  const out = executeTool(
+    "apply_edit",
+    { search: "totally: absent;", replace: "x: 1;" },
+    ctx,
+  );
+  expect(out).toContain("no similar region was found");
+  expect(out).toContain("read_rules");
+  expect(ctx.source).toBe(SCENE);
+});
+
+test("apply_edit near-miss: non-unique reports every match line", () => {
+  const ctx = ctxOf("#a { fill: #f00; }\n#b { fill: #f00; }");
+  const out = executeTool(
+    "apply_edit",
+    { search: "#f00", replace: "#0f0" },
+    ctx,
+  );
+  expect(out).toContain("matched 2 times");
+  expect(out).toContain("lines 1, 2");
 });
 
 test("apply_edit that breaks parsing is rejected without committing", () => {

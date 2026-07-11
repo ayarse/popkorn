@@ -1,5 +1,6 @@
 import referenceMd from "../../../../.claude/skills/creating-popkorn-animations/reference.md?raw";
 import skillMd from "../../../../.claude/skills/creating-popkorn-animations/SKILL.md?raw";
+import { isToolError } from "./agent-tools";
 
 export type Role = "user" | "agent";
 
@@ -190,11 +191,22 @@ export async function runAgent(
         : undefined;
   const running: ChatMessage[] = prepareMessages(cfg, messages);
   let finalText = "";
+  // Keys (name + raw JSON args) of tool calls that already FAILED this run, so
+  // an identical retry is short-circuited instead of blindly re-executed.
+  const failedCalls = new Set<string>();
 
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
     if (opts.signal.aborted) break;
     // Final iteration forces a text answer so the loop always terminates.
     const toolChoice = iter === MAX_ITERATIONS - 1 ? "none" : "auto";
+    // …and tells the model to summarize honestly rather than overclaim success.
+    if (iter === MAX_ITERATIONS - 1) {
+      running.push({
+        role: "user",
+        content:
+          "You've hit the tool-call limit for this run. Summarize honestly: state exactly what was and wasn't completed.",
+      });
+    }
 
     const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
       method: "POST",
@@ -265,17 +277,29 @@ export async function runAgent(
     });
 
     for (const c of toolCalls) {
+      const key = `${c.name} ${c.args}`;
+      // Repeat-call breaker: an identical call that already failed won't fail
+      // differently — don't re-run it; tell the model to change approach.
+      if (failedCalls.has(key)) {
+        const result =
+          "You already tried this exact call and it failed with the same error. Do not repeat it. Read the actual source first (read_rules/read_lines) and construct a different edit.";
+        opts.onToolEvent({ name: c.name, args: {}, result });
+        running.push({ role: "tool", tool_call_id: c.id, content: result });
+        continue;
+      }
       let result: string;
       let args: Record<string, unknown> = {};
       try {
         args = JSON.parse(c.args);
       } catch (e) {
         result = `Invalid tool arguments: ${(e as Error).message}`;
+        failedCalls.add(key);
         opts.onToolEvent({ name: c.name, args: {}, result });
         running.push({ role: "tool", tool_call_id: c.id, content: result });
         continue;
       }
       result = opts.executeTool(c.name, args);
+      if (isToolError(result)) failedCalls.add(key);
       opts.onToolEvent({ name: c.name, args, result });
       running.push({ role: "tool", tool_call_id: c.id, content: result });
     }

@@ -581,6 +581,81 @@ function commitValidated(next: string, ctx: ToolContext, verb: string): string {
   return `${verb}. Scene is now ${lines} lines.`;
 }
 
+// 1-indexed line number of a character offset in `source`.
+function lineOf(source: string, offset: number): number {
+  let line = 1;
+  const end = Math.min(offset, source.length);
+  for (let i = 0; i < end; i++) if (source[i] === "\n") line++;
+  return line;
+}
+
+function closestRegion(srcLines: string[], idx: number, span: number): string {
+  const lo = Math.max(0, idx - span);
+  const hi = Math.min(srcLines.length - 1, idx + span);
+  const region = numberLines(srcLines.slice(lo, hi + 1), lo + 1);
+  return `Search text didn't match exactly. Closest region (copy EXACTLY, including whitespace):\n${region}`;
+}
+
+// Line index whose whitespace-stripped run first contains `probe` (also
+// whitespace-stripped). Concatenates stripped lines, remembering each char's
+// origin line, so a match spanning a line break still resolves to a start line.
+function looseProbeLine(probe: string, srcLines: string[]): number {
+  let stripped = "";
+  const originLine: number[] = [];
+  for (let i = 0; i < srcLines.length; i++) {
+    for (const ch of srcLines[i].replace(/\s+/g, "")) {
+      stripped += ch;
+      originLine.push(i);
+    }
+  }
+  const at = stripped.indexOf(probe);
+  return at === -1 ? -1 : originLine[at];
+}
+
+// A failed single/replace-all edit: instead of "didn't match", show the closest
+// source region (verbatim, line-numbered) or, for a non-unique single match,
+// how many hits and where. NOTE: cheap heuristics — a trimmed line-equality
+// anchor, then a whitespace-insensitive first-40-char probe. It won't find a
+// region whose first non-blank line was itself reworded; the model should fall
+// back to read_rules/search then.
+function applyEditDiagnostic(
+  search: string,
+  source: string,
+  replaceAll: boolean,
+): string {
+  const srcLines = source.split("\n");
+
+  // Non-unique single-match: count hits and report their lines.
+  if (!replaceAll && search !== "") {
+    const positions: number[] = [];
+    let at = source.indexOf(search);
+    while (at !== -1) {
+      positions.push(at);
+      at = source.indexOf(search, at + search.length);
+    }
+    if (positions.length > 1) {
+      const lines = positions.map((p) => lineOf(source, p));
+      return `Search text matched ${positions.length} times (line${lines.length === 1 ? "" : "s"} ${lines.join(", ")}). Add surrounding context to make it unique, or set replace_all to change all ${positions.length}.`;
+    }
+  }
+
+  // No match: anchor on the first non-blank line, trimmed.
+  const searchLines = search.split("\n");
+  const firstNonBlank = searchLines.find((l) => l.trim() !== "");
+  const span = searchLines.length + 2;
+  if (firstNonBlank !== undefined) {
+    const anchor = firstNonBlank.trim();
+    const idx = srcLines.findIndex((l) => l.trim() === anchor);
+    if (idx !== -1) return closestRegion(srcLines, idx, span);
+    const probe = search.replace(/\s+/g, "").slice(0, 40);
+    if (probe) {
+      const near = looseProbeLine(probe, srcLines);
+      if (near !== -1) return closestRegion(srcLines, near, span);
+    }
+  }
+  return "Search text didn't match, and no similar region was found. Read the current source with read_rules or search, then copy the target text verbatim.";
+}
+
 function toolApplyEdit(
   args: Record<string, unknown>,
   ctx: ToolContext,
@@ -591,8 +666,9 @@ function toolApplyEdit(
     return "Error: apply_edit needs { search: string, replace: string }.";
   }
   const replaceAll = args.replace_all === true;
-  const res = applyEdits(ctx.getSource(), [{ search, replace, replaceAll }]);
-  if (!res.ok) return res.error;
+  const source = ctx.getSource();
+  const res = applyEdits(source, [{ search, replace, replaceAll }]);
+  if (!res.ok) return applyEditDiagnostic(search, source, replaceAll);
   const n = res.counts[0];
   const verb = replaceAll
     ? `Edit applied (${n} occurrence${n === 1 ? "" : "s"})`
@@ -627,6 +703,25 @@ function toolRewriteScene(
     return "Error: rewrite_scene needs { css: string }.";
   }
   return commitValidated(css, ctx, "Scene rewritten");
+}
+
+// NOTE: tool executors return plain strings, so failure is sniffed from the
+// known error/rejection prefixes rather than a structured status. Shared by the
+// chat UI (activity-log ok flag) and runAgent's repeat-call breaker so both
+// agree on what "failed" means. Success results start with a line number,
+// source header, or an "…applied/rewritten" confirmation.
+const ERROR_PREFIXES = [
+  "Error", // Error: …, Error running …
+  "Invalid", // malformed tool arguments (from runAgent)
+  "Edit rejected", // parse-failed edit/rewrite
+  "Edit block", // applyEdits non-unique / no match
+  "Search text", // apply_edit near-miss / non-unique diagnostic
+  "No match", // search: No matches for …
+  'Rule "', // read_rules: Rule "…" not found
+];
+
+export function isToolError(result: string): boolean {
+  return ERROR_PREFIXES.some((p) => result.startsWith(p));
 }
 
 export function executeTool(

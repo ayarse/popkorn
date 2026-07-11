@@ -13,6 +13,7 @@ import {
 import {
   buildOutline,
   executeTool,
+  isToolError,
   TOOL_DEFS,
   type ToolContext,
 } from "@/lib/agent-tools";
@@ -58,23 +59,6 @@ function toolLabel(ev: ToolEvent): string {
     default:
       return ev.name;
   }
-}
-
-// NOTE: tool executors return plain strings, so failure is sniffed from the
-// known error/rejection prefixes in agent-tools.ts (and agent.ts's malformed-
-// args message) rather than a structured status. Success results start with a
-// line number, source header, or a "…applied/rewritten" confirmation.
-const ERROR_PREFIXES = [
-  "Error", // Error: …, Error running …
-  "Invalid", // malformed tool arguments
-  "Edit rejected", // parse-failed edit/rewrite
-  "Edit block", // applyEdits non-unique / no match
-  "No match", // search: No matches for …
-  'Rule "', // read_rules: Rule "…" not found
-];
-
-function toolFailed(result: string): boolean {
-  return ERROR_PREFIXES.some((p) => result.startsWith(p));
 }
 
 // The Copilot chat state machine: message log, the streaming agent tool-loop,
@@ -192,7 +176,7 @@ export function useAgentChat(
       };
       const onToolEvent = (ev: ToolEvent) => {
         const id = ensureAgent();
-        const entry = { label: toolLabel(ev), ok: !toolFailed(ev.result) };
+        const entry = { label: toolLabel(ev), ok: !isToolError(ev.result) };
         setMessages((m) =>
           m.map((msg) =>
             msg.id === id

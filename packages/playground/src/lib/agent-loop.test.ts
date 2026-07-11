@@ -184,6 +184,86 @@ describe("runAgent", () => {
     expect(calls[11].body.tool_choice).toBe("none");
   });
 
+  test("iteration cap: 12th request carries an honest-summary nudge", async () => {
+    const always = () =>
+      sseStream([toolFrame(0, "{}", { id: "loop", name: "search" })]);
+    const calls = mockFetch(Array.from({ length: 12 }, always));
+    await runAgent(CFG, [{ role: "user", content: "loop" }], {
+      ...noopOpts(),
+      executeTool: () => "again", // never an error → breaker stays quiet
+    });
+    const lastMsgs = calls[11].body.messages;
+    const nudge = lastMsgs[lastMsgs.length - 1];
+    expect(nudge.role).toBe("user");
+    expect(nudge.content).toContain("hit the tool-call limit");
+  });
+
+  test("repeat-call breaker: identical failing call is not re-executed", async () => {
+    const fail = () =>
+      sseStream([
+        toolFrame(0, '{"search":"x","replace":"y"}', {
+          id: "c",
+          name: "apply_edit",
+        }),
+      ]);
+    mockFetch([fail(), fail(), sseStream(textFrames(["done"]))]);
+    let calls = 0;
+    const out = await runAgent(CFG, [{ role: "user", content: "edit" }], {
+      ...noopOpts(),
+      executeTool: () => {
+        calls++;
+        return "Search text didn't match, and no similar region was found.";
+      },
+    });
+    expect(calls).toBe(1); // second identical call short-circuited
+    expect(out).toBe("done");
+  });
+
+  test("repeat-call breaker: a distinct call after a failure still executes", async () => {
+    mockFetch([
+      sseStream([
+        toolFrame(0, '{"search":"x","replace":"y"}', {
+          id: "c1",
+          name: "apply_edit",
+        }),
+      ]),
+      sseStream([
+        toolFrame(0, '{"search":"z","replace":"y"}', {
+          id: "c2",
+          name: "apply_edit",
+        }),
+      ]),
+      sseStream(textFrames(["done"])),
+    ]);
+    const seen: string[] = [];
+    const out = await runAgent(CFG, [{ role: "user", content: "edit" }], {
+      ...noopOpts(),
+      executeTool: (_name, args) => {
+        seen.push(String(args.search));
+        return "Search text didn't match, and no similar region was found.";
+      },
+    });
+    expect(seen).toEqual(["x", "z"]);
+    expect(out).toBe("done");
+  });
+
+  test("repeat-call breaker: identical successful read re-executes", async () => {
+    const read = () =>
+      sseStream([
+        toolFrame(0, '{"start":1,"end":9}', { id: "c", name: "read_lines" }),
+      ]);
+    mockFetch([read(), read(), sseStream(textFrames(["done"]))]);
+    let calls = 0;
+    await runAgent(CFG, [{ role: "user", content: "read" }], {
+      ...noopOpts(),
+      executeTool: () => {
+        calls++;
+        return "1\t#ball {"; // success (line-numbered), never gated
+      },
+    });
+    expect(calls).toBe(2);
+  });
+
   test("anthropic model sends cache_control system array; others plain string", async () => {
     const sys = { role: "system", content: "system rules" };
 
