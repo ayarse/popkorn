@@ -165,6 +165,15 @@ export const PopcornView = forwardRef<PopcornViewRef, PopcornViewProps>(
       };
       pokeRef.current = wake;
 
+      // If a non-data: image was still decoding when a frame settled/froze,
+      // schedule a wake-up for when it lands — otherwise the view stays
+      // dormant on the blank-image frame until an unrelated touch/host call
+      // happens to poke it.
+      const wakeWhenImagesSettle = () => {
+        if (!renderer.hasPendingImages()) return;
+        renderer.whenImagesSettled().then(() => pokeRef.current?.());
+      };
+
       bind();
       rl.setFrameCallback(() => {
         const isStatic = rl.isStatic();
@@ -178,6 +187,7 @@ export const PopcornView = forwardRef<PopcornViewRef, PopcornViewProps>(
           push();
           renderer.setCanvas(null);
           settled = true;
+          wakeWhenImagesSettle();
           return;
         }
 
@@ -204,6 +214,7 @@ export const PopcornView = forwardRef<PopcornViewRef, PopcornViewProps>(
           push(); // canvas was bound: this instant is recorded — deliver it
           renderer.setCanvas(null);
           frozenAt = t;
+          wakeWhenImagesSettle();
           return;
         }
         if (frozenAt !== null) {

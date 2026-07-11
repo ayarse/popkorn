@@ -482,3 +482,32 @@ test('a paused loop freezes time and unbinding halts draws until resume', () => 
   rl.redraw();
   expect(calls.some((c) => c.op.startsWith('draw'))).toBe(true);
 });
+
+// hasPendingImages(): the seam PopcornView polls after a settle/freeze to
+// decide whether to schedule a wake-up for a still-decoding file://http(s)
+// image (see PopcornView's `wakeWhenImagesSettle`). data: URIs decode
+// synchronously via fromBase64 and never appear here.
+test('hasPendingImages reports true while a non-data image decode is in flight', async () => {
+  const { Skia, canvas } = mockSkia();
+  let resolveFetch: (() => void) | undefined;
+  Skia.Data = {
+    fromBase64: () => ({}),
+    fromURI: (_uri: string) =>
+      new Promise((resolve) => {
+        resolveFetch = () => resolve({});
+      }),
+  };
+  Skia.Image = { MakeImageFromEncoded: () => ({}) };
+
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  renderer.setCanvas(canvas);
+  renderer.beginFrame();
+
+  expect(renderer.hasPendingImages()).toBe(false);
+  renderer.drawImage('file:///photo.png', 0, 0, 10, 10); // kicks off the async decode
+  expect(renderer.hasPendingImages()).toBe(true);
+
+  resolveFetch?.();
+  await renderer.whenImagesSettled();
+  expect(renderer.hasPendingImages()).toBe(false);
+});
