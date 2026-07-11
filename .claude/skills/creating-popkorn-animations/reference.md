@@ -305,7 +305,7 @@ rotate: 45deg;          /* <angle> */
 scale: 1.2;             /* <n> [<n>]  (single value = uniform) */
 ```
 
-ponytail: unlike CSS, these are **not** a separate transform layer — they write
+NOTE: unlike CSS, these are **not** a separate transform layer — they write
 the **same** channels (`translateX/translateY/rotate/scaleX/scaleY`) as
 `transform:`. So mixing `transform:` and `translate:`/`rotate:`/`scale:` on one
 node is **last-declaration-wins per channel**, not additive layering.
@@ -319,6 +319,19 @@ transform-origin: left top;
 ```
 
 Keywords `left/right/top/bottom/center`; `%` resolves against the bounding box. Groups/paths have no intrinsic box → `%` origins resolve to 0. Default `0 0`. `transform-origin` **is** the anchor (no separate `anchor` property).
+
+### Shape replacement gotcha
+
+Three facts above combine into a trap when reshaping a node: geometry props
+are type-gated (§4), so swapping `type: rect` → `path` silently drops `x`/`y`
+and the node jumps to the origin; if `@keyframes` animate `transform`, each
+frame replaces the **whole** transform, wiping any placement added via
+`transform: translate(...)` (or the equivalent `translate:` property — same
+channels, per above); and keyword/`%` `transform-origin` resolves to `(0, 0)`
+on paths/groups, not their visual center. The safe pattern: put static
+placement on an **outer group** (`transform: translate(...)`), and put the
+animated `transform`/keyframes on an **inner shape** authored in local
+coordinates with its pivot at the origin (or a numeric px `transform-origin`).
 
 ### Motion paths
 
