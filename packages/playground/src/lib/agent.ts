@@ -35,11 +35,11 @@ const STORAGE_KEY = "popkorn.agent.config";
 
 export const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
-export const DEFAULT_MODEL = "anthropic/claude-opus-4.8";
+export const DEFAULT_MODEL = "anthropic/claude-sonnet-5";
 
 export const MODEL_PRESETS = [
-  "anthropic/claude-opus-4.8",
   "anthropic/claude-sonnet-5",
+  "anthropic/claude-opus-4.8",
   "anthropic/claude-sonnet-4.6",
   "openai/gpt-5.5",
   "z-ai/glm-5.2",
