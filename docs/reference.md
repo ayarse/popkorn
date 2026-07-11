@@ -21,9 +21,11 @@ Selectors are `#id`, `.class`, or `:root` — any other `:pseudo` selector at th
 top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
 units `s` / `ms`, plus `deg` for angles; many properties also take a bare number
 (fractions for `trim-*`/`offset-distance`, milliseconds for `time-*`/`visible-*`,
-counts for `sides`). Hex colors accept 3–8 digits (`#rgb` … `#rrggbbaa`), and
-`rgb()`/`rgba()` work for both solid colors and gradient stops. Block comments
-(`/* … */`) and a trailing `;` before `}` are allowed.
+counts for `sides`). Numeric values also accept `calc()` (`+`/`-`/`*`/`/`,
+parens, `var()`/`input()` operands). Colors accept hex 3–8 digits (`#rgb` …
+`#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, and CSS named colors — for
+both solid colors and gradient stops. Block comments (`/* … */`) and a trailing
+`;` before `}` are allowed.
 
 ## CSS aliases
 
@@ -221,8 +223,8 @@ lengths; a single value fills the other axis with `50%`.
 
 ## Gradient Fills
 
-`fill` and `stroke` accept CSS gradients. Color stops are hex or `rgb()`/`rgba()`
-(as are solid `fill`/`stroke` colors). Omitting a stop's percentage
+`fill` and `stroke` accept CSS gradients. Color stops are hex, `rgb()`/`rgba()`,
+`hsl()`/`hsla()`, or a named color (as are solid `fill`/`stroke` colors). Omitting a stop's percentage
 auto-distributes it evenly; a `linear-gradient` with no angle defaults to
 `to bottom` (180deg).
 

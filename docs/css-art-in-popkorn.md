@@ -290,8 +290,8 @@ colors/offsets, angle, and radial center/radius directly inside
 #panel { type: rect; x: 0px; y: 0px; width: 200px; height: 120px; animation: recolor 3s ease-in-out infinite alternate; }
 ```
 
-(Note: this example intentionally sidesteps `conic-gradient`, which Popkorn
-doesn't have yet — see Current absences below.)
+(Both patterns work — `conic-gradient` is supported, and animating the gradient
+declaration directly avoids needing `@property` registration.)
 
 ## Goodies you already know that just work
 
@@ -309,12 +309,9 @@ inventing new syntax:
 
 Popkorn is not yet full CSS-parity, and won't fake it:
 
-- **No `calc()`** — arithmetic in property values isn't supported yet (in progress). Precompute values instead.
-- **No `conic-gradient()` or `repeating-linear-gradient()`/`repeating-radial-gradient()`** — only plain `linear-gradient()`/`radial-gradient()`.
 - **No blend modes** — no `mix-blend-mode`/`background-blend-mode` equivalent.
-- **Limited filters** — `blur()` (animatable) and a static `drop-shadow()`; no `contrast()`, `hue-rotate()`, `saturate()`, etc.
+- **No text animators / per-glyph effects** — text draws as a whole, not per-character.
 
 None of these are permanent design decisions the way "no box model" is —
 they're gaps that may close. If a scene needs one today, precompute the
-values by hand (e.g. bake a `calc()` result into the literal number) rather
-than waiting.
+values by hand rather than waiting.
