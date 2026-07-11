@@ -1,6 +1,7 @@
 export type {
   CalcBinary,
   CalcExpr,
+  CalcFunction,
   CalcNumeric,
   CalcOperand,
   CalcValue,

@@ -9,6 +9,7 @@
 
 import type {
   CalcExpr,
+  CalcFunction,
   CalcValue,
   CanvasConfig,
   Declaration,
@@ -844,6 +845,14 @@ function parseValue(c: Cursor): Value {
   if (name === "calc" && c.peek() === "(") {
     return parseCalc(c);
   }
+  if (
+    (name === "min" || name === "max" || name === "clamp") &&
+    c.peek() === "("
+  ) {
+    // A top-level math function wraps its node in a calc() Value so every
+    // downstream calc path (static fold, reactive resolve) picks it up for free.
+    return { type: "calc", expr: parseCalcFunction(c, name) };
+  }
   if (name === "var" && c.peek() === "(") {
     c.expect("(");
     const varName = c.match(CUSTOM)!;
@@ -893,6 +902,29 @@ function parseCalc(c: Cursor): CalcValue {
   const expr = parseCalcSum(c);
   c.expect(")");
   return { type: "calc", expr };
+}
+
+// min()/max()/clamp() — comma-separated calc sums. `(` already peeked. Each arg
+// is a full sum, so calc composes inside them and (via parseValue) they compose
+// inside calc. clamp needs exactly 3 args; min/max need at least 1.
+function parseCalcFunction(
+  c: Cursor,
+  name: "min" | "max" | "clamp",
+): CalcFunction {
+  c.expect("(");
+  const args: CalcExpr[] = [];
+  if (c.peek() !== ")") {
+    args.push(parseCalcSum(c));
+    while (c.eat(",")) args.push(parseCalcSum(c));
+  }
+  c.expect(")");
+  if (name === "clamp" && args.length !== 3)
+    throw new Error(
+      c.errorAt(`clamp() takes exactly 3 arguments, got ${args.length}`),
+    );
+  if (name !== "clamp" && args.length < 1)
+    throw new Error(c.errorAt(`${name}() needs at least 1 argument`));
+  return { type: "calc-function", name, args };
 }
 
 function parseCalcSum(c: Cursor): CalcExpr {

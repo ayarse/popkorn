@@ -196,6 +196,8 @@ function collectVarUses(v: Value, maps: Maps): void {
 
 function collectCalcVarUses(expr: CalcExpr, maps: Maps): void {
   if (expr.type === "calc-operand") collectVarUses(expr.value, maps);
+  else if (expr.type === "calc-function")
+    for (const a of expr.args) collectCalcVarUses(a, maps);
   else {
     collectCalcVarUses(expr.left, maps);
     collectCalcVarUses(expr.right, maps);
@@ -313,6 +315,8 @@ function renameIdRef(v: KeywordValue | ColorValue, maps: Maps): Value {
 function renameCalc(expr: CalcExpr, maps: Maps): CalcExpr {
   if (expr.type === "calc-operand")
     return { type: "calc-operand", value: renameValue(expr.value, maps) };
+  if (expr.type === "calc-function")
+    return { ...expr, args: expr.args.map((a) => renameCalc(a, maps)) };
   return {
     ...expr,
     left: renameCalc(expr.left, maps),

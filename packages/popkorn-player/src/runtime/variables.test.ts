@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 import type { VariableDefinition } from "@popkorn/parser";
+import { parse } from "@popkorn/parser";
 import { createVariableResolver } from "./variables";
+
+// Extract the value of `cx` from a one-declaration rule — lets these tests
+// build calc/min/max/clamp AST via the parser instead of by hand.
+const cxValue = (decl: string) =>
+  parse(`#s { cx: ${decl}; }`).rules[0].declarations[0].value;
 
 // --- Host-writable variables -------------------------------------------------
 
@@ -223,4 +229,37 @@ test("calc() re-evaluates input() operands as input state changes", () => {
     time: 0,
   });
   expect(r.resolveNumeric(calc)).toBe(100);
+});
+
+test("clamp() re-evaluates over an input-driven value (incl. MIN>MAX edge)", () => {
+  const r = createVariableResolver();
+  r.setVariables([]);
+  const v = cxValue("clamp(20px, input(cursor.x), 80px)");
+  const setX = (x: number) =>
+    r.updateInputState({
+      cursor: { x, y: 0, isDown: false },
+      scroll: { x: 0, y: 0, progress: 0 },
+      time: 0,
+    });
+  setX(10);
+  expect(r.resolveNumeric(v)).toBe(20); // below MIN → clamped up
+  setX(50);
+  expect(r.resolveNumeric(v)).toBe(50); // in range
+  setX(200);
+  expect(r.resolveNumeric(v)).toBe(80); // above MAX → clamped down
+
+  // MIN > MAX: MIN always wins, regardless of the value.
+  const inv = cxValue("clamp(80px, input(cursor.x), 20px)");
+  setX(50);
+  expect(r.resolveNumeric(inv)).toBe(80);
+});
+
+test("min()/max() with calc sums resolve reactively", () => {
+  const r = createVariableResolver();
+  r.setVariables([{ name: "--i", value: { type: "number", value: 3 } }]);
+  // min(100px, var(--i) * 10px + 5px) => min(100, 35) => 35
+  const v = cxValue("min(100px, var(--i) * 10px + 5px)");
+  expect(r.resolveNumeric(v)).toBe(35);
+  r.setVariable("--i", 12); // 125 vs 100 → 100
+  expect(r.resolveNumeric(v)).toBe(100);
 });

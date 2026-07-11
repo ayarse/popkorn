@@ -2663,6 +2663,7 @@ function commaValues(value: Value): Value[] {
 // Every leaf Value in a calc() expression tree (left→right).
 function calcOperands(expr: CalcExpr): Value[] {
   if (expr.type === "calc-operand") return [expr.value];
+  if (expr.type === "calc-function") return expr.args.flatMap(calcOperands);
   return [...calcOperands(expr.left), ...calcOperands(expr.right)];
 }
 
@@ -2670,6 +2671,12 @@ function calcOperands(expr: CalcExpr): Value[] {
 function mapCalcOperands(expr: CalcExpr, fn: (v: Value) => Value): CalcExpr {
   if (expr.type === "calc-operand")
     return { type: "calc-operand", value: fn(expr.value) };
+  if (expr.type === "calc-function")
+    return {
+      type: "calc-function",
+      name: expr.name,
+      args: expr.args.map((a) => mapCalcOperands(a, fn)),
+    };
   return {
     type: "calc-binary",
     op: expr.op,

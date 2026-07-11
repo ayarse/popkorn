@@ -29,7 +29,9 @@ top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
 units `s` / `ms`, plus `deg` for angles; many properties also take a bare number
 (fractions for `trim-*`/`offset-distance`, milliseconds for `time-*`/`visible-*`,
 counts for `sides`). Numeric values also accept `calc()` (`+`/`-`/`*`/`/`,
-parens, `var()`/`input()` operands). Colors accept hex 3–8 digits (`#rgb` …
+parens, `var()`/`input()` operands) and the CSS math functions `min()`, `max()`,
+and `clamp(MIN, VAL, MAX)` (each argument a full `calc()` expression; they nest
+in and out of `calc()`, and re-evaluate per frame with reactive operands). Colors accept hex 3–8 digits (`#rgb` …
 `#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, and CSS named colors — for
 both solid colors and gradient stops. Block comments (`/* … */`) and a trailing
 `;` before `}` are allowed.

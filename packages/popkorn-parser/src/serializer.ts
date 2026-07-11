@@ -93,7 +93,10 @@ function fmtValue(v: Value, min: boolean): string {
     case "variable":
       return `var(${v.name})`;
     case "calc":
-      return `calc(${fmtCalc(v.expr, min)})`;
+      // A bare min()/max()/clamp() serializes as itself, not `calc(min(...))`.
+      return v.expr.type === "calc-function"
+        ? fmtCalc(v.expr, min)
+        : `calc(${fmtCalc(v.expr, min)})`;
     case "function": {
       const sep = min ? "," : ", ";
       return `${v.name}(${v.args.map((a) => fmtValue(a, min)).join(sep)})`;
@@ -112,6 +115,10 @@ function fmtValue(v: Value, min: boolean): string {
 // parenthesized so precedence round-trips exactly.
 function fmtCalc(expr: CalcExpr, min: boolean): string {
   if (expr.type === "calc-operand") return fmtValue(expr.value, min);
+  if (expr.type === "calc-function") {
+    const args = expr.args.map((a) => fmtCalc(a, min)).join(min ? "," : ", ");
+    return `${expr.name}(${args})`;
+  }
   const l = fmtCalc(expr.left, min);
   const r = fmtCalc(expr.right, min);
   const sp = expr.op === "+" || expr.op === "-" ? " " : min ? "" : " ";

@@ -245,6 +245,8 @@ export class VariableResolver {
 
   private calcHasVariables(expr: CalcExpr): boolean {
     if (expr.type === "calc-operand") return this.hasVariables(expr.value);
+    if (expr.type === "calc-function")
+      return expr.args.some((a) => this.calcHasVariables(a));
     return (
       this.calcHasVariables(expr.left) || this.calcHasVariables(expr.right)
     );

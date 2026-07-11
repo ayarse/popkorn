@@ -324,6 +324,62 @@ test("getNumericValue folds a static calc() carrying a unit", () => {
   expect(getNumericValue(v)).toBe(30);
 });
 
+// --- min()/max()/clamp() ---------------------------------------------------
+
+test("min()/max()/clamp() parse as a calc-typed value wrapping a calc-function", () => {
+  const v = parse("#s { cx: min(100px, 20px); }").rules[0].declarations[0]
+    .value;
+  expect(v).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-function",
+      name: "min",
+      args: [
+        {
+          type: "calc-operand",
+          value: { type: "length", value: 100, unit: "px" },
+        },
+        {
+          type: "calc-operand",
+          value: { type: "length", value: 20, unit: "px" },
+        },
+      ],
+    },
+  });
+});
+
+test("min() arguments are full calc sums", () => {
+  const v = parse("#s { cx: min(100px, 20px + 5px); }").rules[0].declarations[0]
+    .value;
+  expect(getNumericValue(v)).toBe(25);
+});
+
+test("calc composes inside min() and min() composes inside calc", () => {
+  expect(
+    getNumericValue(
+      parse("#s { cx: calc(min(10px, 4px) * 2); }").rules[0].declarations[0]
+        .value,
+    ),
+  ).toBe(8);
+});
+
+test("getNumericValue folds min/max/clamp", () => {
+  const at = (src: string) =>
+    getNumericValue(parse(`#s { cx: ${src}; }`).rules[0].declarations[0].value);
+  expect(at("min(3, 7, 5)")).toBe(3);
+  expect(at("max(3, 7, 5)")).toBe(7);
+  expect(at("clamp(10px, 4px, 20px)")).toBe(10);
+  expect(at("clamp(10px, 40px, 20px)")).toBe(20);
+  // MIN > MAX: MIN wins.
+  expect(at("clamp(30px, 5px, 20px)")).toBe(30);
+});
+
+test("clamp() requires exactly 3 args; min/max reject empties", () => {
+  expect(() => parse("#s { cx: clamp(1px, 2px); }")).toThrow(/clamp/);
+  expect(() => parse("#s { cx: clamp(1px, 2px, 3px, 4px); }")).toThrow(/clamp/);
+  expect(() => parse("#s { cx: min(); }")).toThrow();
+});
+
 test("animation shorthand → list", () => {
   expect(
     parse("#box { animation: pulse 1.5s ease-in-out infinite; }").rules[0]

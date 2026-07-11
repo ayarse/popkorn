@@ -98,6 +98,19 @@ test("calc() round-trips (precedence + var/input operands) in both modes", () =>
   expect(sansPos(parse(serialize(parse(src))))).toEqual(sansPos(parse(src)));
 });
 
+test("min/max/clamp round-trip (bare, nested calc, both modes)", () => {
+  const src =
+    "#s { cx: min(100px, 20px + 5px); cy: clamp(0px, var(--i), 50px); r: calc(max(2, 3) * 4px); }";
+  const bare = serialize(parse(src));
+  // A bare math function serializes as itself, not wrapped in calc().
+  expect(bare).toContain("min(100px, (20px + 5px))");
+  expect(bare).toContain("clamp(0px, var(--i), 50px)");
+  expect(sansPos(parse(serialize(parse(src), { minify: true })))).toEqual(
+    sansPos(parse(src)),
+  );
+  expect(sansPos(parse(bare))).toEqual(sansPos(parse(src)));
+});
+
 test(":root background round-trips for named colors and rgb()/rgba()", () => {
   const src = ":root { width: 400px; height: 300px; background: red; }";
   expect(sansPos(parse(serialize(parse(src), { minify: true })))).toEqual(

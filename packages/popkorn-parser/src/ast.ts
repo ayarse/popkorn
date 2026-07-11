@@ -161,13 +161,22 @@ export interface CalcValue {
   expr: CalcExpr;
 }
 
-export type CalcExpr = CalcBinary | CalcOperand;
+export type CalcExpr = CalcBinary | CalcOperand | CalcFunction;
 
 export interface CalcBinary {
   type: "calc-binary";
   op: "+" | "-" | "*" | "/";
   left: CalcExpr;
   right: CalcExpr;
+}
+
+// CSS math comparison functions. clamp() is always 3 args (MIN, VAL, MAX);
+// min()/max() take one or more. Each argument is a full calc sum, so calc and
+// these compose in both directions.
+export interface CalcFunction {
+  type: "calc-function";
+  name: "min" | "max" | "clamp";
+  args: CalcExpr[];
 }
 
 // A leaf: any numeric Value (length/number/var()/input()/nested calc()).
@@ -299,6 +308,35 @@ export function evalCalc(
   resolveLeaf: (v: Value) => CalcNumeric | null,
 ): CalcNumeric | null {
   if (expr.type === "calc-operand") return resolveLeaf(expr.value);
+  if (expr.type === "calc-function") {
+    const args: CalcNumeric[] = [];
+    for (const a of expr.args) {
+      const n = evalCalc(a, resolveLeaf);
+      if (!n) return null;
+      args.push(n);
+    }
+    // Compatible-unit rule mirrors +/-: all non-unitless operands must agree.
+    let unit = "";
+    for (const a of args) {
+      if (a.unit) {
+        if (unit && unit !== a.unit) return null;
+        unit = a.unit;
+      }
+    }
+    if (expr.name === "clamp") {
+      // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
+      const [min, val, max] = args;
+      return {
+        value: Math.max(min.value, Math.min(val.value, max.value)),
+        unit,
+      };
+    }
+    const values = args.map((a) => a.value);
+    return {
+      value: expr.name === "min" ? Math.min(...values) : Math.max(...values),
+      unit,
+    };
+  }
   const l = evalCalc(expr.left, resolveLeaf);
   const r = evalCalc(expr.right, resolveLeaf);
   if (!l || !r) return null;

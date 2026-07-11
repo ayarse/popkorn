@@ -89,7 +89,10 @@ Values are lengths (`10px`), plain numbers (`0.5`), colors (`#e94560`),
 keywords (`red`, `center`), strings (`"Hello"`), functions (`rgb(…)`,
 `cubic-bezier(…)`, `input(…)`), and `var(--x)` references. Space-separated
 values in one declaration form a **list** (e.g. `pulse 1.5s ease-in-out
-infinite`); a single value is used directly.
+infinite`); a single value is used directly. Numeric values also take `calc()`
+and the math functions `min()`, `max()`, `clamp(MIN, VAL, MAX)` — each arg is a
+full `calc()` expr, they nest with `calc()`, and reactive operands
+(`var()`/`input()`) re-evaluate per frame.
 
 ### Units
 
