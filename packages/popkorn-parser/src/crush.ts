@@ -128,7 +128,10 @@ export function crush(sheet: StyleSheet): StyleSheet {
   for (const v of sheet.variables) maps.vars.add(v.name);
   for (const v of sheet.variables) collectVarUses(v.value, maps);
   for (const kf of sheet.keyframes)
-    for (const b of kf.blocks) collectDeclSites(b.declarations, maps);
+    for (const b of kf.blocks) {
+      collectDeclSites(b.declarations, maps);
+      if (b.easing) collectVarUses(b.easing, maps);
+    }
   for (const def of sheet.definitions) collectRuleSites(def, maps);
   for (const rule of sheet.rules) collectRuleSites(rule, maps);
   for (const m of sheet.machines) collectMachineSites(m, maps);
@@ -253,6 +256,7 @@ function renameKeyframes(kf: KeyframeRule, maps: Maps): KeyframeRule {
     blocks: kf.blocks.map((b) => ({
       ...b,
       declarations: b.declarations.map((d) => renameDecl(d, maps)),
+      easing: b.easing ? renameValue(b.easing, maps) : undefined,
     })),
   };
 }
@@ -360,6 +364,8 @@ function renameMachineState(s: MachineState, maps: Maps): MachineState {
 }
 
 function renameTransition(t: MachineTransition, maps: Maps): MachineTransition {
+  // NOTE: t.mix.easing is a plain keyword string (ast.ts), not a Value — it
+  // can never carry a var() reference, so there's nothing to rewrite here.
   return {
     ...t,
     trigger: t.trigger ? renameTrigger(t.trigger, maps) : t.trigger,

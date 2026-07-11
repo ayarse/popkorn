@@ -85,6 +85,29 @@ test("crush preserves machine/state/emit names and input() paths", () => {
   expect(out).not.toContain("#hero");
 });
 
+test("crush renames a var() used in per-keyframe animation-timing-function", () => {
+  const src = `
+    :root { --e0: cubic-bezier(0.2, 0, 0, 1); }
+    @keyframes spin {
+      0% { rotate: 0deg; animation-timing-function: var(--e0); }
+      100% { rotate: 360deg; }
+    }
+    #x { type: rect; animation: spin 2s; }
+  `;
+  const out = crush(src);
+  expect(out).not.toContain("--e0");
+  // The var() use inside the keyframe block must track the renamed --e0.
+  const m = out.match(/--([a-z]+):cubic-bezier/);
+  expect(m).not.toBeNull();
+  expect(out).toContain(`var(--${m![1]})`);
+
+  const reparsed = parse(out);
+  const undefinedVarDiags = reparsed.diagnostics.filter(
+    (d) => d.severity === "error" && /undefined/i.test(d.message),
+  );
+  expect(undefinedVarDiags).toEqual([]);
+});
+
 test("crush output re-parses without errors (crushSource)", () => {
   const src = `
     :root { width: 100px; height: 100px; --c: #0f0; }
