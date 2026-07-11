@@ -11,26 +11,25 @@
  * properties become one @keyframes per node on the union of keyframe times;
  * spatial position keyframes become a CSS motion path.
  */
-import { parse } from "@popkorn/parser";
 import {
-  buildSceneGraph,
   computePathLength,
   parsePath,
   polystarToCommands,
 } from "@popkorn/player";
+import {
+  type Rule as BaseRule,
+  emitColor,
+  num,
+  sanitizeIdent,
+  serializeRule,
+  warnOnce,
+} from "./shared";
+
+export { validate } from "./shared";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
-
-/** Round to `dec` decimals, kill -0/NaN/Inf, no scientific notation. */
-function num(x: number, dec = 2): string {
-  if (!isFinite(x)) x = 0;
-  const p = 10 ** dec;
-  let r = Math.round(x * p) / p;
-  if (Object.is(r, -0)) r = 0;
-  return String(r);
-}
 
 function asArr(s: unknown): number[] {
   return Array.isArray(s) ? (s as number[]) : [s as number];
@@ -63,15 +62,8 @@ function lottieColor(c: number[], opacity = 1): string {
   const scale = c.some((v) => v > 1) ? 1 / 255 : 1;
   const to255 = (v: number) =>
     Math.max(0, Math.min(255, Math.round(v * scale * 255)));
-  const r = to255(c[0]),
-    g = to255(c[1]),
-    b = to255(c[2]);
   const a = (c.length > 3 ? c[3] * scale : 1) * opacity;
-  if (a >= 0.999) {
-    const hex = (n: number) => n.toString(16).padStart(2, "0");
-    return `#${hex(r)}${hex(g)}${hex(b)}`;
-  }
-  return `rgba(${r}, ${g}, ${b}, ${num(a, 3)})`;
+  return emitColor(to255(c[0]), to255(c[1]), to255(c[2]), a);
 }
 
 /**
@@ -414,10 +406,7 @@ interface AnimSpec {
   defaultEasing: string;
 }
 
-interface Rule {
-  id: string;
-  type: string; // group | rect | circle | ellipse | path
-  decls: string[];
+interface Rule extends BaseRule {
   channels: Channel[];
   children: Rule[];
   // One anim per animated channel, so each keeps its own keyframe times and
@@ -485,16 +474,14 @@ export class Converter {
   private clampOp = Infinity;
 
   warnOnce(msg: string) {
-    if (!this.warnings.includes(msg)) this.warnings.push(msg);
+    warnOnce(this.warnings, msg);
   }
 
   private uniqueId(raw: string): string {
     // Sanitize to a valid DSL ident: ascii word chars only, no leading digit,
     // no leading/trailing dashes. Unicode/emoji names collapse away, so fall
     // back to a synthetic base; collisions get deterministic -2/-3 suffixes.
-    let base = String(raw ?? "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+    let base = sanitizeIdent(raw);
     if (!base || !/^[a-zA-Z_]/.test(base))
       base = ("l-" + base).replace(/-+$/g, "");
     if (base === "l-" || base === "l") base = "l-" + this.synthId++;
@@ -2889,44 +2876,6 @@ function dedupePaths(body: string): { body: string; vars: string[] } {
   }
   out += body.slice(pos);
   return { body: out, vars };
-}
-
-function serializeRule(rule: Rule, depth: number, top: boolean): string {
-  const pad = "  ".repeat(depth);
-  const head = top ? `#${rule.id}` : `> #${rule.id}`;
-  const lines: string[] = [`${pad}${head} {`];
-  const ip = pad + "  ";
-  lines.push(`${ip}type: ${rule.type};`);
-  for (const d of rule.decls) lines.push(`${ip}${d};`);
-  if (rule.anims && rule.anims.length) {
-    // One comma-separated entry per channel; a single `animation-fill-mode: both`
-    // longhand applies to every entry (the player carries it to each instance).
-    const entries = rule.anims.map((a) => {
-      const parts = [a.name, `${num(a.durationSec, 3)}s`, a.defaultEasing, "1"];
-      if (Math.abs(a.delaySec) > 1e-6) parts.push(`${num(a.delaySec, 3)}s`);
-      return parts.join(" ");
-    });
-    lines.push(`${ip}animation: ${entries.join(", ")};`);
-    lines.push(`${ip}animation-fill-mode: both;`);
-  }
-  for (const c of rule.children) lines.push(serializeRule(c, depth + 1, false));
-  lines.push(`${pad}}`);
-  return lines.join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-export function validate(css: string): string[] {
-  const errors: string[] = [];
-  try {
-    const sheet = parse(css);
-    buildSceneGraph(sheet);
-  } catch (e: any) {
-    errors.push(e.message);
-  }
-  return errors;
 }
 
 /** Convert an already-parsed Lottie JSON object to Popkorn CSS. No file I/O — safe for browser use. */

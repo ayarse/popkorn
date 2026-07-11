@@ -30,22 +30,25 @@
  * `<animateMotion>`, event/sync-base begins, additive/accumulate, and skew
  * degrade to a warning.
  */
-import { parse } from "@popkorn/parser";
-import { buildSceneGraph, parsePath } from "@popkorn/player";
+import { parsePath } from "@popkorn/player";
+import {
+  emitColor,
+  type Rule,
+  sanitizeIdent,
+  serializeRule,
+  num as sharedNum,
+  warnOnce,
+} from "./shared";
 import { parseXml, type SvgNode } from "./svg-xml";
+
+export { validate } from "./shared";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-/** Round to `dec` decimals, kill -0/NaN/Inf, no scientific notation. */
-function num(x: number, dec = 3): string {
-  if (!isFinite(x)) x = 0;
-  const p = 10 ** dec;
-  let r = Math.round(x * p) / p;
-  if (Object.is(r, -0)) r = 0;
-  return String(r);
-}
+/** Round to `dec` decimals; the SVG emitter defaults to 3 decimals. */
+const num = (x: number, dec = 3): string => sharedNum(x, dec);
 
 // ---------------------------------------------------------------------------
 // 2D affine matrices — SVG convention [a b c d e f] mapping
@@ -301,15 +304,7 @@ function parseColor(raw: string): [number, number, number, number] | null {
 
 /** Serialize [r,g,b,a] to #rrggbb (alpha≈1) or rgba(). */
 function colorString(c: [number, number, number, number]): string {
-  const [r, g, b, a] = c;
-  if (a >= 0.999) {
-    const hex = (n: number) =>
-      Math.max(0, Math.min(255, Math.round(n)))
-        .toString(16)
-        .padStart(2, "0");
-    return `#${hex(r)}${hex(g)}${hex(b)}`;
-  }
-  return `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, ${num(a, 3)})`;
+  return emitColor(c[0], c[1], c[2], c[3]);
 }
 
 // ---------------------------------------------------------------------------
@@ -847,13 +842,6 @@ function elementBBox(el: SvgNode): {
 // Converter
 // ---------------------------------------------------------------------------
 
-interface Rule {
-  id: string;
-  type: string;
-  decls: string[];
-  children: Rule[];
-}
-
 export class Converter {
   warnings: string[] = [];
   blocked = new Set<string>();
@@ -873,13 +861,11 @@ export class Converter {
   private maskDefs = new Map<string, Rule>();
 
   warnOnce(m: string) {
-    if (!this.warnings.includes(m)) this.warnings.push(m);
+    warnOnce(this.warnings, m);
   }
 
   private uniqueId(raw: string | undefined, tag: string): string {
-    let base = String(raw ?? "")
-      .replace(/[^a-zA-Z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+    let base = sanitizeIdent(raw);
     if (!base || !/^[a-zA-Z_]/.test(base))
       base = raw ? `el-${base}`.replace(/-+$/g, "") : `${tag}${++this.counter}`;
     if (base === "el-" || base === "el") base = `${tag}${++this.counter}`;
@@ -1317,7 +1303,7 @@ export class Converter {
       return null;
     }
 
-    let base = name.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+    let base = sanitizeIdent(name);
     if (!base || !/^[a-zA-Z_]/.test(base)) base = `kf-${base}`;
     let emitted = base,
       k = 2;
@@ -2312,35 +2298,8 @@ function smilTransformValue(
 }
 
 // ---------------------------------------------------------------------------
-// Serialization
-// ---------------------------------------------------------------------------
-
-function serializeRule(rule: Rule, depth: number, top: boolean): string {
-  const pad = "  ".repeat(depth);
-  const head = top ? `#${rule.id}` : `> #${rule.id}`;
-  const ip = pad + "  ";
-  const lines = [`${pad}${head} {`, `${ip}type: ${rule.type};`];
-  for (const d of rule.decls) lines.push(`${ip}${d};`);
-  for (const c of rule.children) lines.push(serializeRule(c, depth + 1, false));
-  lines.push(`${pad}}`);
-  return lines.join("\n");
-}
-
-// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
-
-/** Validate emitted CSS by running it through the real parser + scene builder. */
-export function validate(css: string): string[] {
-  const errors: string[] = [];
-  try {
-    const sheet = parse(css);
-    buildSceneGraph(sheet);
-  } catch (e: any) {
-    errors.push(e.message);
-  }
-  return errors;
-}
 
 /** Convert SVG source to Popkorn CSS. No file I/O — safe for browser use. */
 export function convertSvg(svg: string): {
