@@ -1,12 +1,12 @@
 /* ============================================================
-   HIERARCHY — a solar system, nested groups 4–6 deep.
+   HIERARCHY — a solar system, nested groups 3–5 deep.
 
    The lesson: every group contributes exactly ONE motion, and a
-   child inherits ALL of its ancestors'. So the little satellite
-   at the bottom rides five spinning frames at once — the sun's
-   orbit, Earth's orbit, the Moon's orbit and its own — without a
-   single coordinate of its own doing the work. Transform
-   inheritance composes down the tree.
+   child inherits ALL of its ancestors'. So the Moon at the bottom
+   of the Earth branch rides two spinning frames at once — Earth's
+   orbit and the Moon's own orbit — without a single coordinate of
+   its own doing the work. Transform inheritance composes down the
+   tree.
 
    TREE  (→ = the motion that group adds to everything inside it):
 
@@ -19,9 +19,7 @@
     │       ├─ #earthBody   L3    → spins  (Earth's day)
     │       └─ #moonOrbit   L3    → revolves (Moon around Earth)
     │           └─ #moon    L4    positions the Moon
-    │               ├─ #moonBody
-    │               └─ #satOrbit L5 → revolves (satellite)
-    │                   └─ #sat  L6  the deepest child
+    │               └─ #moonBody  the leaf, rides both orbits
     ├─ #marsOrbit                 → revolves; body spins
     └─ #saturnOrbit         L1    → revolves
         └─ #saturnCarrier   L2    positions Saturn on the ring
@@ -52,8 +50,8 @@
 
 /* Corona glow, pulsing a touch out of phase with the body. */
 @keyframes glowPulse {
-  0%, 100% { transform: scale(1);    opacity: 0.55; }
-  50%      { transform: scale(1.12); opacity: 0.8;  }
+  0%, 100% { transform: scale(1);    opacity: 0.5; }
+  50%      { transform: scale(1.15); opacity: 0.8; }
 }
 
 /* A few background stars fade in and out. */
@@ -156,19 +154,12 @@
           type: group;
           transform: translate(38px, 0);
 
+          /* The leaf: no motion of its own, yet its screen path is
+             the sum of two inherited rotations (Earth's orbit + the
+             Moon's) over a single 38px offset above. */
           > #moonBody {
             type: circle; cx: 0; cy: 0; r: 6px;
             fill: radial-gradient(circle 8px at -2px -2px, #eef0f4 0%, #9aa0aa 100%);
-          }
-
-          /* L5 → a satellite revolving round the Moon... */
-          > #satOrbit {
-            type: group;
-            animation: orbit 1.4s linear infinite;
-            /* L6 — the deepest node in the scene. Its screen path is
-               the sum of five inherited rotations + this one, yet it
-               only ever declares a single 13px offset. */
-            > #sat { type: circle; cx: 13px; cy: 0; r: 2.5px; fill: #d6f5ff; }
           }
         }
       }
