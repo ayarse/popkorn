@@ -100,7 +100,6 @@ export {
 export { polystarToCommands } from "./scene/polystar";
 export type { TextMeasurer } from "./scene/transform";
 export {
-  computeAllWorldTransforms,
   computeLocalMatrix,
   computeWorldMatrix,
   lerp,

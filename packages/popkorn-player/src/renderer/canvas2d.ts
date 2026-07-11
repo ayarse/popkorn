@@ -1,5 +1,6 @@
 import { applyCommandsToPath, computePathBounds } from "../scene/path-parser";
 import type { MaskMode, TextAnchor } from "../scene/types";
+import type { PaintBox } from "./gradient-geometry";
 import { resolveGradient } from "./gradient-geometry";
 import type { Renderer } from "./interface";
 import { PaintStateRenderer } from "./paint-state";
@@ -11,8 +12,6 @@ import type {
   ResolvedClip,
 } from "./types";
 import { LUMA_COEFFICIENTS } from "./types";
-
-type Bounds = { x: number; y: number; width: number; height: number };
 
 /**
  * Canvas 2D implementation of the Renderer interface
@@ -133,7 +132,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     const width = this.ctx.measureText(text).width;
     const ax =
       anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
-    const bounds: Bounds = { x: ax, y: y - fontSize, width, height: fontSize };
+    const bounds: PaintBox = {
+      x: ax,
+      y: y - fontSize,
+      width,
+      height: fontSize,
+    };
 
     if (this.fillGradient) {
       this.ctx.fillStyle = this.realizeGradient(this.fillGradient, bounds);
@@ -408,14 +412,14 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     if (c.height !== height) c.height = height;
   }
 
-  private applyFillAndStroke(bounds: Bounds): void {
+  private applyFillAndStroke(bounds: PaintBox): void {
     for (const which of paintOrderSequence(this.paintOrder)) {
       if (which === "fill") this.fillPath(bounds);
       else this.strokePath(bounds);
     }
   }
 
-  private fillPath(bounds: Bounds): void {
+  private fillPath(bounds: PaintBox): void {
     // Fill is always drawn untrimmed (trim affects the stroke only, like Lottie).
     // Gradient wins over solid color when present.
     if (this.fillGradient) {
@@ -427,7 +431,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     }
   }
 
-  private strokePath(bounds: Bounds): void {
+  private strokePath(bounds: PaintBox): void {
     const stroke = this.strokeGradient
       ? this.realizeGradient(this.strokeGradient, bounds)
       : this.strokeColor;
@@ -452,7 +456,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
   /** Realize a gradient descriptor (via the shared geometry resolver) into a
    *  CanvasGradient. */
-  private realizeGradient(g: GradientData, b: Bounds): CanvasGradient {
+  private realizeGradient(g: GradientData, b: PaintBox): CanvasGradient {
     const r = resolveGradient(g, b);
     const grad =
       r.type === "linear"

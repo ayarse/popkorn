@@ -1,5 +1,6 @@
 import { computePathBounds } from "../scene/path-parser";
 import type { MaskMode, TextAnchor } from "../scene/types";
+import type { PaintBox } from "./gradient-geometry";
 import { resolveGradient } from "./gradient-geometry";
 import type { Renderer } from "./interface";
 import { PaintStateRenderer } from "./paint-state";
@@ -23,8 +24,6 @@ const SVGNS = "http://www.w3.org/2000/svg";
 // across rebuilds on the same <svg> (the component builds a fresh renderer per
 // scene). The constructor also clears the surface, so this is belt-and-braces.
 let rendererBuildSeq = 0;
-
-type Bounds = { x: number; y: number; width: number; height: number };
 
 // --- pure helpers (DOM-free; unit-tested headlessly) -------------------------
 
@@ -91,7 +90,7 @@ interface GradientRealized {
  */
 export function realizeGradientAttrs(
   g: GradientData,
-  b: Bounds,
+  b: PaintBox,
 ): GradientRealized {
   const resolved = resolveGradient(g, b);
   const stops = resolved.stops.map(({ offset, color }) => {
@@ -209,7 +208,7 @@ export function deviceRegionInUserSpace(
   inv: Matrix3x3,
   w: number,
   h: number,
-): Bounds {
+): PaintBox {
   let minX = Infinity,
     minY = Infinity,
     maxX = -Infinity,
@@ -800,7 +799,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     return null;
   }
 
-  private applyPaint(el: SVGElement, bounds: Bounds): void {
+  private applyPaint(el: SVGElement, bounds: PaintBox): void {
     const top = this.top();
 
     // Fill
@@ -869,7 +868,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     );
   }
 
-  private ensureGradient(id: string, g: GradientData, bounds: Bounds): void {
+  private ensureGradient(id: string, g: GradientData, bounds: PaintBox): void {
     const r = realizeGradientAttrs(g, bounds);
     const sig = JSON.stringify(r);
     let e = this.gradients.get(id);
@@ -1014,7 +1013,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     }
   }
 
-  private setRegion(el: SVGElement, r: Bounds): void {
+  private setRegion(el: SVGElement, r: PaintBox): void {
     el.setAttribute("x", String(r.x));
     el.setAttribute("y", String(r.y));
     el.setAttribute("width", String(r.width));

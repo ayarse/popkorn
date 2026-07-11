@@ -2,6 +2,7 @@ import type {
   GradientData,
   MaskMode,
   Matrix3x3,
+  PaintBox,
   PathCommand,
   PathSink,
   Renderer,
@@ -34,8 +35,6 @@ type SkFont = import("@shopify/react-native-skia").SkFont;
 type SkFontMgr = import("@shopify/react-native-skia").SkFontMgr;
 type SkImage = import("@shopify/react-native-skia").SkImage;
 
-type Bounds = { x: number; y: number; width: number; height: number };
-
 // Cache entry for a decoded (or decoding) image, keyed by src. `image` stays
 // null until MakeImageFromEncoded lands (guarded by `loaded`).
 interface ImageEntry {
@@ -46,7 +45,7 @@ interface ImageEntry {
 
 // Bounds only feed gradient shaders; a shape with no gradient never reads them,
 // so we hand it this shared zero box instead of scanning its geometry.
-const ZERO_BOUNDS: Bounds = { x: 0, y: 0, width: 0, height: 0 };
+const ZERO_BOUNDS: PaintBox = { x: 0, y: 0, width: 0, height: 0 };
 
 // Entry caps for the value-keyed caches below (shader, dash). A morphing
 // gradient / dash produces a fresh key every frame; cap + clear keeps those
@@ -216,7 +215,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   drawRect(x: number, y: number, w: number, h: number, rx = 0, ry = 0): void {
     const rect = this.skia.XYWHRect(x, y, w, h);
-    const bounds: Bounds = { x, y, width: w, height: h };
+    const bounds: PaintBox = { x, y, width: w, height: h };
     if (rx > 0 || ry > 0) {
       const rr = this.skia.RRectXY(rect, rx, ry);
       this.fillAndStroke(bounds, (p) => this.canvas!.drawRRect(rr, p));
@@ -226,7 +225,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   drawCircle(cx: number, cy: number, r: number): void {
-    const bounds: Bounds = {
+    const bounds: PaintBox = {
       x: cx - r,
       y: cy - r,
       width: r * 2,
@@ -237,7 +236,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
     const rect = this.skia.XYWHRect(cx - rx, cy - ry, rx * 2, ry * 2);
-    const bounds: Bounds = {
+    const bounds: PaintBox = {
       x: cx - rx,
       y: cy - ry,
       width: rx * 2,
@@ -278,7 +277,12 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     const ax =
       anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
     // Bounding box (for gradients) mirrors Canvas2DRenderer.drawText.
-    const bounds: Bounds = { x: ax, y: y - fontSize, width, height: fontSize };
+    const bounds: PaintBox = {
+      x: ax,
+      y: y - fontSize,
+      width,
+      height: fontSize,
+    };
 
     this.fillAndStroke(bounds, (p) =>
       this.canvas!.drawText(text, ax, y, p, font),
@@ -552,7 +556,10 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   // --- Internals -------------------------------------------------------------
 
   /** Paint fill then stroke (or the reverse for paint-order: stroke). */
-  private fillAndStroke(bounds: Bounds, draw: (paint: SkPaint) => void): void {
+  private fillAndStroke(
+    bounds: PaintBox,
+    draw: (paint: SkPaint) => void,
+  ): void {
     if (!this.canvas) return;
     const fill = () => {
       const p = this.makeFillPaint(bounds);
@@ -568,7 +575,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     }
   }
 
-  private makeFillPaint(bounds: Bounds): SkPaint | null {
+  private makeFillPaint(bounds: PaintBox): SkPaint | null {
     if (this.fillGradient) {
       const paint = this.fillPaint;
       paint.reset();
@@ -591,7 +598,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     return null;
   }
 
-  private makeStrokePaint(bounds: Bounds): SkPaint | null {
+  private makeStrokePaint(bounds: PaintBox): SkPaint | null {
     const hasStroke = this.strokeGradient || this.strokeColor;
     if (!hasStroke) return null;
     // Trim/dash precedence shared with the other backends (trim wins over an
@@ -629,7 +636,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
    * CSS (0deg = up, 90deg = right); radial is a circle at the box centre with
    * radius = half the box diagonal, unless explicit geometry is given.
    */
-  private makeShader(g: GradientData, b: Bounds): SkShader {
+  private makeShader(g: GradientData, b: PaintBox): SkShader {
     // The reset walk deep-copies gradients every frame (scene/types.ts), so the
     // descriptor's object identity is useless as a key — serialize its value +
     // the bounds instead. Cheap next to rebuilding the shader (colour parse +
@@ -644,7 +651,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     return shader;
   }
 
-  private buildShader(g: GradientData, b: Bounds): SkShader {
+  private buildShader(g: GradientData, b: PaintBox): SkShader {
     const r = resolveGradient(g, b);
     const colors = r.stops.map((s) => this.color(s.color));
     const pos = r.stops.map((s) => s.offset);

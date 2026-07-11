@@ -1,11 +1,11 @@
-import type { Matrix3x3 } from "../renderer/types";
+import type { Matrix3x3 } from "./matrix";
 import {
   IDENTITY_MATRIX,
   multiplyMatrices,
   rotationMatrix,
   scaleMatrix,
   translationMatrix,
-} from "../renderer/types";
+} from "./matrix";
 import { samplePathAt } from "./path-parser";
 import type {
   CircleData,
@@ -248,24 +248,6 @@ export function computeWorldMatrix(
   parentWorld: Matrix3x3 = IDENTITY_MATRIX,
 ): Matrix3x3 {
   return multiplyMatrices(parentWorld, computeLocalMatrix(node));
-}
-
-/**
- * Recursively compute world transforms for all nodes in the scene graph
- */
-export function computeAllWorldTransforms(
-  root: SceneNode,
-  worldMatrices: Map<string, Matrix3x3> = new Map(),
-  parentWorld: Matrix3x3 = IDENTITY_MATRIX,
-): Map<string, Matrix3x3> {
-  const worldMatrix = computeWorldMatrix(root, parentWorld);
-  worldMatrices.set(root.id, worldMatrix);
-
-  for (const child of root.children) {
-    computeAllWorldTransforms(child, worldMatrices, worldMatrix);
-  }
-
-  return worldMatrices;
 }
 
 /**
