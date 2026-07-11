@@ -4,23 +4,26 @@
  * parser and serializer. The output is guaranteed to parse to the same AST as
  * the input — minification is value-preserving, not lossy.
  *
- *   popkorn-minify <in.css> [-o out.css] [--pretty]
+ *   popkorn-minify <in.css> [-o out.css] [--pretty | --crush]
  *
- * Default minifies; --pretty reformats (2-space indent). With -o the result is
- * written to a file, otherwise it goes to stdout. Byte counts are printed to
- * stderr either way.
+ * Default minifies; --pretty reformats (2-space indent); --crush additionally
+ * renames identifiers to short names (destructive, render-preserving — see
+ * crush()). With -o the result is written to a file, otherwise it goes to
+ * stdout. Byte counts are printed to stderr either way.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { format, minify } from "./index";
+import { crushSource, format, minify } from "./index";
 
 const args = process.argv.slice(2);
 let input: string | undefined;
 let output: string | undefined;
 let pretty = false;
+let crushed = false;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === "--pretty") pretty = true;
+  else if (a === "--crush") crushed = true;
   else if (a === "-o" || a === "--out") output = args[++i];
   else if (!a.startsWith("-")) input = a;
   else {
@@ -30,12 +33,14 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!input) {
-  console.error("usage: popkorn-minify <in.css> [-o out.css] [--pretty]");
+  console.error(
+    "usage: popkorn-minify <in.css> [-o out.css] [--pretty | --crush]",
+  );
   process.exit(1);
 }
 
 const src = readFileSync(input, "utf8");
-const out = pretty ? format(src) : minify(src);
+const out = pretty ? format(src) : crushed ? crushSource(src) : minify(src);
 
 const before = Buffer.byteLength(src);
 const after = Buffer.byteLength(out);

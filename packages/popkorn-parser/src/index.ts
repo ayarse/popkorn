@@ -46,6 +46,7 @@ export {
   isStringValue,
   isVariableRefValue,
 } from "./ast";
+export { crush } from "./crush";
 export type { Diagnostic, Severity } from "./diagnostics";
 export { offsetToLineCol } from "./diagnostics";
 export { parse, validate } from "./parser";
@@ -63,4 +64,13 @@ export function minify(source: string): string {
 /** Pretty-print Popkorn DSL source (2-space indent). Value-preserving. */
 export function format(source: string): string {
   return serializeSheet(parseSource(source), { minify: false });
+}
+
+/**
+ * Crush Popkorn DSL source: minify AND destructively rename identifiers to
+ * short names. Render-preserving (the built scene is identical) but lossy —
+ * human-readable ids/keyframes/vars are gone. See {@link crush}.
+ */
+export function crushSource(source: string): string {
+  return serializeSheet(parseSource(source), { crush: true });
 }

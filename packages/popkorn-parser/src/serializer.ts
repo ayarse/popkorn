@@ -32,16 +32,22 @@ import type {
   Value,
   VariableDefinition,
 } from "./ast";
+import { crush } from "./crush";
 
 export interface SerializeOptions {
   minify?: boolean;
+  // Destructive: rename identifiers (ids, classes, @keyframes, @define,
+  // custom properties) to short meaningless names. Implies `minify`. The output
+  // renders identically but is no longer human-readable — see crush().
+  crush?: boolean;
 }
 
 export function serialize(
   sheet: StyleSheet,
   opts: SerializeOptions = {},
 ): string {
-  const min = opts.minify ?? false;
+  if (opts.crush) sheet = crush(sheet);
+  const min = opts.minify ?? opts.crush ?? false;
   const blocks: string[] = [];
 
   if (sheet.canvas || sheet.variables.length)
