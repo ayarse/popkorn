@@ -179,23 +179,16 @@ export function useAgentChat(
         const id = ensureAgent();
         setMessages((m) =>
           m.map((msg) =>
-            // Content supersedes the thinking indicator.
-            msg.id === id
-              ? { ...msg, text: msg.text + delta, reasoning: false }
-              : msg,
+            msg.id === id ? { ...msg, text: msg.text + delta } : msg,
           ),
         );
       };
+      // Reasoning deltas carry no text worth showing (see agent.ts), but their
+      // arrival is what lazily creates the streaming bubble during a
+      // reasoning-only lull — the bubble's persistent WorkingIndicator (see
+      // agent-chat.tsx Bubble) covers the rest.
       const onReasoning = () => {
-        const id = ensureAgent();
-        // Only show the indicator before any answer/tool activity arrives.
-        setMessages((m) =>
-          m.map((msg) =>
-            msg.id === id && msg.text.length === 0 && !msg.toolEvents
-              ? { ...msg, reasoning: true }
-              : msg,
-          ),
-        );
+        ensureAgent();
       };
       const onToolEvent = (ev: ToolEvent) => {
         const id = ensureAgent();
@@ -203,11 +196,7 @@ export function useAgentChat(
         setMessages((m) =>
           m.map((msg) =>
             msg.id === id
-              ? {
-                  ...msg,
-                  reasoning: false,
-                  toolEvents: [...(msg.toolEvents ?? []), entry],
-                }
+              ? { ...msg, toolEvents: [...(msg.toolEvents ?? []), entry] }
               : msg,
           ),
         );

@@ -13,10 +13,6 @@ export type Message = {
   // Set on an agent message whose run changed the scene: the snapshot to
   // restore via the Revert button.
   revertTo?: string;
-  // True while reasoning deltas are streaming and no answer/tool activity has
-  // arrived yet — drives the quiet "thinking…" indicator. Not the reasoning
-  // text itself; that's never stored or rendered.
-  reasoning?: boolean;
 };
 
 export type ReasoningEffort = "off" | "low" | "medium" | "high";

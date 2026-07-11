@@ -9,7 +9,8 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { marked } from "marked";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentSettings } from "@/components/agent/agent-settings";
 import { Button } from "@/components/ui/button";
 import {
@@ -125,7 +126,12 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
         className="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
       >
         {messages.map((m) => (
-          <Bubble key={m.id} message={m} onRevert={revert} />
+          <Bubble
+            key={m.id}
+            message={m}
+            onRevert={revert}
+            streaming={typing && streamingId === m.id}
+          />
         ))}
         {typing && streamingId === null && <TypingBubble />}
         {error && (
@@ -411,9 +417,11 @@ function WorkingIndicator() {
     return () => clearTimeout(timer);
   }, []);
   return (
-    <div className="flex items-center gap-1.5 text-[11px] leading-snug text-muted-foreground">
+    <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-snug text-muted-foreground">
       <span className="size-1 shrink-0 animate-pulse rounded-full bg-muted-foreground/50" />
-      <span>{verb}…</span>
+      <span className="min-w-0 truncate" title={`${verb}…`}>
+        {verb}…
+      </span>
     </div>
   );
 }
@@ -497,45 +505,44 @@ function HeaderIconButton({
   );
 }
 
+// Strip raw HTML tokens from agent-authored markdown before rendering —
+// agent replies aren't trusted content the way bundled docs markdown is
+// (see /pages/docs.tsx's marked.use), so block/inline `html` nodes are
+// dropped rather than passed through to dangerouslySetInnerHTML.
+const chatRenderer = new marked.Renderer();
+chatRenderer.html = () => "";
+
 function MessageBody({ text }: { text: string }) {
-  const parts = text.split(/```(?:css|edit)?\n?/);
+  const html = useMemo(
+    () =>
+      marked.parse(text, {
+        gfm: true,
+        breaks: true,
+        renderer: chatRenderer,
+      }) as string,
+    [text],
+  );
   return (
-    <>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <pre
-            // biome-ignore lint/suspicious/noArrayIndexKey: text split has no stable id; index is the natural key
-            key={i}
-            className="my-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-md bg-background/60 p-2 font-mono text-[11px] leading-snug"
-          >
-            {part}
-          </pre>
-        ) : part ? (
-          <span
-            // biome-ignore lint/suspicious/noArrayIndexKey: text split has no stable id; index is the natural key
-            key={i}
-            className="whitespace-pre-wrap"
-          >
-            {part}
-          </span>
-        ) : null,
-      )}
-    </>
+    <div
+      className="chat-prose min-w-0 max-w-full break-words"
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: agent markdown is rendered through a renderer that strips raw HTML nodes
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }
 
 function Bubble({
   message,
   onRevert,
+  streaming,
 }: {
   message: Message;
   onRevert: (id: number) => void;
+  streaming: boolean;
 }) {
   const isUser = message.role === "user";
   const toolEvents = message.toolEvents ?? [];
   const hasText = message.text.length > 0;
-  // Quiet indicator while reasoning streams and nothing else has landed yet.
-  const thinking = message.reasoning && !hasText && toolEvents.length === 0;
   return (
     <div
       className={cn(
@@ -551,7 +558,7 @@ function Bubble({
         )}
         <div
           className={cn(
-            "max-w-[85%] break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
+            "min-w-0 max-w-[85%] break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
             isUser
               ? "whitespace-pre-wrap rounded-br-sm bg-primary text-primary-foreground"
               : "rounded-bl-sm bg-secondary text-secondary-foreground",
@@ -579,13 +586,19 @@ function Bubble({
                       ev.ok ? "bg-muted-foreground/50" : "bg-destructive",
                     )}
                   />
-                  <span className="truncate">{ev.label}</span>
+                  <span className="min-w-0 truncate" title={ev.label}>
+                    {ev.label}
+                  </span>
                 </div>
               ))}
             </div>
           )}
-          {thinking && <WorkingIndicator />}
           {isUser ? message.text : <MessageBody text={message.text} />}
+          {streaming && (
+            <div className={cn((hasText || toolEvents.length > 0) && "mt-1.5")}>
+              <WorkingIndicator />
+            </div>
+          )}
         </div>
       </div>
       {!isUser && message.revertTo !== undefined && (

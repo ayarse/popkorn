@@ -193,6 +193,67 @@
   .docs-prose :is(h2, h3, h4) {
     scroll-margin-top: 1rem;
   }
+
+  /* Agent chat markdown — same idiom as .docs-prose, scaled down for a
+     chat bubble: no heading/table styling (agent replies don't use them),
+     code blocks scroll horizontally instead of widening the bubble. */
+  .chat-prose {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .chat-prose > :first-child {
+    margin-top: 0;
+  }
+  .chat-prose > :last-child {
+    margin-bottom: 0;
+  }
+  .chat-prose p {
+    margin: 0.5rem 0;
+  }
+  .chat-prose ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+    margin: 0.5rem 0;
+  }
+  .chat-prose ol {
+    list-style: decimal;
+    padding-left: 1.25rem;
+    margin: 0.5rem 0;
+  }
+  .chat-prose li {
+    margin: 0.125rem 0;
+  }
+  .chat-prose a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .chat-prose strong {
+    font-weight: 600;
+  }
+  .chat-prose code {
+    border-radius: 0.25rem;
+    background: color-mix(in oklch, var(--background) 60%, transparent);
+    padding: 0.1rem 0.3rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .chat-prose pre {
+    margin: 0.5rem 0;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 0.375rem;
+    background: #1b1b28;
+    padding: 0.5rem;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .chat-prose pre code {
+    background: transparent;
+    padding: 0;
+    color: color-mix(in oklch, var(--foreground) 90%, transparent);
+    white-space: pre;
+  }
 }
 
 @layer base {
