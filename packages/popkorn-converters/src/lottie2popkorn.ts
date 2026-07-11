@@ -542,7 +542,12 @@ export class Converter {
     const bodyParts: string[] = [];
     if (keyframeBlocks.length) bodyParts.push(keyframeBlocks.join("\n\n"));
     for (const r of topRules) bodyParts.push(serializeRule(r, 0, true));
-    const { body, vars: pathVars } = dedupePaths(bodyParts.join("\n\n"));
+    const { body: pathBody, vars: pathVars } = dedupePaths(
+      bodyParts.join("\n\n"),
+    );
+    // Then hoist repeated easings (runs after path dedup so the two passes
+    // operate on disjoint tokens; a cubic-bezier never sits inside a path()).
+    const { body, vars: easingVars } = dedupeEasings(pathBody);
 
     // Serialize.
     const out: string[] = [];
@@ -557,6 +562,7 @@ export class Converter {
     out.push(`  height: ${num(h)}px;`);
     out.push(...rootVars);
     out.push(...pathVars);
+    out.push(...easingVars);
     out.push(`}`);
     out.push("");
     out.push(body);
@@ -2865,6 +2871,62 @@ function dedupePaths(body: string): { body: string; vars: string[] } {
   if (nameOf.size === 0) return { body, vars: [] };
 
   // Substitute in one left-to-right pass over the (disjoint) match spans.
+  const sel = matches
+    .filter((m) => nameOf.has(m.token))
+    .sort((a, b) => a.start - b.start);
+  let out = "";
+  let pos = 0;
+  for (const m of sel) {
+    out += body.slice(pos, m.start) + `var(--${nameOf.get(m.token)})`;
+    pos = m.end;
+  }
+  out += body.slice(pos);
+  return { body: out, vars };
+}
+
+/**
+ * Hoist repeated easing functions into shared `:root` custom properties. A
+ * `cubic-bezier(…)` emitted at ≥3 sites (across @keyframes per-keyframe easing
+ * and `animation:` shorthands) is duplicated boilerplate; replace each with
+ * `var(--eN)` and define it once. The player resolves a `var()` easing to its
+ * static `:root` definition, so playback is identical. `--eN` names can't
+ * collide with the `--p*` / `--img-*` conventions. Deterministic ordering
+ * (most-frequent, then longest, then lexical) keeps output diffable.
+ */
+function dedupeEasings(body: string): { body: string; vars: string[] } {
+  interface M {
+    start: number;
+    end: number;
+    token: string;
+  }
+  const matches: M[] = [];
+  for (const m of body.matchAll(/cubic-bezier\([^)]*\)/g)) {
+    const start = m.index!;
+    matches.push({ start, end: start + m[0].length, token: m[0] });
+  }
+  if (matches.length === 0) return { body, vars: [] };
+
+  const freq = new Map<string, number>();
+  for (const m of matches) freq.set(m.token, (freq.get(m.token) || 0) + 1);
+  // Threshold ≥3: two copies rarely beat the `:root` definition's overhead.
+  const cands = [...freq.entries()]
+    .filter(([, occ]) => occ >= 3)
+    .sort(
+      (a, b) =>
+        b[1] - a[1] || b[0].length - a[0].length || (a[0] < b[0] ? -1 : 1),
+    );
+
+  const nameOf = new Map<string, string>();
+  const vars: string[] = [];
+  let idx = 0;
+  for (const [token] of cands) {
+    const name = `e${idx}`;
+    nameOf.set(token, name);
+    vars.push(`  --${name}: ${token};`);
+    idx++;
+  }
+  if (nameOf.size === 0) return { body, vars: [] };
+
   const sel = matches
     .filter((m) => nameOf.has(m.token))
     .sort((a, b) => a.start - b.start);

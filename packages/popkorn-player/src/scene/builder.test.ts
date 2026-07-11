@@ -297,6 +297,45 @@ test("steps() parses in shorthand, longhand, and per-keyframe", () => {
   expect(b.animations[0].timingFunction).toBe("step-start");
 });
 
+// --- var() easing (hoisted cubic-bezier custom property) --------------------
+
+test("var() easing resolves identically to inline in shorthand/longhand/keyframe", () => {
+  const inline = `cubic-bezier(0.25, 0.1, 0.25, 1)`;
+  const src = `
+:root { --e0: cubic-bezier(0.25, 0.1, 0.25, 1); }
+@keyframes k {
+  from { opacity: 0; animation-timing-function: var(--e0); }
+  to { opacity: 1; }
+}
+@keyframes ki {
+  from { opacity: 0; animation-timing-function: ${inline}; }
+  to { opacity: 1; }
+}
+#hoisted { type: rect; width: 10px; animation: k 1s var(--e0); }
+#long { type: rect; width: 10px; animation-name: k; animation-timing-function: var(--e0); }
+#inline { type: rect; width: 10px; animation: ki 1s ${inline}; }
+`;
+  const [hoisted, long, inl] = build(src).children;
+  const expected = {
+    type: "cubic-bezier",
+    x1: 0.25,
+    y1: 0.1,
+    x2: 0.25,
+    y2: 1,
+  };
+  // Shorthand, longhand, and per-keyframe easing all resolve the var().
+  expect(hoisted.animations[0].timingFunction).toEqual(expected);
+  expect(long.animations[0].timingFunction).toEqual(expected);
+  expect(hoisted.animations[0].keyframes[0].easing).toEqual(expected);
+  // ...and match the inline form byte-for-byte.
+  expect(hoisted.animations[0].timingFunction).toEqual(
+    inl.animations[0].timingFunction,
+  );
+  expect(hoisted.animations[0].keyframes[0].easing).toEqual(
+    inl.animations[0].keyframes[0].easing,
+  );
+});
+
 // --- multi-selector keyframe blocks (`0%, 100% { ... }`) --------------------
 
 test("keyframe block with a selector list applies at every listed offset", () => {

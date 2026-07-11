@@ -1602,7 +1602,8 @@ export class SceneBuilder {
   private parseTransitionGroup(values: Value[]): TransSlot {
     const slot = defaultTransSlot();
     let durationSet = false;
-    for (const v of values) {
+    for (const raw of values) {
+      const v = this.resolveStaticVars(raw);
       if (isLengthValue(v) && (v.unit === "s" || v.unit === "ms")) {
         const ms = timeMs(v)!;
         if (!durationSet) {
@@ -1634,7 +1635,10 @@ export class SceneBuilder {
   /** Parse one `animation` shorthand group (space-separated) into a slot. */
   private parseAnimationGroup(values: Value[]): AnimSlot {
     const slot = defaultAnimSlot();
-    for (const v of values) {
+    for (const raw of values) {
+      // Resolve a `var(--e)` easing to its static `:root` definition so a
+      // hoisted cubic-bezier in the shorthand behaves like the inline form.
+      const v = this.resolveStaticVars(raw);
       if (isKeywordValue(v)) {
         const kw = v.value;
         if (this.keyframesMap.has(kw)) slot.name = kw;
@@ -1756,7 +1760,11 @@ export class SceneBuilder {
    * longhand, and per-keyframe easing, so the DSL accepts the same easing syntax
    * everywhere.
    */
-  private timingFromValue(v: Value): TimingFunction {
+  private timingFromValue(rawV: Value): TimingFunction {
+    // A `var(--e)` easing resolves to its static `:root` definition (a
+    // cubic-bezier()/steps()/linear() function) before dispatch, so hoisted
+    // easing custom properties animate identically to the inline form.
+    const v = this.resolveStaticVars(rawV);
     if (isFunctionValue(v) && this.isTimingFunctionName(v.name))
       return this.timingFromFunction(v);
     if (
