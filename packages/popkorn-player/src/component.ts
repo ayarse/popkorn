@@ -9,6 +9,34 @@ import {
   viewportMatrix,
 } from "./runtime/viewport";
 import { buildSceneGraph } from "./scene/builder";
+import type { SceneNode } from "./scene/types";
+
+/** One animated property within an animation: the offsets (0..1) it's keyed at. */
+export interface TimelineAnimationProperty {
+  property: string;
+  keyframes: number[];
+}
+
+/** One `@keyframes` instance bound to a node, flattened for the timeline UI. */
+export interface TimelineAnimation {
+  name: string;
+  delay: number; // ms (may be negative)
+  duration: number; // ms
+  iterationCount: number; // Infinity for infinite
+  properties: TimelineAnimationProperty[];
+}
+
+/** A scene node that carries animations, plus its label. */
+export interface TimelineTrack {
+  nodeName: string;
+  animations: TimelineAnimation[];
+}
+
+/** A CSS-ish selector label for a node: `.class`, `#id`, or `root`. */
+function nodeLabel(node: SceneNode): string {
+  if (node.className) return `.${node.className}`;
+  return node.id === "root" ? "root" : `#${node.id}`;
+}
 
 /**
  * PopkornPlayer Web Component
@@ -458,6 +486,53 @@ export class PopkornPlayer extends HTMLElementBase {
   /** Whether the timeline is currently frozen. */
   get paused(): boolean {
     return this.renderLoop?.paused ?? true;
+  }
+
+  /**
+   * A plain, serializable snapshot of the animated nodes for an external
+   * timeline UI (After Effects–style track rows). Walks the scene graph and
+   * returns one entry per node that carries animations — node label plus each
+   * animation's timing (delay/duration/iterations) and per-property keyframe
+   * offsets. No scene internals leak; it's a copy safe to hold across frames.
+   */
+  getTimelineTracks(): TimelineTrack[] {
+    const root = this.renderLoop?.getScene();
+    if (!root) return [];
+    const tracks: TimelineTrack[] = [];
+
+    const walk = (node: SceneNode): void => {
+      if (node.animations.length > 0) {
+        tracks.push({
+          nodeName: nodeLabel(node),
+          animations: node.animations.map((a) => {
+            // Collect the keyframe offsets at which each property is keyed.
+            const byProperty = new Map<string, number[]>();
+            for (const kf of a.keyframes) {
+              for (const property of Object.keys(kf.properties)) {
+                const offsets = byProperty.get(property) ?? [];
+                offsets.push(kf.offset);
+                byProperty.set(property, offsets);
+              }
+            }
+            return {
+              name: a.name,
+              delay: a.delay,
+              duration: a.duration,
+              // Infinite counts stay Infinity; callers cap it at scene duration.
+              iterationCount: a.iterationCount,
+              properties: [...byProperty].map(([property, keyframes]) => ({
+                property,
+                keyframes,
+              })),
+            };
+          }),
+        });
+      }
+      for (const child of node.children) walk(child);
+    };
+
+    walk(root);
+    return tracks;
   }
 
   private boolAttr(name: string): boolean {

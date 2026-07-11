@@ -158,6 +158,11 @@ export class RenderLoop {
     return this.interactionManager;
   }
 
+  /** The current scene root (null before a scene is set). Read-only access. */
+  getScene(): SceneNode | null {
+    return this.sceneRoot;
+  }
+
   setScene(root: SceneNode): void {
     this.sceneRoot = root;
     this.nodeKeys = new WeakMap();

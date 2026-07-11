@@ -20,6 +20,11 @@ export {
   computeSceneDuration,
 } from "./animation/scheduler";
 // Web Component (main export)
+export type {
+  TimelineAnimation,
+  TimelineAnimationProperty,
+  TimelineTrack,
+} from "./component";
 export { PopkornPlayer, registerPopkornPlayer } from "./component";
 // Renderer
 export { Canvas2DRenderer } from "./renderer/canvas2d";
