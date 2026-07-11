@@ -4,6 +4,7 @@ import {
   type Severity,
   validate,
 } from "@popkorn/parser";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const SEVERITY_RANK: Record<Severity, number> = {
@@ -225,28 +226,60 @@ export function ProblemsStrip({
   diags: Diagnostic[];
   onJump: (d: Diagnostic) => void;
 }) {
+  const [open, setOpen] = useState(true);
   if (diags.length === 0) return null;
+
+  const counts: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
+  let worst: Severity = "info";
+  for (const d of diags) {
+    counts[d.severity]++;
+    if (SEVERITY_RANK[d.severity] > SEVERITY_RANK[worst]) worst = d.severity;
+  }
+  const summary = (Object.keys(counts) as Severity[])
+    .filter((s) => counts[s] > 0)
+    .map((s) => `${counts[s]} ${s}${counts[s] > 1 ? "s" : ""}`)
+    .join(", ");
+
   return (
-    <div className="max-h-32 shrink-0 overflow-auto border-t border-border bg-card/40 text-[11px]">
-      {diags.map((d) => {
-        const { line, column } = offsetToLineCol(source, d.start);
-        return (
-          <button
-            key={`${d.start}:${d.end}:${d.code}`}
-            type="button"
-            onClick={() => onJump(d)}
-            className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-muted/40"
-          >
-            <span
-              className={`size-1.5 shrink-0 rounded-full ${DOT[d.severity]}`}
-            />
-            <span className="shrink-0 font-mono text-muted-foreground">
-              {line}:{column}
-            </span>
-            <span className="truncate">{d.message}</span>
-          </button>
-        );
-      })}
+    <div className="shrink-0 border-t border-border bg-card/40 text-[11px]">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 px-3 py-1 text-left text-muted-foreground hover:bg-muted/40"
+      >
+        {open ? (
+          <ChevronDown className="size-3 shrink-0" />
+        ) : (
+          <ChevronRight className="size-3 shrink-0" />
+        )}
+        <span className={`size-1.5 shrink-0 rounded-full ${DOT[worst]}`} />
+        <span>
+          {diags.length} problem{diags.length > 1 ? "s" : ""} ({summary})
+        </span>
+      </button>
+      {open && (
+        <div className="max-h-32 overflow-auto">
+          {diags.map((d) => {
+            const { line, column } = offsetToLineCol(source, d.start);
+            return (
+              <button
+                key={`${d.start}:${d.end}:${d.code}`}
+                type="button"
+                onClick={() => onJump(d)}
+                className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-muted/40"
+              >
+                <span
+                  className={`size-1.5 shrink-0 rounded-full ${DOT[d.severity]}`}
+                />
+                <span className="shrink-0 font-mono text-muted-foreground">
+                  {line}:{column}
+                </span>
+                <span className="truncate">{d.message}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
