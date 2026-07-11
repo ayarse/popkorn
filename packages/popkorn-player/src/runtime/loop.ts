@@ -9,6 +9,7 @@ import {
 import type { Renderer } from "../renderer/interface";
 import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
 import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
+import { extractIndividualTransform, extractTransform } from "../scene/builder";
 import { resolveClip } from "../scene/clip";
 import { outlineLength } from "../scene/path-parser";
 import { polystarCommands } from "../scene/polystar";
@@ -595,11 +596,40 @@ export class RenderLoop {
   }
 
   private applyBindings(node: SceneNode): void {
+    const resolve = (v: Value) => this.variableResolver.resolveNumeric(v);
     for (const binding of node.bindings) {
+      // Transform channels aren't scalar-registry properties: re-extract the
+      // whole transform value each frame, resolving var()/input() operands
+      // through the live resolver (the reactive-transform binding path).
+      if (binding.property === "transform") {
+        extractTransform(
+          binding.value,
+          (key, val) => {
+            node.transform[key] = val;
+          },
+          resolve,
+        );
+        continue;
+      }
+      if (
+        binding.property === "translate" ||
+        binding.property === "rotate" ||
+        binding.property === "scale"
+      ) {
+        extractIndividualTransform(
+          binding.property,
+          binding.value,
+          (key, val) => {
+            node.transform[key] = val;
+          },
+          resolve,
+        );
+        continue;
+      }
       const handler = getPropHandler(binding.property);
       // Bindings resolve to numbers; skip anything without a numeric handler.
       if (!handler || handler.kind !== "number") continue;
-      handler.apply(node, this.variableResolver.resolveNumeric(binding.value));
+      handler.apply(node, resolve(binding.value));
     }
   }
 

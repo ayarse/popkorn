@@ -163,46 +163,50 @@ type TransformKey =
  * resolved channel to `set`. Single source for the translate/rotate/scale
  * function-name mapping — used for base transforms, state styles, and keyframes.
  */
-function extractTransform(
+// `resolve` maps each operand to a number; defaults to the static build-time
+// reader. The per-frame binding path (loop.applyBindings) passes a var()/input()-
+// resolving reader so a `transform: translate(var(--x), …)` follows its inputs.
+export function extractTransform(
   value: Value,
   set: (key: TransformKey, val: number) => void,
+  resolve: (v: Value) => number = getNumericValue,
 ): void {
   const single = (name: string, args: Value[]) => {
     switch (name) {
       case "translate":
-        set("translateX", getNumericValue(args[0]));
-        set("translateY", args.length > 1 ? getNumericValue(args[1]) : 0);
+        set("translateX", resolve(args[0]));
+        set("translateY", args.length > 1 ? resolve(args[1]) : 0);
         break;
       case "translateX":
-        set("translateX", getNumericValue(args[0]));
+        set("translateX", resolve(args[0]));
         break;
       case "translateY":
-        set("translateY", getNumericValue(args[0]));
+        set("translateY", resolve(args[0]));
         break;
       case "rotate":
-        set("rotate", getNumericValue(args[0]));
+        set("rotate", resolve(args[0]));
         break;
       case "scale": {
-        const sx = getNumericValue(args[0]);
+        const sx = resolve(args[0]);
         set("scaleX", sx);
-        set("scaleY", args.length > 1 ? getNumericValue(args[1]) : sx);
+        set("scaleY", args.length > 1 ? resolve(args[1]) : sx);
         break;
       }
       case "scaleX":
-        set("scaleX", getNumericValue(args[0]));
+        set("scaleX", resolve(args[0]));
         break;
       case "scaleY":
-        set("scaleY", getNumericValue(args[0]));
+        set("scaleY", resolve(args[0]));
         break;
       case "skew":
-        set("skewX", getNumericValue(args[0]));
-        set("skewY", args.length > 1 ? getNumericValue(args[1]) : 0);
+        set("skewX", resolve(args[0]));
+        set("skewY", args.length > 1 ? resolve(args[1]) : 0);
         break;
       case "skewX":
-        set("skewX", getNumericValue(args[0]));
+        set("skewX", resolve(args[0]));
         break;
       case "skewY":
-        set("skewY", getNumericValue(args[0]));
+        set("skewY", resolve(args[0]));
         break;
     }
   };
@@ -227,26 +231,46 @@ function extractTransform(
  * translate/rotate/scale/transform layering. So mixing them with `transform:` on
  * one node is last-declaration-wins per channel, not additive layering.
  */
-function extractIndividualTransform(
+export function extractIndividualTransform(
   property: string,
   value: Value,
   set: (key: TransformKey, val: number) => void,
+  resolve: (v: Value) => number = getNumericValue,
 ): boolean {
   const parts = isListValue(value) ? value.values : [value];
   switch (property) {
     case "translate":
-      set("translateX", getNumericValue(parts[0]));
-      set("translateY", parts.length > 1 ? getNumericValue(parts[1]) : 0);
+      set("translateX", resolve(parts[0]));
+      set("translateY", parts.length > 1 ? resolve(parts[1]) : 0);
       return true;
     case "rotate":
-      set("rotate", getNumericValue(parts[0]));
+      set("rotate", resolve(parts[0]));
       return true;
     case "scale": {
-      const sx = getNumericValue(parts[0]);
+      const sx = resolve(parts[0]);
       set("scaleX", sx);
-      set("scaleY", parts.length > 1 ? getNumericValue(parts[1]) : sx);
+      set("scaleY", parts.length > 1 ? resolve(parts[1]) : sx);
       return true;
     }
+  }
+  return false;
+}
+
+// True when a transform value (`transform:` shorthand or a `translate`/`rotate`/
+// `scale` individual prop) has any var()/input()/reactive-calc() operand. Those
+// channels can't ride the scalar-binding path (transform is a compound function
+// value), so the whole value is registered as a per-frame binding the loop
+// re-extracts each frame — mirroring how `cx: var(--x)` works for scalars.
+export function transformHasVariable(value: Value): boolean {
+  const argHasVar = (v: Value): boolean =>
+    isVariableRefValue(v) ||
+    (isFunctionValue(v) && v.name === "input") ||
+    (isCalcValue(v) && calcOperands(v.expr).some(argHasVar));
+  const items = isListValue(value) ? value.values : [value];
+  for (const item of items) {
+    if (isFunctionValue(item) && item.args.some(argHasVar)) return true;
+    // Individual transform props carry bare operands (e.g. `translate: var(--x)`).
+    if (argHasVar(item)) return true;
   }
   return false;
 }
@@ -786,18 +810,28 @@ export class SceneBuilder {
         // Already handled
         break;
 
-      // Transform properties
+      // Transform properties. A reactive var()/input() operand (e.g.
+      // `translate(var(--x), …)`) is registered as a per-frame binding rather
+      // than baked here — the loop re-extracts it each frame (applyBindings).
       case "transform":
-        this.applyTransform(node, value);
+        if (transformHasVariable(value)) {
+          node.bindings.push({ property, value });
+        } else {
+          this.applyTransform(node, value);
+        }
         break;
 
       // CSS individual transform properties -> the same channels as transform:.
       case "translate":
       case "rotate":
       case "scale":
-        extractIndividualTransform(property, value, (key, val) => {
-          node.transform[key] = val;
-        });
+        if (transformHasVariable(value)) {
+          node.bindings.push({ property, value });
+        } else {
+          extractIndividualTransform(property, value, (key, val) => {
+            node.transform[key] = val;
+          });
+        }
         break;
 
       case "transform-origin":

@@ -7,7 +7,8 @@ import {
   applyStateStyles,
   createInteractionManager,
 } from "../runtime/interaction";
-import { buildSceneGraph } from "./builder";
+import { createVariableResolver } from "../runtime/variables";
+import { buildSceneGraph, extractTransform } from "./builder";
 import { getShapeBounds } from "./transform";
 import type {
   CircleData,
@@ -1352,4 +1353,44 @@ test("state override: trim-end normalizes a percentage to a 0..1 fraction", () =
 
   applyStateStyles(p, p.hoverStyles!);
   expect(p.trimEnd).toBe(0.5);
+});
+
+// Reactive transform channels: a var()/input() operand inside translate() must
+// NOT bake at build time; it registers a per-frame binding the loop re-extracts.
+test("transform: translate(var()) registers a reactive binding, follows input", () => {
+  const src = `
+    :root {
+      --cursor-x: input(cursor.x);
+      --dot-x: calc(var(--cursor-x) - 100);
+    }
+    #dot { type: circle; cx: 0px; cy: 0px; r: 10px;
+      transform: translate(var(--dot-x), 5px); }
+  `;
+  const sheet = parse(src);
+  const dot = buildSceneGraph(sheet).children[0];
+
+  // Channel stays at the identity default — not baked to 0 by getNumericValue.
+  expect(dot.transform.translateX).toBe(0);
+  const binding = dot.bindings.find((b) => b.property === "transform");
+  expect(binding).toBeDefined();
+
+  // Drive it exactly as loop.applyBindings does: re-extract with a resolver
+  // that reads live cursor input.
+  const resolver = createVariableResolver();
+  resolver.setVariables(sheet.variables);
+  resolver.updateInputState({
+    cursor: { x: 300, y: 0, isDown: false },
+    scroll: { x: 0, y: 0, progress: 0 },
+    time: 0,
+  });
+  const t = { ...dot.transform };
+  extractTransform(
+    binding!.value,
+    (key, val) => {
+      t[key] = val;
+    },
+    (v) => resolver.resolveNumeric(v),
+  );
+  expect(t.translateX).toBe(200); // 300 - 100
+  expect(t.translateY).toBe(5); // static channel re-applied verbatim
 });
