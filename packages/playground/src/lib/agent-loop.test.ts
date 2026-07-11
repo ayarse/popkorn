@@ -25,6 +25,12 @@ function textFrames(chunks: string[]): string[] {
   );
 }
 
+function reasoningFrames(chunks: string[], field = "reasoning"): string[] {
+  return chunks.map((c) =>
+    JSON.stringify({ choices: [{ delta: { [field]: c } }] }),
+  );
+}
+
 // A tool_calls delta frame. `first` carries id + name; later fragments carry
 // only the arguments substring.
 function toolFrame(
@@ -207,5 +213,68 @@ describe("runAgent", () => {
       role: "system",
       content: "system rules",
     });
+  });
+
+  test("reasoning effort sends unified reasoning param", async () => {
+    const calls = mockFetch([sseStream(textFrames(["hi"]))]);
+    await runAgent(
+      { ...CFG, reasoning: "high" },
+      [{ role: "user", content: "q" }],
+      { ...noopOpts(), executeTool: () => "" },
+    );
+    expect(calls[0].body.reasoning).toEqual({ effort: "high" });
+  });
+
+  test('reasoning "off" disables reasoning', async () => {
+    const calls = mockFetch([sseStream(textFrames(["hi"]))]);
+    await runAgent(
+      { ...CFG, reasoning: "off" },
+      [{ role: "user", content: "q" }],
+      { ...noopOpts(), executeTool: () => "" },
+    );
+    expect(calls[0].body.reasoning).toEqual({ enabled: false });
+  });
+
+  test("no reasoning key when unset", async () => {
+    const calls = mockFetch([sseStream(textFrames(["hi"]))]);
+    await runAgent(CFG, [{ role: "user", content: "q" }], {
+      ...noopOpts(),
+      executeTool: () => "",
+    });
+    expect("reasoning" in calls[0].body).toBe(false);
+  });
+
+  test("delta.reasoning fires onReasoning and stays out of the text", async () => {
+    mockFetch([
+      sseStream([
+        ...reasoningFrames(["let me ", "think"]),
+        ...textFrames(["answer"]),
+      ]),
+    ]);
+    const reasoning: string[] = [];
+    const out = await runAgent(CFG, [{ role: "user", content: "q" }], {
+      ...noopOpts(),
+      executeTool: () => "",
+      onReasoning: (d) => reasoning.push(d),
+    });
+    expect(reasoning).toEqual(["let me ", "think"]);
+    expect(out).toBe("answer");
+  });
+
+  test("delta.reasoning_content variant fires onReasoning too", async () => {
+    mockFetch([
+      sseStream([
+        ...reasoningFrames(["hmm"], "reasoning_content"),
+        ...textFrames(["answer"]),
+      ]),
+    ]);
+    const reasoning: string[] = [];
+    const out = await runAgent(CFG, [{ role: "user", content: "q" }], {
+      ...noopOpts(),
+      executeTool: () => "",
+      onReasoning: (d) => reasoning.push(d),
+    });
+    expect(reasoning).toEqual(["hmm"]);
+    expect(out).toBe("answer");
   });
 });

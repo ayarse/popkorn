@@ -13,12 +13,22 @@ export type Message = {
   // Set on an agent message whose run changed the scene: the snapshot to
   // restore via the Revert button.
   revertTo?: string;
+  // True while reasoning deltas are streaming and no answer/tool activity has
+  // arrived yet — drives the quiet "thinking…" indicator. Not the reasoning
+  // text itself; that's never stored or rendered.
+  reasoning?: boolean;
 };
+
+export type ReasoningEffort = "off" | "low" | "medium" | "high";
 
 export type AgentConfig = {
   baseUrl: string;
   apiKey: string;
   model: string;
+  // OpenRouter's unified reasoning knob; absent = model default. "off"
+  // disables reasoning; low/medium/high sets effort (enables thinking for
+  // Anthropic models, which is the intended user-facing behavior).
+  reasoning?: ReasoningEffort;
 };
 
 const STORAGE_KEY = "popkorn.agent.config";
@@ -92,6 +102,8 @@ export function loadConfig(): AgentConfig | null {
       baseUrl: parsed.baseUrl,
       apiKey: parsed.apiKey,
       model: parsed.model ?? DEFAULT_MODEL,
+      // Absent in old stored configs stays absent (model default).
+      ...(parsed.reasoning ? { reasoning: parsed.reasoning } : {}),
     };
   } catch {
     return null;
@@ -169,8 +181,17 @@ export async function runAgent(
     signal: AbortSignal;
     onToken: (delta: string) => void;
     onToolEvent: (ev: ToolEvent) => void;
+    onReasoning?: (delta: string) => void;
   },
 ): Promise<string> {
+  // Maps AgentConfig.reasoning → OpenRouter's unified `reasoning` param.
+  // Omitted entirely when unset so the model's default applies.
+  const reasoning =
+    cfg.reasoning === "off"
+      ? { enabled: false }
+      : cfg.reasoning
+        ? { effort: cfg.reasoning }
+        : undefined;
   const running: ChatMessage[] = prepareMessages(cfg, messages);
   let finalText = "";
 
@@ -191,6 +212,7 @@ export async function runAgent(
         stream: true,
         tools: opts.tools,
         tool_choice: toolChoice,
+        ...(reasoning ? { reasoning } : {}),
       }),
       signal: opts.signal,
     });
@@ -215,6 +237,11 @@ export async function runAgent(
         text += delta.content;
         opts.onToken(delta.content);
       }
+      // Streamed reasoning: surface it so a reasoning-by-default model doesn't
+      // look stalled. Providers split on the field name; first non-empty wins.
+      // Never appended to the answer text.
+      const reasoningDelta = delta.reasoning || delta.reasoning_content;
+      if (reasoningDelta) opts.onReasoning?.(reasoningDelta);
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
           const i = tc.index ?? 0;

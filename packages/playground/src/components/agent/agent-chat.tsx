@@ -226,6 +226,8 @@ function Bubble({
   const isUser = message.role === "user";
   const toolEvents = message.toolEvents ?? [];
   const hasText = message.text.length > 0;
+  // Quiet indicator while reasoning streams and nothing else has landed yet.
+  const thinking = message.reasoning && !hasText && toolEvents.length === 0;
   return (
     <div
       className={cn(
@@ -272,6 +274,12 @@ function Bubble({
                   <span className="truncate">{ev.label}</span>
                 </div>
               ))}
+            </div>
+          )}
+          {thinking && (
+            <div className="flex items-center gap-1.5 text-[11px] leading-snug text-muted-foreground">
+              <span className="size-1 shrink-0 animate-pulse rounded-full bg-muted-foreground/50" />
+              <span>thinking…</span>
             </div>
           )}
           {isUser ? message.text : <MessageBody text={message.text} />}

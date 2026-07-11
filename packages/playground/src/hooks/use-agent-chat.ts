@@ -179,7 +179,21 @@ export function useAgentChat(
         const id = ensureAgent();
         setMessages((m) =>
           m.map((msg) =>
-            msg.id === id ? { ...msg, text: msg.text + delta } : msg,
+            // Content supersedes the thinking indicator.
+            msg.id === id
+              ? { ...msg, text: msg.text + delta, reasoning: false }
+              : msg,
+          ),
+        );
+      };
+      const onReasoning = () => {
+        const id = ensureAgent();
+        // Only show the indicator before any answer/tool activity arrives.
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === id && msg.text.length === 0 && !msg.toolEvents
+              ? { ...msg, reasoning: true }
+              : msg,
           ),
         );
       };
@@ -189,7 +203,11 @@ export function useAgentChat(
         setMessages((m) =>
           m.map((msg) =>
             msg.id === id
-              ? { ...msg, toolEvents: [...(msg.toolEvents ?? []), entry] }
+              ? {
+                  ...msg,
+                  reasoning: false,
+                  toolEvents: [...(msg.toolEvents ?? []), entry],
+                }
               : msg,
           ),
         );
@@ -201,6 +219,7 @@ export function useAgentChat(
           executeTool: (name, args) => executeTool(name, args, ctx),
           signal: ac.signal,
           onToken,
+          onReasoning,
           onToolEvent,
         });
       } catch (e: any) {
