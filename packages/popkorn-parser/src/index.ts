@@ -23,6 +23,7 @@ export type {
   PseudoState,
   Rule,
   Selector,
+  Span,
   StateRule,
   StringValue,
   StyleSheet,

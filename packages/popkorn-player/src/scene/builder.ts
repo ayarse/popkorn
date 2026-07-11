@@ -576,6 +576,9 @@ export class SceneBuilder {
         declarations: def.declarations,
         children: def.children,
         states: def.states,
+        // Synthetic wrapper around a @define body — no source span of its own.
+        span: { start: 0, end: 0 },
+        preludeSpan: { start: 0, end: 0 },
       },
       inProgress,
     );
@@ -597,6 +600,8 @@ export class SceneBuilder {
         ...rule.children,
       ],
       states: mergeStates(resolvedDef.states, rule.states),
+      span: rule.span,
+      preludeSpan: rule.preludeSpan,
     };
   }
 
@@ -2527,6 +2532,8 @@ function namespaceChild(rule: Rule, prefix: string): Rule {
     declarations: rule.declarations, // values are read-only during build
     children: rule.children.map((c) => namespaceChild(c, name)),
     states: rule.states,
+    span: rule.span,
+    preludeSpan: rule.preludeSpan,
   };
 }
 

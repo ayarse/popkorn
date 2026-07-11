@@ -9,12 +9,28 @@ import {
   viewportMatrix,
 } from "./runtime/viewport";
 import { buildSceneGraph } from "./scene/builder";
-import type { SceneNode } from "./scene/types";
+import type {
+  AnimatableValue,
+  AnimationDirection,
+  AnimationFillMode,
+  AnimationInstance,
+  SceneNode,
+  TimingFunction,
+  Transform,
+} from "./scene/types";
 
-/** One animated property within an animation: the offsets (0..1) it's keyed at. */
+/** One keyframe stop for the timeline UI: its offset, a short display string
+ * for the endpoint value, and the per-keyframe easing (transition FROM here). */
+export interface TimelineKeyframe {
+  offset: number; // 0..1
+  value: string;
+  easing?: TimingFunction;
+}
+
+/** One animated property within an animation, with its keyed stops. */
 export interface TimelineAnimationProperty {
   property: string;
-  keyframes: number[];
+  keyframes: TimelineKeyframe[];
 }
 
 /** One `@keyframes` instance bound to a node, flattened for the timeline UI. */
@@ -23,6 +39,16 @@ export interface TimelineAnimation {
   delay: number; // ms (may be negative)
   duration: number; // ms
   iterationCount: number; // Infinity for infinite
+  timingFunction: TimingFunction; // animation-level easing (plain union, as-is)
+  direction: AnimationDirection;
+  fillMode: AnimationFillMode;
+  // The selector of the rule that declared this animation, e.g. `#btn`,
+  // `.spark`, or `#btn:state(on)` / `#btn:state(door.open)`. Round-trips back
+  // into retimeAnimation as its `selector` argument.
+  ruleSelector: string;
+  // Set only for animations declared inside a machine `&:state(...)` block;
+  // `machine` is null for an un-namespaced `:state(name)`.
+  state?: { machine: string | null; state: string };
   properties: TimelineAnimationProperty[];
 }
 
@@ -36,6 +62,86 @@ export interface TimelineTrack {
 function nodeLabel(node: SceneNode): string {
   if (node.className) return `.${node.className}`;
   return node.id === "root" ? "root" : `#${node.id}`;
+}
+
+/** Trim a number to a short display string (integers as-is, else ≤3 decimals). */
+function formatNumber(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+}
+
+/** Compact one-line summary of a Transform's non-default channels, e.g.
+ * `x 20, rot 45°`. Empty (all defaults) reads as `none`. */
+function formatTransform(t: Transform): string {
+  const parts: string[] = [];
+  if (t.translateX) parts.push(`x ${formatNumber(t.translateX)}`);
+  if (t.translateY) parts.push(`y ${formatNumber(t.translateY)}`);
+  if (t.rotate) parts.push(`rot ${formatNumber(t.rotate)}°`);
+  if (t.scaleX !== 1 || t.scaleY !== 1)
+    parts.push(
+      t.scaleX === t.scaleY
+        ? `scale ${formatNumber(t.scaleX)}`
+        : `scale ${formatNumber(t.scaleX)},${formatNumber(t.scaleY)}`,
+    );
+  if (t.skewX) parts.push(`skewX ${formatNumber(t.skewX)}°`);
+  if (t.skewY) parts.push(`skewY ${formatNumber(t.skewY)}°`);
+  return parts.length ? parts.join(", ") : "none";
+}
+
+/** Short display string for a keyframe's {@link AnimatableValue}: number →
+ * trimmed number, string passes through, Transform → compact channel summary,
+ * gradient/path/filter → a bare type tag. */
+export function formatAnimatableValue(v: AnimatableValue): string {
+  if (typeof v === "number") return formatNumber(v);
+  if (typeof v === "string") return v;
+  if (Array.isArray(v)) {
+    // PathCommand `type`s are single letters (M/L/C/…); FilterOp `type`s are words.
+    const first = v[0] as { type?: string } | undefined;
+    return first && /^[A-Za-z]$/.test(first.type ?? "") ? "path" : "filter";
+  }
+  // Object: a GradientData (its `type` ends in `-gradient`) or a Transform
+  // (which has no `type` field).
+  if ("type" in v && typeof v.type === "string" && v.type.endsWith("gradient"))
+    return "gradient";
+  return formatTransform(v as Transform);
+}
+
+/** Flatten one animation instance into its serializable timeline shape. */
+function toTimelineAnimation(
+  a: AnimationInstance,
+  ruleSelector: string,
+  state?: { machine: string | null; state: string },
+): TimelineAnimation {
+  // Collect keyframe stops per animated property, in keyframe order.
+  const byProperty = new Map<string, TimelineKeyframe[]>();
+  for (const kf of a.keyframes) {
+    for (const [property, value] of Object.entries(kf.properties)) {
+      const stops = byProperty.get(property) ?? [];
+      const stop: TimelineKeyframe = {
+        offset: kf.offset,
+        value: formatAnimatableValue(value),
+      };
+      if (kf.easing !== undefined) stop.easing = kf.easing;
+      stops.push(stop);
+      byProperty.set(property, stops);
+    }
+  }
+  const anim: TimelineAnimation = {
+    name: a.name,
+    delay: a.delay,
+    duration: a.duration,
+    // Infinite counts stay Infinity; callers cap it at scene duration.
+    iterationCount: a.iterationCount,
+    timingFunction: a.timingFunction,
+    direction: a.direction,
+    fillMode: a.fillMode,
+    ruleSelector,
+    properties: [...byProperty].map(([property, keyframes]) => ({
+      property,
+      keyframes,
+    })),
+  };
+  if (state) anim.state = state;
+  return anim;
 }
 
 /**
@@ -501,38 +607,41 @@ export class PopkornPlayer extends HTMLElementBase {
     const tracks: TimelineTrack[] = [];
 
     const walk = (node: SceneNode): void => {
-      if (node.animations.length > 0) {
-        tracks.push({
-          nodeName: nodeLabel(node),
-          animations: node.animations.map((a) => {
-            // Collect the keyframe offsets at which each property is keyed.
-            const byProperty = new Map<string, number[]>();
-            for (const kf of a.keyframes) {
-              for (const property of Object.keys(kf.properties)) {
-                const offsets = byProperty.get(property) ?? [];
-                offsets.push(kf.offset);
-                byProperty.set(property, offsets);
-              }
-            }
-            return {
-              name: a.name,
-              delay: a.delay,
-              duration: a.duration,
-              // Infinite counts stay Infinity; callers cap it at scene duration.
-              iterationCount: a.iterationCount,
-              properties: [...byProperty].map(([property, keyframes]) => ({
-                property,
-                keyframes,
-              })),
-            };
-          }),
-        });
+      const label = nodeLabel(node);
+      const animations: TimelineAnimation[] = [];
+      // Base animations declared on the node itself.
+      for (const a of node.animations)
+        animations.push(toTimelineAnimation(a, label));
+      // Machine `:state()`-scoped animations, tagged with the owning state and
+      // a `<label>:state(name)` / `<label>:state(machine.name)` selector.
+      for (const ss of node.stateStyles) {
+        const scoped = ss.machine ? `${ss.machine}.${ss.name}` : ss.name;
+        const selector = `${label}:state(${scoped})`;
+        for (const a of ss.animations)
+          animations.push(
+            toTimelineAnimation(a, selector, {
+              machine: ss.machine,
+              state: ss.name,
+            }),
+          );
       }
+      if (animations.length > 0) tracks.push({ nodeName: label, animations });
       for (const child of node.children) walk(child);
     };
 
     walk(root);
     return tracks;
+  }
+
+  /**
+   * A serializable snapshot of every `@machine`'s current state and the global
+   * timeline ms at which it was entered. The timeline UI uses this to position
+   * active-state animation bars (entryTime + delay) and dim inactive-state
+   * rows; refresh it on the `statechange` event. Empty when the scene has no
+   * machines or isn't loaded.
+   */
+  getMachineStates(): { machine: string; state: string; entryTime: number }[] {
+    return this.renderLoop?.getStateMachineRunner().snapshot() ?? [];
   }
 
   private boolAttr(name: string): boolean {

@@ -27,12 +27,17 @@ import type {
   MachineTrigger,
   Rule,
   Selector,
+  Span,
   StateRule,
   StyleSheet,
   Value,
   VariableDefinition,
 } from "./ast";
 import { crush } from "./crush";
+
+// Synthetic declarations exist only to be printed (fmtDecl reads property +
+// value, never the span), so they carry a zero source span.
+const NO_SPAN: Span = { start: 0, end: 0 };
 
 export interface SerializeOptions {
   minify?: boolean;
@@ -229,22 +234,34 @@ function rootBlock(
       type: "declaration",
       property: "width",
       value: { type: "length", value: cfg.width, unit: "px" },
+      span: NO_SPAN,
+      valueSpan: NO_SPAN,
     });
     decls.push({
       type: "declaration",
       property: "height",
       value: { type: "length", value: cfg.height, unit: "px" },
+      span: NO_SPAN,
+      valueSpan: NO_SPAN,
     });
     if (cfg.background !== undefined) {
       decls.push({
         type: "declaration",
         property: "background",
         value: { type: "color", value: cfg.background },
+        span: NO_SPAN,
+        valueSpan: NO_SPAN,
       });
     }
   }
   for (const v of vars)
-    decls.push({ type: "declaration", property: v.name, value: v.value });
+    decls.push({
+      type: "declaration",
+      property: v.name,
+      value: v.value,
+      span: NO_SPAN,
+      valueSpan: NO_SPAN,
+    });
   return block(
     ":root",
     { declarations: decls, children: [], states: [] },
@@ -267,6 +284,8 @@ function keyframeBlock(b: KeyframeBlock, min: boolean): string {
       type: "declaration",
       property: "animation-timing-function",
       value: b.easing,
+      span: NO_SPAN,
+      valueSpan: NO_SPAN,
     });
   }
   if (min) {

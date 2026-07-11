@@ -4,16 +4,32 @@ import { fileURLToPath } from "node:url";
 import { getNumericValue } from "./ast";
 import { parse } from "./parser";
 
+// Strip position metadata (source-offset spans + diagnostics) so structural
+// assertions compare the AST *value*. Dedicated span round-trip tests below
+// cover the offsets themselves.
+function sansPos<T>(node: T): T {
+  return JSON.parse(
+    JSON.stringify(node, (k, v) =>
+      k === "span" ||
+      k === "valueSpan" ||
+      k === "selectorSpan" ||
+      k === "preludeSpan" ||
+      k === "diagnostics"
+        ? undefined
+        : v,
+    ),
+  );
+}
+
 // One assertion per Value / node kind — together these pin down the whole AST contract.
 
 test("id rule: dimension + color", () => {
-  expect(parse("#box { width: 100px; fill: #ff0000; }")).toEqual({
+  expect(sansPos(parse("#box { width: 100px; fill: #ff0000; }"))).toEqual({
     type: "stylesheet",
     keyframes: [],
     definitions: [],
     machines: [],
     variables: [],
-    diagnostics: [],
     rules: [
       {
         type: "rule",
@@ -447,7 +463,7 @@ test("@define: multiple definitions collected in order", () => {
 test("use: is a normal keyword declaration", () => {
   const decl = parse("#spark1 { use: spark; cx: 100px; }").rules[0]
     .declarations[0];
-  expect(decl).toEqual({
+  expect(sansPos(decl)).toEqual({
     type: "declaration",
     property: "use",
     value: { type: "keyword", value: "spark" },
@@ -847,6 +863,64 @@ function stripWs(src: string): string {
 for (const file of collectCss(examplesDir)) {
   test(`minified (whitespace-stripped) parses identically: ${file}`, () => {
     const src = readFileSync(`${examplesDir}/${file}`, "utf8");
-    expect(parse(stripWs(src))).toEqual(parse(src));
+    expect(sansPos(parse(stripWs(src)))).toEqual(sansPos(parse(src)));
   });
 }
+
+// --- source spans -------------------------------------------------------------
+// Every span must round-trip: source.slice(start, end) is the exact text.
+
+test("declaration span/valueSpan: longhand", () => {
+  const src = "#d { animation-delay: 250ms; }";
+  const d = parse(src).rules[0].declarations[0];
+  expect(src.slice(d.span.start, d.span.end)).toBe("animation-delay: 250ms");
+  expect(src.slice(d.valueSpan.start, d.valueSpan.end)).toBe("250ms");
+});
+
+test("declaration span/valueSpan: animation shorthand (comma-list value)", () => {
+  const src = "#d { animation: spin 2s linear infinite, fade 1s ease; }";
+  const d = parse(src).rules[0].declarations[0];
+  expect(src.slice(d.span.start, d.span.end)).toBe(
+    "animation: spin 2s linear infinite, fade 1s ease",
+  );
+  expect(src.slice(d.valueSpan.start, d.valueSpan.end)).toBe(
+    "spin 2s linear infinite, fade 1s ease",
+  );
+});
+
+test("declaration span excludes a trailing `;` and surrounding whitespace", () => {
+  const src = "#d {\n  opacity: 0.5 ;\n}";
+  const d = parse(src).rules[0].declarations[0];
+  expect(src.slice(d.span.start, d.span.end)).toBe("opacity: 0.5");
+  expect(src.slice(d.valueSpan.start, d.valueSpan.end)).toBe("0.5");
+});
+
+test("rule span/preludeSpan round-trip (incl. braces)", () => {
+  const src = "#box { width: 100px; fill: #f00; }";
+  const rule = parse(src).rules[0];
+  expect(src.slice(rule.preludeSpan.start, rule.preludeSpan.end)).toBe("#box");
+  expect(src.slice(rule.span.start, rule.span.end)).toBe(src.trim());
+});
+
+test("nested child rule carries its own span/preludeSpan", () => {
+  const src = "#p { type: group; > #c { r: 20px; } }";
+  const child = parse(src).rules[0].children[0];
+  expect(src.slice(child.preludeSpan.start, child.preludeSpan.end)).toBe("#c");
+  expect(src.slice(child.span.start, child.span.end)).toBe("#c { r: 20px; }");
+});
+
+test("keyframe selectorSpan/span and @keyframes span/preludeSpan round-trip", () => {
+  const src =
+    "@keyframes pulse {\n  0%, 50% { opacity: 1; }\n  100% { opacity: 0; }\n}";
+  const kf = parse(src).keyframes[0];
+  expect(src.slice(kf.preludeSpan.start, kf.preludeSpan.end)).toBe("pulse");
+  expect(src.slice(kf.span.start, kf.span.end)).toBe(src);
+
+  const multi = kf.blocks[0];
+  expect(src.slice(multi.selectorSpan.start, multi.selectorSpan.end)).toBe(
+    "0%, 50%",
+  );
+  expect(src.slice(multi.span.start, multi.span.end)).toBe(
+    "0%, 50% { opacity: 1; }",
+  );
+});

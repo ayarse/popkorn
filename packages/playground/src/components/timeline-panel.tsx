@@ -329,7 +329,7 @@ function LayerRow({
                   {/* Keyframe diamonds. NOTE: only the first iteration's
                       keyframes are drawn; iterationCount > 1 repeats them across
                       the span (not re-plotted per repeat). */}
-                  {p.keyframes.map((offset, ki) => {
+                  {p.keyframes.map(({ offset }, ki) => {
                     const ms = Math.max(0, a.delay) + offset * a.duration;
                     return (
                       <button

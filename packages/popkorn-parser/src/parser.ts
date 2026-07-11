@@ -23,6 +23,7 @@ import type {
   PseudoState,
   Rule,
   Selector,
+  Span,
   StateRule,
   StyleSheet,
   Value,
@@ -179,8 +180,10 @@ export function parse(source: string): StyleSheet {
   };
 
   while (!c.eof()) {
+    // eof() ran ws(), so pos sits at the token start — capture it for at-rule spans.
+    const start = c.pos;
     if (c.eat("@keyframes")) {
-      const kf = parseKeyframes(c);
+      const kf = parseKeyframes(c, start);
       c.declaredKeyframes.add(kf.name);
       sheet.keyframes.push(kf);
       continue;
@@ -293,8 +296,18 @@ function parseSelector(c: Cursor): Selector {
 }
 
 function parseRule(c: Cursor): Rule {
+  c.ws();
+  const start = c.pos;
   const selector = parseSelector(c);
-  return { type: "rule", selector, ...parseRuleBody(c) };
+  const preludeSpan: Span = { start, end: c.pos };
+  const body = parseRuleBody(c);
+  return {
+    type: "rule",
+    selector,
+    ...body,
+    span: { start, end: c.pos },
+    preludeSpan,
+  };
 }
 
 // `@define <name> { <rule body> }` — same body grammar as a rule.
@@ -548,14 +561,26 @@ function parseDeclaration(c: Cursor): Declaration[] {
     groups.push(values.length === 1 ? values[0] : { type: "list", values });
     if (!c.eat(",")) break;
   }
-  const valEnd = c.pos;
+  // Back up over trailing whitespace so valueSpan/span end at the last value
+  // char (peek()'s ws-skip may have advanced pos to the `;`/`}` terminator).
+  let valEnd = c.pos;
+  while (valEnd > valStart && isWs(c.src[valEnd - 1])) valEnd--;
   c.eat(";"); // optional trailing semicolon
   const value: Value =
     groups.length === 1
       ? groups[0]
       : { type: "list", values: groups, separator: "comma" };
   lintDeclaration(c, property, value, propStart, propEnd, valStart, valEnd);
-  return expandAliases(c, property, value, propStart, propEnd);
+  const out = expandAliases(c, property, value, propStart, propEnd);
+  // Every declaration this source line expands to shares its source spans
+  // (`span`: property→value, `valueSpan`: just the value; both exclude `;`).
+  const span: Span = { start: propStart, end: valEnd };
+  const valueSpan: Span = { start: valStart, end: valEnd };
+  for (const d of out) {
+    d.span = span;
+    d.valueSpan = valueSpan;
+  }
+  return out;
 }
 
 // Author-confusion checks that don't change the AST: unknown properties (with a
@@ -639,10 +664,16 @@ function animationName(value: Value, property: string): string | undefined {
   return names.length === 1 ? names[0] : undefined;
 }
 
+// Zero-span placeholder for freshly-built declarations; parseDeclaration
+// overwrites span/valueSpan with the real source offsets before returning.
+const ZERO_SPAN: Span = { start: 0, end: 0 };
+
 const decl = (property: string, value: Value): Declaration => ({
   type: "declaration",
   property,
   value,
+  span: ZERO_SPAN,
+  valueSpan: ZERO_SPAN,
 });
 
 // Recognized border-style keywords, so `border:`'s style keyword can be told
@@ -984,17 +1015,29 @@ function readNumber(c: Cursor): Value {
   return { type: "number", value };
 }
 
-function parseKeyframes(c: Cursor): KeyframeRule {
+function parseKeyframes(c: Cursor, start: number): KeyframeRule {
+  c.ws();
+  const nameStart = c.pos;
   const name = c.ident();
+  const preludeSpan: Span = { start: nameStart, end: c.pos };
   c.expect("{");
   const blocks: KeyframeBlock[] = [];
   while (!c.eat("}")) blocks.push(parseKeyframe(c));
-  return { type: "keyframes", name, blocks };
+  return {
+    type: "keyframes",
+    name,
+    blocks,
+    span: { start, end: c.pos },
+    preludeSpan,
+  };
 }
 
 function parseKeyframe(c: Cursor): KeyframeBlock {
   // Selector list, e.g. `from`, `to`, `0%`, or `0%, 100%`.
+  c.ws();
+  const selStart = c.pos;
   const selectors: number[] = [];
+  let selEnd = c.pos;
   for (;;) {
     if (c.eat("from")) selectors.push(0);
     else if (c.eat("to")) selectors.push(100);
@@ -1002,14 +1045,18 @@ function parseKeyframe(c: Cursor): KeyframeBlock {
       selectors.push(parseFloat(c.match(NUMBER)!));
       c.eat("%");
     }
+    selEnd = c.pos; // after the token, before any trailing `,`/whitespace
     if (!c.eat(",")) break;
   }
+  const selectorSpan: Span = { start: selStart, end: selEnd };
 
   const { declarations, easing } = parseDeclBlock(c);
   const block: KeyframeBlock = {
     type: "keyframe-block",
     selectors,
     declarations,
+    selectorSpan,
+    span: { start: selStart, end: c.pos },
   };
   if (easing) block.easing = easing;
   return block;

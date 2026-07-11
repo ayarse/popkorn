@@ -5,6 +5,14 @@ import { serialize } from "./serializer";
 // Write-in-only CSS alias sugar: aliases are rewritten to canonical properties
 // at parse time; the AST/serializer only ever speak canonical names.
 
+// Drop source-offset spans so structural declaration assertions compare value.
+const sansPos = <T>(node: T): T =>
+  JSON.parse(
+    JSON.stringify(node, (k, v) =>
+      k === "span" || k === "valueSpan" ? undefined : v,
+    ),
+  );
+
 // [property, value] pairs of a rule's declarations, for order-agnostic checks.
 const props = (src: string): [string, string][] =>
   parse(src).rules[0].declarations.map((d) => [
@@ -40,7 +48,9 @@ test(":root background keeps its stage-color meaning", () => {
 
 test("border-radius: <r> -> rx + ry", () => {
   expect(propNames("#b { border-radius: 8px; }")).toEqual(["rx", "ry"]);
-  expect(parse("#b { border-radius: 8px; }").rules[0].declarations[0]).toEqual({
+  expect(
+    sansPos(parse("#b { border-radius: 8px; }").rules[0].declarations[0]),
+  ).toEqual({
     type: "declaration",
     property: "rx",
     value: { type: "length", value: 8, unit: "px" },
@@ -62,7 +72,7 @@ test("border: named color -> stroke", () => {
 });
 
 test("border: none clears the stroke", () => {
-  expect(parse("#b { border: none; }").rules[0].declarations).toEqual([
+  expect(sansPos(parse("#b { border: none; }").rules[0].declarations)).toEqual([
     {
       type: "declaration",
       property: "stroke-width",

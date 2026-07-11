@@ -60,6 +60,8 @@ export interface Rule {
   declarations: Declaration[];
   children: Rule[]; // For nested rules (hierarchy)
   states: StateRule[]; // For pseudo-class rules (&:hover, &:active)
+  span: Span; // whole rule: selector through closing brace
+  preludeSpan: Span; // just the selector text (e.g. `#box`)
 }
 
 export interface Selector {
@@ -67,10 +69,25 @@ export interface Selector {
   name: string;
 }
 
+// A half-open character-offset range into the original source, same convention
+// as Diagnostic (start/end). Position metadata, not part of the AST *value* —
+// serialize reformats text so offsets shift, so round-trip value-equality
+// ignores spans exactly as it ignores diagnostics.
+export interface Span {
+  start: number;
+  end: number;
+}
+
 export interface Declaration {
   type: "declaration";
   property: string;
   value: Value;
+  // `span` covers the whole declaration (property through value, excluding the
+  // trailing `;`); `valueSpan` covers just the value text. An aliased/expanded
+  // declaration (e.g. border-radius → rx + ry) shares its source declaration's
+  // spans. Serializer-synthesized declarations carry a zero span.
+  span: Span;
+  valueSpan: Span;
 }
 
 export type Value =
@@ -159,6 +176,8 @@ export interface KeyframeRule {
   type: "keyframes";
   name: string;
   blocks: KeyframeBlock[];
+  span: Span; // whole at-rule: `@keyframes` through closing brace
+  preludeSpan: Span; // just the name text
 }
 
 export interface KeyframeBlock {
@@ -166,6 +185,8 @@ export interface KeyframeBlock {
   selectors: number[]; // Percentages: [0, 100] or [50]
   declarations: Declaration[];
   easing?: Value; // Per-keyframe easing (animation-timing-function value, verbatim)
+  selectorSpan: Span; // the `0%, 50%` selector-list text
+  span: Span; // whole block: selectors through closing brace
 }
 
 // --- State machines (@machine) -------------------------------------------

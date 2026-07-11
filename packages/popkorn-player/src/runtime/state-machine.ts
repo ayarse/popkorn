@@ -125,6 +125,18 @@ export class StateMachineRunner {
   }
 
   /**
+   * Read-only snapshot of every machine's current state and its entry time
+   * (global timeline ms), for an external timeline UI. A plain, copy-safe array.
+   */
+  snapshot(): { machine: string; state: string; entryTime: number }[] {
+    return this.instances.map((i) => ({
+      machine: i.def.name,
+      state: i.current,
+      entryTime: i.entryTime,
+    }));
+  }
+
+  /**
    * Is a `:state()` set active this frame? `machine === null` (un-namespaced
    * `:state(name)`) matches that state in ANY machine.
    */
