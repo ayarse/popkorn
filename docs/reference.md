@@ -429,7 +429,7 @@ The Lottie importer leans on this to turn merged shapes into a single `nonzero`
 path with one subpath per shape — a union of fills. Fills union exactly; a
 **stroke** on a merged path shows interior seams (subpath outlines aren't
 booleaned away). Subtract/intersect/exclude merge modes don't convert (see
-[Importing](importing.md)).
+[Importing Lottie and SVG](importing.md)).
 
 ## Animations
 

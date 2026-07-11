@@ -24,7 +24,7 @@ const DOCS = [
     label: "State Machines",
     file: "state-machines.md",
   },
-  { key: "importing", label: "Importing", file: "importing.md" },
+  { key: "importing", label: "Importing Lottie and SVG", file: "importing.md" },
   { key: "player-api", label: "Player API", file: "player-api.md" },
   { key: "reference", label: "Reference", file: "reference.md" },
   { key: "architecture", label: "Architecture", file: "architecture.md" },
