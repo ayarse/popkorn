@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { examples as galleryExamples } from "@/examples";
 import {
   type AgentConfig,
   GREETING,
@@ -15,6 +16,13 @@ import {
   TOOL_DEFS,
   type ToolContext,
 } from "@/lib/agent-tools";
+
+// The gallery scenes, exposed to the read_example tool for from-scratch few-shot.
+// Keyed by the human label ("State machine: Pip") the loader already derives.
+const AGENT_EXAMPLES = galleryExamples.map((e) => ({
+  name: e.label,
+  source: e.source,
+}));
 
 // Scenes under this many chars are inlined verbatim into the request (skips
 // read round-trips); larger scenes send an outline and let the model read on
@@ -41,6 +49,8 @@ function toolLabel(ev: ToolEvent): string {
       return `read lines ${ev.args.start}–${ev.args.end}`;
     case "search":
       return `searched ${JSON.stringify(ev.args.query)}`;
+    case "read_example":
+      return ev.args.name ? `read example ${ev.args.name}` : "listed examples";
     case "apply_edit":
       return "edited scene";
     case "rewrite_scene":
@@ -150,6 +160,7 @@ export function useAgentChat(
           changed = true;
           onApplySource(next);
         },
+        examples: AGENT_EXAMPLES,
       };
 
       // The streaming agent bubble is created lazily by the first token or

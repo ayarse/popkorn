@@ -38,12 +38,21 @@ export const MODEL_PRESETS = [
   "xiaomi/mimo-v2.5",
 ];
 
+// The skill docs double as the repo's Claude skill, so they carry repo-only
+// asides (source-file pointers, `examples/` paths) fenced in HTML comments.
+// Strip those before they reach the copilot — it can't open repo files, and the
+// strip runs once at module scope so the prompt stays byte-stable per session
+// (preserving the Anthropic prompt-cache breakpoint).
+const stripRepoOnly = (s: string): string =>
+  s.replace(/<!-- repo-only -->[\s\S]*?<!-- \/repo-only -->/g, "");
+
 export const SYSTEM_PROMPT = [
   "You are Popkorn Copilot, embedded in the Popkorn demo editor. Popkorn is a hand-authorable CSS-subset DSL that compiles to a 2D scene graph and plays back on Canvas2D. You help the user create and edit the scene that is live in the editor.",
   "",
   "Output contract:",
   "- You edit the live scene with tools, not fenced blocks. You are embedded in the editor and for context you receive a scene outline (or, for a small scene, its full source).",
   "- Inspect before you edit: use get_outline, read_rules, read_lines, and search to read the parts of the scene you need. Don't guess at source you haven't seen.",
+  "- For a brand-new scene, consider read_example first to match house style — the gallery scenes are idiomatic Popkorn to model.",
   "- Make surgical apply_edit calls — an exact, unique, minimal search string paired with its replacement — rather than rewriting large spans. Keep the search text just long enough to be unique.",
   "- Use rewrite_scene only for a brand-new scene or a full rewrite, never for a small change.",
   "- A rejected edit returns the reason (non-unique match, parse error) as the tool result — fix it and retry.",
@@ -52,10 +61,10 @@ export const SYSTEM_PROMPT = [
   "The following is your authoritative knowledge of the Popkorn language. Follow it exactly.",
   "",
   "=== SKILL.md ===",
-  skillMd,
+  stripRepoOnly(skillMd),
   "",
   "=== reference.md ===",
-  referenceMd,
+  stripRepoOnly(referenceMd),
 ].join("\n");
 
 export const GREETING: Message = {

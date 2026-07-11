@@ -1,7 +1,13 @@
 import { parse } from "@popkorn/parser";
 import { applyEdits } from "./edits";
 
-export type ToolContext = { getSource(): string; commit(next: string): void };
+export type ToolContext = {
+  getSource(): string;
+  commit(next: string): void;
+  // Optional curated gallery scenes for the read_example tool. Absent (the
+  // default) → the tool reports that no examples are available.
+  examples?: { name: string; source: string }[];
+};
 
 // ----------------------------------------------------------------------------
 // Outline scanner
@@ -367,6 +373,24 @@ function toolApplyEdit(
   return commitValidated(res.result, ctx, "Edit applied");
 }
 
+function toolReadExample(
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+): string {
+  const examples = ctx.examples ?? [];
+  if (examples.length === 0) return "No examples available.";
+  const names = examples.map((e) => e.name);
+  const name = args.name;
+  if (typeof name !== "string" || name === "") {
+    return `Available examples: ${names.join(", ")}. Call read_example with a name to read one.`;
+  }
+  const hit = examples.find((e) => e.name === name);
+  if (!hit) {
+    return `Example "${name}" not found. Available examples: ${names.join(", ")}.`;
+  }
+  return hit.source;
+}
+
 function toolRewriteScene(
   args: Record<string, unknown>,
   ctx: ToolContext,
@@ -393,6 +417,8 @@ export function executeTool(
         return toolReadLines(args, ctx);
       case "search":
         return toolSearch(args, ctx);
+      case "read_example":
+        return toolReadExample(args, ctx);
       case "apply_edit":
         return toolApplyEdit(args, ctx);
       case "rewrite_scene":
@@ -477,6 +503,25 @@ export const TOOL_DEFS: Array<{
           isRegex: { type: "boolean", description: "Treat query as a regex." },
         },
         required: ["query"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "read_example",
+      description:
+        "Read a curated gallery scene demonstrating idiomatic Popkorn. Call with no name to list the available example names; then read 1–2 relevant ones before writing a scene from scratch, to match house style.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: {
+            type: "string",
+            description:
+              "Example name to read, exactly as listed by a no-argument call. Omit to list.",
+          },
+        },
         additionalProperties: false,
       },
     },

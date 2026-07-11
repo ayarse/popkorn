@@ -90,6 +90,7 @@ test("TOOL_DEFS has one definition per tool", () => {
     [
       "apply_edit",
       "get_outline",
+      "read_example",
       "read_lines",
       "read_rules",
       "rewrite_scene",
@@ -183,6 +184,37 @@ test("search with an invalid regex returns an error string", () => {
   const ctx = ctxOf(SCENE);
   const out = executeTool("search", { query: "(", isRegex: true }, ctx);
   expect(out).toContain("invalid regex");
+});
+
+const EXAMPLES = [
+  { name: "Bouncing ball", source: "#ball { type: circle; r: 20px; }" },
+  { name: "Spinner", source: "#s { type: group; }" },
+];
+
+test("read_example with no name lists the available example names", () => {
+  const ctx = { ...ctxOf(SCENE), examples: EXAMPLES };
+  const out = executeTool("read_example", {}, ctx);
+  expect(out).toContain("Bouncing ball");
+  expect(out).toContain("Spinner");
+});
+
+test("read_example returns the full source on a name hit", () => {
+  const ctx = { ...ctxOf(SCENE), examples: EXAMPLES };
+  const out = executeTool("read_example", { name: "Spinner" }, ctx);
+  expect(out).toBe("#s { type: group; }");
+});
+
+test("read_example on an unknown name lists what's available", () => {
+  const ctx = { ...ctxOf(SCENE), examples: EXAMPLES };
+  const out = executeTool("read_example", { name: "Nope" }, ctx);
+  expect(out).toContain("not found");
+  expect(out).toContain("Bouncing ball");
+});
+
+test("read_example reports when no examples are wired in", () => {
+  const ctx = ctxOf(SCENE); // no examples field
+  const out = executeTool("read_example", { name: "Spinner" }, ctx);
+  expect(out).toBe("No examples available.");
 });
 
 test("unknown tool returns an error string, never throws", () => {
