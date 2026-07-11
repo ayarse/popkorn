@@ -1,5 +1,6 @@
 import {
   AlertCircle,
+  Brain,
   LoaderCircle,
   type LucideIcon,
   RotateCcw,
@@ -10,8 +11,26 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSettings } from "@/components/agent/agent-settings";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAgentChat } from "@/hooks/use-agent-chat";
-import { type Message, SUGGESTIONS } from "@/lib/agent";
+import {
+  type AgentConfig,
+  type Message,
+  type ReasoningEffort,
+  SUGGESTIONS,
+} from "@/lib/agent";
 import { cn } from "@/lib/utils";
 
 export type AgentChatProps = {
@@ -36,6 +55,20 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
     send,
     revert,
   } = useAgentChat(source, onApplySource);
+
+  // Set the reasoning mode without touching the rest of the config (persists
+  // through the same saveConfig round trip as the settings dialog). undefined
+  // = model default, so the key is dropped rather than stored.
+  const setReasoning = useCallback(
+    (r: ReasoningEffort | undefined) => {
+      if (!config) return;
+      const next: AgentConfig = { ...config };
+      if (r) next.reasoning = r;
+      else delete next.reasoning;
+      applyConfig(next);
+    },
+    [config, applyConfig],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -121,6 +154,11 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
         onSubmit={handleSubmit}
         className="flex shrink-0 items-end gap-1.5 border-t border-border p-2"
       >
+        <ReasoningControl
+          value={config?.reasoning}
+          onChange={setReasoning}
+          disabled={!config}
+        />
         <textarea
           ref={inputRef}
           value={input}
@@ -377,6 +415,63 @@ function WorkingIndicator() {
       <span className="size-1 shrink-0 animate-pulse rounded-full bg-muted-foreground/50" />
       <span>{verb}…</span>
     </div>
+  );
+}
+
+const REASONING_MODES: { value: string; label: string }[] = [
+  { value: "default", label: "Model default" },
+  { value: "off", label: "Off" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+];
+
+// Composer-side reasoning-effort picker. Copies the toolbar trigger nesting
+// (Tooltip > TooltipTrigger > DropdownMenuTrigger > Button, all asChild). The
+// Brain icon goes accent-colored whenever a non-default mode is active so the
+// current setting is glanceable.
+function ReasoningControl({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ReasoningEffort | undefined;
+  onChange: (r: ReasoningEffort | undefined) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={disabled}
+              aria-label="Reasoning effort"
+              className={cn("size-9 shrink-0", value && "text-primary")}
+            >
+              <Brain className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Reasoning effort</TooltipContent>
+      </Tooltip>
+      <DropdownMenuContent align="start" side="top" className="w-40">
+        <DropdownMenuRadioGroup
+          value={value ?? "default"}
+          onValueChange={(v) =>
+            onChange(v === "default" ? undefined : (v as ReasoningEffort))
+          }
+        >
+          {REASONING_MODES.map((m) => (
+            <DropdownMenuRadioItem key={m.value} value={m.value}>
+              {m.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

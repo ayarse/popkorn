@@ -20,7 +20,6 @@ import {
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
   MODEL_PRESETS,
-  type ReasoningEffort,
 } from "@/lib/agent";
 import { cn } from "@/lib/utils";
 
@@ -168,10 +167,6 @@ export function AgentSettings({
   const [baseUrl, setBaseUrl] = useState(current?.baseUrl ?? DEFAULT_BASE_URL);
   const [apiKey, setApiKey] = useState(current?.apiKey ?? "");
   const [model, setModel] = useState(current?.model ?? DEFAULT_MODEL);
-  // "" sentinel = model default (config.reasoning absent).
-  const [reasoning, setReasoning] = useState<ReasoningEffort | "">(
-    current?.reasoning ?? "",
-  );
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
@@ -236,32 +231,13 @@ export function AgentSettings({
             />
           </Field>
 
-          <div className="flex items-end gap-2">
-            <div className="min-w-0 flex-1">
-              <Field label="Model">
-                <ModelCombobox
-                  value={model}
-                  onChange={setModel}
-                  presets={MODEL_PRESETS}
-                />
-              </Field>
-            </div>
-            <Field label="Reasoning">
-              <select
-                value={reasoning}
-                onChange={(e) =>
-                  setReasoning(e.target.value as ReasoningEffort | "")
-                }
-                className="h-9 rounded-lg border border-border bg-background px-2 text-[13px] text-foreground outline-none transition-colors hover:border-border focus:border-primary/50"
-              >
-                <option value="">Model default</option>
-                <option value="off">Off</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </Field>
-          </div>
+          <Field label="Model">
+            <ModelCombobox
+              value={model}
+              onChange={setModel}
+              presets={MODEL_PRESETS}
+            />
+          </Field>
         </div>
 
         <div className="flex justify-end gap-2">
@@ -276,7 +252,8 @@ export function AgentSettings({
                 baseUrl: baseUrl.trim() || DEFAULT_BASE_URL,
                 apiKey: apiKey.trim(),
                 model,
-                ...(reasoning ? { reasoning } : {}),
+                // Preserve any reasoning mode set from the composer control.
+                ...(current?.reasoning ? { reasoning: current.reasoning } : {}),
               })
             }
           >
