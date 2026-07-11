@@ -23,7 +23,12 @@ import type { FilterOp, NodeBase, SceneNode } from "../scene/types";
 export type PropKind = "number" | "color" | "gradient" | "path";
 
 // A resolved/authored value for any animatable property.
-export type PropValue = number | string | GradientData | PathCommand[];
+export type PropValue =
+  | number
+  | string
+  | GradientData
+  | PathCommand[]
+  | FilterOp[];
 
 export interface PropHandler {
   kind: PropKind;
@@ -214,22 +219,15 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // filter: only the blur radius animates (a plain number). readBase returns
-  // null when there's no blur op so the scheduler skips it (a drop-shadow-only
-  // filter isn't animatable here). apply mutates the live per-frame filter copy.
+  // filter: the whole FilterOp list is the endpoint. interpolateProp lerps each
+  // op's numerics when two endpoints share the same function sequence, else holds
+  // the departing list (structural replace) — same object-endpoint contract as
+  // gradients/paths, so `kind` is the object hint and readLive is omitted.
   filter: {
-    kind: "number",
-    readBase: (base) => {
-      const b = base.filter?.find(isBlur);
-      return b ? b.radius : null;
-    },
-    readLive: (node) => {
-      const b = node.filter?.find(isBlur);
-      return b ? b.radius : 0;
-    },
+    kind: "path",
+    readBase: (base) => base.filter,
     apply: (node, value) => {
-      const b = node.filter?.find(isBlur);
-      if (b) b.radius = value as number;
+      node.filter = value as FilterOp[];
     },
   },
 
@@ -252,9 +250,6 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 };
-
-type BlurOp = Extract<FilterOp, { type: "blur" }>;
-const isBlur = (f: FilterOp): f is BlurOp => f.type === "blur";
 
 export function getPropHandler(property: string): PropHandler | undefined {
   return PROPERTY_REGISTRY[property];
@@ -286,6 +281,16 @@ export function interpolateProp(
     return from ?? to; // step: hold the departing gradient
   }
 
+  // Filter-list endpoints (checked before the generic array branch, since both
+  // filters and paths are arrays). Compatible = same function sequence; else the
+  // departing list holds (structural replace).
+  if (isFilterList(from) || isFilterList(to)) {
+    if (isFilterList(from) && isFilterList(to) && filtersCompatible(from, to)) {
+      return interpolateFilter(from, to, t);
+    }
+    return from ?? to;
+  }
+
   // Path (command-list) endpoints.
   if (Array.isArray(from) || Array.isArray(to)) {
     if (Array.isArray(from) && Array.isArray(to) && pathsCompatible(from, to)) {
@@ -299,6 +304,72 @@ export function interpolateProp(
     return interpolateColor(from, to, t);
   }
   return lerp((from as number) ?? 0, (to as number) ?? 0, t);
+}
+
+// --- filters ----------------------------------------------------------------
+
+const FILTER_TYPES = new Set<string>([
+  "blur",
+  "drop-shadow",
+  "brightness",
+  "contrast",
+  "saturate",
+  "grayscale",
+  "sepia",
+  "invert",
+  "opacity",
+  "hue-rotate",
+]);
+
+// Distinguish a FilterOp[] from a PathCommand[] (both are arrays) by the first
+// element's tag — filter names are words, path commands are single letters.
+export function isFilterList(v: PropValue | null): v is FilterOp[] {
+  return (
+    Array.isArray(v) &&
+    v.length > 0 &&
+    typeof (v[0] as { type?: unknown }).type === "string" &&
+    FILTER_TYPES.has((v[0] as { type: string }).type)
+  );
+}
+
+// Same length and same function at each position (so ops pair up index-for-index).
+export function filtersCompatible(a: FilterOp[], b: FilterOp[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i].type !== b[i].type) return false;
+  return true;
+}
+
+// Per-op numeric lerp. Caller guarantees compatibility. Returns a fresh list;
+// never mutates (base snapshots stay immutable).
+function interpolateFilter(
+  a: FilterOp[],
+  b: FilterOp[],
+  t: number,
+): FilterOp[] {
+  return a.map((fa, i) => {
+    const fb = b[i];
+    if (fa.type === "blur" && fb.type === "blur") {
+      return { type: "blur", radius: lerp(fa.radius, fb.radius, t) };
+    }
+    if (fa.type === "drop-shadow" && fb.type === "drop-shadow") {
+      return {
+        type: "drop-shadow",
+        dx: lerp(fa.dx, fb.dx, t),
+        dy: lerp(fa.dy, fb.dy, t),
+        blur: lerp(fa.blur, fb.blur, t),
+        color: interpolateColor(fa.color, fb.color, t),
+      };
+    }
+    // Color-adjust functions (matched types): lerp the scalar amount.
+    return {
+      type: fa.type,
+      amount: lerp(
+        (fa as { amount: number }).amount,
+        (fb as { amount: number }).amount,
+        t,
+      ),
+    } as FilterOp;
+  });
 }
 
 // --- gradients --------------------------------------------------------------

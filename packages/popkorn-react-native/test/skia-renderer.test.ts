@@ -121,6 +121,37 @@ test('paints a rect and a path with fill paint through the render loop', () => {
   expect(ops.indexOf('drawRect')).toBeLessThan(ops.indexOf('drawPath'));
 });
 
+// DELIBERATE DIVERGENCE: Skia has no CSS-`filter` realization (compositeFilter/
+// supportsFilter are unimplemented), so a filtered node — blur, drop-shadow, or
+// any of the color-adjust functions — degrades to an unfiltered paint. Canvas2D
+// (ctx.filter) and SVG (style="filter:…") both apply it; Skia draws the raw
+// shape. Pinned so restoring filter support is a conscious change, not a
+// silent one.
+test('filters degrade to an unfiltered paint (no filter backend on Skia)', () => {
+  const { Skia, canvas, calls } = mockSkia();
+
+  const scene = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px }
+      #r { type: rect; width: 40px; height: 40px; fill: #f00;
+           filter: brightness(0.5) blur(4px) hue-rotate(90deg) }
+    `)
+  );
+
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  expect((renderer as unknown as { supportsFilter?: unknown }).supportsFilter)
+    .toBeUndefined();
+
+  renderer.setCanvas(canvas);
+  const rl = new RenderLoop(renderer);
+  rl.setScene(scene);
+  rl.setSceneSize(100, 100);
+  rl.seek(0);
+
+  // The rect still paints (unfiltered) — the filter is simply skipped.
+  expect(calls.find((c) => c.op === 'drawRect')?.style).toBe(0);
+});
+
 // #1: setTransform is ABSOLUTE. SkCanvas only has relative concat, so the
 // renderer mirrors the CTM and reaches the target via concat(invert(cur)·m). The
 // product of every concat it emits must equal the requested absolute matrix.

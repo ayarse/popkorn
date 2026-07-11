@@ -125,7 +125,11 @@ function warnIncompatibleObjectKeyframes(
       if (a === undefined || b === undefined) continue;
       let ok: boolean;
       if (prop === "d" || prop === "clip-path") {
-        ok = Array.isArray(a) && Array.isArray(b) && pathsCompatible(a, b);
+        // d/clip-path array values are always PathCommand[] (never FilterOp[]).
+        ok =
+          Array.isArray(a) &&
+          Array.isArray(b) &&
+          pathsCompatible(a as PathCommand[], b as PathCommand[]);
       } else if (!isGradientData(a) && !isGradientData(b)) {
         ok = true; // plain color-to-color fill/stroke: interpolates fine
       } else {
@@ -1014,7 +1018,8 @@ export class SceneBuilder {
         break;
 
       // CSS filter: one or more space-separated filter functions (blur,
-      // drop-shadow). Static except the blur radius, which the registry animates.
+      // drop-shadow, color-adjust). The whole list is animatable via the
+      // registry's `filter` handler.
       case "filter":
         node.filter = this.parseFilter(value);
         break;
@@ -1878,13 +1883,11 @@ export class SceneBuilder {
         const clip = this.parseClipPath(value);
         return clip && clip.type === "path" ? clip.commands : undefined;
       }
-      case "filter": {
-        // Only the blur radius is animatable (a plain number, keyed as
-        // 'filter' in the registry). drop-shadow is ignored.
-        const ops = this.parseFilter(value);
-        const blur = ops?.find((o) => o.type === "blur");
-        return blur && blur.type === "blur" ? blur.radius : undefined;
-      }
+      case "filter":
+        // The whole filter list is the animatable endpoint; the registry lerps
+        // each op's numerics when two endpoints share the same function sequence
+        // (else replace). See interpolateFilter.
+        return this.parseFilter(value) ?? undefined;
       default:
         // Raw numeric/string value (geometry, dash offset, font-size, …).
         if (isNumberValue(value) || isLengthValue(value))
@@ -2191,21 +2194,48 @@ export class SceneBuilder {
 
   /**
    * Parse a CSS `filter` value: a space-separated list of filter functions.
-   * Only blur() and drop-shadow() are supported (CSS blur IS Gaussian by spec);
-   * any other function is ignored. Returns null when nothing usable is found.
+   * Supported: blur(), drop-shadow(), and the single-scalar color-adjust
+   * functions brightness/contrast/saturate/grayscale/sepia/invert/opacity/
+   * hue-rotate. Any other function is ignored. Returns null when nothing usable
+   * is found.
    *   blur(<length>)
    *   drop-shadow(<dx> <dy> <blur>? <color>?)  — color defaults to black (CSS
    *   defaults to currentcolor, which Popkorn has no concept of).
+   *   brightness(<number|percent>)  etc.  — omitted arg defaults to 1 (0 for
+   *   hue-rotate); a percent normalizes to its fraction so amount is always a
+   *   plain multiplier. hue-rotate's amount is an angle in degrees.
    */
   private parseFilter(value: Value): FilterOp[] | null {
     const fns = isListValue(value) ? value.values : [value];
     const ops: FilterOp[] = [];
+    // A color-adjust scalar: percent -> fraction (50% => 0.5), else the number.
+    const frac = (v: Value | undefined, dflt: number): number => {
+      if (!v) return dflt;
+      if (isLengthValue(v) && v.unit === "%") return getNumericValue(v) / 100;
+      return getNumericValue(v);
+    };
     for (const v of fns) {
       if (!isFunctionValue(v)) continue;
       if (v.name === "blur") {
         ops.push({
           type: "blur",
           radius: v.args[0] ? getNumericValue(v.args[0]) : 0,
+        });
+      } else if (
+        v.name === "brightness" ||
+        v.name === "contrast" ||
+        v.name === "saturate" ||
+        v.name === "grayscale" ||
+        v.name === "sepia" ||
+        v.name === "invert" ||
+        v.name === "opacity"
+      ) {
+        ops.push({ type: v.name, amount: frac(v.args[0], 1) });
+      } else if (v.name === "hue-rotate") {
+        // NOTE: angle read in degrees; turn/rad units aren't unwound here.
+        ops.push({
+          type: "hue-rotate",
+          amount: v.args[0] ? getNumericValue(v.args[0]) : 0,
         });
       } else if (v.name === "drop-shadow") {
         // Parser flattens the space-separated args to a bare list: lengths in

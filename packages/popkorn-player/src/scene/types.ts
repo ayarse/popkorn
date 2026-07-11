@@ -38,10 +38,14 @@ export type MaskMode =
   | "luminance"
   | "luminance-invert";
 
-// CSS `filter` functions (the supported subset). Lengths are authored in the
-// node's LOCAL space; the renderer scales them by the node's world scale so a
-// scaled element's blur/shadow scales with it (CSS semantics). The blur radius
-// is animatable via the registry's `filter` handler; drop-shadow is static.
+// CSS `filter` functions (the supported subset). blur/drop-shadow carry lengths
+// authored in the node's LOCAL space; the renderer scales those by the node's
+// world scale so a scaled element's blur/shadow scales with it (CSS semantics).
+// The color-adjust functions (brightness…hue-rotate) are scale-free: `amount` is
+// a fraction (1 = 100%) for all of them except hue-rotate, whose `amount` is an
+// angle in degrees. The whole list animates via the registry's `filter` handler
+// (per-op numeric lerp when two endpoints share the same function sequence, else
+// a structural replace — see interpolateFilter).
 export type FilterOp =
   | { type: "blur"; radius: number }
   | {
@@ -50,7 +54,19 @@ export type FilterOp =
       dy: number;
       blur: number;
       color: string;
-    };
+    }
+  | { type: ColorFilterFn; amount: number };
+
+// The single-scalar CSS filter functions that recolor rather than displace.
+export type ColorFilterFn =
+  | "brightness"
+  | "contrast"
+  | "saturate"
+  | "grayscale"
+  | "sepia"
+  | "invert"
+  | "opacity"
+  | "hue-rotate";
 
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
 export type FillRule = "nonzero" | "evenodd";
@@ -548,7 +564,8 @@ export type AnimatableValue =
   | string
   | Transform
   | GradientData
-  | PathCommand[];
+  | PathCommand[]
+  | FilterOp[];
 
 // Default transform origin (0 0, matching CSS behavior)
 export function createDefaultTransformOrigin(): TransformOrigin {

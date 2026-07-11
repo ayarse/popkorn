@@ -23,9 +23,11 @@
 
 import { applyEasing } from "../animation/easing";
 import {
+  filtersCompatible,
   getPropHandler,
   gradientsCompatible,
   interpolateProp,
+  isFilterList,
   type PropHandler,
   type PropValue,
   pathsCompatible,
@@ -218,6 +220,11 @@ function blendable(from: PropValue | null, to: PropValue | null): boolean {
       isGradientData(from) &&
       isGradientData(to) &&
       gradientsCompatible(from, to)
+    );
+  }
+  if (isFilterList(from) || isFilterList(to)) {
+    return (
+      isFilterList(from) && isFilterList(to) && filtersCompatible(from, to)
     );
   }
   if (Array.isArray(from) || Array.isArray(to)) {

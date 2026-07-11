@@ -17,9 +17,12 @@ import type { GradientData } from "./types";
  * and the shared expectation constants keep the three honest against each other.
  *
  * Deliberate divergences (Skia luma·alpha matrix limit, Skia text/image no-ops,
- * SVG text-measure approximation) are NOT in this table — they live as explicit
- * single-backend tests next to each harness, documenting the disagreement so a
- * silent behavior change still fails.
+ * Skia no CSS-`filter` realization — blur/drop-shadow/color-adjust all degrade
+ * unfiltered, while Canvas2D and SVG apply the shared filterToCSS string, SVG in
+ * user space and Canvas in device space — and SVG text-measure approximation)
+ * are NOT in this table — they live as explicit single-backend tests next to
+ * each harness, documenting the disagreement so a silent behavior change still
+ * fails.
  *
  * Cases drive the `Renderer` directly rather than a scene through `RenderLoop`:
  * the loop's `renderNode` walk is itself shared, so the per-backend behavior

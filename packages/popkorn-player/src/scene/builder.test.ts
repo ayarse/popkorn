@@ -885,7 +885,7 @@ test("filter: blur radius animates via the registry, base is preserved", () => {
     #g { type: rect; filter: blur(4px); animation: soften 1s linear; }
   `).children;
 
-  expect(getPropHandler("filter")?.kind).toBe("number");
+  expect(getPropHandler("filter")?.kind).toBe("path");
   const sched = new AnimationScheduler();
   resetNodeToBase(g);
   sched.sampleNode(g, 500); // midway
@@ -901,6 +901,64 @@ test("filter: blur radius animates via the registry, base is preserved", () => {
     4,
     5,
   );
+});
+
+test("filter: parses color-adjust functions; percent -> fraction, hue-rotate deg", () => {
+  const [a] = build(
+    "#a { type: rect; filter: brightness(0.5) contrast(150%) grayscale(1) hue-rotate(90deg); }",
+  ).children;
+  expect(a.filter).toEqual([
+    { type: "brightness", amount: 0.5 },
+    { type: "contrast", amount: 1.5 },
+    { type: "grayscale", amount: 1 },
+    { type: "hue-rotate", amount: 90 },
+  ]);
+  // Omitted arg defaults: color-adjust -> 1, hue-rotate -> 0.
+  const [b] = build(
+    "#b { type: rect; filter: saturate() hue-rotate(); }",
+  ).children;
+  expect(b.filter).toEqual([
+    { type: "saturate", amount: 1 },
+    { type: "hue-rotate", amount: 0 },
+  ]);
+});
+
+test("filter: whole list animates per-op when the function sequence matches", () => {
+  const [g] = build(`
+    @keyframes recolor {
+      from { filter: brightness(1) drop-shadow(0px 0px 0px #000000); }
+      to   { filter: brightness(2) drop-shadow(4px 4px 8px #ffffff); }
+    }
+    #g { type: rect; filter: brightness(1) drop-shadow(0px 0px 0px #000000);
+         animation: recolor 1s linear; }
+  `).children;
+
+  const sched = new AnimationScheduler();
+  resetNodeToBase(g);
+  sched.sampleNode(g, 500); // midway
+  expect(g.filter).toEqual([
+    { type: "brightness", amount: 1.5 },
+    { type: "drop-shadow", dx: 2, dy: 2, blur: 4, color: "rgb(128, 128, 128)" },
+  ]);
+
+  // Base snapshot survives the morph.
+  resetNodeToBase(g);
+  expect((g.filter?.[0] as { amount: number } | undefined)?.amount).toBe(1);
+});
+
+test("filter: mismatched function sequences replace (hold departing), not crash", () => {
+  const [g] = build(`
+    @keyframes swap {
+      from { filter: blur(4px); }
+      to   { filter: brightness(2); }
+    }
+    #g { type: rect; filter: blur(4px); animation: swap 1s linear; }
+  `).children;
+
+  const sched = new AnimationScheduler();
+  resetNodeToBase(g);
+  sched.sampleNode(g, 500); // midway holds the departing `from`
+  expect(g.filter).toEqual([{ type: "blur", radius: 4 }]);
 });
 
 // --- track masks ------------------------------------------------------------

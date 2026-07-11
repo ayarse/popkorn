@@ -878,8 +878,11 @@ export class RenderLoop {
     const scale = this.renderer.filtersUseUserSpace?.()
       ? matrixScale(world) / (matrixScale(parentWorld) || 1)
       : matrixScale(world);
-    const css = filterToCSS(node.filter!, scale);
-    this.renderer.compositeFilter!(css, () => {
+    // renderNode only reaches here with a non-null filter and a filter-capable
+    // renderer (see the guard in renderNode).
+    if (!node.filter || !this.renderer.compositeFilter) return;
+    const css = filterToCSS(node.filter, scale);
+    this.renderer.compositeFilter(css, () => {
       this.renderer.setTransform(parentWorld);
       this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
     });
@@ -899,10 +902,16 @@ function filterToCSS(ops: FilterOp[], scale: number): string {
   for (const op of ops) {
     if (op.type === "blur") {
       parts.push(`blur(${op.radius * scale}px)`);
-    } else {
+    } else if (op.type === "drop-shadow") {
       parts.push(
         `drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`,
       );
+    } else if (op.type === "hue-rotate") {
+      // Scale-free (angle, not a length).
+      parts.push(`hue-rotate(${op.amount}deg)`);
+    } else {
+      // Color-adjust functions: a scale-free plain-number multiplier.
+      parts.push(`${op.type}(${op.amount})`);
     }
   }
   return parts.join(" ");
