@@ -74,6 +74,36 @@ test("step-end: holds the departing value across the segment, then jumps (number
   expect(node.fill).toBe("rgb(100, 0, 0)");
 });
 
+test("skewX/skewY animate as number channels and land on the transform", () => {
+  const node = circleNode();
+  const kf: KeyframeData[] = [
+    { offset: 0, properties: { skewX: 0, skewY: 0 } },
+    { offset: 1, properties: { skewX: 30, skewY: -10 } },
+  ];
+
+  resetNodeToBase(node);
+  interpolateKeyframes(node, kf, 0.5);
+  expect(node.transform.skewX).toBeCloseTo(15, 6);
+  expect(node.transform.skewY).toBeCloseTo(-5, 6);
+
+  resetNodeToBase(node);
+  interpolateKeyframes(node, kf, 1);
+  expect(node.transform.skewX).toBeCloseTo(30, 6);
+  expect(node.transform.skewY).toBeCloseTo(-10, 6);
+});
+
+test("skew() shorthand in @keyframes drives skewX and skewY channels", () => {
+  const scene = build(
+    "@keyframes s { from { transform: skew(0deg, 0deg); } to { transform: skew(40deg, 20deg); } }" +
+      "#r { type: rect; width: 10px; height: 10px; animation: s 1s; }",
+  );
+  const node = scene.children[0];
+  resetNodeToBase(node);
+  interpolateKeyframes(node, node.animations[0].keyframes, 0.5);
+  expect(node.transform.skewX).toBeCloseTo(20, 6);
+  expect(node.transform.skewY).toBeCloseTo(10, 6);
+});
+
 test("step-end parses from the animation shorthand and per-keyframe", () => {
   const root = build(`
     @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; animation-timing-function: step-end; } 100% { opacity: 1; } }

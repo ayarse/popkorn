@@ -4,6 +4,7 @@ import {
   multiplyMatrices,
   rotationMatrix,
   scaleMatrix,
+  skewMatrix,
   translationMatrix,
 } from "./matrix";
 import { samplePathAt } from "./path-parser";
@@ -203,8 +204,9 @@ export function resolveTransformOrigin(node: SceneNode): {
  * Compute the local transform matrix, including transform-origin and any CSS
  * Motion Path placement.
  * Order (CSS): translate -> motion-path (offset point -> offset rotate) ->
- * (move to origin -> rotate -> scale -> move back). The motion-path layer is an
- * independent placement applied after translate and before the node's own TRS.
+ * (move to origin -> rotate -> scale -> skew -> move back). The motion-path
+ * layer is an independent placement applied after translate and before the
+ * node's own TRS.
  */
 export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
   const t = node.transform;
@@ -235,6 +237,11 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
     );
   if (t.scaleX !== 1 || t.scaleY !== 1)
     matrix = multiplyMatrices(matrix, scaleMatrix(t.scaleX, t.scaleY));
+  if (t.skewX !== 0 || t.skewY !== 0)
+    matrix = multiplyMatrices(
+      matrix,
+      skewMatrix((t.skewX * Math.PI) / 180, (t.skewY * Math.PI) / 180),
+    );
   if (hasOrigin) matrix = multiplyMatrices(matrix, translationMatrix(-ox, -oy));
 
   return matrix;

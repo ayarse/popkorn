@@ -27,6 +27,8 @@ function setTransform(
     rotate: number;
     sx: number;
     sy: number;
+    skewX: number;
+    skewY: number;
   }>,
 ): void {
   node.transform.translateX = t.tx ?? 0;
@@ -34,6 +36,8 @@ function setTransform(
   node.transform.rotate = t.rotate ?? 0;
   node.transform.scaleX = t.sx ?? 1;
   node.transform.scaleY = t.sy ?? 1;
+  node.transform.skewX = t.skewX ?? 0;
+  node.transform.skewY = t.skewY ?? 0;
 }
 
 // Matrices are compared with a tolerance because rotation introduces tiny fp error.
@@ -83,6 +87,34 @@ test("computeLocalMatrix: percentage transform-origin resolves against the bbox"
   expectMatrix(computeLocalMatrix(node), [0, -1, 100, 1, 0, 0, 0, 0, 1]);
 });
 
+test("computeLocalMatrix: skewX shears x along y", () => {
+  const node = rect("r", 0, 0, 100, 100);
+  setTransform(node, { skewX: 45 }); // tan(45) === 1
+
+  // skewX matrix: [1, tan(45), 0, 0, 1, 0, ...] === [1, 1, 0, 0, 1, 0, ...]
+  const m = computeLocalMatrix(node);
+  expectMatrix(m, [1, 1, 0, 0, 1, 0, 0, 0, 1]);
+  // (0,10) shears to x += 10.
+  const p = transformPoint(m, 0, 10);
+  expect(p.x).toBeCloseTo(10, 6);
+  expect(p.y).toBeCloseTo(10, 6);
+});
+
+test("computeLocalMatrix: skew(ax, ay) both axes, pivoting at transform-origin", () => {
+  const node = rect("r", 0, 0, 100, 100);
+  node.transform.transformOrigin = {
+    x: { value: 50, unit: "px" },
+    y: { value: 50, unit: "px" },
+  };
+  setTransform(node, { skewX: 30, skewY: 15 });
+
+  const m = computeLocalMatrix(node);
+  // The pivot (50,50) maps to itself under any origin-sandwiched transform.
+  const pivot = transformPoint(m, 50, 50);
+  expect(pivot.x).toBeCloseTo(50, 6);
+  expect(pivot.y).toBeCloseTo(50, 6);
+});
+
 // --- (b) computeWorldMatrix: parent composition ------------------------------
 
 test("computeWorldMatrix: parent rotation composes with child translation", () => {
@@ -119,6 +151,22 @@ test("hitTest: rotated + origin-shifted rect matches the world matrix", () => {
 
   // A local point well outside the rect, mapped to screen space, must miss.
   const outside = transformPoint(world, 300, 300);
+  expect(hitTest(node, outside)).toBeNull();
+});
+
+test("hitTest: skewed rect matches the world matrix", () => {
+  const node = rect("r", 0, 0, 100, 100);
+  node.interactive = true;
+  setTransform(node, { tx: 100, ty: 100, skewX: 30, skewY: 10 });
+
+  const world = computeWorldMatrix(node);
+
+  // A local point inside the rect, sheared to screen space, must hit.
+  const inside = transformPoint(world, 40, 60);
+  expect(hitTest(node, inside)).toBe(node);
+
+  // A point mapped from far outside the rect must miss.
+  const outside = transformPoint(world, 400, 400);
   expect(hitTest(node, outside)).toBeNull();
 });
 

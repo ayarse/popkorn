@@ -152,6 +152,8 @@ export interface Transform {
   rotate: number; // degrees
   scaleX: number;
   scaleY: number;
+  skewX: number; // degrees (CSS skewX / skew first arg)
+  skewY: number; // degrees (CSS skewY / skew second arg)
   transformOrigin: TransformOrigin; // CSS transform-origin
 }
 
@@ -554,6 +556,8 @@ export function createDefaultTransform(): Transform {
     rotate: 0,
     scaleX: 1,
     scaleY: 1,
+    skewX: 0,
+    skewY: 0,
     transformOrigin: createDefaultTransformOrigin(),
   };
 }
@@ -576,6 +580,8 @@ export function copyTransform(src: Transform, dst: Transform): void {
   dst.rotate = src.rotate;
   dst.scaleX = src.scaleX;
   dst.scaleY = src.scaleY;
+  dst.skewX = src.skewX;
+  dst.skewY = src.skewY;
   dst.transformOrigin.x.value = src.transformOrigin.x.value;
   dst.transformOrigin.x.unit = src.transformOrigin.x.unit;
   dst.transformOrigin.y.value = src.transformOrigin.y.value;

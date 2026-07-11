@@ -54,6 +54,12 @@ export function scaleMatrix(sx: number, sy: number): Matrix3x3 {
   return [sx, 0, 0, 0, sy, 0, 0, 0, 1];
 }
 
+// Create skew matrix (angles in radians). ax shears x along y, ay shears y
+// along x — matching CSS skew(ax, ay)/skewX/skewY.
+export function skewMatrix(ax: number, ay: number): Matrix3x3 {
+  return [1, Math.tan(ax), 0, Math.tan(ay), 1, 0, 0, 0, 1];
+}
+
 // Invert a 3x3 matrix (returns identity if non-invertible)
 export function invertMatrix(m: Matrix3x3): Matrix3x3 {
   const det =

@@ -190,9 +190,15 @@ instances never collide.
   transform: translate(100px, 50px);
   transform: rotate(45deg);
   transform: scale(1.5);
+  transform: skew(15deg, 5deg); /* skewX(15deg) skewY(5deg) also work */
   transform: translate(100px, 50px) rotate(45deg) scale(1.5);
 }
 ```
+
+`skew(ax, ay)` / `skewX(a)` / `skewY(a)` shear the shape (angles in `deg`);
+`skew(a)` skews x only. Like the other channels they pivot around
+`transform-origin` and animate in `@keyframes`. Handy for cheap perspective
+fakes in CSS art.
 
 The individual CSS transform properties `translate:`, `rotate:`, and `scale:`
 also work and write the **same** channels as `transform:` — so
@@ -200,7 +206,7 @@ also work and write the **same** channels as `transform:` — so
 with `transform:` on one node is last-declaration-wins per channel (not CSS's
 additive layering).
 
-`transform-origin` sets the pivot for rotation and scale (default `0 0`).
+`transform-origin` sets the pivot for rotation, scale, and skew (default `0 0`).
 Accepts the keywords `center`/`top`/`left`/`right`/`bottom`, percentages, or
 lengths; a single value fills the other axis with `50%`.
 

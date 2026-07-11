@@ -47,6 +47,12 @@ test("state-block child rule (&:hover > #c) round-trips both modes", () => {
   expect(parse(serialize(parse(src)))).toEqual(parse(src));
 });
 
+test("skew transform functions round-trip in both modes", () => {
+  const src = "#s { transform: skew(15deg, 5deg) skewX(30deg) skewY(-10deg); }";
+  expect(parse(serialize(parse(src), { minify: true }))).toEqual(parse(src));
+  expect(parse(serialize(parse(src)))).toEqual(parse(src));
+});
+
 test("calc() round-trips (precedence + var/input operands) in both modes", () => {
   const src =
     "#s { cx: calc((var(--i) + 2) * 3px); cy: calc(100px - var(--k) / 2); }";

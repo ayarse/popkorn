@@ -139,7 +139,9 @@ type TransformKey =
   | "translateY"
   | "rotate"
   | "scaleX"
-  | "scaleY";
+  | "scaleY"
+  | "skewX"
+  | "skewY";
 
 /**
  * Walk a transform value (a single function or a list of them) and report each
@@ -176,6 +178,16 @@ function extractTransform(
         break;
       case "scaleY":
         set("scaleY", getNumericValue(args[0]));
+        break;
+      case "skew":
+        set("skewX", getNumericValue(args[0]));
+        set("skewY", args.length > 1 ? getNumericValue(args[1]) : 0);
+        break;
+      case "skewX":
+        set("skewX", getNumericValue(args[0]));
+        break;
+      case "skewY":
+        set("skewY", getNumericValue(args[0]));
         break;
     }
   };

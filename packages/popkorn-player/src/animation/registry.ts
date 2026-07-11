@@ -41,7 +41,14 @@ export interface PropHandler {
 // --- transform components (all plain-number lerp; rotate is direct, matching
 // the existing full-turn animation behaviour) --------------------------------
 function transformNumber(
-  key: "translateX" | "translateY" | "rotate" | "scaleX" | "scaleY",
+  key:
+    | "translateX"
+    | "translateY"
+    | "rotate"
+    | "scaleX"
+    | "scaleY"
+    | "skewX"
+    | "skewY",
 ): PropHandler {
   return {
     kind: "number",
@@ -97,6 +104,8 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   rotate: transformNumber("rotate"),
   scaleX: transformNumber("scaleX"),
   scaleY: transformNumber("scaleY"),
+  skewX: transformNumber("skewX"),
+  skewY: transformNumber("skewY"),
 
   // opacity
   opacity: {
