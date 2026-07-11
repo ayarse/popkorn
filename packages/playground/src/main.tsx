@@ -31,7 +31,17 @@ const docsRoute = createRoute({
   component: lazyRouteComponent(() => import("@/pages/docs")),
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, docsRoute]);
+const docsSectionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/docs/$section",
+  component: lazyRouteComponent(() => import("@/pages/docs")),
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  docsRoute,
+  docsSectionRoute,
+]);
 
 const router = createRouter({
   routeTree,

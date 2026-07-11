@@ -1,6 +1,6 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import Prism from "prismjs";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import "prismjs/themes/prism-tomorrow.css";
 import "prismjs/components/prism-clike";
 import "prismjs/components/prism-javascript";
@@ -45,9 +45,9 @@ marked.use({ gfm: true, breaks: false });
 
 export default function Docs() {
   const navigate = useNavigate();
-  const [active, setActive] =
-    useState<(typeof DOCS)[number]["key"]>("introduction");
-  const activeDoc = DOCS.find((d) => d.key === active) ?? DOCS[0];
+  const { section } = useParams({ strict: false });
+  const activeDoc = DOCS.find((d) => d.key === section) ?? DOCS[0];
+  const active = activeDoc.key;
   const html = useMemo(
     () => marked.parse(docSource(activeDoc.file)) as string,
     [activeDoc.file],
@@ -102,7 +102,9 @@ export default function Docs() {
               <button
                 type="button"
                 key={d.key}
-                onClick={() => setActive(d.key)}
+                onClick={() =>
+                  navigate({ to: "/docs/$section", params: { section: d.key } })
+                }
                 className={cn(
                   "flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors",
                   active === d.key
