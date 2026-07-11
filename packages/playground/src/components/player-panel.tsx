@@ -8,6 +8,7 @@ import {
   PanelBottomDashed,
   Repeat,
   RepeatOff,
+  Video,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -69,26 +71,49 @@ export function PlayerPanel({
   const [loop, setLoop] = useState(true);
   const [fit, setFit] = useState<FitMode>("contain");
   const [renderer, setRenderer] = useState<RendererKind>("canvas");
-  // null = idle; 0..1 = export progress fraction.
-  const [exportProgress, setExportProgress] = useState<number | null>(null);
+  // null = idle; otherwise the in-flight export's format + 0..1 progress.
+  const [exporting, setExporting] = useState<{
+    format: "GIF" | "MP4";
+    progress: number;
+  } | null>(null);
   // Right-click context menu over the player area ({x,y} | null).
   const [bgMenu, setBgMenu] = useState<{ x: number; y: number } | null>(null);
 
+  const setProgress = (format: "GIF" | "MP4") => (progress: number) =>
+    setExporting({ format, progress });
+
   async function handleExportGif() {
-    if (exportProgress !== null) return;
-    setExportProgress(0);
+    if (exporting !== null) return;
+    setExporting({ format: "GIF", progress: 0 });
     try {
       const { exportGifInWorker, downloadGif } = await import("@/lib/gif");
-      const gif = await exportGifInWorker(source, {
-        onProgress: setExportProgress,
-      });
-      downloadGif(gif);
+      downloadGif(
+        await exportGifInWorker(source, { onProgress: setProgress("GIF") }),
+      );
     } catch (e: any) {
       onError(`GIF export failed: ${e.message}`);
     } finally {
-      setExportProgress(null);
+      setExporting(null);
     }
   }
+
+  async function handleExportMp4() {
+    if (exporting !== null) return;
+    setExporting({ format: "MP4", progress: 0 });
+    try {
+      const { exportMp4InWorker, downloadMp4 } = await import("@/lib/mp4");
+      downloadMp4(
+        await exportMp4InWorker(source, { onProgress: setProgress("MP4") }),
+      );
+    } catch (e: any) {
+      onError(`MP4 export failed: ${e.message}`);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  // WebCodecs is required for MP4; hide that item where it's unavailable.
+  const canExportMp4 = typeof VideoEncoder !== "undefined";
 
   const activeBg = PLAYER_BACKGROUNDS[bgIndex];
 
@@ -195,24 +220,42 @@ export function PlayerPanel({
             </TooltipContent>
           </Tooltip>
 
-          {/* Export GIF */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5"
-                onClick={handleExportGif}
-                disabled={exportProgress !== null}
-              >
+          {/* Export (GIF / MP4) */}
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={exporting !== null}
+                  >
+                    <Film className="size-3.5" />
+                    {exporting !== null
+                      ? `Exporting ${exporting.format}… ${Math.round(exporting.progress * 100)}%`
+                      : "Export"}
+                    {exporting === null && (
+                      <ChevronDown className="size-3 opacity-60" />
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Export animation</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-32">
+              <DropdownMenuItem onSelect={handleExportGif}>
                 <Film className="size-3.5" />
-                {exportProgress !== null
-                  ? `Exporting… ${Math.round(exportProgress * 100)}%`
-                  : "Export GIF"}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Export animation as GIF</TooltipContent>
-          </Tooltip>
+                GIF
+              </DropdownMenuItem>
+              {canExportMp4 && (
+                <DropdownMenuItem onSelect={handleExportMp4}>
+                  <Video className="size-3.5" />
+                  MP4
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <div className="mx-1 h-5 w-px bg-border" />
 
