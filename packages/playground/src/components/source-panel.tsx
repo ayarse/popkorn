@@ -4,7 +4,13 @@ import Editor from "react-simple-code-editor";
 import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
 import type { Diagnostic } from "@popkorn/parser";
-import { FoldVertical, Shrink, UnfoldVertical } from "lucide-react";
+import {
+  FoldVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Shrink,
+  UnfoldVertical,
+} from "lucide-react";
 import {
   DiagnosticsOverlay,
   ProblemsStrip,
@@ -25,6 +31,8 @@ export function SourcePanel({
   minified,
   onToggleMinify,
   onCrush,
+  collapsed,
+  onToggleCollapse,
 }: {
   source: string;
   onSourceChange: (value: string) => void;
@@ -32,9 +40,31 @@ export function SourcePanel({
   minified: boolean;
   onToggleMinify: () => void;
   onCrush: () => void;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const diags = useDiagnostics(source);
   const wrapRef = useRef<HTMLDivElement>(null);
+
+  if (collapsed) {
+    return (
+      <div className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-card/30 pt-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleCollapse}
+              aria-label="Expand source editor"
+            >
+              <PanelLeftOpen className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Expand editor</TooltipContent>
+        </Tooltip>
+      </div>
+    );
+  }
 
   // Crush is destructive (renames every identifier, unrecoverable), so gate it
   // behind an explicit confirmation that spells out the trade-off.
@@ -66,6 +96,19 @@ export function SourcePanel({
   return (
     <div className="flex flex-1 flex-col overflow-hidden border-r border-border bg-card/30">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onToggleCollapse}
+              aria-label="Collapse source editor"
+            >
+              <PanelLeftClose className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Collapse editor</TooltipContent>
+        </Tooltip>
         <div className="ml-auto flex items-center gap-2">
           {sizeDelta && (
             <span className="font-mono text-[11px] text-muted-foreground">

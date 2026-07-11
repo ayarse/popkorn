@@ -16,6 +16,7 @@ function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [player, setPlayer] = useState<PopkornPlayer | null>(null);
   const split = useHorizontalSplit();
+  const [sourceCollapsed, setSourceCollapsed] = useState(false);
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -33,7 +34,11 @@ function App() {
         <div className="flex flex-1 overflow-hidden">
           <div
             className="flex min-w-0 overflow-hidden"
-            style={{ flex: `${split.frac} 1 0` }}
+            style={
+              sourceCollapsed
+                ? { flex: "0 0 auto" }
+                : { flex: `${split.frac} 1 0` }
+            }
           >
             <SourcePanel
               source={scene.source}
@@ -42,22 +47,27 @@ function App() {
               minified={scene.minified}
               onToggleMinify={scene.toggleMinify}
               onCrush={scene.crush}
+              collapsed={sourceCollapsed}
+              onToggleCollapse={() => setSourceCollapsed((v) => !v)}
             />
           </div>
 
-          <ResizeHandle
-            frac={split.frac}
-            min={split.min}
-            max={split.max}
-            onPointerDown={split.onPointerDown}
-            onKeyDown={split.onKeyDown}
-          />
+          {!sourceCollapsed && (
+            <ResizeHandle
+              frac={split.frac}
+              min={split.min}
+              max={split.max}
+              onPointerDown={split.onPointerDown}
+              onKeyDown={split.onKeyDown}
+            />
+          )}
 
           {/* flex-grow of (1-frac) mirrors the source's frac, so both panels
-              shrink together when the chat sidebar opens. */}
+              shrink together when the chat sidebar opens; collapsed source
+              hands its width fully to the player. */}
           <div
             className="flex min-w-0 overflow-hidden"
-            style={{ flex: `${1 - split.frac} 1 0` }}
+            style={{ flex: `${sourceCollapsed ? 1 : 1 - split.frac} 1 0` }}
           >
             <PlayerPanel
               source={scene.source}
