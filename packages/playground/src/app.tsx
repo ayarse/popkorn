@@ -76,7 +76,11 @@ function App() {
           />
         </div>
 
-        <TimelinePanel player={player} />
+        <TimelinePanel
+          player={player}
+          source={scene.source}
+          onEditSource={scene.editSource}
+        />
 
         {showImport && (
           <ImportModal
