@@ -3,6 +3,7 @@ import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
+import { ResizeHandle, useHorizontalSplit } from "@/components/resize-handle";
 import { SourcePanel } from "@/components/source-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useScene } from "@/hooks/use-scene";
@@ -11,6 +12,7 @@ function App() {
   const scene = useScene();
   const [showImport, setShowImport] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const split = useHorizontalSplit();
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -25,13 +27,26 @@ function App() {
           onToggleChat={() => setChatOpen((v) => !v)}
         />
 
-        <div className="flex flex-1 overflow-hidden">
-          <SourcePanel
-            source={scene.source}
-            onSourceChange={scene.editSource}
-            sizeDelta={scene.sizeDelta}
-            minified={scene.minified}
-            onToggleMinify={scene.toggleMinify}
+        <div ref={split.containerRef} className="flex flex-1 overflow-hidden">
+          <div
+            className="flex shrink-0 overflow-hidden"
+            style={{ width: `${split.frac * 100}%` }}
+          >
+            <SourcePanel
+              source={scene.source}
+              onSourceChange={scene.editSource}
+              sizeDelta={scene.sizeDelta}
+              minified={scene.minified}
+              onToggleMinify={scene.toggleMinify}
+            />
+          </div>
+
+          <ResizeHandle
+            frac={split.frac}
+            min={split.min}
+            max={split.max}
+            onPointerDown={split.onPointerDown}
+            onKeyDown={split.onKeyDown}
           />
 
           <PlayerPanel
