@@ -511,6 +511,14 @@ function HeaderIconButton({
 // dropped rather than passed through to dangerouslySetInnerHTML.
 const chatRenderer = new marked.Renderer();
 chatRenderer.html = () => "";
+// Same trust boundary for links: a prompt-injected scene could steer the model
+// into emitting a javascript:/data: href, and this origin's localStorage holds
+// the user's API key. Non-http(s)/mailto links render as plain text.
+chatRenderer.link = function (token) {
+  return /^(https?:|mailto:)/i.test(token.href)
+    ? marked.Renderer.prototype.link.call(this, token)
+    : this.parser.parseInline(token.tokens);
+};
 
 function MessageBody({ text }: { text: string }) {
   const html = useMemo(
