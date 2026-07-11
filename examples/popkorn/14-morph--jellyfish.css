@@ -1,0 +1,192 @@
+/* Jellyfish morph — the bell, veil, and tentacles all animate path `d` values.
+   Each pair of keyframes keeps an identical command sequence, so Popkorn
+   interpolates the shapes instead of holding them. */
+:root {
+  width: 800px;
+  height: 600px;
+}
+
+@keyframes bell-morph {
+  0% {
+    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
+  }
+  100% {
+    d: "M 248 284 C 262 190 330 126 400 136 C 476 126 546 190 552 284 C 526 318 500 314 474 286 C 452 330 420 312 400 300 C 380 312 348 330 326 286 C 300 314 274 318 248 284 Z";
+    fill: linear-gradient(200deg, #ffffff 0%, #38d8ff 46%, #d946ef 100%);
+  }
+}
+
+@keyframes veil-morph {
+  0% {
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+  }
+  100% {
+    d: "M 312 286 C 346 334 352 390 330 444 C 378 410 422 410 470 444 C 448 390 454 334 488 286 C 438 316 362 316 312 286 Z";
+  }
+}
+
+@keyframes tentacle-wave {
+  0% {
+    d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
+  }
+  100% {
+    d: "M 0 0 C 18 38 -14 76 4 116 C 24 156 -10 192 8 232";
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translate(0px, 12px);
+  }
+  100% {
+    transform: translate(0px, -18px);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    opacity: 0.22;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0.38;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes bubble-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0px, 24px) scale(0.7);
+  }
+  20% {
+    opacity: 0.5;
+    transform: translate(0px, 0px) scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0px, -90px) scale(1.1);
+  }
+}
+
+@define tentacle {
+  type: path;
+  d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
+  fill: none;
+  stroke: linear-gradient(180deg, #a5f3fc 0%, #7dd3fc 45%, #c084fc 100%);
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.78;
+  animation: tentacle-wave 2.8s ease-in-out infinite alternate;
+}
+
+@define bubble {
+  type: circle;
+  fill: #bff7ff;
+  stroke: #ffffff;
+  stroke-width: 1;
+  opacity: 0;
+  transform-origin: center;
+  animation: bubble-rise 5s ease-in-out infinite;
+}
+
+#bubble1 {
+  use: bubble;
+  cx: 112px;
+  cy: 470px;
+  r: 7px;
+  animation-delay: -1s;
+}
+#bubble2 {
+  use: bubble;
+  cx: 178px;
+  cy: 350px;
+  r: 4px;
+  animation-duration: 4.2s;
+  animation-delay: -2.4s;
+}
+#bubble3 {
+  use: bubble;
+  cx: 642px;
+  cy: 430px;
+  r: 8px;
+  animation-duration: 6s;
+  animation-delay: -3.1s;
+}
+#bubble4 {
+  use: bubble;
+  cx: 705px;
+  cy: 290px;
+  r: 5px;
+  animation-duration: 4.8s;
+  animation-delay: -0.7s;
+}
+#bubble5 {
+  use: bubble;
+  cx: 590px;
+  cy: 190px;
+  r: 3px;
+  animation-duration: 5.6s;
+  animation-delay: -4.2s;
+}
+
+#jellyfish {
+  type: group;
+  animation: float 5s ease-in-out infinite alternate;
+
+  > #veil {
+    type: path;
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
+    opacity: 0.24;
+    animation: veil-morph 3s ease-in-out infinite alternate;
+  }
+
+  > #tentacle-left {
+    use: tentacle;
+    transform: translate(324px, 300px) rotate(8deg) scale(0.86);
+    animation-delay: -0.3s;
+  }
+  > #tentacle-mid-left {
+    use: tentacle;
+    transform: translate(370px, 305px) rotate(-4deg) scale(1);
+    animation-delay: -1.1s;
+  }
+  > #tentacle-mid {
+    use: tentacle;
+    transform: translate(405px, 306px) rotate(3deg) scale(1.08);
+    animation-delay: -0.6s;
+    stroke-width: 9;
+    opacity: 0.88;
+  }
+  > #tentacle-mid-right {
+    use: tentacle;
+    transform: translate(438px, 305px) rotate(-8deg) scale(0.98);
+    animation-delay: -1.6s;
+  }
+  > #tentacle-right {
+    use: tentacle;
+    transform: translate(480px, 300px) rotate(-14deg) scale(0.82);
+    animation-delay: -0.9s;
+  }
+
+  > #bell {
+    type: path;
+    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
+    stroke: #dffbff;
+    stroke-width: 3;
+    animation: bell-morph 3s ease-in-out infinite alternate;
+  }
+
+  > #bell-shine {
+    type: path;
+    d: "M 322 217 C 350 174 410 160 456 184 C 416 184 376 200 346 236";
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 10;
+    stroke-linecap: round;
+    opacity: 0.36;
+  }
+}

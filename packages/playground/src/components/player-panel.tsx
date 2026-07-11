@@ -55,10 +55,14 @@ export function PlayerPanel({
   source,
   error,
   onError,
+  onPlayerReady,
 }: {
   source: string;
   error: string | null;
   onError: (message: string | null) => void;
+  onPlayerReady?: (
+    player: import("@popkorn/player").PopkornPlayer | null,
+  ) => void;
 }) {
   const [bgIndex, setBgIndex] = useState(3); // Graphite
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -295,6 +299,7 @@ export function PlayerPanel({
             style={{ height: "100%", backgroundColor: activeBg.value }}
             onError={(err) => onError(err.message)}
             onSceneReady={() => onError(null)}
+            onPlayerReady={onPlayerReady}
           />
         </div>
 

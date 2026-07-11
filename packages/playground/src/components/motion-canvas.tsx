@@ -17,6 +17,8 @@ export interface MotionCanvasProps {
   renderer?: "canvas" | "svg";
   /** Called when scene is ready */
   onSceneReady?: () => void;
+  /** Exposes the underlying player instance (fired on ready, null on unmount). */
+  onPlayerReady?: (player: PopkornPlayer | null) => void;
   /** Called on error */
   onError?: (error: Error) => void;
   /** Additional class name */
@@ -36,6 +38,7 @@ export function MotionCanvas({
   fit = "contain",
   renderer = "canvas",
   onSceneReady,
+  onPlayerReady,
   onError,
   className,
   style,
@@ -84,6 +87,14 @@ export function MotionCanvas({
       player.removeEventListener("error", handleError);
     };
   }, [onSceneReady, onError]);
+
+  // Expose the player element upward for the mount's lifetime (the element is
+  // stable across re-renders; kept in its own effect so unstable event-handler
+  // props above don't tear the reference down).
+  useEffect(() => {
+    onPlayerReady?.(playerRef.current);
+    return () => onPlayerReady?.(null);
+  }, [onPlayerReady]);
 
   return (
     <popkorn-player

@@ -1,3 +1,4 @@
+import type { PopkornPlayer } from "@popkorn/player";
 import { useState } from "react";
 import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
@@ -5,6 +6,7 @@ import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
 import { ResizeHandle, useHorizontalSplit } from "@/components/resize-handle";
 import { SourcePanel } from "@/components/source-panel";
+import { TimelinePanel } from "@/components/timeline-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useScene } from "@/hooks/use-scene";
 
@@ -12,6 +14,7 @@ function App() {
   const scene = useScene();
   const [showImport, setShowImport] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [player, setPlayer] = useState<PopkornPlayer | null>(null);
   const split = useHorizontalSplit();
 
   return (
@@ -60,6 +63,7 @@ function App() {
               source={scene.source}
               error={scene.error}
               onError={scene.setError}
+              onPlayerReady={setPlayer}
             />
           </div>
 
@@ -71,6 +75,8 @@ function App() {
             onApplySource={scene.applyGenerated}
           />
         </div>
+
+        <TimelinePanel player={player} />
 
         {showImport && (
           <ImportModal

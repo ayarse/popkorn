@@ -650,6 +650,14 @@ export class PopkornPlayer extends HTMLElementBase {
 
   /** Per-frame tick from the loop: advance the scrubber + readout (unless dragging). */
   private onFrame(t: number): void {
+    // Notify the host every frame (drives external timelines/scrubbers), even
+    // when the built-in controls bar is hidden.
+    const d = this.duration;
+    this.dispatchEvent(
+      new CustomEvent("timeupdate", {
+        detail: { time: d > 0 ? Math.min(t, d) : 0, duration: d },
+      }),
+    );
     if (!this.boolAttr("controls")) return;
     if (!this.scrubbing) {
       const d = this.duration;
