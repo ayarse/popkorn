@@ -1,23 +1,23 @@
 # Player API
 
-To put a Popcorn scene in your own project, you render it with a player. On the
-web that's the `<popcorn-player>` web component (with a lower-level API
+To put a Popkorn scene in your own project, you render it with a player. On the
+web that's the `<popkorn-player>` web component (with a lower-level API
 underneath); on mobile it's a React Native component. All of them play the same
 scene file.
 
 ## The web component
 
-The simplest way to render a scene is the custom element from `@popcorn/player`.
+The simplest way to render a scene is the custom element from `@popkorn/player`.
 
 ```html
 <script type="module">
-  import "@popcorn/player";
+  import "@popkorn/player";
 </script>
 
-<popcorn-player width="400" height="400"></popcorn-player>
+<popkorn-player width="400" height="400"></popkorn-player>
 
 <script>
-  const player = document.querySelector("popcorn-player");
+  const player = document.querySelector("popkorn-player");
   player.source = `
     #dot { type: circle; cx: 200px; cy: 200px; r: 40px; fill: #e94560; }
   `;
@@ -72,15 +72,15 @@ React under-reflects custom-element properties, so set `.source` in an effect.
 
 ```tsx
 import { useRef, useEffect } from "react";
-import "@popcorn/player";
-import type { PopcornPlayer } from "@popcorn/player";
+import "@popkorn/player";
+import type { PopkornPlayer } from "@popkorn/player";
 
 function Scene({ source, width = 400, height = 400 }) {
-  const ref = useRef<PopcornPlayer>(null);
+  const ref = useRef<PopkornPlayer>(null);
   useEffect(() => {
     if (ref.current) ref.current.source = source;
   }, [source]);
-  return <popcorn-player ref={ref} width={width} height={height} />;
+  return <popkorn-player ref={ref} width={width} height={height} />;
 }
 ```
 
@@ -95,7 +95,7 @@ import {
   buildSceneGraph,
   Canvas2DRenderer,
   RenderLoop,
-} from "@popcorn/player";
+} from "@popkorn/player";
 
 const scene = buildSceneGraph(parse(source));
 const loop = new RenderLoop(new Canvas2DRenderer(canvas));
@@ -105,21 +105,21 @@ loop.start();
 
 The parser, scene builder, renderer, animation scheduler, and input tracker are
 all exported. The full export list is in the
-[`@popcorn/player` README](../packages/popcorn-player/README.md).
+[`@popkorn/player` README](../packages/popkorn-player/README.md).
 
 ## On mobile (React Native)
 
-The same scene runs natively through `@popcorn/react-native`, a Skia renderer.
+The same scene runs natively through `@popkorn/react-native`, a Skia renderer.
 
 ```tsx
-import { PopcornView } from "@popcorn/react-native";
+import { PopkornView } from "@popkorn/react-native";
 
-<PopcornView source={scene} width={300} height={300} loop />;
+<PopkornView source={scene} width={300} height={300} loop />;
 ```
 
 It needs `@shopify/react-native-skia` and works on the web too via
 `react-native-web` and CanvasKit. Setup and props are in the
-[`@popcorn/react-native` README](../packages/popcorn-react-native/README.md).
+[`@popkorn/react-native` README](../packages/popkorn-react-native/README.md).
 This renderer is an early proof of concept and still marked work-in-progress.
 
 ## See also

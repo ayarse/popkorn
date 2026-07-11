@@ -1,5 +1,5 @@
-import referenceMd from "../../../../.claude/skills/creating-popcorn-animations/reference.md?raw";
-import skillMd from "../../../../.claude/skills/creating-popcorn-animations/SKILL.md?raw";
+import referenceMd from "../../../../.claude/skills/creating-popkorn-animations/reference.md?raw";
+import skillMd from "../../../../.claude/skills/creating-popkorn-animations/SKILL.md?raw";
 
 export type Role = "user" | "agent";
 
@@ -17,7 +17,7 @@ export type AgentConfig = {
   model: string;
 };
 
-const STORAGE_KEY = "popcorn.agent.config";
+const STORAGE_KEY = "popkorn.agent.config";
 
 export const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
@@ -35,7 +35,7 @@ export const MODEL_PRESETS = [
 ];
 
 export const SYSTEM_PROMPT = [
-  "You are Popcorn Copilot, embedded in the Popcorn demo editor. Popcorn is a hand-authorable CSS-subset DSL that compiles to a 2D scene graph and plays back on Canvas2D. You help the user create and edit the scene that is live in the editor.",
+  "You are Popkorn Copilot, embedded in the Popkorn demo editor. Popkorn is a hand-authorable CSS-subset DSL that compiles to a 2D scene graph and plays back on Canvas2D. You help the user create and edit the scene that is live in the editor.",
   "",
   "Output contract:",
   "- For a NEW animation or a full rewrite, reply with exactly ONE fenced ```css block containing the COMPLETE scene. It replaces the entire editor contents.",
@@ -50,7 +50,7 @@ export const SYSTEM_PROMPT = [
   "  The search text (between <<<<<<< and =======) must match the current scene character-for-character, including whitespace and indentation, and must be unique in the scene. Keep it minimal — just enough lines to be unique. Never emit the whole scene for a small change. To delete, leave the replacement empty.",
   "- Prose: at most one or two short sentences before the block(s). For a pure question that changes nothing, reply with prose only and no blocks.",
   "",
-  "The following is your authoritative knowledge of the Popcorn language. Follow it exactly.",
+  "The following is your authoritative knowledge of the Popkorn language. Follow it exactly.",
   "",
   "=== SKILL.md ===",
   skillMd,
@@ -62,7 +62,7 @@ export const SYSTEM_PROMPT = [
 export const GREETING: Message = {
   id: 0,
   role: "agent",
-  text: "I'm your Popcorn Copilot. Describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the DSL welcome too.",
+  text: "I'm your Popkorn Copilot. Describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the DSL welcome too.",
 };
 
 export const SUGGESTIONS = [

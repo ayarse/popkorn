@@ -103,7 +103,7 @@ export function AppHeader({
           Copilot
         </Button>
         <a
-          href="https://github.com/ayarse/popcorn"
+          href="https://github.com/ayarse/popkorn"
           target="_blank"
           rel="noreferrer"
           aria-label="GitHub repository"

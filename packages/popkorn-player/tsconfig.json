@@ -1,0 +1,9 @@
+{
+  "extends": "@popkorn/config/tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "useDefineForClassFields": true
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

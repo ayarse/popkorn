@@ -1,4 +1,4 @@
-# Popcorn Architecture
+# Popkorn Architecture
 
 How the pipeline fits together. See the [README](../README.md) for setup and the [format reference](reference.md) for syntax.
 
@@ -6,14 +6,14 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
 
 ```
 ┌─────────────────────────┐
-│  @popcorn/parser        │  parse(source) → AST
+│  @popkorn/parser        │  parse(source) → AST
 │  (zero deps, sync)      │
 └───────────┬─────────────┘
             │
             ▼
 ┌─────────────────────────┐
-│  @popcorn/player        │  Rendering engine
-│  <popcorn-player>       │
+│  @popkorn/player        │  Rendering engine
+│  <popkorn-player>       │
 │  Canvas2DRenderer       │
 │  AnimationScheduler     │
 │  RenderLoop             │
@@ -21,36 +21,36 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
             │
             ▼
 ┌─────────────────────────┐
-│  @popcorn/playground    │  Playground app
+│  @popkorn/playground    │  Playground app
 │  React wrapper          │
 └─────────────────────────┘
 ```
 
 ### Parser
 
-**@popcorn/parser** is a small tokenizing recursive-descent parser (`src/parser.ts`).
+**@popkorn/parser** is a small tokenizing recursive-descent parser (`src/parser.ts`).
 The format is a CSS subset, so `parse(source)` turns the source directly into a typed
 AST, synchronously, with no dependencies or build step. Tests live alongside it in
 `src/parser.test.ts` (`bun run test`).
 
 ### Parser → Player
 
-**@popcorn/player** takes the parsed AST and:
+**@popkorn/player** takes the parsed AST and:
 
 - Builds a scene graph from the AST rules
 - Renders shapes through a primitive renderer interface (Canvas2D and SVG on the
   web, Skia on native)
 - Animates properties via keyframe interpolation
 - Tracks input for interactive variables
-- Exposes a `<popcorn-player>` web component
+- Exposes a `<popkorn-player>` web component
 
 ### Player → Playground
 
-**@popcorn/playground** is a React app that:
+**@popkorn/playground** is a React app that:
 
-- Uses the `<popcorn-player>` web component via a thin React wrapper
+- Uses the `<popkorn-player>` web component via a thin React wrapper
 - Provides example scenes to demonstrate features (curated in
-  `packages/playground/src/examples.ts`, kept in sync with `examples/popcorn/*.css`)
+  `packages/playground/src/examples.ts`, kept in sync with `examples/popkorn/*.css`)
 - Shows the scene source alongside the rendered output
 - Imports real Lottie JSON via the browser-safe converter core
 
@@ -70,8 +70,8 @@ The player's correctness rests on a few structural rules:
 
 ### Lottie converter
 
-`packages/popcorn-converters/src/lottie2popcorn.ts` is the conversion core (browser-safe; the demo
-imports it), `packages/popcorn-converters/src/cli.ts` the CLI (`--validate` runs the
+`packages/popkorn-converters/src/lottie2popkorn.ts` is the conversion core (browser-safe; the demo
+imports it), `packages/popkorn-converters/src/cli.ts` the CLI (`--validate` runs the
 output through parse + buildSceneGraph; `--batch <dir>` converts a tree and
 prints a clean/warn/blocked table). A normalization layer canonicalizes
 real-world bodymovin output (legacy v4 keyframes, split positions, 0-255
@@ -83,7 +83,7 @@ that mainstream Lottie players also skip.
 ### Comparison harness
 
 `tools/harness/` is a frame-accurate side-by-side page comparing
-`<popcorn-player>` against lottie-web and ThorVG at the same paused frame, with
+`<popkorn-player>` against lottie-web and ThorVG at the same paused frame, with
 per-region pixel diffing (see its README). It's how rendering changes get
 checked visually. The goal is matching the intended After Effects motion, not
 matching any one reference renderer byte-for-byte — the references sometimes

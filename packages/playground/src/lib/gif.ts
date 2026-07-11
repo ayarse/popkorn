@@ -1,10 +1,10 @@
-import { parse } from "@popcorn/parser";
+import { parse } from "@popkorn/parser";
 import {
   AnimationScheduler,
   buildSceneGraph,
   Canvas2DRenderer,
   RenderLoop,
-} from "@popcorn/player";
+} from "@popkorn/player";
 import { GIFEncoder, type Palette, quantize } from "gifenc";
 import { planGif } from "@/lib/gif-plan";
 

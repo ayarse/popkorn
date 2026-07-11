@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="120" height="48" viewBox="0 0 120 48">
-  <!-- Phase-2 fixture: CSS @keyframes imported into Popcorn. Exercises opacity
+  <!-- Phase-2 fixture: CSS @keyframes imported into Popkorn. Exercises opacity
        + transform (scale) keyframes, per-keyframe easing, the animation
        shorthand, infinite iteration, and staggered negative delays. -->
   <style>

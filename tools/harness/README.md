@@ -1,17 +1,17 @@
-# lottie-web / thorvg vs popcorn comparison harness
+# lottie-web / thorvg vs popkorn comparison harness
 
 ## Purpose
 
 Frame-accurate visual truth. Screenshots (and pixel diffs) catch rendering
-bugs that unit tests can't — several real Popcorn bugs were only visible on
+bugs that unit tests can't — several real Popkorn bugs were only visible on
 canvas. This harness loads a Lottie JSON in real lottie-web (5.12.2), and
 optionally in ThorVG's `@thorvg/lottie-player` (1.0.9, a second, independent
 Lottie renderer), side by side with the equivalent converted `.css` scene in
-`<popcorn-player>`, and steps all of them to the same paused frame so you can
-compare pixels directly. popcorn is always the subject under test; lottie-web
+`<popkorn-player>`, and steps all of them to the same paused frame so you can
+compare pixels directly. popkorn is always the subject under test; lottie-web
 and thorvg are the two reference renderers.
 
-**Neither reference is the ceiling.** When popcorn disagrees with a
+**Neither reference is the ceiling.** When popkorn disagrees with a
 reference, don't assume the reference is right — judge the mismatch against
 AE semantics (what a real Lottie/AE file is supposed to look like). Shipping
 Lottie players themselves skip some rare shape modifiers; matching a
@@ -22,12 +22,12 @@ proof either one is wrong.
 
 ## Usage
 
-1. Build the popcorn-player bundle this page imports (not committed — build
+1. Build the popkorn-player bundle this page imports (not committed — build
    it locally):
 
    ```sh
-   bun build packages/popcorn-player/src/index.ts \
-     --outfile=tools/harness/dist/popcorn.js \
+   bun build packages/popkorn-player/src/index.ts \
+     --outfile=tools/harness/dist/popkorn.js \
      --format=esm --target=browser
    ```
 
@@ -42,13 +42,13 @@ proof either one is wrong.
    - pass `?json=./cat.json&css=./cat.css` (paths resolved relative to the
      harness page) to load fixtures already sitting next to it, or
    - use the file pickers at the top of the page to load a Lottie JSON and a
-     converted Popcorn `.css` from anywhere on disk.
+     converted Popkorn `.css` from anywhere on disk.
 
    Other query params: `w`, `h` (canvas size, default 500), `fps` (Lottie
    frame rate for frame↔second conversion — defaults to the loaded file's own
    `fr` field once it's loaded, so you normally don't need this; pass it to
    force a value, e.g. for a raw JSON string with no reliable `fr`), `bundle`
-   (path to the built popcorn.js, default `./dist/popcorn.js`), `thorvg`
+   (path to the built popkorn.js, default `./dist/popkorn.js`), `thorvg`
    (URL to a `@thorvg/lottie-player` build, default the unpkg CDN — see "Two
    vs three players" below).
 
@@ -65,10 +65,10 @@ proof either one is wrong.
    __diff();           // { meanDelta, maxDelta, worstPx, samples }
    ```
 
-   `seekBoth` calls lottie's `goToAndStop(sec * fps, true)`, popcorn's
+   `seekBoth` calls lottie's `goToAndStop(sec * fps, true)`, popkorn's
    `pc.seek(sec * 1000)`, and (when available) thorvg's `seek(sec * fps)`, so
    all loaded players land on the same instant. `__diff` does a naive
-   per-pixel RGB delta between popcorn and a reference canvas (default
+   per-pixel RGB delta between popkorn and a reference canvas (default
    lottie-web; ignoring pixels transparent on both sides) — a quick numeric
    signal to point you at the frame/region worth screenshotting and
    eyeballing.
@@ -96,7 +96,7 @@ await __scan()                // find the worst-disagreeing frame
 seekBoth(worstFrame.t)        // land on it
 __inspectCell(cell.col, cell.row, cols, rows)   // zoom into the worst cell
 // screenshot the page — the inspector panel (lottie crop / [thorvg crop] /
-// popcorn crop / amplified diff heatmap) renders below the players
+// popkorn crop / amplified diff heatmap) renders below the players
 ```
 
 **If a call hangs**, the tab is likely backgrounded — Chrome throttles or
@@ -124,13 +124,13 @@ in short, separate evals until it's populated.
 ### `__ready()` → `boolean`
 
 `true` once every *available* player has a loaded animation/scene and is
-paused on a frame — lottie-web and popcorn always; thorvg too, but only if
+paused on a frame — lottie-web and popkorn always; thorvg too, but only if
 it loaded successfully (see "Two vs three players" below). Poll this before
 calling anything else.
 
 ### `__diff(ref = 'lottie')` → `{ ref, meanDelta, maxDelta, samples, worstPx }`
 
-Whole-canvas per-pixel RGB delta between popcorn (always the subject) and
+Whole-canvas per-pixel RGB delta between popkorn (always the subject) and
 the reference named by `ref` — `'lottie'` (default) or `'thorvg'` — at the
 current paused frame. `meanDelta` is a string (`.toFixed(2)`); everything
 else here returns numbers. Throws if `ref='thorvg'` and thorvg is
@@ -139,7 +139,7 @@ unavailable (see "Two vs three players" below).
 ### `__gridDiff(cols = 8, rows = 8, ref = 'lottie')` → `{ ref, meanDelta, maxDelta, cells }`
 
 Tiles the current paused frame into a `cols`×`rows` grid and diffs each cell
-between popcorn and `ref`. `cells` is sorted worst-first (by `hashDist`
+between popkorn and `ref`. `cells` is sorted worst-first (by `hashDist`
 descending, then `meanDelta` descending) — `cells[0]` is where to look. Each
 cell:
 
@@ -158,9 +158,9 @@ under the same `ref='thorvg'`-unavailable condition as `__diff`.
 ### `__refDiff(cols = 8, rows = 8)` → `{ meanDelta, maxDelta, cells }`
 
 Same grid-diff math as `__gridDiff`, but between the two *references*
-(lottie-web vs thorvg) — popcorn isn't involved. A nonzero `__refDiff` means
+(lottie-web vs thorvg) — popkorn isn't involved. A nonzero `__refDiff` means
 the two ground-truth renderers themselves disagree in that region, so
-popcorn matching one exactly there doesn't mean much — cross-check a
+popkorn matching one exactly there doesn't mean much — cross-check a
 suspicious `__diff`/`__gridDiff` result against `__refDiff` before chasing
 it. Requires thorvg; throws if unavailable.
 
@@ -175,7 +175,7 @@ thorvg is available:
 // thorvg unavailable — unchanged from before thorvg support existed:
 { t, meanDelta, maxDelta, worstCells: [{ col, row, x, y, w, h, meanDelta, maxDelta, hashDist }, ...up to 3] }
 
-// thorvg available — both refs, each independently vs popcorn:
+// thorvg available — both refs, each independently vs popkorn:
 { t, lottie: { meanDelta, maxDelta, worstCells }, thorvg: { meanDelta, maxDelta, worstCells } }
 ```
 
@@ -187,11 +187,11 @@ disagree" — run it first, then drill into `frames[0].t` and its `worstCells`
 
 ### `__inspect(x, y, w, h, ref = 'lottie')` → `{ rect, ref, meanDelta, maxDelta, coverage, hashDist }`
 
-Crops popcorn and `ref` to the given pixel rect and replaces the (single,
+Crops popkorn and `ref` to the given pixel rect and replaces the (single,
 reused) inspector panel below the players: a lottie crop, a thorvg crop
 (only when thorvg is available — shown regardless of which `ref` was
-chosen, purely so you can eyeball all three), a popcorn crop, and a red
-amplified (×8) diff heatmap of popcorn vs `ref`, all scaled up with
+chosen, purely so you can eyeball all three), a popkorn crop, and a red
+amplified (×8) diff heatmap of popkorn vs `ref`, all scaled up with
 nearest-neighbor so a small cell is legible in a screenshot. Also logs and
 returns the same compact stats `__gridDiff` cells carry, for this one rect.
 
@@ -204,14 +204,14 @@ Convenience wrapper — maps a `__gridDiff`/`__scan` cell reference straight to
 ## Two vs three players
 
 thorvg is a bonus reference, not a hard dependency — loading it is
-best-effort and never blocks the lottie-web/popcorn flow:
+best-effort and never blocks the lottie-web/popkorn flow:
 
 1. If the `?thorvg=` CDN script fails to fetch, or the WASM engine it loads
    fails to initialize (bad `?thorvg=` override, offline, blocked CDN,
    corrupt/incompatible animation data), the harness logs a `warning: thorvg
    unavailable (...)` line via the on-page log, shows "thorvg unavailable
    (see log)" in its pane instead of a canvas, and continues in two-player
-   mode. Nothing about the lottie-web/popcorn comparison changes.
+   mode. Nothing about the lottie-web/popkorn comparison changes.
 2. `__ready()`, `seekBoth`, `__diff`, `__gridDiff`, `__inspect`, and
    `__inspectCell` all degrade transparently: with `ref` left at its default
    (`'lottie'`), or omitted, they behave exactly as they did before thorvg

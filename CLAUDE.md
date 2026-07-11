@@ -2,7 +2,7 @@
 
 ## Vision
 
-Popcorn is a portable **format** for motion graphics and a small **runtime**
+Popkorn is a portable **format** for motion graphics and a small **runtime**
 that plays it: a hand-authored CSS-subset format, played by a zero-dependency
 Canvas2D engine (with SVG and React Native/Skia backends). Its capability target
 is parity with Lottie players in *rendering and animation*, not After Effects
@@ -24,10 +24,10 @@ decision flows from that:
 
 ## Architecture (and its load-bearing invariants)
 
-Pipeline: `@popcorn/parser` `parse(source)` → typed-CSS AST (flat, knows no
-shape semantics) → `@popcorn/player` `buildSceneGraph` → scene tree →
+Pipeline: `@popkorn/parser` `parse(source)` → typed-CSS AST (flat, knows no
+shape semantics) → `@popkorn/player` `buildSceneGraph` → scene tree →
 `RenderLoop` → `Renderer` interface → `Canvas2DRenderer`. The demo is a Vite
-React shell around the `<popcorn-player>` web component.
+React shell around the `<popkorn-player>` web component.
 
 Invariants that keep the system correct — violating any of these is how bugs
 have actually happened here:
@@ -71,8 +71,8 @@ have actually happened here:
 
 ## Lottie converter
 
-`packages/popcorn-converters/src/lottie2popcorn.ts` (browser-safe core, used by the demo's Import
-button) + `packages/popcorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`).
+`packages/popkorn-converters/src/lottie2popkorn.ts` (browser-safe core, used by the demo's Import
+button) + `packages/popkorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`).
 Structure: a **normalization layer** canonicalizes real-world/minified
 bodymovin quirks (inferred `a` flags, legacy `e` keyframes, split position,
 0-255 color arrays, missing names/inds) before mapping. Hard-won mapping
@@ -91,13 +91,13 @@ checks live in the sticker/demo files under `examples/lottie/`.
 
 ## SVG converter
 
-`packages/popcorn-converters/src/svg2popcorn.ts` (browser-safe core; `packages/popcorn-converters/src/svg-xml.ts` is its dependency-
-free XML reader) + `packages/popcorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`,
+`packages/popkorn-converters/src/svg2popkorn.ts` (browser-safe core; `packages/popkorn-converters/src/svg-xml.ts` is its dependency-
+free XML reader) + `packages/popkorn-converters/src/cli.ts` (CLI: `--validate`, `--batch`,
 raw-string input, matches `.svg`). Shares the same `Converter`/`convertSvg`/
 `validate` contract shape as the Lottie converter, so the demo's **Import**
 button branches on file type into either. **Animation imports too:** CSS
 `@keyframes` from `<style>` blocks and basic SMIL `<animate>`/`<animateTransform>`
-map into Popcorn `@keyframes` + `animation-*` (opacity/fill/stroke/transform/dash);
+map into Popkorn `@keyframes` + `animation-*` (opacity/fill/stroke/transform/dash);
 unmappable channels degrade to a warning (`@media`-wrapped keyframes, gradient
 keyframes, `<set>`, `<animateMotion>`, event/sync-base begins, additive/accumulate,
 skew). Static skips mirror Lottie's plus SVG-only ones: `<pattern>`,
@@ -134,11 +134,11 @@ converter emits it for precomp layers.
   **thorvg is the parity target; lottie-web canvas is the floor** and the
   sanity cross-check (thorvg fails some things too: when JSON intent and
   lottie-web agree against thorvg, don't chase thorvg).
-- Demo gallery scenes live in `examples/popcorn/*.css` (the source of truth,
+- Demo gallery scenes live in `examples/popkorn/*.css` (the source of truth,
   also test-globbed by the parser). The demo loads them dynamically via
   `import.meta.glob` in `packages/playground/src/examples.ts` — filename
   `NN-kebab-name.css` sets order + label; drop a file in to add a scene.
-  Use the `creating-popcorn-animations` skill when authoring scenes.
+  Use the `creating-popkorn-animations` skill when authoring scenes.
 - Commits: straight to main, short conventional messages, no attribution
   trailers. When multiple agents work in parallel, fence them to disjoint
   files and make each run the corpus gate.

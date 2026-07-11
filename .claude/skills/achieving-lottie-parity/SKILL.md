@@ -1,13 +1,13 @@
 ---
 name: achieving-lottie-parity
-description: Use when a Lottie file renders incorrectly after conversion to Popcorn, when debugging or fixing the converter (lottie2popcorn) or player rendering/animation, when implementing a missing Lottie capability, or when adding/fixing a DSL property in this repo. Covers triage of conversion bugs vs player bugs vs deliberate skips, the measurement tools, and the full add-a-property checklist.
+description: Use when a Lottie file renders incorrectly after conversion to Popkorn, when debugging or fixing the converter (lottie2popkorn) or player rendering/animation, when implementing a missing Lottie capability, or when adding/fixing a DSL property in this repo. Covers triage of conversion bugs vs player bugs vs deliberate skips, the measurement tools, and the full add-a-property checklist.
 ---
 
 # Achieving Lottie Parity
 
 ## Overview
 
-Popcorn targets parity with Lottie players in *rendering and animation
+Popkorn targets parity with Lottie players in *rendering and animation
 capability*. Every "this file looks wrong" task is a **triage problem first,
 fix second**: the same symptom can be a converter bug, a player bug, a
 deliberate skip, or a documented limitation — and each has a different
@@ -15,7 +15,7 @@ correct response. Never fix before classifying.
 
 **Core principles (learned the hard way):**
 - **Two reference players, two roles.** **thorvg is the parity TARGET** —
-  the quality bar Popcorn aims to match. **lottie-web *canvas* is the
+  the quality bar Popkorn aims to match. **lottie-web *canvas* is the
   FLOOR** — never render worse than it — and the sanity cross-check:
   thorvg has its own failures, so before chasing a thorvg-only behavior,
   confirm it against the source JSON's intent (if lottie-web and the JSON
@@ -86,7 +86,7 @@ dropping them needs no warning.
 Always in this order; each step is cheap and eliminates guesswork.
 
 1. **Convert with validation** (quote filenames — many have spaces/parens):
-   `bun packages/popcorn-converters/src/cli.ts "examples/lottie/<file>.json" --validate`
+   `bun packages/popkorn-converters/src/cli.ts "examples/lottie/<file>.json" --validate`
    Capture warnings and blocked features. `validate: ok` does NOT mean
    correct — the worst bugs are silent visual wrongness.
 2. **Feature inventory via jq.** Grep the JSON for markers:
@@ -100,7 +100,7 @@ Always in this order; each step is cheap and eliminates guesswork.
    JSON at specific values (a keyframe, a gradient stop, a matte target) —
    most converter bugs are visible as a wrong/missing declaration.
 4. **Frame-accurate visual truth:** the comparison harness at
-   `tools/harness/` (read its README) renders popcorn vs lottie-web
+   `tools/harness/` (read its README) renders popkorn vs lottie-web
    side-by-side; sample pixels at specific (x, y, t) to compare numerically.
    If another agent is editing shared files, snapshot the converter into the
    scratchpad and work from the snapshot.
@@ -136,7 +136,7 @@ Every one of these shipped at least once. Cheap to check, likely culprits:
 
 ## Fix protocols
 
-**Converter fix** (`packages/popcorn-converters/src/lottie2popcorn.ts` + `packages/popcorn-converters/src/lottie2popcorn.test.ts`):
+**Converter fix** (`packages/popkorn-converters/src/lottie2popkorn.ts` + `packages/popkorn-converters/src/lottie2popkorn.test.ts`):
 - Reuse existing patterns, don't invent: `lottieColor(rgb, a)` folds alpha
   (emits `rgba()` when a<1); `warnOnce(msg)` deduplicates warnings into the
   result's warning list (tests assert on that list). The **grid-union
@@ -156,7 +156,7 @@ Every one of these shipped at least once. Cheap to check, likely culprits:
 - Regression test in the converter suite; end-to-end grep of the real file's
   output (e.g. `rgba(` count 0 → 222 is better evidence than a unit test).
 
-**Player fix** (`packages/popcorn-player/`):
+**Player fix** (`packages/popkorn-player/`):
 - Respect the six CLAUDE.md invariants; the ones that bite in practice:
   transform math only in `scene/transform.ts`; the per-frame resolution
   order in `RenderLoop.resolveNode` is fixed (reset→bindings→state→
@@ -181,10 +181,10 @@ shipped bug; the serializer was forgotten once and broke round-trip):
 5. Runtime: does it need a slot in `resolveNode` order or
    `sceneHasDynamicContent` (anything that can change without the clock)?
 6. **Serializer**: emit it, both pretty and minify — the round-trip test
-   globs every `examples/popcorn/*.css`, so a missing emitter fails CI only
+   globs every `examples/popkorn/*.css`, so a missing emitter fails CI only
    *after* someone authors a scene using the feature.
 7. Docs: `docs/reference.md` section, terse and code-first.
-8. Example: `examples/popcorn/NN-name.css` — the demo gallery **auto-globs**
+8. Example: `examples/popkorn/NN-name.css` — the demo gallery **auto-globs**
    this directory (any "sync to examples.ts" note is stale). Author the
    example in the SAME change — it's what makes the round-trip glob
    exercise your serializer step proactively instead of failing later.
@@ -206,7 +206,7 @@ shipped bug; the serializer was forgotten once and broke round-trip):
 
 ## Multi-agent etiquette (if orchestrating)
 
-- Fence agents to disjoint files. `packages/popcorn-converters/src/lottie2popcorn.ts` is a
+- Fence agents to disjoint files. `packages/popkorn-converters/src/lottie2popkorn.ts` is a
   serialization point — most converter fixes touch the same case blocks, so
   concurrent edits clobber each other: **diagnose in parallel (read-only,
   snapshot the converter into the scratchpad), fix serially.**

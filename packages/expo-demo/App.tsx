@@ -16,8 +16,8 @@ import {
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 import CodeEditor, { CodeEditorSyntaxStyles } from '@rivascva/react-native-code-editor';
-import { parse } from '@popcorn/player';
-import { PopcornView } from '@popcorn/react-native';
+import { parse } from '@popkorn/player';
+import { PopkornView } from '@popkorn/react-native';
 import { TURKEY_SCENE } from './turkey';
 
 const MONOSPACE = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
@@ -88,7 +88,7 @@ function AppInner() {
         {/* Keep playing behind the editor sheet — the per-frame render is cheap
             (cached paths/shaders/dashes), and the deferred editor mount above
             protects the open transition. */}
-        <PopcornView source={source} width={stage} height={stage} loop />
+        <PopkornView source={source} width={stage} height={stage} loop />
       </View>
 
       <Pressable
@@ -106,7 +106,7 @@ function AppInner() {
           <Pressable style={styles.backdrop} onPress={onCancel} />
           <View style={[styles.panel, { paddingBottom: insets.bottom + 12 }]}>
             <View style={styles.panelHeader}>
-              <Text style={styles.panelTitle}>Edit Popcorn CSS</Text>
+              <Text style={styles.panelTitle}>Edit Popkorn CSS</Text>
               <Pressable onPress={onCancel} hitSlop={8}>
                 <Text style={styles.cancel}>Cancel</Text>
               </Pressable>

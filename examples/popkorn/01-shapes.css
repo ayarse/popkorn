@@ -1,0 +1,74 @@
+/* Shapes — gradients, polystar, rounded rects, text, clip-path */
+:root {
+  width: 800px;
+  height: 600px;
+}
+
+/* Gradient backdrop card with a gradient hairline border */
+#card {
+  type: rect;
+  x: 90px;
+  y: 120px;
+  width: 620px;
+  height: 380px;
+  rx: 28px;
+  ry: 28px;
+  fill: linear-gradient(135deg, #1b1b3a 0%, #2d1b4e 100%);
+  stroke: linear-gradient(90deg, #4ecdc4 0%, #f472b6 100%);
+  stroke-width: 2px;
+}
+
+/* Radial-gradient orb */
+#orb {
+  type: circle;
+  cx: 230px;
+  cy: 310px;
+  r: 82px;
+  fill: radial-gradient(#ffe66d 0%, #ff6b6b 100%);
+}
+
+/* A five-point star (polystar geometry) with a gradient fill */
+#star {
+  type: star;
+  sides: 5;
+  outer-radius: 84px;
+  inner-radius: 36px;
+  cx: 410px;
+  cy: 300px;
+  fill: linear-gradient(180deg, #4ecdc4 0%, #60a5fa 100%);
+  stroke: #ffffff;
+  stroke-width: 2px;
+}
+
+/* Colour bands revealed through a circular clip-path */
+#medallion {
+  type: group;
+  clip-path: circle(60 at 590 300);
+
+  > #b1 { type: rect; x: 528px; y: 240px; width: 124px; height: 30px; fill: #4ecdc4; }
+  > #b2 { type: rect; x: 528px; y: 270px; width: 124px; height: 30px; fill: #ffe66d; }
+  > #b3 { type: rect; x: 528px; y: 300px; width: 124px; height: 30px; fill: #f472b6; }
+  > #b4 { type: rect; x: 528px; y: 330px; width: 124px; height: 30px; fill: #60a5fa; }
+}
+
+/* Text takes a gradient fill just like a shape */
+#title {
+  type: text;
+  content: "Popkorn";
+  x: 400px;
+  y: 195px;
+  font-size: 52px;
+  font-weight: bold;
+  text-anchor: middle;
+  fill: linear-gradient(90deg, #ffe66d 0%, #f472b6 100%);
+}
+
+#subtitle {
+  type: text;
+  content: "shapes · gradients · text · clip";
+  x: 400px;
+  y: 470px;
+  font-size: 19px;
+  text-anchor: middle;
+  fill: #8b8ba7;
+}

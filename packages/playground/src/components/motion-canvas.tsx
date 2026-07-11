@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import "@popcorn/player"; // This registers the web component
-import type { PopcornPlayer } from "@popcorn/player";
+import "@popkorn/player"; // This registers the web component
+import type { PopkornPlayer } from "@popkorn/player";
 
 export interface MotionCanvasProps {
   /** CSS-like scene definition */
@@ -26,7 +26,7 @@ export interface MotionCanvasProps {
 }
 
 /**
- * React wrapper for the <popcorn-player> web component
+ * React wrapper for the <popkorn-player> web component
  */
 export function MotionCanvas({
   source,
@@ -40,7 +40,7 @@ export function MotionCanvas({
   className,
   style,
 }: MotionCanvasProps) {
-  const playerRef = useRef<PopcornPlayer>(null);
+  const playerRef = useRef<PopkornPlayer>(null);
 
   // Set source when it changes
   useEffect(() => {
@@ -86,7 +86,7 @@ export function MotionCanvas({
   }, [onSceneReady, onError]);
 
   return (
-    <popcorn-player
+    <popkorn-player
       ref={playerRef}
       renderer={renderer}
       background={backgroundColor}
@@ -100,15 +100,15 @@ export function MotionCanvas({
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      "popcorn-player": React.DetailedHTMLProps<
-        React.HTMLAttributes<PopcornPlayer> & {
+      "popkorn-player": React.DetailedHTMLProps<
+        React.HTMLAttributes<PopkornPlayer> & {
           src?: string;
           width?: number;
           height?: number;
           background?: string;
           renderer?: string;
         },
-        PopcornPlayer
+        PopkornPlayer
       >;
     }
   }

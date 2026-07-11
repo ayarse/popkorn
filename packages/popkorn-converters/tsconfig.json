@@ -1,0 +1,10 @@
+{
+  "extends": "@popkorn/config/tsconfig/base.json",
+  "compilerOptions": {
+    // DOM libs because dev-mode typechecking follows @popkorn/player into its
+    // src (browser types); the converters themselves are DOM-free.
+    "lib": ["ES2020", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

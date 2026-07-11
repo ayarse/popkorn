@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES ? '/popcorn/' : '/',
+  base: process.env.GITHUB_PAGES ? '/popkorn/' : '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

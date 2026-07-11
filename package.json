@@ -1,5 +1,5 @@
 {
-  "name": "popcorn",
+  "name": "popkorn",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
@@ -7,17 +7,17 @@
   ],
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
-    "dev": "bun --filter @popcorn/playground dev",
-    "build": "bun --filter @popcorn/playground build",
-    "test": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/react-native --filter @popcorn/converters test && bun test tools/",
-    "build:packages": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/react-native --filter @popcorn/converters build",
+    "dev": "bun --filter @popkorn/playground dev",
+    "build": "bun --filter @popkorn/playground build",
+    "test": "bun --filter @popkorn/parser --filter @popkorn/player --filter @popkorn/react-native --filter @popkorn/converters test && bun test tools/",
+    "build:packages": "bun --filter @popkorn/parser --filter @popkorn/player --filter @popkorn/react-native --filter @popkorn/converters build",
     "changeset": "changeset",
     "version-packages": "changeset version && bun install",
     "release": "bun run build:packages && bun scripts/publish.ts",
     "lint": "biome check",
     "format": "biome check --write",
-    "typecheck": "bun --filter @popcorn/parser --filter @popcorn/player --filter @popcorn/playground --filter @popcorn/converters typecheck",
-    "convert": "./packages/popcorn-converters/src/cli.ts"
+    "typecheck": "bun --filter @popkorn/parser --filter @popkorn/player --filter @popkorn/playground --filter @popkorn/converters typecheck",
+    "convert": "./packages/popkorn-converters/src/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",

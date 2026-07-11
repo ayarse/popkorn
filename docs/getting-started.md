@@ -1,18 +1,18 @@
 # Getting Started
 
-The fastest way to get a feel for Popcorn is the playground. When you're ready to
+The fastest way to get a feel for Popkorn is the playground. When you're ready to
 put a scene in your own project, it's one web component.
 
 ## Try it live
 
-**▶ [ayarse.github.io/popcorn](https://ayarse.github.io/popcorn)**
+**▶ [ayarse.github.io/popkorn](https://ayarse.github.io/popkorn)**
 
 No install, it runs in your browser. Edit the example scenes, tweak values and
 watch them update, or import a Lottie or SVG to see it convert.
 
 ## Your first scene
 
-A Popcorn scene is a set of rules, one per shape, in a syntax that reads like
+A Popkorn scene is a set of rules, one per shape, in a syntax that reads like
 CSS. Here is a complete scene: a red ball that falls, bounces, and warms in color
 when you point at it.
 
@@ -63,24 +63,24 @@ Piece by piece:
   `&:hover` add an interaction.
 
 Point at the ball and its color warms, tweened by the `transition`, while the
-bounce never pauses or restarts. Interactions in Popcorn layer on top of running
+bounce never pauses or restarts. Interactions in Popkorn layer on top of running
 animations rather than fighting them, because the whole scene plays on one
 continuous timeline.
 
 ## Put it on a page
 
-The simplest way to render a scene in your own project is the `<popcorn-player>`
+The simplest way to render a scene in your own project is the `<popkorn-player>`
 web component.
 
 ```html
 <script type="module">
-  import "@popcorn/player";
+  import "@popkorn/player";
 </script>
 
-<popcorn-player width="400" height="400"></popcorn-player>
+<popkorn-player width="400" height="400"></popkorn-player>
 
 <script>
-  document.querySelector("popcorn-player").source = `
+  document.querySelector("popkorn-player").source = `
     #dot { type: circle; cx: 200px; cy: 200px; r: 40px; fill: #e94560; }
   `;
 </script>
@@ -88,13 +88,13 @@ web component.
 
 Set the `.source` property to your scene text, or point the `src` attribute at a
 file. The full component API (attributes, properties, events) lives in the
-[`@popcorn/player` README](../packages/popcorn-player/README.md).
+[`@popkorn/player` README](../packages/popkorn-player/README.md).
 
 ## Bring existing art
 
 You don't have to start from a blank file. Already have a Lottie or an SVG? Drop
-it into the [playground](https://ayarse.github.io/popcorn) with the **Import**
-button and it becomes a Popcorn scene you can read and tweak on the spot.
+it into the [playground](https://ayarse.github.io/popkorn) with the **Import**
+button and it becomes a Popkorn scene you can read and tweak on the spot.
 
 ## Where to go next
 

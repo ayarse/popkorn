@@ -1,6 +1,6 @@
 # State Machines
 
-A Popcorn scene plays on one timeline, and `:hover` / `:active` handle reactions
+A Popkorn scene plays on one timeline, and `:hover` / `:active` handle reactions
 that last only while a pointer is on the shape. Some interactions need more: a
 switch that stays on after you click it, an intro that plays once and then
 settles into an idle loop, a press that becomes a long-press after half a second.

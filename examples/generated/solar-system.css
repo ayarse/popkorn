@@ -1,4 +1,4 @@
-/* Solar System — Popcorn DSL
+/* Solar System — Popkorn DSL
  *
  * Canvas is 900x900; the Sun sits at the center (450,450).
  * Each planet lives inside a GROUP that is translate()d to the center and
@@ -8,7 +8,7 @@
  * that origin is translated onto the Sun, the whole group revolves around the
  * Sun. The planet is offset to (orbitRadius, 0) inside the group, so it traces
  * a circle of that radius. Inner planets get shorter durations (faster orbits).
- * Rotation lerps linearly in Popcorn, so 0deg -> 360deg is a clean full turn. */
+ * Rotation lerps linearly in Popkorn, so 0deg -> 360deg is a clean full turn. */
 
 :root { width: 900px; height: 900px; background: #05060f; }
 

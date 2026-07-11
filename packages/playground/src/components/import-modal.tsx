@@ -43,7 +43,7 @@ export function ImportModal({
           <DialogDescription>
             Drop a bodymovin <code className="font-mono">.json</code> or an{" "}
             <code className="font-mono">.svg</code> file, or paste Lottie JSON
-            or SVG markup. It will be converted to Popcorn DSL.
+            or SVG markup. It will be converted to Popkorn DSL.
           </DialogDescription>
         </DialogHeader>
 

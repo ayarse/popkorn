@@ -1,11 +1,11 @@
-# @popcorn/playground
+# @popkorn/playground
 
-Vite + React shell around `<popcorn-player>` — showcases the player/parser and
+Vite + React shell around `<popkorn-player>` — showcases the player/parser and
 dogfoods the Lottie/SVG converters. Linear-style dark IDE (editor left, canvas
 right) plus a `/docs` route rendering the repo's markdown.
 
 Repo-root `CLAUDE.md` owns the cross-cutting rules (bun, commits,
-`examples/popcorn/*.css` as scene source, corpus gate). Below is only what an
+`examples/popkorn/*.css` as scene source, corpus gate). Below is only what an
 agent *can't* infer from the code.
 
 ## Non-obvious facts
@@ -37,5 +37,5 @@ agent *can't* infer from the code.
 
 ## Verify
 
-`bun --filter @popcorn/playground build` green + browser eyeball (canvas bugs
+`bun --filter @popkorn/playground build` green + browser eyeball (canvas bugs
 hide from tests). Player/converter changes also run the corpus batch.

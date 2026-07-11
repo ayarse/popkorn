@@ -1,25 +1,25 @@
 # Importing Lottie and SVG
 
-You don't have to start from a blank file. Popcorn can read existing Lottie
+You don't have to start from a blank file. Popkorn can read existing Lottie
 animations and SVG artwork and turn them into scenes you can read and edit.
 
 ## The fastest way: the playground
 
 Drop a `.json` (Lottie) or `.svg` file into the
-[playground](https://ayarse.github.io/popcorn) with the **Import** button. It
+[playground](https://ayarse.github.io/popkorn) with the **Import** button. It
 detects which kind of file it is, converts it, and drops the result straight into
 the editor, where you can read and tweak it on the spot.
 
 ## From the command line
 
 For batch work or a build step, the converter ships as a command in
-`@popcorn/converters`:
+`@popkorn/converters`:
 
 ```sh
-popcorn-convert animation.json -o animation.css   # Lottie -> Popcorn
-popcorn-convert logo.svg -o logo.css              # SVG -> Popcorn
-popcorn-convert --validate animation.json         # report only: list what won't convert, write no CSS
-popcorn-convert --batch ./animations              # convert a whole folder
+popkorn-convert animation.json -o animation.css   # Lottie -> Popkorn
+popkorn-convert logo.svg -o logo.css              # SVG -> Popkorn
+popkorn-convert --validate animation.json         # report only: list what won't convert, write no CSS
+popkorn-convert --batch ./animations              # convert a whole folder
 ```
 
 It picks the converter by file extension, so the same command handles both
@@ -37,12 +37,12 @@ checked continuously against a corpus of real Lottie files.
 
 **From SVG:** all the standard shapes and paths, fills, gradients, and strokes,
 plus animation. CSS `@keyframes` from `<style>` blocks and basic SMIL
-(`<animate>` / `<animateTransform>`) map into Popcorn keyframes and `animation-*`
+(`<animate>` / `<animateTransform>`) map into Popkorn keyframes and `animation-*`
 properties.
 
 ## What doesn't, and what happens then
 
-Some things have no equivalent in Popcorn and are skipped. When that happens the
+Some things have no equivalent in Popkorn and are skipped. When that happens the
 converter emits a **warning naming exactly what it dropped**, so an import is
 never silently wrong, and everything that does map still produces a working
 scene.
@@ -62,7 +62,7 @@ likewise exits nonzero if any file fails).
 
 ## After importing
 
-The output is ordinary Popcorn: a readable scene you can open, diff, and edit by
+The output is ordinary Popkorn: a readable scene you can open, diff, and edit by
 hand or hand to Copilot. Import is a starting point, not a black box.
 
 ## See also

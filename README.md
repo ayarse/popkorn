@@ -1,23 +1,23 @@
 <div align="center">
 
-# Popcorn
+# Popkorn
 
 **What if a CSS animation could leave the browser?**
 
 https://github.com/user-attachments/assets/3b12477a-96ac-42f2-a7e6-0bdec74f26f8
 
-[**▶ Playground**](https://ayarse.github.io/popcorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
+[**▶ Playground**](https://ayarse.github.io/popkorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
 </div>
 
-Popcorn is a portable format for motion graphics, and a small runtime that plays
+Popkorn is a portable format for motion graphics, and a small runtime that plays
 it. A scene is a self-contained file written in syntax you already know
 (`@keyframes`, `transform`, `offset-path`, `z-index`), and the same file runs on
 the web and on mobile today, natively through React Native. It keeps the
 familiar, readable syntax of CSS, so a scene is never an opaque binary or JSON blob.
 
 It began as a what-if and became a proof of concept, and it went further than
-expected. Popcorn renders vector shapes, gradients, masks, motion paths, and
+expected. Popkorn renders vector shapes, gradients, masks, motion paths, and
 path morphing. Its interactivity goes past playback,
 too: the familiar CSS pseudo-classes `:hover` and `:active` just work ✨, layering
 on top of running animations without restarting them, and hand-written state
@@ -27,12 +27,12 @@ often a touch smaller than the source they came from.
 It's still early, so it might have some rough edges. But the thing it set out to
 prove, that a CSS animation can be a portable artifact, already works.
 
-**▶ [Try it live in the playground](https://ayarse.github.io/popcorn)**: edit
+**▶ [Try it live in the playground](https://ayarse.github.io/popkorn)**: edit
 scenes in the browser, no install.
 
 ## A scene, in full
 
-This is a complete Popcorn scene: a red ball, falling and bouncing, with the
+This is a complete Popkorn scene: a red ball, falling and bouncing, with the
 easing an animator would reach for.
 
 ```css
@@ -74,7 +74,7 @@ If you've written CSS, you can already read every line. So can a language model,
 which is the point (see [Why CSS](#why-css)).
 
 Point at the ball and its color warms, smoothly tweened by the `transition`,
-while the bounce never pauses or restarts. This is one of Popcorn's nicer
+while the bounce never pauses or restarts. This is one of Popkorn's nicer
 surprises: interactive states like `:hover` and `:active` compose _on top of_
 running animations rather than fighting them, because the whole scene plays on
 one continuous timeline. Dropping a small interaction onto an animating element
@@ -87,10 +87,10 @@ scenes today. Most start one of two ways, and because the format is readable
 underneath both, you can always drop into the code to adjust:
 
 - **From an existing animation.** Already have a Lottie or an SVG? Drop it into
-  the [playground](https://ayarse.github.io/popcorn) with the **Import** button
-  and it becomes a Popcorn scene you can read and tweak on the spot. No starting
+  the [playground](https://ayarse.github.io/popkorn) with the **Import** button
+  and it becomes a Popkorn scene you can read and tweak on the spot. No starting
   from a blank file.
-- **By prompting.** The playground's **Popcorn Copilot** builds a scene from a
+- **By prompting.** The playground's **Popkorn Copilot** builds a scene from a
   description or edits the live one on request. It works because the format stays
   close enough to CSS that a model already knows it, no fine-tuning required.
 
@@ -103,33 +103,33 @@ edit.
 
 The quickest way in is the playground. No install, it runs in your browser:
 
-**▶ [ayarse.github.io/popcorn](https://ayarse.github.io/popcorn)**
+**▶ [ayarse.github.io/popkorn](https://ayarse.github.io/popkorn)**
 
 Edit the example scenes live, tweak values and watch them update, or import a
 Lottie or SVG to see it convert.
 
-To put a scene on your own page, the simplest way is the `<popcorn-player>` web
+To put a scene on your own page, the simplest way is the `<popkorn-player>` web
 component:
 
 ```html
 <script type="module">
-  import "@popcorn/player";
+  import "@popkorn/player";
 </script>
 
-<popcorn-player width="400" height="400"></popcorn-player>
+<popkorn-player width="400" height="400"></popkorn-player>
 
 <script>
-  document.querySelector("popcorn-player").source = `
+  document.querySelector("popkorn-player").source = `
     #dot { type: circle; cx: 200px; cy: 200px; r: 40px; fill: #e94560; }
   `;
 </script>
 ```
 
 Driving the renderer yourself? The parser, scene builder, and renderers are all
-exported from [`@popcorn/player`](packages/popcorn-player); its README covers the
+exported from [`@popkorn/player`](packages/popkorn-player); its README covers the
 programmatic API.
 
-To run the playground or hack on Popcorn locally:
+To run the playground or hack on Popkorn locally:
 
 ```bash
 bun install
@@ -138,7 +138,7 @@ bun run dev        # http://localhost:5173
 
 ## What it can do
 
-Popcorn covers most of what people reach for in real motion graphics:
+Popkorn covers most of what people reach for in real motion graphics:
 
 - **Shapes & paint.** Circles, rects, ellipses, polygons, polystars, and full
   SVG paths. Solid fills, linear and radial gradients, strokes with dashes and
@@ -161,14 +161,14 @@ Popcorn covers most of what people reach for in real motion graphics:
   ([docs/state-machines.md](docs/state-machines.md)).
 
 The [playground](packages/playground) shows each of these as a live scene, and
-the sources live in [`examples/popcorn/`](examples/popcorn).
+the sources live in [`examples/popkorn/`](examples/popkorn).
 
 ## Why CSS
 
-Choosing CSS wasn't a shortcut. It's the whole idea, and Popcorn holds itself to
+Choosing CSS wasn't a shortcut. It's the whole idea, and Popkorn holds itself to
 one rule: **if CSS already has a way to express something, use it, with its real
 semantics.** Motion paths are `offset-path`. Holds are `step-end`. Staggering is
-a negative `animation-delay`. Layering is `z-index`. Popcorn never invents syntax
+a negative `animation-delay`. Layering is `z-index`. Popkorn never invents syntax
 that CSS already has. (It isn't _exactly_ CSS. It's a close dialect, kept as near
 to the real thing as we can, and maybe some of the good parts go upstream one
 day 🤞)
@@ -177,12 +177,12 @@ Staying this close buys something rare: one format that two very different
 audiences already read.
 
 - **People already speak it.** There's a vibrant community making genuinely
-  beautiful art in hand-written CSS. Popcorn meets them where they are, with no
+  beautiful art in hand-written CSS. Popkorn meets them where they are, with no
   new mental model and no editor to learn.
-- **Language models already speak it too.** Because Popcorn stays so close to
+- **Language models already speak it too.** Because Popkorn stays so close to
   real CSS, a model already knows most of it from its training data. There's no
   fine-tuned model and no bespoke format to teach. Hand it the small extra
-  vocabulary and it writes valid, working Popcorn. That's a property you only get
+  vocabulary and it writes valid, working Popkorn. That's a property you only get
   by refusing to invent syntax.
 
 The payoff is a format that's hand-authorable, diffable in a pull request, and
@@ -221,12 +221,12 @@ interesting to you as it was to build. Feedback and curiosity welcome.
 
 | Package                                                  | What it is                                                                    |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`@popcorn/parser`](packages/popcorn-parser)             | The format parser: source to typed AST. Zero dependencies, no build step.     |
-| [`@popcorn/player`](packages/popcorn-player)             | The `<popcorn-player>` web component and the Canvas2D + SVG runtimes.         |
-| [`@popcorn/converters`](packages/popcorn-converters)     | Lottie and SVG to Popcorn importers (CLI + library).                          |
-| [`@popcorn/react-native`](packages/popcorn-react-native) | React Native / Skia renderer, running scenes natively on mobile.              |
-| [`@popcorn/expo-demo`](packages/expo-demo)               | Expo app demoing the native renderer.                                         |
-| [`@popcorn/playground`](packages/playground)             | A live scene editor: example gallery, Lottie/SVG import, and Popcorn Copilot. |
+| [`@popkorn/parser`](packages/popkorn-parser)             | The format parser: source to typed AST. Zero dependencies, no build step.     |
+| [`@popkorn/player`](packages/popkorn-player)             | The `<popkorn-player>` web component and the Canvas2D + SVG runtimes.         |
+| [`@popkorn/converters`](packages/popkorn-converters)     | Lottie and SVG to Popkorn importers (CLI + library).                          |
+| [`@popkorn/react-native`](packages/popkorn-react-native) | React Native / Skia renderer, running scenes natively on mobile.              |
+| [`@popkorn/expo-demo`](packages/expo-demo)               | Expo app demoing the native renderer.                                         |
+| [`@popkorn/playground`](packages/playground)             | A live scene editor: example gallery, Lottie/SVG import, and Popkorn Copilot. |
 
 ## License
 

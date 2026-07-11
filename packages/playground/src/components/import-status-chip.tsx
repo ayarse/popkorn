@@ -15,9 +15,9 @@ export function ImportStatusChip({
 }) {
   const { format, label, warnings, blocked, raw, min, gz } = result;
   const hasIssues = warnings.length > 0 || blocked.length > 0;
-  const deltaPct = pct(raw.lottie, raw.popcorn);
-  const minDeltaPct = min ? pct(min.lottie, min.popcorn) : 0;
-  const gzDeltaPct = gz ? pct(gz.lottie, gz.popcorn) : 0;
+  const deltaPct = pct(raw.lottie, raw.popkorn);
+  const minDeltaPct = min ? pct(min.lottie, min.popkorn) : 0;
+  const gzDeltaPct = gz ? pct(gz.lottie, gz.popkorn) : 0;
   // Collapsed chip teases the gzipped delta (real wire size); until the async
   // gzip resolves, fall back to the raw delta.
   const chipDeltaPct = gz ? gzDeltaPct : deltaPct;
@@ -82,7 +82,7 @@ export function ImportStatusChip({
                 {format}
               </span>
               <span className="flex-1 whitespace-nowrap text-center">
-                Popcorn
+                Popkorn
               </span>
               <span className="w-12 whitespace-nowrap text-center">Δ</span>
             </div>
@@ -93,7 +93,7 @@ export function ImportStatusChip({
                   {humanBytes(raw.lottie)}
                 </span>
                 <span className="flex-1 whitespace-nowrap text-center">
-                  {humanBytes(raw.popcorn)}
+                  {humanBytes(raw.popkorn)}
                 </span>
                 <span
                   className={`w-12 whitespace-nowrap text-center ${deltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
@@ -108,7 +108,7 @@ export function ImportStatusChip({
                     {humanBytes(min.lottie)}
                   </span>
                   <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(min.popcorn)}
+                    {humanBytes(min.popkorn)}
                   </span>
                   <span
                     className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
@@ -124,7 +124,7 @@ export function ImportStatusChip({
                     {humanBytes(gz.lottie)}
                   </span>
                   <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(gz.popcorn)}
+                    {humanBytes(gz.popkorn)}
                   </span>
                   <span
                     className={`w-12 whitespace-nowrap text-center ${gzDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}

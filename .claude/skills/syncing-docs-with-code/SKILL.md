@@ -46,7 +46,7 @@ Never rewrite a doc from the commit message alone.
 4. **Confirm against source, not the message.** For each suspect: `git show
    <hash> --stat` and read the diff or the file's current source (converters
    keep an authoritative scope comment in their header — e.g.
-   `svg2popcorn.ts` top-of-file). Then `grep` the docs for the specific claim
+   `svg2popkorn.ts` top-of-file). Then `grep` the docs for the specific claim
    the change contradicts. Drift is real only when the doc text and the source
    disagree.
 

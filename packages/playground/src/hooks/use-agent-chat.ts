@@ -1,4 +1,4 @@
-import { parse } from "@popcorn/parser";
+import { parse } from "@popkorn/parser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type AgentConfig,

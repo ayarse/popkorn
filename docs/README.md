@@ -1,15 +1,15 @@
-# Popcorn Documentation
+# Popkorn Documentation
 
-Popcorn is a portable format for motion graphics, and a small runtime that plays
+Popkorn is a portable format for motion graphics, and a small runtime that plays
 it on the web and on mobile. These pages go deeper than the
 [project README](../README.md).
 
 New here? The fastest way to get a feel for it is the
-[live playground](https://ayarse.github.io/popcorn), then read on.
+[live playground](https://ayarse.github.io/popkorn), then read on.
 
 ## Start here
 
-- [Introduction](introduction.md): what Popcorn is, and why it's built on CSS.
+- [Introduction](introduction.md): what Popkorn is, and why it's built on CSS.
 - [Getting Started](getting-started.md): try it live, write your first scene,
   put it on a page.
 

@@ -1,5 +1,5 @@
-import { convertLottie, convertSvg } from "@popcorn/converters";
-import { parse, serialize } from "@popcorn/parser";
+import { convertLottie, convertSvg } from "@popkorn/converters";
+import { parse, serialize } from "@popkorn/parser";
 import { useState } from "react";
 import { examples } from "@/examples";
 import {

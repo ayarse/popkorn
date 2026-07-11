@@ -1,6 +1,6 @@
-# Popcorn Format Reference
+# Popkorn Format Reference
 
-The complete reference for the Popcorn format. See the [README](../README.md) for setup and usage.
+The complete reference for the Popkorn format. See the [README](../README.md) for setup and usage.
 
 ## Canvas Configuration
 
@@ -273,7 +273,7 @@ painted on its own — only sampled as the matte:
 ```css
 #reveal {
   type: text;
-  content: "POPCORN";
+  content: "POPKORN";
   mask: #wipe luminance;   /* alpha | alpha-invert | luminance | luminance-invert */
 }
 
@@ -813,7 +813,7 @@ momentary event input that auto-resets after one evaluation:
 }
 ```
 
-**Host API** on `<popcorn-player>`:
+**Host API** on `<popkorn-player>`:
 
 ```js
 player.setVariable('--energy', 80);   // number/boolean author-declared vars
@@ -853,22 +853,22 @@ scrollable range (the raw offset stays available as `scroll.y`).
 
 ## Importing SVG
 
-Alongside the Lottie importer, `@popcorn/converters` turns an SVG into a Popcorn
-scene (the `popcorn-convert` CLI, or the playground's **Import** button). The
+Alongside the Lottie importer, `@popkorn/converters` turns an SVG into a Popkorn
+scene (the `popkorn-convert` CLI, or the playground's **Import** button). The
 mapping is the natural one:
 
 - `<rect>`/`<circle>`/`<ellipse>`/`<line>`/`<polyline>`/`<polygon>`/`<path>` →
-  the matching Popcorn shapes; `<g>` → a group.
+  the matching Popkorn shapes; `<g>` → a group.
 - `fill`/`stroke`/`stroke-width`/`stroke-linecap`/`stroke-linejoin`/
-  `stroke-dasharray`/`fill-rule`/`opacity` → their Popcorn equivalents.
+  `stroke-dasharray`/`fill-rule`/`opacity` → their Popkorn equivalents.
 - `<linearGradient>`/`<radialGradient>` (incl. `objectBoundingBox` units,
-  `gradientTransform`, and `stop-opacity`) → Popcorn gradient fills.
+  `gradientTransform`, and `stop-opacity`) → Popkorn gradient fills.
 - `transform` (`matrix`/`translate`/`rotate(a cx cy)`/`scale`/`skewX`/`skewY`)
   is decomposed onto each node's `transform`; shear bakes into geometry.
-- `<clipPath>` and luminance `<mask>` → Popcorn clip/mask.
+- `<clipPath>` and luminance `<mask>` → Popkorn clip/mask.
 
 **Animation imports too** — CSS `@keyframes` from `<style>` blocks and basic
-SMIL `<animate>`/`<animateTransform>` map into Popcorn `@keyframes` +
+SMIL `<animate>`/`<animateTransform>` map into Popkorn `@keyframes` +
 `animation-*` (opacity/fill/stroke/transform/dash channels). Unmappable cases
 degrade to a warning: `@media`-wrapped keyframes, gradient keyframes, `<set>`,
 `<animateMotion>`, event/sync-base begins, additive/accumulate, and skew.

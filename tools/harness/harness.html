@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Popcorn vs lottie-web harness</title>
+<title>Popkorn vs lottie-web harness</title>
 <style>
   body { margin: 0; background: #c9c9c9; font: 13px system-ui; color: #111; }
   .bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 8px 12px; background: #eee; border-bottom: 1px solid #999; }
   .bar label { display: flex; gap: 4px; align-items: center; }
   .row { display: flex; gap: 16px; padding: 12px; }
   .pane { text-align: center; }
-  #lot, popcorn-player, #thorvgPane { display: block; background: #c9c9c9; }
+  #lot, popkorn-player, #thorvgPane { display: block; background: #c9c9c9; }
   #lot canvas, #thorvgPane canvas { display: block; }
   h3 { margin: 4px; }
   #status { padding: 0 12px 12px; white-space: pre-wrap; font-family: ui-monospace, monospace; }
@@ -21,7 +21,7 @@
 <body>
 <div class="bar">
   <label>Lottie JSON <input type="file" id="jsonFile" accept="application/json"></label>
-  <label>Popcorn CSS <input type="file" id="cssFile" accept=".css,text/css"></label>
+  <label>Popkorn CSS <input type="file" id="cssFile" accept=".css,text/css"></label>
   <label>t (s) <input type="number" id="tInput" step="0.05" value="0" style="width:5em"></label>
   <button type="button" id="stepBack">-1 frame</button>
   <button type="button" id="stepFwd">+1 frame</button>
@@ -30,7 +30,7 @@
 <div class="row">
   <div class="pane"><h3>lottie-web (parity floor)</h3><div id="lot"></div></div>
   <div class="pane"><h3>thorvg (reference)</h3><div id="thorvgPane"></div></div>
-  <div class="pane"><h3>popcorn-player</h3><popcorn-player id="pc"></popcorn-player></div>
+  <div class="pane"><h3>popkorn-player</h3><popkorn-player id="pc"></popkorn-player></div>
 </div>
 <pre id="status"></pre>
 
@@ -44,7 +44,7 @@
   @thorvg/lottie-player 1.0.9 (default/software preset), a second reference
   renderer alongside lottie-web. Pass ?thorvg=<url> to override. Loading is
   best-effort: if the CDN fetch or its WASM init fails, the harness logs a
-  warning and keeps running in two-player (lottie-web + popcorn) mode — see
+  warning and keeps running in two-player (lottie-web + popkorn) mode — see
   README "Two vs three players".
 -->
 <script id="thorvgScript"></script>
@@ -56,15 +56,15 @@ const W = +(q.get('w') || 500);
 const H = +(q.get('h') || 500);
 // Defaults from the loaded Lottie file's own `fr` once it's known (set at
 // the end of loadLottie) — ?fps= always wins if given. Getting this wrong
-// silently desyncs lottie-web from popcorn/thorvg: seekBoth(1.0) at the
+// silently desyncs lottie-web from popkorn/thorvg: seekBoth(1.0) at the
 // wrong FPS lands lottie-web at the wrong real-time instant while the other
 // two sit at t=1.0s exactly, contaminating every diff.
 let FPS = +(q.get('fps') || 30);
 const fpsOverridden = q.has('fps');
 const lottieSrc = q.get('lottie') || 'https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js';
 const thorvgSrc = q.get('thorvg') || 'https://unpkg.com/@thorvg/lottie-player@1.0.9/dist/lottie-player.js';
-// Path to the popcorn-player bundle produced by `bun build` — see README.
-const popcornBundle = q.get('bundle') || './dist/popcorn.js';
+// Path to the popkorn-player bundle produced by `bun build` — see README.
+const popkornBundle = q.get('bundle') || './dist/popkorn.js';
 
 const status = document.getElementById('status');
 const log = (msg) => { status.textContent += msg + '\n'; };
@@ -78,7 +78,7 @@ await new Promise((resolve, reject) => {
 
 // Best-effort: thorvg is a bonus reference, not a hard dependency. A failure
 // here (offline, bad ?thorvg= override, blocked CDN) must not break the
-// lottie-web/popcorn two-player flow.
+// lottie-web/popkorn two-player flow.
 let thorvgAvailable = false;
 try {
   await new Promise((resolve, reject) => {
@@ -94,8 +94,8 @@ try {
   document.getElementById('thorvgPane').textContent = 'thorvg unavailable (see log)';
 }
 
-const { registerPopcornPlayer } = await import(popcornBundle);
-registerPopcornPlayer();
+const { registerPopkornPlayer } = await import(popkornBundle);
+registerPopkornPlayer();
 
 const lotEl = document.getElementById('lot');
 const pc = document.getElementById('pc');
@@ -180,7 +180,7 @@ async function loadThorvg(jsonSourceOrUrl) {
   }
 }
 
-async function loadPopcorn(css) {
+async function loadPopkorn(css) {
   pcReady = false;
   pc.source = css;
   await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -192,7 +192,7 @@ async function loadPopcorn(css) {
 const jsonParam = q.get('json');
 const cssParam = q.get('css');
 if (jsonParam) { await loadLottie(jsonParam); await loadThorvg(jsonParam); }
-if (cssParam) await loadPopcorn(await (await fetch(cssParam)).text());
+if (cssParam) await loadPopkorn(await (await fetch(cssParam)).text());
 
 // File-picker bootstrap (overrides query params).
 document.getElementById('jsonFile').addEventListener('change', async (e) => {
@@ -206,12 +206,12 @@ document.getElementById('jsonFile').addEventListener('change', async (e) => {
 document.getElementById('cssFile').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  await loadPopcorn(await file.text());
-  log('loaded popcorn CSS: ' + file.name);
+  await loadPopkorn(await file.text());
+  log('loaded popkorn CSS: ' + file.name);
 });
 
 // Frame-synced seeking: lottie's goToAndStop and thorvg's seek both take
-// frames, popcorn's seek takes ms. thorvg parses the same source JSON as
+// frames, popkorn's seek takes ms. thorvg parses the same source JSON as
 // lottie-web, so the same sec*FPS frame index applies to both (see the
 // totalFrame parity check in loadThorvg). This is now an async function so
 // callers that care can `await` thorvg's settle — everything up to the
@@ -233,7 +233,7 @@ window.__ready = () => pcReady && lotReady && (!thorvgAvailable || thorvgReady);
 // offscreen canvas regardless of the source's own backing resolution — this
 // is what makes the ref='thorvg' path safe even though thorvg's canvas can
 // have a different (DPR-scaled) backing size than lottie-web's or
-// popcorn's: drawImage stretch-fits it, so diffmath always sees same-size
+// popkorn's: drawImage stretch-fits it, so diffmath always sees same-size
 // images. (Verified: thorvg's own _render() resizes its canvas by a
 // devicePixelRatio factor independently of ours — this grab already
 // normalizes that, no extra step needed.)
@@ -256,7 +256,7 @@ function refCanvasEl(ref) {
   return lotEl.querySelector('canvas');
 }
 
-// popcorn is always the subject; ref picks the reference side ('lottie'
+// popkorn is always the subject; ref picks the reference side ('lottie'
 // default, or 'thorvg'). Reused by __diff/__gridDiff/__inspect/__scan.
 function getImages(ref = 'lottie') {
   const rc = refCanvasEl(ref); // may throw for a bad/unavailable ref
@@ -265,7 +265,7 @@ function getImages(ref = 'lottie') {
   return { a: grab(rc), b: grab(pcc) };
 }
 
-// Pixel diff between popcorn and the chosen reference ('lottie' default, or
+// Pixel diff between popkorn and the chosen reference ('lottie' default, or
 // 'thorvg') at whatever time they're currently paused on.
 window.__diff = (ref = 'lottie') => {
   const imgs = getImages(ref);
@@ -302,8 +302,8 @@ window.__gridDiff = (cols = 8, rows = 8, ref = 'lottie') => {
 };
 
 // Reference disagreement: how much do the two ground-truth renderers differ
-// from *each other* (no popcorn involved)? A nonzero refDiff means parity
-// expectations in that region are inherently soft — don't chase popcorn to
+// from *each other* (no popkorn involved)? A nonzero refDiff means parity
+// expectations in that region are inherently soft — don't chase popkorn to
 // match either reference exactly there. Requires thorvg.
 window.__refDiff = (cols = 8, rows = 8) => {
   if (!thorvgReady) throw new Error('__refDiff requires thorvg, which is unavailable (see log)');
@@ -335,7 +335,7 @@ function nextFrame() {
 // gridDiff at each, sorted worst-frame-first. The one call an agent needs to
 // find "where in time and space do these two players disagree." When
 // thorvg is available, each frame reports BOTH refs (lottie and thorvg, each
-// vs popcorn) so an agent can tell a real popcorn bug from reference
+// vs popkorn) so an agent can tell a real popkorn bug from reference
 // disagreement (cross-check with __refDiff). When thorvg is unavailable the
 // shape is identical to before this feature — { t, meanDelta, maxDelta,
 // worstCells } — so existing callers don't break.
@@ -383,7 +383,7 @@ function ensureInspector() {
   wrap.innerHTML =
     '<div class="pane"><h3>lottie crop</h3><canvas id="inspLot"></canvas></div>' +
     (thorvgAvailable ? '<div class="pane"><h3>thorvg crop</h3><canvas id="inspThorvg"></canvas></div>' : '') +
-    '<div class="pane"><h3>popcorn crop</h3><canvas id="inspPc"></canvas></div>' +
+    '<div class="pane"><h3>popkorn crop</h3><canvas id="inspPc"></canvas></div>' +
     '<div class="pane"><h3 id="inspDiffLabel">diff heatmap (x8, red = delta)</h3><canvas id="inspDiff"></canvas></div>' +
     '<pre id="inspStats"></pre>';
   document.body.appendChild(wrap);
@@ -421,11 +421,11 @@ function paintScaled(canvasEl, data, w, h, scale) {
   ctx.drawImage(src, 0, 0, w * scale, h * scale);
 }
 
-// Visual close-up: crops popcorn and the chosen reference to `rect` (plus
+// Visual close-up: crops popkorn and the chosen reference to `rect` (plus
 // the *other* reference's crop too, when thorvg is available, purely for
 // eyeballing — lottie and thorvg crops both show regardless of which one
 // `ref` picked for the heatmap), and draws an amplified (x8) red diff
-// heatmap of popcorn vs the chosen ref, scaled up with nearest-neighbor so a
+// heatmap of popkorn vs the chosen ref, scaled up with nearest-neighbor so a
 // small cell is legible in a screenshot. Replaces the single inspector
 // panel below the players each call (created once, reused after — it does
 // not accumulate a new panel per call).
@@ -484,7 +484,7 @@ document.getElementById('diffBtn').addEventListener('click', () => window.__diff
 
 // Sync all three to a common frame on load. Without this the references sit at
 // frame 0 (blank for any file whose content starts later, e.g. layers with
-// ip>0) while popcorn autoplays — which reads as "the references are broken"
+// ip>0) while popkorn autoplays — which reads as "the references are broken"
 // when they simply were never seeked. ?t= sets the initial time (seconds).
 // Runs here, after seekBoth is defined and the players are loaded.
 if (jsonParam || cssParam) await seekBoth(+(q.get('t') || 0));

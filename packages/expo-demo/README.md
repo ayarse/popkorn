@@ -1,12 +1,12 @@
-# @popcorn/expo-demo
+# @popkorn/expo-demo
 
-Minimal Expo app to test the `@popcorn/react-native` renderer on a real device. One
-screen: a full-screen `PopcornView`, a floating **Edit CSS** button that opens
+Minimal Expo app to test the `@popkorn/react-native` renderer on a real device. One
+screen: a full-screen `PopkornView`, a floating **Edit CSS** button that opens
 a bottom-sheet editor (syntax-highlighted CSS input + Load/Cancel), swapping
 the scene on Load (parse errors show inline in the sheet, no crash).
 
 The default scene is the Thanksgiving turkey
-(`examples/lottie/thanksgiving-turkey.json`, converted to Popcorn CSS and
+(`examples/lottie/thanksgiving-turkey.json`, converted to Popkorn CSS and
 inlined in `turkey.ts`) — pure shapes and paths, so it renders fully on the
 Skia PoC (which defers text/images).
 
@@ -38,8 +38,8 @@ the resulting build, then `bunx expo start --dev-client`.
 ## Notes
 
 - Monorepo Metro resolution is set in `metro.config.js` (watch the repo root,
-  resolve hoisted deps from both node_modules). `@popcorn/react-native` and
-  `@popcorn/player` ship raw TS from `src/`; `babel-preset-expo` transpiles it.
+  resolve hoisted deps from both node_modules). `@popkorn/react-native` and
+  `@popkorn/player` ship raw TS from `src/`; `babel-preset-expo` transpiles it.
 - `@shopify/react-native-skia` 2.x requires `react-native-reanimated` (and its
   `react-native-worklets` peer) as native dependencies, even though this demo
   doesn't call Reanimated APIs directly. `babel-preset-expo` auto-detects

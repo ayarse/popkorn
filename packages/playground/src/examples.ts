@@ -1,5 +1,5 @@
-// Curated example gallery for the Popcorn demo.
-// Source of truth is examples/popcorn/*.css — each file IS a scene.
+// Curated example gallery for the Popkorn demo.
+// Source of truth is examples/popkorn/*.css — each file IS a scene.
 // Filename convention: `NN-kebab-name.css` where NN sets gallery order and the
 // name (prefix stripped, dashes -> spaces, sentence-cased) becomes the label.
 // A `--` separates a feature family from the scene's own name and renders as
@@ -13,7 +13,7 @@ export interface Example {
   source: string;
 }
 
-const files = import.meta.glob("../../../examples/popcorn/*.css", {
+const files = import.meta.glob("../../../examples/popkorn/*.css", {
   query: "?raw",
   import: "default",
   eager: true,

@@ -1,4 +1,4 @@
-import { parse, serialize } from "@popcorn/parser";
+import { parse, serialize } from "@popkorn/parser";
 
 const enc = new TextEncoder();
 export const bytes = (s: string) => enc.encode(s).length;
@@ -16,16 +16,16 @@ export function humanBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function pct(lottie: number, popcorn: number): number {
+export function pct(lottie: number, popkorn: number): number {
   if (lottie === 0) return 0;
-  return ((popcorn - lottie) / lottie) * 100;
+  return ((popkorn - lottie) / lottie) * 100;
 }
 
 export function fmtPct(d: number): string {
   return `${d > 0 ? "+" : ""}${d.toFixed(1)}%`;
 }
 
-export type SizePair = { lottie: number; popcorn: number };
+export type SizePair = { lottie: number; popkorn: number };
 export type SizeDelta = { before: number; after: number };
 
 export type ImportResult = {
@@ -44,14 +44,14 @@ export function buildImportResult(
   rawSource: string,
   css: string,
 ): ImportResult {
-  const raw: SizePair = { lottie: bytes(rawSource), popcorn: bytes(css) };
+  const raw: SizePair = { lottie: bytes(rawSource), popkorn: bytes(css) };
   let min: SizePair | undefined;
   // Only Lottie has a JSON-minify step; SVG skips the minified row.
   if (format === "Lottie") {
     try {
       min = {
         lottie: bytes(JSON.stringify(JSON.parse(rawSource))),
-        popcorn: bytes(serialize(parse(css), { minify: true })),
+        popkorn: bytes(serialize(parse(css), { minify: true })),
       };
     } catch {
       // Degrade to unminified sizes only rather than breaking the import.
@@ -71,11 +71,11 @@ export async function gzipSizes(
     // Lottie ships as minified JSON; SVG ships as-is.
     const source =
       format === "Lottie" ? JSON.stringify(JSON.parse(rawSource)) : rawSource;
-    const [lottie, popcorn] = await Promise.all([
+    const [lottie, popkorn] = await Promise.all([
       gzipBytes(source),
       gzipBytes(serialize(parse(css), { minify: true })),
     ]);
-    return { lottie, popcorn };
+    return { lottie, popkorn };
   } catch {
     return undefined;
   }
