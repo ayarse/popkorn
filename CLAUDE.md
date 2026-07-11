@@ -85,7 +85,7 @@ separate fills; layer `ip`/`op` → `visible-from`/`until`.
 **Regression gate:** the LottieFiles conformance corpus (clone of
 `LottieFiles/test-files`, 80 files). Run `--batch <corpus>/data` before and
 after converter/player changes — the clean/warn/blocked counts are the
-scoreboard (baseline: 65/8/7/0; only rare shape modifiers pb/op/zz/rd remain
+scoreboard (baseline: 69/4/7/0 for the .json files as of 2026-07; only rare shape modifiers pb/op/zz/rd remain
 blocked, deliberately — shipping players skip them too). Real-file smoke
 checks live in the sticker/demo files under `examples/lottie/`.
 
