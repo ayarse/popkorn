@@ -987,7 +987,7 @@ export const TOOL_DEFS: Array<{
     function: {
       name: "read_example",
       description:
-        "Read a curated gallery scene demonstrating idiomatic Popkorn. Call with no name to list the available example names; then read 1–2 relevant ones before writing a scene from scratch, to match house style.",
+        "Read a curated gallery scene demonstrating idiomatic Popkorn. Call with no name to list the available example names. Use as a syntax/capability reference when unsure how to express a feature — not as a template: never copy an example's subject, palette, or caption text into a new scene.",
       parameters: {
         type: "object",
         properties: {
