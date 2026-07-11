@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { registerConformance, LUMA_COEFFICIENTS } from '@popkorn/player';
-import type { ConformanceHarness, ConformanceTrace, PaintObs, MaskObs, NormGradient } from '@popkorn/player';
+import type { ClipObs, ConformanceHarness, ConformanceTrace, PaintObs, MaskObs, NormGradient } from '@popkorn/player';
 import type { MaskMode } from '@popkorn/player';
 import { SkiaRenderer } from '../src/skia-renderer';
 
@@ -24,6 +24,7 @@ const SkBlend = { DstIn: 6, DstOut: 8 } as const;
 function mockSkia() {
   const draws: DrawRecord[] = [];
   const layers: LayerRecord[] = [];
+  const clips: ClipObs[] = [];
 
   const makePaint = () => {
     const p: any = {};
@@ -54,7 +55,9 @@ function mockSkia() {
   const record = (op: string, p: any) => { draws.push({ op, style: p.__style, colorCss: p.__colorCss, shader: p.__shader, dash: p.__dash, dashOffset: p.__dashOffset }); };
 
   const canvas: any = {
-    save: () => {}, restore: () => {}, concat: () => {}, clipRect: () => {}, clipPath: () => {},
+    save: () => {}, restore: () => {}, concat: () => {},
+    clipRect: (rect: { x: number; y: number; w: number; h: number }) => clips.push({ type: 'rect', x: rect.x, y: rect.y, width: rect.w, height: rect.h }),
+    clipPath: () => clips.push({ type: 'path' }),
     saveLayer: (p: any) => layers.push({ op: 'saveLayer', blend: p?.__blend, filter: p?.__filter }),
     drawRect: (_r: unknown, p: any) => record('drawRect', p),
     drawRRect: (_r: unknown, p: any) => record('drawRRect', p),
@@ -98,7 +101,7 @@ function mockSkia() {
     Image: { MakeImageFromEncoded: (_data: unknown) => ({ width: () => 4, height: () => 4 }) },
   };
 
-  return { Skia, canvas, draws, layers };
+  return { Skia, canvas, draws, layers, clips };
 }
 
 function skiaMode(blend: number, hasFilter: boolean): MaskMode {
@@ -107,7 +110,7 @@ function skiaMode(blend: number, hasFilter: boolean): MaskMode {
   return invert ? 'alpha-invert' : 'alpha';
 }
 
-function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], width: number, height: number): ConformanceTrace {
+function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], clips: ClipObs[], width: number, height: number): ConformanceTrace {
   const paints: PaintObs[] = draws.map((d) => {
     const kind = d.style === 1 ? 'stroke' : 'fill';
     const base: PaintObs = d.shader ? { kind, gradient: d.shader } : { kind, color: d.colorCss };
@@ -116,19 +119,19 @@ function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], width: number, he
   });
   // The mask-carrying layer is the one whose paint set a blend mode.
   const masks: MaskObs[] = layers.filter((l) => l.blend !== undefined).map((l) => ({ mode: skiaMode(l.blend!, l.filter != null) }));
-  return { paints, masks, width, height };
+  return { paints, masks, clips, width, height };
 }
 
 const skiaHarness: ConformanceHarness = {
   backend: 'skia',
   run(ops) {
-    const { Skia, canvas, draws, layers } = mockSkia();
+    const { Skia, canvas, draws, layers, clips } = mockSkia();
     const r = new SkiaRenderer(Skia, { width: 20, height: 20 });
     r.setCanvas(canvas);
     r.beginFrame();
     ops(r);
     r.endFrame();
-    return skiaTrace(draws, layers, r.getWidth(), r.getHeight());
+    return skiaTrace(draws, layers, clips, r.getWidth(), r.getHeight());
   },
 };
 

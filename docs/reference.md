@@ -12,8 +12,15 @@ Canvas size and background go in the `:root` rule (the same rule that holds
   width: 800px;
   height: 600px;
   background: #1a1a2e;
+  overflow: hidden; /* default — crop content to the stage box */
 }
 ```
+
+Content is clipped to the `width`×`height` stage box by default (`overflow:
+hidden`), matching an After Effects comp / Lottie player — anything drawn past
+the edge is cropped, and a pointer outside the box hits nothing. Set `overflow:
+visible` to let content spill past the artboard (clipping is also skipped when
+`:root` declares no `width`/`height`, since there's no stage to clip to).
 
 ## Selectors & Values
 

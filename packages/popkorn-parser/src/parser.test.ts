@@ -106,6 +106,20 @@ test("stage background accepts rgb()/rgba()", () => {
   ).toBe("rgba(26, 26, 46, 0.5)");
 });
 
+test("stage overflow hoisted from :root (hidden/visible)", () => {
+  expect(
+    parse(":root { width: 800px; height: 600px; overflow: visible; }").canvas,
+  ).toEqual({ width: 800, height: 600, overflow: "visible" });
+  expect(
+    parse(":root { width: 800px; height: 600px; overflow: hidden; }").canvas
+      ?.overflow,
+  ).toBe("hidden");
+  // Absent -> undefined (the player defaults it to hidden).
+  expect(
+    parse(":root { width: 800px; height: 600px; }").canvas?.overflow,
+  ).toBeUndefined();
+});
+
 test(":root with only custom properties leaves canvas unset", () => {
   const ast = parse(":root { --x: 5; }");
   expect(ast.canvas).toBeUndefined();

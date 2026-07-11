@@ -29,6 +29,7 @@ export { PopkornPlayer, registerPopkornPlayer } from "./component";
 // Renderer
 export { Canvas2DRenderer } from "./renderer/canvas2d";
 export type {
+  ClipObs,
   ConformanceHarness,
   ConformanceTrace,
   MaskObs,

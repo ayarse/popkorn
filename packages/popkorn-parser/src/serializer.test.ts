@@ -44,6 +44,17 @@ test("minify: number shortening is value-preserving (1.50→1.5, 2.0→2)", () =
   );
 });
 
+test("round-trip: :root overflow survives serialize + re-parse", () => {
+  const src = ":root { width: 800px; height: 600px; overflow: visible; }";
+  const out = serialize(parse(src));
+  expect(out).toContain("overflow: visible");
+  expect(parse(out).canvas).toEqual({
+    width: 800,
+    height: 600,
+    overflow: "visible",
+  });
+});
+
 test("pretty: 2-space indent, one decl per line", () => {
   expect(serialize(parse("#box { width: 100px; fill: #ff0000; }"))).toBe(
     "#box {\n  width: 100px;\n  fill: #ff0000;\n}\n",

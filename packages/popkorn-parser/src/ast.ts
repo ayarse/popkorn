@@ -36,6 +36,10 @@ export interface CanvasConfig {
   width: number;
   height: number;
   background?: string;
+  // Artboard clipping. `hidden` (the default when absent) crops scene content to
+  // the width×height stage box, like an AE comp / Lottie player; `visible` lets
+  // content spill past the edge. Only meaningful on `:root`.
+  overflow?: "hidden" | "visible";
 }
 
 // Pseudo-class states for interactive elements. `'state'` is the discriminator

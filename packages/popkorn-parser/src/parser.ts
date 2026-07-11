@@ -1107,6 +1107,12 @@ function extractCanvas(rule: Rule): CanvasConfig | undefined {
       const bg = stringifyColorValue(decl.value);
       if (bg !== undefined) cfg().background = bg;
     }
+    // Artboard clipping toggle (default `hidden` — applied by the player when
+    // the flag is absent). Only `hidden`/`visible` keywords are captured.
+    else if (decl.property === "overflow" && decl.value.type === "keyword") {
+      if (decl.value.value === "hidden" || decl.value.value === "visible")
+        cfg().overflow = decl.value.value;
+    }
   }
   return config;
 }

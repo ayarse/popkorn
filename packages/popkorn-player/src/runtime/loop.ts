@@ -98,6 +98,10 @@ export class RenderLoop {
   private filterWarned: boolean = false;
   private sceneWidth: number = 0;
   private sceneHeight: number = 0;
+  // Artboard clipping: crop content to the scene box (AE-comp / Lottie default).
+  // `hidden` unless `:root { overflow: visible }` turns it off. Only actually
+  // clips when the scene is dimensioned (width+height > 0) — see `shouldClip`.
+  private clipToScene: boolean = true;
   // Looping: when on, the timeline wraps once it passes `sceneDuration`.
   private looping: boolean = false;
   private sceneDuration: number = 0;
@@ -210,6 +214,18 @@ export class RenderLoop {
     this.viewport = matrix;
   }
 
+  /** Artboard clipping: `true` (default) crops content to the scene box; `false`
+   *  (`:root { overflow: visible }`) lets it spill past the edge. */
+  setClip(enabled: boolean): void {
+    this.clipToScene = enabled;
+  }
+
+  /** Whether this frame actually clips: clipping on AND the scene is dimensioned.
+   *  Unbounded/undimensioned scenes never clip (there's no artboard to clip to). */
+  private shouldClip(): boolean {
+    return this.clipToScene && this.sceneWidth > 0 && this.sceneHeight > 0;
+  }
+
   /** Enable/disable timeline looping (wraps at `duration`). */
   setLoop(enabled: boolean): void {
     this.looping = enabled;
@@ -317,7 +333,13 @@ export class RenderLoop {
 
     // Update interaction state (hover, active). `timestamp` anchors any
     // transition a state flip starts.
-    this.interactionManager.update(this.inputTracker.getState(), timestamp);
+    this.interactionManager.update(
+      this.inputTracker.getState(),
+      timestamp,
+      this.shouldClip()
+        ? { width: this.sceneWidth, height: this.sceneHeight }
+        : null,
+    );
 
     // Resolve the whole scene at the current timeline time, then paint. `live`
     // gates the parts that must run only on a real rAF tick — machine evaluation
@@ -593,7 +615,10 @@ export class RenderLoop {
     const events: PointerTriggerEvent[] = [];
     if (!this.sceneRoot) return events;
     const st = this.inputTracker.getState();
-    const hit = hitTest(this.sceneRoot, { x: st.cursor.x, y: st.cursor.y });
+    // A clipped-out pointer can't hit content the artboard hides.
+    const hit = this.clippedOut(st.cursor.x, st.cursor.y)
+      ? null
+      : hitTest(this.sceneRoot, { x: st.cursor.x, y: st.cursor.y });
 
     if (hit !== this.prevHit) {
       if (this.prevHit) events.push({ event: "hoverend", node: this.prevHit });
@@ -624,6 +649,15 @@ export class RenderLoop {
     return events;
   }
 
+  /** True when clipping is on and (x, y) scene coords fall outside the artboard,
+   *  so a pointer there hits nothing (matches the visual crop). */
+  private clippedOut(x: number, y: number): boolean {
+    return (
+      this.shouldClip() &&
+      (x < 0 || y < 0 || x > this.sceneWidth || y > this.sceneHeight)
+    );
+  }
+
   private render(): void {
     this.renderer.beginFrame();
 
@@ -631,6 +665,23 @@ export class RenderLoop {
     // margins stay clear; the viewport (fit + DPR) then becomes the root
     // transform for the background and scene, which draw in scene space.
     this.renderer.setTransform(this.viewport);
+
+    // Artboard clipping: crop the background + scene walk to the scene box, so
+    // content never spills into the letterbox bands or past the stage (AE-comp /
+    // Lottie default). Applied in scene space (post-viewport). Undimensioned or
+    // `overflow: visible` scenes skip the clip. This lives ONLY in the shared
+    // walk — backends just realize the `clip()` primitive (invariant 7).
+    const clipping = this.shouldClip();
+    if (clipping) {
+      this.renderer.save();
+      this.renderer.clip({
+        type: "rect",
+        x: 0,
+        y: 0,
+        width: this.sceneWidth,
+        height: this.sceneHeight,
+      });
+    }
 
     // Draw background — fills the scene box (not the device buffer) so it
     // letterboxes with the scene under contain/none.
@@ -649,6 +700,8 @@ export class RenderLoop {
     if (this.sceneRoot) {
       this.renderNode(this.sceneRoot);
     }
+
+    if (clipping) this.renderer.restore();
 
     this.renderer.endFrame();
   }

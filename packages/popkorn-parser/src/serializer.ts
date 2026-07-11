@@ -253,6 +253,15 @@ function rootBlock(
         valueSpan: NO_SPAN,
       });
     }
+    if (cfg.overflow !== undefined) {
+      decls.push({
+        type: "declaration",
+        property: "overflow",
+        value: { type: "keyword", value: cfg.overflow },
+        span: NO_SPAN,
+        valueSpan: NO_SPAN,
+      });
+    }
   }
   for (const v of vars)
     decls.push({

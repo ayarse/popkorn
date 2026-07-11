@@ -691,6 +691,9 @@ export class PopkornPlayer extends HTMLElementBase {
       this.renderLoop = new RenderLoop(this.renderer, this.scheduler);
       this.renderLoop.setScene(sceneRoot);
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
+      // Artboard clipping defaults to on (crop to the stage box, like an AE
+      // comp); `:root { overflow: visible }` opts out.
+      this.renderLoop.setClip(ast.canvas?.overflow !== "visible");
       this.renderLoop.setLoop(this.boolAttr("loop"));
       this.renderLoop.setFrameCallback((t) => this.onFrame(t));
       // Non-looping timeline reached its end -> notify the host once (Lottie's

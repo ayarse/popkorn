@@ -386,7 +386,11 @@ export class InteractionManager {
    * Update interaction state based on input. `now` is the wall-clock timestamp
    * used to anchor any transition a state flip starts.
    */
-  update(inputState: InputState, now: number = performance.now()): void {
+  update(
+    inputState: InputState,
+    now: number = performance.now(),
+    clipBounds: { width: number; height: number } | null = null,
+  ): void {
     if (!this.sceneRoot || !this.hasInteractive) return;
 
     const mousePoint: Point = {
@@ -394,8 +398,17 @@ export class InteractionManager {
       y: inputState.cursor.y,
     };
 
+    // Artboard clipping: a cursor outside the scene box hits nothing the crop
+    // hides (still runs the walk so hover/active clear as the pointer leaves).
+    const clippedOut =
+      clipBounds !== null &&
+      (mousePoint.x < 0 ||
+        mousePoint.y < 0 ||
+        mousePoint.x > clipBounds.width ||
+        mousePoint.y > clipBounds.height);
+
     // Perform hit-test to find node under cursor
-    const hitNode = hitTest(this.sceneRoot, mousePoint);
+    const hitNode = clippedOut ? null : hitTest(this.sceneRoot, mousePoint);
 
     // Handle mouse button state
     const isPressed = inputState.cursor.isDown;

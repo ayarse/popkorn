@@ -62,10 +62,22 @@ export interface MaskObs {
   mode: MaskMode;
 }
 
+// One realized clip region, its platform primitive reverse-mapped to the shared
+// ResolvedClip shape (rect bounds / circle / path). Lets a case assert every
+// backend crops to the SAME geometry the shared walk asks for (artboard clip).
+export interface ClipObs {
+  type: "rect" | "circle" | "path";
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
 // The normalized observation a harness produces from running one case's ops.
 export interface ConformanceTrace {
   paints: PaintObs[];
   masks: MaskObs[];
+  clips: ClipObs[];
   width: number;
   height: number;
 }
@@ -224,6 +236,34 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
     assert: (t, expect) => {
       expect(t.paints.map((p) => p.kind)).toEqual(["stroke", "fill"]);
+    },
+  },
+
+  // --- #7 artboard clipping (shared walk's overflow:hidden default) ----------
+  {
+    // A rect clip at the stage box, then a shape straddling its edge. Under the
+    // clip (overflow:hidden) every backend must record the SAME crop region and
+    // still emit the paint (clipped, not dropped). The `overflow:visible` side
+    // issues no clip() — that's the baseline every other case already shows
+    // (empty `clips`).
+    name: "rect clip records one shared crop region and keeps the paint",
+    ops: (r) => {
+      r.save();
+      r.clip({ type: "rect", x: 0, y: 0, width: 10, height: 10 });
+      r.setFill("#0000ff");
+      r.drawRect(5, 5, 20, 20); // straddles the 10×10 artboard edge
+      r.restore();
+    },
+    assert: (t, expect) => {
+      expect(t.clips.length).toBe(1);
+      const c = t.clips[0];
+      expect(c.type).toBe("rect");
+      expect(c.x).toBe(0);
+      expect(c.y).toBe(0);
+      expect(c.width).toBe(10);
+      expect(c.height).toBe(10);
+      // The shape still paints — clipping crops pixels, it doesn't drop the draw.
+      expect(t.paints.some((p) => p.kind === "fill")).toBe(true);
     },
   },
 

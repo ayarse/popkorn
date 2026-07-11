@@ -30,15 +30,22 @@ A document is a flat list of three constructs, in any order:
   width: 800px;        /* default 800 — numeric value only, unit ignored */
   height: 600px;       /* default 600 */
   background: #0f0f23; /* only a hex/color VALUE is captured here */
+  overflow: hidden;    /* default — crop content to the stage box */
   --brand: #e94560;    /* custom properties live here too */
   --cursor-x: input(cursor.x);
 }
 ```
 
-`:root` holds both stage config (`width`/`height`/`background`) and global custom properties.
+`:root` holds both stage config (`width`/`height`/`background`/`overflow`) and global custom properties.
 Defaults `800×600`, no background. Only a color-typed value sets `background`. If `:root` declares
 no `width`/`height`, `<popkorn-player>` falls back to its own `width`/`height` attributes (defaults
 400×300). Only `--`-prefixed declarations become global variables (see §10, §14).
+
+**Artboard clipping.** Content is cropped to the `width`×`height` box by default (`overflow: hidden`,
+like an AE comp / Lottie player) — draws past the edge are clipped and pointers outside the box miss.
+Use `overflow: visible` for scenes whose content is meant to sit *outside* the stage at rest (content
+merely flying in/out from off-stage during an animation does NOT need it — the clip only crops the
+resting frame). Clipping is skipped when the scene has no declared `width`/`height`.
 
 ---
 

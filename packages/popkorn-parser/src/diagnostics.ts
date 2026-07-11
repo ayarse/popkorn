@@ -98,6 +98,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "z-index",
   "visible-from",
   "visible-until",
+  "overflow",
   "pointer-events",
   "clip-path",
   "mask",

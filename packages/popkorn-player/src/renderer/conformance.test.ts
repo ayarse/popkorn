@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { MaskMode } from "../scene/types";
 import { Canvas2DRenderer } from "./canvas2d";
 import type {
+  ClipObs,
   ConformanceHarness,
   ConformanceTrace,
   MaskObs,
@@ -27,8 +28,35 @@ import type { GradientData } from "./types";
 
 type CanvasEvent =
   | { type: "paint"; index: string | number; obs: PaintObs }
+  | { type: "clip"; index: string | number; obs: ClipObs }
   | { type: "blit"; srcIndex: number; dstIndex: string | number; gco: string }
   | { type: "luma"; index: number };
+
+// Path2D is absent under bun, so Canvas2DRenderer.clip (which does `new Path2D()`)
+// needs a stand-in that records the region it builds. Rect is all the artboard
+// clip uses; other kinds record their type so a non-rect clip is still observable.
+class FakePath2D {
+  __clip: ClipObs | undefined;
+  rect(x: number, y: number, width: number, height: number): void {
+    this.__clip = { type: "rect", x, y, width, height };
+  }
+  arc(): void {
+    this.__clip = { type: "circle" };
+  }
+  moveTo(): void {
+    this.__clip ??= { type: "path" };
+  }
+  lineTo(): void {
+    this.__clip ??= { type: "path" };
+  }
+  bezierCurveTo(): void {
+    this.__clip ??= { type: "path" };
+  }
+  quadraticCurveTo(): void {
+    this.__clip ??= { type: "path" };
+  }
+  closePath(): void {}
+}
 
 interface RecGradient {
   __grad: "linear" | "radial" | "conic";
@@ -74,7 +102,10 @@ function recCtx(
     bezierCurveTo() {},
     quadraticCurveTo() {},
     closePath() {},
-    clip() {},
+    clip(path?: FakePath2D) {
+      if (path && path.__clip)
+        log.push({ type: "clip", index, obs: path.__clip });
+    },
     save() {},
     restore() {},
     setTransform() {},
@@ -205,7 +236,13 @@ function canvasTrace(
       recentLuma = new Set();
     }
   }
-  return { paints, masks, width, height };
+  const clips = log
+    .filter(
+      (e): e is Extract<CanvasEvent, { type: "clip" }> =>
+        e.type === "clip" && e.index === "main",
+    )
+    .map((e) => e.obs);
+  return { paints, masks, clips, width, height };
 }
 
 function canvasMode(luma: boolean, invert: boolean): MaskMode {
@@ -216,6 +253,8 @@ function canvasMode(luma: boolean, invert: boolean): MaskMode {
 const canvasHarness: ConformanceHarness = {
   backend: "canvas2d",
   run(ops) {
+    // Canvas2DRenderer.clip news up a Path2D; provide the recording stand-in.
+    (globalThis as { Path2D?: unknown }).Path2D = FakePath2D;
     const log: CanvasEvent[] = [];
     const W = 20,
       H = 20;
@@ -418,7 +457,24 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
   const masks: MaskObs[] = findAll(defs, (e) => e.tagName === "mask").map(
     (mask) => ({ mode: svgMaskMode(defs, mask) }),
   );
-  return { paints, masks, width: r.getWidth(), height: r.getHeight() };
+  // Each <clipPath> holds one shape; reverse-map it to the shared ClipObs.
+  const clips: ClipObs[] = findAll(defs, (e) => e.tagName === "clipPath")
+    .map((cp) => cp.firstChild)
+    .filter((s): s is FakeElement => s !== null)
+    .map((s) => {
+      const num = (n: string) => Number(s.getAttribute(n));
+      if (s.tagName === "rect")
+        return {
+          type: "rect" as const,
+          x: num("x"),
+          y: num("y"),
+          width: num("width"),
+          height: num("height"),
+        };
+      if (s.tagName === "circle") return { type: "circle" as const };
+      return { type: "path" as const };
+    });
+  return { paints, masks, clips, width: r.getWidth(), height: r.getHeight() };
 }
 
 function svgMaskMode(defs: FakeElement, mask: FakeElement): MaskMode {
