@@ -25,6 +25,25 @@ counts for `sides`). Hex colors accept 3–8 digits (`#rgb` … `#rrggbbaa`), an
 `rgb()`/`rgba()` work for both solid colors and gradient stops. Block comments
 (`/* … */`) and a trailing `;` before `}` are allowed.
 
+## CSS aliases
+
+A handful of familiar CSS properties are accepted as write-in-only sugar and
+rewritten to their canonical Popkorn names at parse time (the saved/serialized
+format always uses the canonical name):
+
+| You may write | Rewrites to | Notes |
+| --- | --- | --- |
+| `left` / `top` | `x` / `y` | `right` / `bottom` are rejected — no containing box; position with `x`/`y`. |
+| `color` | `fill` | Handy for text. |
+| `background` | `fill` | On `:root` this still sets the stage color. |
+| `border-radius: <r>` | `rx` + `ry` | Single value only; multi-value/elliptical → use `type: path`. |
+| `border: <w> solid <c>` | `stroke-width` + `stroke` | Only `solid` (and `none`); other styles are rejected. |
+
+Aliases work everywhere a declaration does — rule bodies, `@keyframes`,
+`&:hover`/`&:active`, and `@define` — so e.g. animating `border-radius` in
+`@keyframes` animates `rx`/`ry`. Box-model properties (`padding`, `margin`,
+`display`, `position`) are rejected with a warning: Popkorn has no box model.
+
 ## Shapes
 
 ```css

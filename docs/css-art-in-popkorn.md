@@ -13,6 +13,14 @@ way to say what you mean. This doc is a hack-by-hack translation table. Every
 snippet below was checked against [`reference.md`](./reference.md); see the
 `creating-popkorn-animations` skill for the full authoring workflow.
 
+The examples here teach Popkorn's native property names (`x`/`y`, `fill`,
+`rx`/`ry`, `stroke`), but a few CSS spellings are accepted as write-in-only
+sugar and rewritten on the way in: `left`/`top` → `x`/`y`, `color`/`background`
+→ `fill`, single-value `border-radius` → `rx`+`ry`, and `border: <w> solid <c>`
+→ `stroke-width`+`stroke`. See [CSS aliases](./reference.md#css-aliases). They
+only ease the first keystrokes — the saved format is always the canonical name,
+so lean on the native names once you're fluent.
+
 ## `::before` / `::after` layer multiplication
 
 CSS gives you exactly two extra paintable layers per element, so CSS art

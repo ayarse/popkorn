@@ -28,6 +28,13 @@ import type {
   Value,
   VariableDefinition,
 } from "./ast";
+import {
+  isColorValue,
+  isKeywordValue,
+  isLengthValue,
+  isListValue,
+  isNumberValue,
+} from "./ast";
 
 const IDENT = /[a-zA-Z_][a-zA-Z0-9_-]*/y;
 const CUSTOM = /--[a-zA-Z_][a-zA-Z0-9_-]*/y;
@@ -382,7 +389,7 @@ function parseRuleBody(c: Cursor): {
         states.push({ state: kw as PseudoState, ...parseStateBlock(c) });
       }
     } else {
-      declarations.push(parseDeclaration(c));
+      declarations.push(...parseDeclaration(c));
     }
   }
   return { declarations, children, states };
@@ -400,12 +407,12 @@ function parseStateBlock(c: Cursor): {
   const children: Rule[] = [];
   while (!c.eat("}")) {
     if (c.eat(">")) children.push(parseRule(c));
-    else declarations.push(parseDeclaration(c));
+    else declarations.push(...parseDeclaration(c));
   }
   return { declarations, children };
 }
 
-function parseDeclaration(c: Cursor): Declaration {
+function parseDeclaration(c: Cursor): Declaration[] {
   const property = c.match(CUSTOM) ?? c.ident();
   c.expect(":");
   // A value is one or more comma-separated groups, each a space-separated list
@@ -418,14 +425,117 @@ function parseDeclaration(c: Cursor): Declaration {
     if (!c.eat(",")) break;
   }
   c.eat(";"); // optional trailing semicolon
-  return {
-    type: "declaration",
-    property,
-    value:
-      groups.length === 1
-        ? groups[0]
-        : { type: "list", values: groups, separator: "comma" },
-  };
+  const value: Value =
+    groups.length === 1
+      ? groups[0]
+      : { type: "list", values: groups, separator: "comma" };
+  return expandAliases(property, value);
+}
+
+const decl = (property: string, value: Value): Declaration => ({
+  type: "declaration",
+  property,
+  value,
+});
+
+// Recognized border-style keywords, so `border:`'s style keyword can be told
+// apart from a named-color keyword (`red`) in the same value list.
+const BORDER_STYLES = new Set([
+  "none",
+  "solid",
+  "dashed",
+  "dotted",
+  "double",
+  "groove",
+  "ridge",
+  "inset",
+  "outset",
+]);
+
+/**
+ * Write-in-only CSS alias sugar for CSS artists. Aliases are rewritten to
+ * canonical Popkorn properties here at the single parseDeclaration choke point,
+ * so the rewrite covers rule bodies, `@keyframes`, `&:hover`/`&:active`, and
+ * `@define` alike — and aliased animatable props (e.g. `border-radius` → rx/ry)
+ * already speak canonical names before animation matching. The AST/scene/
+ * serializer never see alias spellings. Rejected forms warn (Popkorn has no box
+ * model / no containing box) rather than vanishing silently.
+ */
+function expandAliases(property: string, value: Value): Declaration[] {
+  switch (property) {
+    // Positional sugar. right/bottom have no containing box to resolve against.
+    case "left":
+      return [decl("x", value)];
+    case "top":
+      return [decl("y", value)];
+    case "right":
+    case "bottom":
+      console.warn(
+        `Popkorn: '${property}' has no containing box; position with x/y instead.`,
+      );
+      return [];
+
+    // Paint sugar. `background`/`color` both fold to `fill`; a `:root` stage
+    // background is read back from the rewritten `fill` in extractCanvas, so its
+    // stage-color meaning is preserved.
+    case "background":
+    case "color":
+      return [decl("fill", value)];
+
+    // border-radius: <r>  ->  rx + ry (single value only).
+    case "border-radius":
+      if (isListValue(value)) {
+        console.warn(
+          "Popkorn: multi-value/elliptical border-radius isn't supported; use type: path for a custom outline.",
+        );
+        return [];
+      }
+      return [decl("rx", value), decl("ry", value)];
+
+    // border: <width> solid <color>  ->  stroke-width + stroke.
+    case "border":
+      return expandBorder(value);
+
+    // Box-model properties Popkorn has no concept of.
+    case "padding":
+    case "margin":
+    case "display":
+    case "position":
+      console.warn(
+        `Popkorn: '${property}' is not supported — Popkorn has no box model.`,
+      );
+      return [];
+
+    default:
+      return [decl(property, value)];
+  }
+}
+
+/** `border: <width> solid <color>` → `stroke-width` + `stroke`. Only `solid`
+ * (and `none`, which clears the stroke) map; other styles warn. */
+function expandBorder(value: Value): Declaration[] {
+  const parts = isListValue(value) ? value.values : [value];
+  const style = parts.find(
+    (p) => isKeywordValue(p) && BORDER_STYLES.has(p.value),
+  );
+  if (style && isKeywordValue(style) && style.value === "none") {
+    return [decl("stroke-width", { type: "number", value: 0 })];
+  }
+  if (style && isKeywordValue(style) && style.value !== "solid") {
+    console.warn(
+      `Popkorn: border-style '${style.value}' isn't supported; only 'solid' maps to a stroke.`,
+    );
+    return [];
+  }
+  const out: Declaration[] = [];
+  const width = parts.find((p) => isLengthValue(p) || isNumberValue(p));
+  if (width) out.push(decl("stroke-width", width));
+  const color = parts.find(
+    (p) =>
+      isColorValue(p) || (isKeywordValue(p) && !BORDER_STYLES.has(p.value)),
+  );
+  if (color) out.push(decl("stroke", color));
+  return out;
 }
 
 function parseValueList(c: Cursor): Value[] {
@@ -656,9 +766,10 @@ function parseDeclBlock(c: Cursor): {
   const declarations: Declaration[] = [];
   let easing: Value | undefined;
   while (!c.eat("}")) {
-    const d = parseDeclaration(c);
-    if (d.property === "animation-timing-function") easing = d.value;
-    else declarations.push(d);
+    for (const d of parseDeclaration(c)) {
+      if (d.property === "animation-timing-function") easing = d.value;
+      else declarations.push(d);
+    }
   }
   return { declarations, easing };
 }
@@ -676,7 +787,9 @@ function extractCanvas(rule: Rule): CanvasConfig | undefined {
       cfg().width = decl.value.value;
     else if (decl.property === "height" && decl.value.type === "length")
       cfg().height = decl.value.value;
-    else if (decl.property === "background" && decl.value.type === "color")
+    // `background` is rewritten to `fill` by the alias pass before it reaches
+    // here, so read the stage color back from `fill` — its meaning is preserved.
+    else if (decl.property === "fill" && decl.value.type === "color")
       cfg().background = decl.value.value;
   }
   return config;
