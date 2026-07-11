@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { getNumericValue } from "./ast";
 import { parse } from "./parser";
 
 // One assertion per Value / node kind — together these pin down the whole AST contract.
@@ -165,6 +166,117 @@ test("function call with dimension args", () => {
       { type: "length", value: 200, unit: "px" },
     ],
   });
+});
+
+// --- calc() ----------------------------------------------------------------
+
+test("calc() with + builds a left-leaning binary tree", () => {
+  expect(
+    parse("#s { cx: calc(100px + 20px); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-binary",
+      op: "+",
+      left: {
+        type: "calc-operand",
+        value: { type: "length", value: 100, unit: "px" },
+      },
+      right: {
+        type: "calc-operand",
+        value: { type: "length", value: 20, unit: "px" },
+      },
+    },
+  });
+});
+
+test("calc() honors * / over + - precedence", () => {
+  const v = parse("#s { cx: calc(2 + 3 * 4); }").rules[0].declarations[0].value;
+  expect(v).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-binary",
+      op: "+",
+      left: { type: "calc-operand", value: { type: "number", value: 2 } },
+      right: {
+        type: "calc-binary",
+        op: "*",
+        left: { type: "calc-operand", value: { type: "number", value: 3 } },
+        right: { type: "calc-operand", value: { type: "number", value: 4 } },
+      },
+    },
+  });
+});
+
+test("calc() parenthesized group overrides precedence without extra nodes", () => {
+  expect(
+    parse("#s { cx: calc((2 + 3) * 4); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-binary",
+      op: "*",
+      left: {
+        type: "calc-binary",
+        op: "+",
+        left: { type: "calc-operand", value: { type: "number", value: 2 } },
+        right: { type: "calc-operand", value: { type: "number", value: 3 } },
+      },
+      right: { type: "calc-operand", value: { type: "number", value: 4 } },
+    },
+  });
+});
+
+test("calc() composes with var() and input() operands", () => {
+  const v = parse("#s { cx: calc(var(--i) * -0.1s); }").rules[0].declarations[0]
+    .value;
+  expect(v).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-binary",
+      op: "*",
+      left: { type: "calc-operand", value: { type: "variable", name: "--i" } },
+      right: {
+        type: "calc-operand",
+        value: { type: "length", value: -0.1, unit: "s" },
+      },
+    },
+  });
+});
+
+test("calc() requires whitespace around +/- (CSS rule): -3px is a signed operand", () => {
+  // `10px -3px` (no whitespace after `-`) is NOT a subtraction — the `-3px`
+  // reads as a second operand, which is a parse error inside a product.
+  // With whitespace both sides it IS a subtraction.
+  const sub = parse("#s { cx: calc(10px - 3px); }").rules[0].declarations[0]
+    .value;
+  expect(sub).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-binary",
+      op: "-",
+      left: {
+        type: "calc-operand",
+        value: { type: "length", value: 10, unit: "px" },
+      },
+      right: {
+        type: "calc-operand",
+        value: { type: "length", value: 3, unit: "px" },
+      },
+    },
+  });
+});
+
+test("getNumericValue folds a static calc() (precedence + parens)", () => {
+  const v = parse("#s { cx: calc((2 + 3) * 4 - 1); }").rules[0].declarations[0]
+    .value;
+  expect(getNumericValue(v)).toBe(19);
+});
+
+test("getNumericValue folds a static calc() carrying a unit", () => {
+  const v = parse("#s { cx: calc(100px / 4 + 5px); }").rules[0].declarations[0]
+    .value;
+  expect(getNumericValue(v)).toBe(30);
 });
 
 test("animation shorthand → list", () => {

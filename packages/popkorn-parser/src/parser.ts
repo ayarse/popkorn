@@ -8,6 +8,8 @@
  */
 
 import type {
+  CalcExpr,
+  CalcValue,
   CanvasConfig,
   Declaration,
   DefinitionRule,
@@ -458,8 +460,11 @@ function parseValue(c: Cursor): Value {
   if (ch === '"' || ch === "'") return readString(c, ch);
   if (isNumberStart(c, ch)) return readNumber(c);
 
-  // Identifier-led: var(), function call, member expression, or bare keyword.
+  // Identifier-led: calc(), var(), function call, member expression, or bare keyword.
   const name = c.ident();
+  if (name === "calc" && c.peek() === "(") {
+    return parseCalc(c);
+  }
   if (name === "var" && c.peek() === "(") {
     c.expect("(");
     const varName = c.match(CUSTOM)!;
@@ -490,6 +495,87 @@ function parseValue(c: Cursor): Value {
     return { type: "keyword", value: `${name}.${c.ident()}` };
   }
   return { type: "keyword", value: name };
+}
+
+// calc() — a standard CSS arithmetic expression. `(` already peeked; grammar:
+//   sum     := product ( <ws> ('+'|'-') <ws> product )*
+//   product := unary   ( ('*'|'/') unary )*
+//   unary   := '(' sum ')' | <numeric value via parseValue>
+// Per CSS, `+`/`-` REQUIRE surrounding whitespace (so `-3px` reads as a signed
+// operand, not a subtraction); `*`/`/` don't. Operand values (number/length/
+// var()/input()/nested calc()) come straight from parseValue, so calc composes
+// with the rest of the value grammar for free.
+function parseCalc(c: Cursor): CalcValue {
+  c.expect("(");
+  const expr = parseCalcSum(c);
+  c.expect(")");
+  return { type: "calc", expr };
+}
+
+function parseCalcSum(c: Cursor): CalcExpr {
+  let left = parseCalcProduct(c);
+  for (;;) {
+    const op = eatAdditiveOp(c);
+    if (!op) break;
+    const right = parseCalcProduct(c);
+    left = { type: "calc-binary", op, left, right };
+  }
+  return left;
+}
+
+function parseCalcProduct(c: Cursor): CalcExpr {
+  let left = parseCalcUnary(c);
+  for (;;) {
+    const op = eatMulOp(c);
+    if (!op) break;
+    const right = parseCalcUnary(c);
+    left = { type: "calc-binary", op, left, right };
+  }
+  return left;
+}
+
+function parseCalcUnary(c: Cursor): CalcExpr {
+  if (c.peek() === "(") {
+    c.expect("(");
+    const inner = parseCalcSum(c);
+    c.expect(")");
+    return inner;
+  }
+  return { type: "calc-operand", value: parseValue(c) };
+}
+
+// Consume a whitespace-delimited `+`/`-`, enforcing CSS's rule that both sides
+// carry whitespace. Returns null (without advancing) when the next token isn't a
+// valid additive operator here — e.g. `)` or a `-3px` that belongs to the next
+// operand. Operates on raw source so the whitespace requirement is real; must be
+// tried BEFORE any ws-skipping consume so the leading whitespace is still there.
+function eatAdditiveOp(c: Cursor): "+" | "-" | null {
+  let i = c.pos;
+  // Require at least one whitespace char before the operator.
+  if (!isWs(c.src[i])) return null;
+  while (isWs(c.src[i])) i++;
+  const op = c.src[i];
+  if (op !== "+" && op !== "-") return null;
+  // And whitespace after it.
+  if (!isWs(c.src[i + 1])) return null;
+  c.pos = i + 1;
+  return op;
+}
+
+// Consume a `*`/`/` (whitespace around it is optional per CSS). Non-destructive
+// when it doesn't match: c.pos is left untouched so a following eatAdditiveOp
+// still sees the whitespace it needs (c.eat would swallow it).
+function eatMulOp(c: Cursor): "*" | "/" | null {
+  let i = c.pos;
+  while (isWs(c.src[i])) i++;
+  const op = c.src[i];
+  if (op !== "*" && op !== "/") return null;
+  c.pos = i + 1;
+  return op;
+}
+
+function isWs(ch: string | undefined): boolean {
+  return ch === " " || ch === "\t" || ch === "\n" || ch === "\r";
 }
 
 function readString(c: Cursor, quote: string): Value {

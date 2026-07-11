@@ -1,4 +1,5 @@
 import type {
+  CalcExpr,
   Declaration,
   DefinitionRule,
   FunctionValue,
@@ -12,8 +13,10 @@ import type {
   Value,
 } from "@popkorn/parser";
 import {
+  evalCalcStatic,
   getNumericValue,
   getStringValue,
+  isCalcValue,
   isColorValue,
   isFunctionValue,
   isKeywordValue,
@@ -2236,6 +2239,22 @@ export class SceneBuilder {
       });
       return changed ? { ...value, values } : value;
     }
+    if (isCalcValue(value)) {
+      // Resolve static :root vars inside the operands, then fold the whole
+      // expression to a literal when nothing reactive remains — so static (and
+      // static-var) calc() reaches every downstream reader as a plain
+      // length/number, animation-delay/duration included. A calc() that still
+      // holds a reactive var()/input() stays a calc and flows to the numeric
+      // binding path (resolved per frame — see VariableResolver.resolveValue).
+      const resolved = {
+        type: "calc" as const,
+        expr: mapCalcOperands(value.expr, (v) => this.resolveStaticVars(v)),
+      };
+      if (!this.hasVariableReference(resolved)) {
+        return evalCalcStatic(resolved) ?? resolved;
+      }
+      return resolved;
+    }
     return value;
   }
 
@@ -2253,6 +2272,11 @@ export class SceneBuilder {
     // Check list values recursively
     if (isListValue(value)) {
       return value.values.some((v) => this.hasVariableReference(v));
+    }
+
+    // Recurse into calc() operands.
+    if (isCalcValue(value)) {
+      return calcOperands(value.expr).some((v) => this.hasVariableReference(v));
     }
 
     return false;
@@ -2470,8 +2494,35 @@ function commaValues(value: Value): Value[] {
     : [value];
 }
 
+// Every leaf Value in a calc() expression tree (left→right).
+function calcOperands(expr: CalcExpr): Value[] {
+  if (expr.type === "calc-operand") return [expr.value];
+  return [...calcOperands(expr.left), ...calcOperands(expr.right)];
+}
+
+// Rebuild a calc() expression tree, mapping each leaf Value through `fn`.
+function mapCalcOperands(expr: CalcExpr, fn: (v: Value) => Value): CalcExpr {
+  if (expr.type === "calc-operand")
+    return { type: "calc-operand", value: fn(expr.value) };
+  return {
+    type: "calc-binary",
+    op: expr.op,
+    left: mapCalcOperands(expr.left, fn),
+    right: mapCalcOperands(expr.right, fn),
+  };
+}
+
 // Time value (`s`/`ms`) to milliseconds, or null when it isn't a time.
+// NOTE: only STATIC calc() folds here — animation timing is baked at build, so a
+// calc() with a reactive var()/input() operand can't re-evaluate per frame (like
+// a bare var() in timing, which is also unsupported). Reactive calc works on the
+// per-frame numeric property bindings instead; lifting it into timing would mean
+// a live-retimed scheduler, out of scope.
 function timeMs(value: Value): number | null {
+  if (isCalcValue(value)) {
+    const folded = evalCalcStatic(value);
+    return folded ? timeMs(folded) : null;
+  }
   if (!isLengthValue(value)) return null;
   return value.unit === "s"
     ? value.value * 1000

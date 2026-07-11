@@ -1,5 +1,14 @@
-import type { Value, VariableDefinition } from "@popkorn/parser";
+import type {
+  CalcExpr,
+  CalcNumeric,
+  CalcValue,
+  Value,
+  VariableDefinition,
+} from "@popkorn/parser";
 import {
+  calcNumericToValue,
+  evalCalc,
+  isCalcValue,
   isColorValue,
   isFunctionValue,
   isKeywordValue,
@@ -124,7 +133,40 @@ export class VariableResolver {
     if (isVariableRefValue(value)) {
       return this.resolveVariable(value.name, value.fallback);
     }
+    if (isCalcValue(value)) {
+      return this.resolveCalc(value);
+    }
     return value;
+  }
+
+  /**
+   * Evaluate a calc() against the live variable/input state. Runs per frame for
+   * reactive calc (var()/input() operands) via the numeric binding path, so a
+   * calc that reads input(cursor.x) re-evaluates like any other binding. Purely
+   * static calc is already folded to a literal at build time, so this only fires
+   * for the reactive case.
+   */
+  private resolveCalc(value: CalcValue): Value {
+    const n = evalCalc(value.expr, (v) => this.calcLeaf(v));
+    return n ? calcNumericToValue(n) : { type: "number", value: 0 };
+  }
+
+  private calcLeaf(v: Value): CalcNumeric | null {
+    if (isCalcValue(v)) return evalCalc(v.expr, (x) => this.calcLeaf(x));
+    // input(path) resolves straight to a unitless number.
+    if (isFunctionValue(v) && v.name === "input") {
+      const path = this.getInputPath(v.args);
+      return { value: path ? this.resolveInputPath(path) : 0, unit: "" };
+    }
+    const resolved = this.resolveValue(v); // handles var()
+    if (isNumberValue(resolved)) return { value: resolved.value, unit: "" };
+    if (isLengthValue(resolved))
+      return { value: resolved.value, unit: resolved.unit };
+    if (isKeywordValue(resolved)) {
+      if (resolved.value === "true") return { value: 1, unit: "" };
+      if (resolved.value === "false") return { value: 0, unit: "" };
+    }
+    return null;
   }
 
   /**
@@ -195,7 +237,17 @@ export class VariableResolver {
     if (isFunctionValue(value) && value.name === "input") {
       return true;
     }
+    if (isCalcValue(value)) {
+      return this.calcHasVariables(value.expr);
+    }
     return false;
+  }
+
+  private calcHasVariables(expr: CalcExpr): boolean {
+    if (expr.type === "calc-operand") return this.hasVariables(expr.value);
+    return (
+      this.calcHasVariables(expr.left) || this.calcHasVariables(expr.right)
+    );
   }
 
   private setupBuiltinInputs(): void {

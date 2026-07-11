@@ -75,7 +75,8 @@ export type Value =
   | StringValue
   | FunctionValue
   | ListValue
-  | VariableRefValue;
+  | VariableRefValue
+  | CalcValue;
 
 // Reference to a CSS variable: var(--name)
 export interface VariableRefValue {
@@ -123,6 +124,29 @@ export interface ListValue {
   // `transform`); 'comma' marks a CSS comma-separated list (e.g. a multi-value
   // `animation` shorthand), whose items are themselves usually space-lists.
   separator?: "space" | "comma";
+}
+
+// CSS calc(): an arithmetic expression tree over numeric operands. The AST stays
+// semantics-free — evaluation (unit propagation, var() resolution) lives in
+// evalCalc, shared by the build-time static fold and the per-frame runtime path.
+export interface CalcValue {
+  type: "calc";
+  expr: CalcExpr;
+}
+
+export type CalcExpr = CalcBinary | CalcOperand;
+
+export interface CalcBinary {
+  type: "calc-binary";
+  op: "+" | "-" | "*" | "/";
+  left: CalcExpr;
+  right: CalcExpr;
+}
+
+// A leaf: any numeric Value (length/number/var()/input()/nested calc()).
+export interface CalcOperand {
+  type: "calc-operand";
+  value: Value;
 }
 
 export interface KeyframeRule {
@@ -219,10 +243,83 @@ export function isVariableRefValue(value: Value): value is VariableRefValue {
   return value.type === "variable";
 }
 
+export function isCalcValue(value: Value): value is CalcValue {
+  return value.type === "calc";
+}
+
+// --- calc() evaluation ----------------------------------------------------
+
+// A numeric result carrying its unit; unit "" means a plain (unitless) number.
+export interface CalcNumeric {
+  value: number;
+  unit: string;
+}
+
+/**
+ * Evaluate a calc() expression tree. `resolveLeaf` maps each operand Value to a
+ * {@link CalcNumeric} (or null when it can't be resolved to a number). Returns
+ * null on any unresolvable operand or an unsupported unit combination
+ * (unit·unit multiply, divide-by-unit, add/subtract of mismatched units) — the
+ * caller keeps the original value in that case. Kept lean on purpose: no full
+ * unit-algebra system.
+ */
+export function evalCalc(
+  expr: CalcExpr,
+  resolveLeaf: (v: Value) => CalcNumeric | null,
+): CalcNumeric | null {
+  if (expr.type === "calc-operand") return resolveLeaf(expr.value);
+  const l = evalCalc(expr.left, resolveLeaf);
+  const r = evalCalc(expr.right, resolveLeaf);
+  if (!l || !r) return null;
+  switch (expr.op) {
+    case "+":
+    case "-": {
+      if (l.unit && r.unit && l.unit !== r.unit) return null;
+      const value = expr.op === "+" ? l.value + r.value : l.value - r.value;
+      return { value, unit: l.unit || r.unit };
+    }
+    case "*": {
+      if (l.unit && r.unit) return null; // no unit·unit
+      return { value: l.value * r.value, unit: l.unit || r.unit };
+    }
+    case "/": {
+      if (r.unit) return null; // no divide-by-unit
+      return { value: l.value / r.value, unit: l.unit };
+    }
+  }
+}
+
+/** A {@link CalcNumeric} as a concrete AST Value (unitless → number). */
+export function calcNumericToValue(n: CalcNumeric): Value {
+  return n.unit
+    ? { type: "length", value: n.value, unit: n.unit as LengthValue["unit"] }
+    : { type: "number", value: n.value };
+}
+
+// Fold a calc() whose operands are all literal numbers/lengths (no var/input);
+// returns null when anything can't be resolved statically.
+function staticLeaf(v: Value): CalcNumeric | null {
+  if (v.type === "number") return { value: v.value, unit: "" };
+  if (v.type === "length") return { value: v.value, unit: v.unit };
+  if (v.type === "calc") return evalCalc(v.expr, staticLeaf);
+  return null;
+}
+
+/** Statically fold a calc() to a length/number Value, or null if it contains
+ * unresolved var()/input() operands (which must resolve at runtime instead). */
+export function evalCalcStatic(value: CalcValue): Value | null {
+  const n = evalCalc(value.expr, staticLeaf);
+  return n ? calcNumericToValue(n) : null;
+}
+
 // Value extractors
 export function getNumericValue(value: Value): number {
   if (value.type === "number") return value.value;
   if (value.type === "length") return value.value;
+  if (value.type === "calc") {
+    const folded = evalCalcStatic(value);
+    return folded ? getNumericValue(folded) : 0;
+  }
   return 0;
 }
 

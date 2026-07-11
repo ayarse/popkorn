@@ -1,4 +1,9 @@
 export type {
+  CalcBinary,
+  CalcExpr,
+  CalcNumeric,
+  CalcOperand,
+  CalcValue,
   CanvasConfig,
   ColorValue,
   Declaration,
@@ -26,8 +31,12 @@ export type {
   VariableRefValue,
 } from "./ast";
 export {
+  calcNumericToValue,
+  evalCalc,
+  evalCalcStatic,
   getNumericValue,
   getStringValue,
+  isCalcValue,
   isColorValue,
   isFunctionValue,
   isKeywordValue,

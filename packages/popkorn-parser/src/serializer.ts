@@ -14,6 +14,7 @@
  */
 
 import type {
+  CalcExpr,
   CanvasConfig,
   Declaration,
   DefinitionRule,
@@ -80,6 +81,8 @@ function fmtValue(v: Value, min: boolean): string {
     }
     case "variable":
       return `var(${v.name})`;
+    case "calc":
+      return `calc(${fmtCalc(v.expr, min)})`;
     case "function": {
       const sep = min ? "," : ", ";
       return `${v.name}(${v.args.map((a) => fmtValue(a, min)).join(sep)})`;
@@ -91,6 +94,17 @@ function fmtValue(v: Value, min: boolean): string {
       return v.values.map((a) => fmtValue(a, min)).join(sep);
     }
   }
+}
+
+// A calc() expression. `+`/`-` always keep surrounding spaces (CSS requires
+// them, even minified); `*`/`/` drop them when minifying. Every binary node is
+// parenthesized so precedence round-trips exactly.
+function fmtCalc(expr: CalcExpr, min: boolean): string {
+  if (expr.type === "calc-operand") return fmtValue(expr.value, min);
+  const l = fmtCalc(expr.left, min);
+  const r = fmtCalc(expr.right, min);
+  const sp = expr.op === "+" || expr.op === "-" ? " " : min ? "" : " ";
+  return `(${l}${sp}${expr.op}${sp}${r})`;
 }
 
 function fmtDecl(d: Declaration, min: boolean): string {

@@ -157,3 +157,70 @@ test("scroll.progress input reads the tracked value", () => {
   });
   expect(r.resolveNumeric({ type: "variable", name: "--p" })).toBe(0.5);
 });
+
+// --- calc() resolution -------------------------------------------------------
+
+test("calc() resolves var() operands per frame", () => {
+  const r = createVariableResolver();
+  r.setVariables([{ name: "--i", value: { type: "number", value: 3 } }]);
+  // calc(var(--i) * 10px + 5px) => 35px
+  const calc = {
+    type: "calc" as const,
+    expr: {
+      type: "calc-binary" as const,
+      op: "+" as const,
+      left: {
+        type: "calc-binary" as const,
+        op: "*" as const,
+        left: {
+          type: "calc-operand" as const,
+          value: { type: "variable" as const, name: "--i" },
+        },
+        right: {
+          type: "calc-operand" as const,
+          value: { type: "length" as const, value: 10, unit: "px" as const },
+        },
+      },
+      right: {
+        type: "calc-operand" as const,
+        value: { type: "length" as const, value: 5, unit: "px" as const },
+      },
+    },
+  };
+  expect(r.resolveNumeric(calc)).toBe(35);
+  // A host override flows through the same calc on the next resolve.
+  r.setVariable("--i", 4);
+  expect(r.resolveNumeric(calc)).toBe(45);
+});
+
+test("calc() re-evaluates input() operands as input state changes", () => {
+  const r = createVariableResolver();
+  r.setVariables([]);
+  // calc(input(cursor.x) / 2)
+  const calc = {
+    type: "calc" as const,
+    expr: {
+      type: "calc-binary" as const,
+      op: "/" as const,
+      left: {
+        type: "calc-operand" as const,
+        value: {
+          type: "function" as const,
+          name: "input",
+          args: [{ type: "keyword" as const, value: "cursor.x" }],
+        },
+      },
+      right: {
+        type: "calc-operand" as const,
+        value: { type: "number" as const, value: 2 },
+      },
+    },
+  };
+  expect(r.resolveNumeric(calc)).toBe(0);
+  r.updateInputState({
+    cursor: { x: 200, y: 0, isDown: false },
+    scroll: { x: 0, y: 0, progress: 0 },
+    time: 0,
+  });
+  expect(r.resolveNumeric(calc)).toBe(100);
+});
