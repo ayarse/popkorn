@@ -27,7 +27,7 @@ function App() {
           onToggleChat={() => setChatOpen((v) => !v)}
         />
 
-        <div ref={split.containerRef} className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
           <div
             className="flex min-w-0 overflow-hidden"
             style={{ flex: `${split.frac} 1 0` }}

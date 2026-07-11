@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 /**
  * Draggable vertical split between two horizontal panels. Returns the left
@@ -7,7 +7,6 @@ import { useCallback, useRef, useState } from "react";
  */
 export function useHorizontalSplit(initial = 0.5, min = 0.2, max = 0.8) {
   const [frac, setFrac] = useState(initial);
-  const containerRef = useRef<HTMLDivElement>(null);
   const clamp = useCallback(
     (f: number) => Math.min(max, Math.max(min, f)),
     [min, max],
@@ -15,13 +14,18 @@ export function useHorizontalSplit(initial = 0.5, min = 0.2, max = 0.8) {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      const el = containerRef.current;
-      if (!el) return;
+      // Measure against the panel pair (handle's two siblings), not the whole
+      // container — otherwise a fixed sibling like the chat sidebar skews frac.
+      const left =
+        e.currentTarget.previousElementSibling?.getBoundingClientRect();
+      const right = e.currentTarget.nextElementSibling?.getBoundingClientRect();
+      if (!left || !right) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      const rect = el.getBoundingClientRect();
+      const origin = left.left;
+      const span = right.right - left.left;
       const move = (ev: PointerEvent) => {
-        setFrac(clamp((ev.clientX - rect.left) / rect.width));
+        setFrac(clamp((ev.clientX - origin) / span));
       };
       const up = () => {
         window.removeEventListener("pointermove", move);
@@ -43,7 +47,7 @@ export function useHorizontalSplit(initial = 0.5, min = 0.2, max = 0.8) {
     [clamp],
   );
 
-  return { frac, min, max, containerRef, onPointerDown, onKeyDown };
+  return { frac, min, max, onPointerDown, onKeyDown };
 }
 
 export function ResizeHandle(props: {
