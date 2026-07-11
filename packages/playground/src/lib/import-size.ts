@@ -36,6 +36,10 @@ export type ImportResult = {
   raw: SizePair;
   min?: SizePair;
   gz?: SizePair;
+  // Gzipped size with the popkorn side additionally crushed (identifiers
+  // renamed) — the smallest wire size the format reaches. Source side mirrors
+  // `gz.lottie` so the row compares against the same source bytes.
+  crushGz?: SizePair;
 };
 
 export function buildImportResult(
@@ -61,21 +65,27 @@ export function buildImportResult(
 }
 
 // Gzipped transfer size of the minified forms (what actually ships over the
-// wire). Async because CompressionStream is; the row fills in once resolved.
+// wire), plus the crushed form (identifiers renamed) as the achievable floor.
+// Async because CompressionStream is; the rows fill in once resolved.
 export async function gzipSizes(
   format: string,
   rawSource: string,
   css: string,
-): Promise<SizePair | undefined> {
+): Promise<{ gz: SizePair; crushGz: SizePair } | undefined> {
   try {
     // Lottie ships as minified JSON; SVG ships as-is.
     const source =
       format === "Lottie" ? JSON.stringify(JSON.parse(rawSource)) : rawSource;
-    const [lottie, popkorn] = await Promise.all([
+    const sheet = parse(css);
+    const [srcGz, minGz, crushGz] = await Promise.all([
       gzipBytes(source),
-      gzipBytes(serialize(parse(css), { minify: true })),
+      gzipBytes(serialize(sheet, { minify: true })),
+      gzipBytes(serialize(sheet, { crush: true })),
     ]);
-    return { lottie, popkorn };
+    return {
+      gz: { lottie: srcGz, popkorn: minGz },
+      crushGz: { lottie: srcGz, popkorn: crushGz },
+    };
   } catch {
     return undefined;
   }

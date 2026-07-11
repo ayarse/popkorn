@@ -64,6 +64,21 @@ export function useScene() {
     }
   }
 
+  // Destructive: minify AND rename every id/class/@keyframes/@define/custom
+  // property to a short meaningless name. Render-preserving but one-way — the
+  // human names are gone. The UI confirms before calling this.
+  function crush() {
+    try {
+      const next = serialize(parse(source), { crush: true });
+      setSizeDelta({ before: bytes(source), after: bytes(next) });
+      setSource(next);
+      setMinified(true);
+      setError(null);
+    } catch (e: any) {
+      setError(`Could not crush: ${e.message}`);
+    }
+  }
+
   function applyImport(
     format: string,
     label: string,
@@ -77,8 +92,12 @@ export function useScene() {
     result.warnings = warnings;
     result.blocked = blocked;
     setImportResult(result);
-    void gzipSizes(format, text, css).then((gz) =>
-      setImportResult((prev) => (prev === result ? { ...prev, gz } : prev)),
+    void gzipSizes(format, text, css).then((sizes) =>
+      setImportResult((prev) =>
+        prev === result && sizes
+          ? { ...prev, gz: sizes.gz, crushGz: sizes.crushGz }
+          : prev,
+      ),
     );
   }
 
@@ -160,6 +179,7 @@ export function useScene() {
     selectExample,
     dismissImport: () => setImportResult(null),
     toggleMinify,
+    crush,
     importText,
     importFile,
     applyGenerated,

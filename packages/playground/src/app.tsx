@@ -38,6 +38,7 @@ function App() {
               sizeDelta={scene.sizeDelta}
               minified={scene.minified}
               onToggleMinify={scene.toggleMinify}
+              onCrush={scene.crush}
             />
           </div>
 

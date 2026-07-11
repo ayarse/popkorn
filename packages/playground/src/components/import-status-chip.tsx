@@ -13,11 +13,12 @@ export function ImportStatusChip({
   result: ImportResult;
   onDismiss: () => void;
 }) {
-  const { format, label, warnings, blocked, raw, min, gz } = result;
+  const { format, label, warnings, blocked, raw, min, gz, crushGz } = result;
   const hasIssues = warnings.length > 0 || blocked.length > 0;
   const deltaPct = pct(raw.lottie, raw.popkorn);
   const minDeltaPct = min ? pct(min.lottie, min.popkorn) : 0;
   const gzDeltaPct = gz ? pct(gz.lottie, gz.popkorn) : 0;
+  const crushDeltaPct = crushGz ? pct(crushGz.lottie, crushGz.popkorn) : 0;
   // Collapsed chip teases the gzipped delta (real wire size); until the async
   // gzip resolves, fall back to the raw delta.
   const chipDeltaPct = gz ? gzDeltaPct : deltaPct;
@@ -130,6 +131,27 @@ export function ImportStatusChip({
                     className={`w-12 whitespace-nowrap text-center ${gzDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
                   >
                     {fmtPct(gzDeltaPct)}
+                  </span>
+                </div>
+              )}
+              {crushGz && (
+                <div className="flex items-center gap-2 font-mono">
+                  <span
+                    className="w-2/5 text-muted-foreground"
+                    title="Gzipped, identifiers renamed — smallest wire size (not human-readable)"
+                  >
+                    Crushed
+                  </span>
+                  <span className="flex-1 whitespace-nowrap text-center">
+                    {humanBytes(crushGz.lottie)}
+                  </span>
+                  <span className="flex-1 whitespace-nowrap text-center">
+                    {humanBytes(crushGz.popkorn)}
+                  </span>
+                  <span
+                    className={`w-12 whitespace-nowrap text-center ${crushDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
+                  >
+                    {fmtPct(crushDeltaPct)}
                   </span>
                 </div>
               )}
