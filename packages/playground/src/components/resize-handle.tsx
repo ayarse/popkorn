@@ -71,8 +71,10 @@ export function ResizeHandle(props: {
       onKeyDown={props.onKeyDown}
       className="group relative w-px shrink-0 cursor-col-resize bg-border outline-none focus-visible:bg-primary"
     >
-      {/* Fat invisible hit area so the 1px line is easy to grab */}
-      <div className="absolute inset-y-0 -left-1.5 -right-1.5 z-10 transition-colors group-hover:bg-primary/20" />
+      {/* Fat invisible hit area so the 1px line is easy to grab. Extends only
+          rightward (into the canvas) so it doesn't cover the editor's scrollbar
+          sitting just left of the handle. */}
+      <div className="absolute inset-y-0 left-0 -right-2.5 z-10 transition-colors group-hover:bg-primary/20" />
     </div>
   );
 }
