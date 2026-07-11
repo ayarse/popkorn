@@ -349,8 +349,8 @@ source canvas is tainted by a cross-origin image (pixel readback is blocked).
 
 ## Filters
 
-`filter` applies CSS filter functions to a node and its subtree. Two functions
-are supported — CSS `blur()` is Gaussian by spec, so nothing needs inventing:
+`filter` applies CSS filter functions to a node and its subtree. The supported
+functions are the standard CSS ones — nothing is invented:
 
 ```css
 #glow {
@@ -366,19 +366,32 @@ are supported — CSS `blur()` is Gaussian by spec, so nothing needs inventing:
      on drop-shadow (defaults to black). */
   filter: blur(2px) drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.4));
 }
+
+#tinted {
+  type: rect;
+  /* Recolor a duplicated part with the color-adjust functions. */
+  filter: brightness(1.2) saturate(0.5) hue-rotate(40deg);
+}
 ```
 
 - `blur(<length>)` — Gaussian blur; the radius is the `stdDeviation`.
 - `drop-shadow(<dx> <dy> <blur>? <color>?)` — offset, blur radius, and color
   (color optional, defaults to black).
+- `brightness()`, `contrast()`, `saturate()`, `grayscale()`, `sepia()`,
+  `invert()`, `opacity()` — a single `<number>` or `<percent>` (`50%` == `0.5`;
+  omitted defaults to `1`).
+- `hue-rotate(<angle>)` — an angle in `deg` (omitted defaults to `0`).
 
-Filter lengths are authored in the node's **local** space and **scale with the
-node's transform** — a scaled-up element's blur scales too, matching CSS. On a
-node with children the subtree is composited offscreen and blitted back through
-the filter; a leaf shape is filtered the same way. The blur **radius is
-animatable** in `@keyframes` (`filter: blur(...)`); drop-shadow is static.
-Renderers without filter support (e.g. old Safari) skip filters and draw
-unfiltered (warned once).
+`blur`/`drop-shadow` lengths are authored in the node's **local** space and
+**scale with the node's transform** — a scaled-up element's blur scales too,
+matching CSS; the color-adjust functions are scale-free. On a node with children
+the subtree is composited offscreen and blitted back through the filter; a leaf
+shape is filtered the same way. **The whole filter list is animatable** in
+`@keyframes` (`filter: …`): when two keyframe endpoints share the same function
+sequence each parameter interpolates (blur radius, drop-shadow offset/blur/color,
+color-adjust amounts); a mismatched sequence holds (steps) instead. Renderers
+without filter support (e.g. old Safari canvas, the React Native/Skia backend)
+skip filters and draw unfiltered (warned once).
 
 ## Images
 
@@ -927,3 +940,23 @@ degrade to a warning: `@media`-wrapped keyframes, gradient keyframes, `<set>`,
 `<animateMotion>`, event/sync-base begins, additive/accumulate, and skew.
 Deliberately skipped, matching the Lottie skips: `<pattern>`, `<marker>`,
 `<foreignObject>`, and `<textPath>`.
+
+## Diagnostics
+
+`parse(source)` returns the AST with a `diagnostics: Diagnostic[]` field, and
+`validate(source)` returns just that array — position-tracked warnings/hints for
+authoring mistakes (parsing always continues; existing callers can ignore it). A
+`Diagnostic` is `{ code, severity: "error" | "warning" | "info", message, hint?,
+start, end }` where `start`/`end` are character offsets into the source;
+`offsetToLineCol(source, offset)` maps an offset to a 1-based line/column.
+
+Codes emitted today: `unknown-property` (with a "did you mean" against the known
+property list), `unsupported-property`/`unsupported-value` (box-model and other
+rejected CSS aliases), `unknown-color` (a bare keyword in a `fill`/`stroke` slot
+that names no color, suggested against the named-color subset),
+`unknown-keyframes`/`unknown-define`/`unknown-id` (an `animation`, `use:`, or
+`mask:`/`clip-path`/pointer reference to something never declared),
+`undefined-var` (info: a `var(--x)` never declared in the sheet — may be host-
+provided; add a fallback to silence), and `unterminated-string` (a string with
+no closing quote before a newline/EOF). The list is deliberately small; the
+structure makes adding cases trivial.
