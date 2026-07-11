@@ -942,9 +942,7 @@ export class Converter {
     for (const md of this.maskDefs.values()) top.push(md);
 
     const out: string[] = [];
-    out.push(
-      "/* Generated from SVG by packages/popkorn-converters/src/svg2popkorn.ts */",
-    );
+    out.push("/* Generated from SVG by @popkorn/converters */");
     out.push(`:root {`);
     out.push(`  width: ${num(w)}px;`);
     out.push(`  height: ${num(h)}px;`);

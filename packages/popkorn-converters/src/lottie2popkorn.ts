@@ -551,9 +551,7 @@ export class Converter {
 
     // Serialize.
     const out: string[] = [];
-    out.push(
-      `/* Generated from Lottie by packages/popkorn-converters/src/lottie2popkorn.ts */`,
-    );
+    out.push(`/* Generated from Lottie by @popkorn/converters */`);
     out.push(`/* comp ${w}x${h} @ ${this.fr}fps, duration ${num(durSec)}s */`);
     out.push("");
     // Stage config and hoisted image/path custom properties share one `:root`.
