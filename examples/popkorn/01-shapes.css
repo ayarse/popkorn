@@ -72,3 +72,37 @@
   text-anchor: middle;
   fill: #8b8ba7;
 }
+
+/* Conic-gradient pie, tucked in the top-left corner outside the card */
+#pie {
+  type: circle;
+  cx: 50px;
+  cy: 55px;
+  r: 35px;
+  fill: conic-gradient(from 0deg,
+    #ff6b6b 0deg, #ff6b6b 120deg,
+    #4ecdc4 120deg, #4ecdc4 220deg,
+    #ffe66d 220deg, #ffe66d 360deg);
+}
+
+/* Repeating-conic sunburst, mirrored into the top-right corner */
+#sunburst {
+  type: circle;
+  cx: 755px;
+  cy: 55px;
+  r: 35px;
+  fill: repeating-conic-gradient(from 0deg,
+    #fbbf24 0deg, #fbbf24 12deg, #7c3aed 12deg, #7c3aed 24deg);
+}
+
+/* Repeating-linear barber-pole stripes, tucked below the card */
+#stripes {
+  type: rect;
+  x: 300px;
+  y: 520px;
+  width: 200px;
+  height: 60px;
+  rx: 8px;
+  fill: repeating-linear-gradient(45deg,
+    #22d3ee 0%, #22d3ee 8%, #0e1016 8%, #0e1016 16%);
+}
