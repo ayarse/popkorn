@@ -1,4 +1,11 @@
 import { parse } from "@popkorn/parser";
+import {
+  buildSceneGraph,
+  computeWorldMatrix,
+  type Matrix3x3,
+  type SceneNode,
+  transformPoint,
+} from "@popkorn/player";
 import { applyEdits } from "./edits";
 
 export type ToolContext = {
@@ -453,6 +460,50 @@ function numberLines(lines: string[], from1: number): string {
   return lines.map((l, idx) => `${from1 + idx}\t${l}`).join("\n");
 }
 
+// Per-line "has code" flags: false for blank lines and lines that are wholly
+// inside /* */ comments (block-comment state carries across lines; strings do
+// not, matching the DSL where quoted values stay on one line). Drives
+// read_rules' leading-comment attachment. Kept line-oriented on purpose — the
+// offset-based skipComment/stripNonCode collapse multi-line comments to one
+// space, which would desync line numbers.
+function codeLineFlags(source: string): boolean[] {
+  const lines = source.split("\n");
+  const flags = new Array<boolean>(lines.length).fill(false);
+  let inComment = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    let hasCode = false;
+    let inStr: string | null = null;
+    for (let j = 0; j < line.length; j++) {
+      const c = line[j];
+      if (inComment) {
+        if (c === "*" && line[j + 1] === "/") {
+          inComment = false;
+          j++;
+        }
+        continue;
+      }
+      if (inStr) {
+        if (c === "\\") j++;
+        else if (c === inStr) inStr = null;
+        continue;
+      }
+      if (c === "/" && line[j + 1] === "*") {
+        inComment = true;
+        j++;
+        continue;
+      }
+      if (c === '"' || c === "'") {
+        inStr = c;
+        continue;
+      }
+      if (!/\s/.test(c)) hasCode = true;
+    }
+    flags[i] = hasCode;
+  }
+  return flags;
+}
+
 // ----------------------------------------------------------------------------
 // Tool executors — every one returns a string, never throws.
 // ----------------------------------------------------------------------------
@@ -478,6 +529,7 @@ function toolReadRules(
   const source = ctx.getSource();
   const blocks = topBlocks(source);
   const srcLines = source.split("\n");
+  const codeLines = codeLineFlags(source);
   const out: string[] = [];
   for (const raw of selectors as string[]) {
     const want = normalizeWs(raw);
@@ -497,8 +549,21 @@ function toolReadRules(
       out.push(`Rule "${raw}" not found — ${hint}`);
       continue;
     }
-    const body = srcLines.slice(block.startLine - 1, block.endLine);
-    out.push(numberLines(body, block.startLine));
+    // Attach the doc comment: walk upward through the contiguous run of
+    // comment/blank lines directly above the header, stopping at the previous
+    // top-level rule's closing line (its brace stays with it) or any code.
+    let floor = 0;
+    for (const other of blocks) {
+      if (other.endLine < block.startLine && other.endLine > floor) {
+        floor = other.endLine;
+      }
+    }
+    let start = block.startLine;
+    for (let ln = block.startLine - 1; ln > floor && !codeLines[ln - 1]; ln--) {
+      start = ln;
+    }
+    const body = srcLines.slice(start - 1, block.endLine);
+    out.push(numberLines(body, start));
   }
   return out.join("\n\n");
 }
@@ -566,6 +631,91 @@ function toolSearch(args: Record<string, unknown>, ctx: ToolContext): string {
     result += `\n\n(${hits.length} matches; showing first ${shown.length}, ${omitted} omitted)`;
   }
   return result;
+}
+
+// ----------------------------------------------------------------------------
+// Render-truth feedback
+//
+// After a parse-valid edit, we compare each same-id node's WORLD placement
+// before vs after so a silently-broken scene (e.g. a rect→path swap that drops
+// the type-gated `x`, or a keyword transform-origin that collapses to (0,0) on
+// a path) reports a warning instead of a false success.
+//
+// NOTE: compares BASE world placement (post-buildSceneGraph, pre-animation).
+// Sampling t=0 animation state from outside the render loop is awkward, and the
+// base pose is exactly what geometry / transform-origin bugs corrupt — so it's
+// the honest, pure-math proxy. Ceiling: an edit that only misplaces a node
+// mid-animation (base pose intact) won't be flagged.
+// ----------------------------------------------------------------------------
+
+type Pt = { x: number; y: number };
+
+// A cheap per-shape reference point in LOCAL space. For paths we take the first
+// M coordinate (pure math — avoids Path2D/canvas bounds, so it works in bun).
+function localAnchor(node: SceneNode): Pt {
+  const sd = node.shapeData;
+  switch (sd.type) {
+    case "rect":
+    case "image":
+      return { x: sd.x + sd.width / 2, y: sd.y + sd.height / 2 };
+    case "circle":
+    case "ellipse":
+    case "star":
+    case "polygon":
+      return { x: sd.cx, y: sd.cy };
+    case "text":
+      return { x: sd.x, y: sd.y };
+    case "path": {
+      const m = sd.commands.find((c) => c.type === "M");
+      return m ? { x: m.x, y: m.y } : { x: 0, y: 0 };
+    }
+    default:
+      return { x: 0, y: 0 }; // group
+  }
+}
+
+// Walk the tree, recording each identified node's world-space anchor point.
+function collectPlacements(root: SceneNode): Map<string, Pt> {
+  const out = new Map<string, Pt>();
+  const walk = (node: SceneNode, parentWorld: Matrix3x3) => {
+    const world = computeWorldMatrix(node, parentWorld);
+    if (node.id) {
+      const a = localAnchor(node);
+      out.set(node.id, transformPoint(world, a.x, a.y));
+    }
+    for (const child of node.children) walk(child, world);
+  };
+  // computeWorldMatrix defaults parentWorld to identity for the root call.
+  walk(root, computeWorldMatrix(root));
+  return out;
+}
+
+const MOVE_EPSILON = 0.5;
+
+// A warning line for same-id nodes whose base world placement moved, or "" when
+// nothing moved (or a scene can't be built). Appended to an apply_edit success.
+export function placementWarning(before: string, after: string): string {
+  let a: Map<string, Pt>;
+  let b: Map<string, Pt>;
+  try {
+    a = collectPlacements(buildSceneGraph(parse(before)));
+    b = collectPlacements(buildSceneGraph(parse(after)));
+  } catch {
+    return ""; // can't build one side — stay quiet rather than guess
+  }
+  const round = (n: number) => Math.round(n);
+  const moved: string[] = [];
+  for (const [id, pa] of a) {
+    const pb = b.get(id);
+    if (!pb) continue; // node removed by the edit — expected, not a move
+    if (Math.hypot(pa.x - pb.x, pa.y - pb.y) > MOVE_EPSILON) {
+      moved.push(
+        `#${id} (${round(pa.x)},${round(pa.y)})->(${round(pb.x)},${round(pb.y)})`,
+      );
+    }
+  }
+  if (moved.length === 0) return "";
+  return `\nWarning: nodes moved: ${moved.join(", ")}. If unintended, the edit broke placement — check type-gated geometry props and transform-origin.`;
 }
 
 function commitValidated(next: string, ctx: ToolContext, verb: string): string {
@@ -673,7 +823,10 @@ function toolApplyEdit(
   const verb = replaceAll
     ? `Edit applied (${n} occurrence${n === 1 ? "" : "s"})`
     : "Edit applied";
-  return commitValidated(res.result, ctx, verb);
+  const committed = commitValidated(res.result, ctx, verb);
+  // Only append render-truth feedback once the edit actually committed.
+  if (committed.startsWith("Edit rejected")) return committed;
+  return committed + placementWarning(source, res.result);
 }
 
 function toolReadExample(

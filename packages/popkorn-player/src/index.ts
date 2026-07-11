@@ -69,6 +69,7 @@ export {
   parseColor,
   rotationMatrix,
   scaleMatrix,
+  transformPoint,
   translationMatrix,
 } from "./renderer/types";
 export type { HitTestResult, Point } from "./runtime/hit-test";

@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   buildOutline,
   executeTool,
+  placementWarning,
   TOOL_DEFS,
   type ToolContext,
 } from "@/lib/agent-tools";
@@ -343,6 +344,94 @@ test("read_rules returns the numbered rule body on a hit", () => {
   const out = executeTool("read_rules", { selectors: ["#ball"] }, ctx);
   expect(out).toContain("1\t#ball {");
   expect(out).toContain("3\t  fill: #f00;");
+});
+
+// Dominoes-style doc comments live BETWEEN rules; read_rules must fold the
+// contiguous comment/blank run directly above the header into the rule body so
+// the trap-documenting prose reaches the model.
+const DOC_SCENE = `:root {
+  width: 800px;
+  height: 600px;
+}
+
+/* A standing tile, pivoting about its base so it topples like a domino.
+   Placed by the type-gated x; a path swap would drop it. */
+#d1 {
+  type: rect;
+  x: 200px;
+  fill: #4ecdc4;
+}`;
+
+test("read_rules folds the leading doc comment (and blank) into the rule", () => {
+  const ctx = ctxOf(DOC_SCENE);
+  const out = executeTool("read_rules", { selectors: ["#d1"] }, ctx);
+  // Starts at the blank line above the comment (line 5), not the header.
+  expect(out).toContain("6\t/* A standing tile");
+  expect(out).toContain("7\t   Placed by the type-gated x");
+  expect(out).toContain("8\t#d1 {");
+  // The previous rule's closing brace stays with :root, not #d1.
+  expect(out).not.toContain(":root {");
+});
+
+test("read_rules leaves a rule with no leading comment unchanged", () => {
+  const ctx = ctxOf(DOC_SCENE);
+  const out = executeTool("read_rules", { selectors: [":root"] }, ctx);
+  expect(out).toContain("1\t:root {");
+});
+
+// --- apply_edit render-truth feedback -------------------------------------
+
+// A rect placed by the type-gated `x`; swapping to a path silently drops `x`,
+// so the node collapses to the path's local origin — a real move.
+const PLACED_RECT = `#d1 {
+  type: rect;
+  x: 200px;
+  y: 344px;
+  width: 20px;
+  height: 96px;
+  fill: #4ecdc4;
+}`;
+
+test("apply_edit warns when a rect->path swap drops the type-gated x", () => {
+  const ctx = ctxOf(PLACED_RECT);
+  const out = executeTool(
+    "apply_edit",
+    {
+      search:
+        "type: rect;\n  x: 200px;\n  y: 344px;\n  width: 20px;\n  height: 96px;",
+      replace: 'type: path;\n  d: "M 0 0 L 20 0 L 20 96 L 0 96 Z";',
+    },
+    ctx,
+  );
+  expect(out).toContain("Edit applied");
+  expect(out).toContain("nodes moved");
+  expect(out).toContain("#d1");
+});
+
+test("apply_edit appends no warning for a pure recolor", () => {
+  const ctx = ctxOf(PLACED_RECT);
+  const out = executeTool(
+    "apply_edit",
+    { search: "fill: #4ecdc4;", replace: "fill: #ff8f5e;" },
+    ctx,
+  );
+  expect(out).toContain("Edit applied");
+  expect(out).not.toContain("nodes moved");
+});
+
+test("placementWarning is empty when nothing moves and flags a moved node", () => {
+  expect(
+    placementWarning(
+      "#a { type: circle; cx: 10px; cy: 10px; r: 5px; }",
+      "#a { type: circle; cx: 10px; cy: 10px; r: 6px; }",
+    ),
+  ).toBe("");
+  const moved = placementWarning(
+    "#a { type: circle; cx: 10px; cy: 10px; r: 5px; }",
+    "#a { type: circle; cx: 90px; cy: 10px; r: 5px; }",
+  );
+  expect(moved).toContain("nodes moved");
+  expect(moved).toContain("#a (10,10)->(90,10)");
 });
 
 test("search caps at 30 matches and reports the omitted count", () => {
