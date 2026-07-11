@@ -303,7 +303,13 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
         onResponderRelease={onTouchEnd}
         onResponderTerminate={onTouchEnd}
       >
-        <SkiaPictureView ref={viewRef} style={{ width, height }} />
+        {/* pointerEvents: the Skia native view swallows touches on iOS (Android
+            passes them through), which starved the responder — taps must land
+            on the wrapper View, which owns all input. */}
+        <SkiaPictureView
+          ref={viewRef}
+          style={{ width, height, pointerEvents: "none" }}
+        />
       </View>
     );
   },
