@@ -8,7 +8,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AgentSettings } from "@/components/agent/agent-settings";
 import { useAgentChat } from "@/hooks/use-agent-chat";
 import { type Message, SUGGESTIONS } from "@/lib/agent";
@@ -167,6 +167,219 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
   );
 }
 
+// Claude Code-style whimsical working verbs, shown while a run is waiting on
+// the model (reasoning streaming, or just slow first-token latency).
+const WORKING_VERBS = [
+  "Accomplishing",
+  "Actioning",
+  "Actualizing",
+  "Architecting",
+  "Baking",
+  "Beaming",
+  "Beboppin'",
+  "Befuddling",
+  "Billowing",
+  "Blanching",
+  "Bloviating",
+  "Boogieing",
+  "Boondoggling",
+  "Booping",
+  "Bootstrapping",
+  "Brewing",
+  "Bunning",
+  "Burrowing",
+  "Calculating",
+  "Canoodling",
+  "Caramelizing",
+  "Cascading",
+  "Catapulting",
+  "Cerebrating",
+  "Channeling",
+  "Channelling",
+  "Choreographing",
+  "Churning",
+  "Clauding",
+  "Coalescing",
+  "Cogitating",
+  "Combobulating",
+  "Composing",
+  "Computing",
+  "Concocting",
+  "Considering",
+  "Contemplating",
+  "Cooking",
+  "Crafting",
+  "Creating",
+  "Crunching",
+  "Crystallizing",
+  "Cultivating",
+  "Deciphering",
+  "Deliberating",
+  "Determining",
+  "Dilly-dallying",
+  "Discombobulating",
+  "Doing",
+  "Doodling",
+  "Drizzling",
+  "Ebbing",
+  "Effecting",
+  "Elucidating",
+  "Embellishing",
+  "Enchanting",
+  "Envisioning",
+  "Evaporating",
+  "Fermenting",
+  "Fiddle-faddling",
+  "Finagling",
+  "Flambéing",
+  "Flibbertigibbeting",
+  "Flowing",
+  "Flummoxing",
+  "Fluttering",
+  "Forging",
+  "Forming",
+  "Frolicking",
+  "Frosting",
+  "Gallivanting",
+  "Galloping",
+  "Garnishing",
+  "Generating",
+  "Gesticulating",
+  "Germinating",
+  "Gitifying",
+  "Grooving",
+  "Gusting",
+  "Harmonizing",
+  "Hashing",
+  "Hatching",
+  "Herding",
+  "Honking",
+  "Hullaballooing",
+  "Hyperspacing",
+  "Ideating",
+  "Imagining",
+  "Improvising",
+  "Incubating",
+  "Inferring",
+  "Infusing",
+  "Ionizing",
+  "Jitterbugging",
+  "Levitating",
+  "Lollygagging",
+  "Manifesting",
+  "Marinating",
+  "Meandering",
+  "Metamorphosing",
+  "Misting",
+  "Moonwalking",
+  "Moseying",
+  "Mulling",
+  "Mustering",
+  "Musing",
+  "Nebulizing",
+  "Nesting",
+  "Newspapering",
+  "Noodling",
+  "Nucleating",
+  "Orbiting",
+  "Orchestrating",
+  "Osmosing",
+  "Perambulating",
+  "Percolating",
+  "Perusing",
+  "Philosophising",
+  "Photosynthesizing",
+  "Pollinating",
+  "Pondering",
+  "Pontificating",
+  "Pouncing",
+  "Precipitating",
+  "Prestidigitating",
+  "Processing",
+  "Proofing",
+  "Propagating",
+  "Puttering",
+  "Puzzling",
+  "Quantumizing",
+  "Razzle-dazzling",
+  "Razzmatazzing",
+  "Recombobulating",
+  "Reticulating",
+  "Roosting",
+  "Ruminating",
+  "Sautéing",
+  "Scampering",
+  "Schlepping",
+  "Scurrying",
+  "Sketching",
+  "Slithering",
+  "Smooshing",
+  "Sock-hopping",
+  "Spelunking",
+  "Spinning",
+  "Sprouting",
+  "Stewing",
+  "Sublimating",
+  "Swirling",
+  "Swooping",
+  "Symbioting",
+  "Synthesizing",
+  "Tempering",
+  "Thinking",
+  "Thundering",
+  "Tinkering",
+  "Tomfoolering",
+  "Topsy-turvying",
+  "Transfiguring",
+  "Transmuting",
+  "Twisting",
+  "Undulating",
+  "Unfurling",
+  "Unravelling",
+  "Vibing",
+  "Waddling",
+  "Wandering",
+  "Warping",
+  "Whatchamacalliting",
+  "Whirlpooling",
+  "Whirring",
+  "Whisking",
+  "Wibbling",
+  "Working",
+  "Wrangling",
+  "Zesting",
+  "Zigzagging",
+];
+
+const randomVerb = () =>
+  WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)];
+
+// A quiet muted "<Verb>…" row: one random verb per mount, rerolled every 5–10s
+// while it stays on screen. Reuses the tool-status-row look.
+function WorkingIndicator() {
+  const [verb, setVerb] = useState(randomVerb);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      timer = setTimeout(
+        () => {
+          setVerb(randomVerb());
+          tick();
+        },
+        5000 + Math.random() * 5000,
+      );
+    };
+    tick();
+    return () => clearTimeout(timer);
+  }, []);
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] leading-snug text-muted-foreground">
+      <span className="size-1 shrink-0 animate-pulse rounded-full bg-muted-foreground/50" />
+      <span>{verb}…</span>
+    </div>
+  );
+}
+
 function HeaderIconButton({
   icon: Icon,
   label,
@@ -276,12 +489,7 @@ function Bubble({
               ))}
             </div>
           )}
-          {thinking && (
-            <div className="flex items-center gap-1.5 text-[11px] leading-snug text-muted-foreground">
-              <span className="size-1 shrink-0 animate-pulse rounded-full bg-muted-foreground/50" />
-              <span>thinking…</span>
-            </div>
-          )}
+          {thinking && <WorkingIndicator />}
           {isUser ? message.text : <MessageBody text={message.text} />}
         </div>
       </div>
@@ -305,14 +513,8 @@ function TypingBubble() {
       <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
         <Sparkles className="size-3.5" />
       </div>
-      <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-secondary px-3 py-2.5">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="size-1.5 animate-bounce rounded-full bg-muted-foreground"
-            style={{ animationDelay: `${i * 140}ms` }}
-          />
-        ))}
+      <div className="flex items-center rounded-2xl rounded-bl-sm bg-secondary px-3 py-2.5">
+        <WorkingIndicator />
       </div>
     </div>
   );
