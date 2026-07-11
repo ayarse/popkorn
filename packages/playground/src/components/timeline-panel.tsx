@@ -149,9 +149,12 @@ export function TimelinePanel({
   const [machineStates, setMachineStates] = useState<MachineState[]>([]);
   const [zoom, setZoom] = useState(1);
   const [selected, setSelected] = useState<number | null>(null);
-  // Layers expanded to show their animation rows (default: all).
-  const [openLayers, setOpenLayers] = useState<Set<number>>(new Set());
-  // Animation rows (`layer:anim`) expanded to show property rows.
+  // Layers expanded to show their animation rows (default: all), keyed by
+  // `nodeName` — stable across the track-snapshot refreshes that fire on
+  // every committed edit, unlike an array index.
+  const [openLayers, setOpenLayers] = useState<Set<string>>(new Set());
+  // Animation rows expanded to show property rows, keyed by
+  // `nodeName/ruleSelector/name` for the same reason.
   const [openAnims, setOpenAnims] = useState<Set<string>>(new Set());
   const [editErr, setEditErr] = useState<string | null>(null);
   const [editingTime, setEditingTime] = useState(false);
@@ -164,6 +167,9 @@ export function TimelinePanel({
   // Latest source, read inside edit commits (which may fire after a re-render).
   const sourceRef = useRef(source);
   sourceRef.current = source;
+  // nodeNames seen in the last snapshot, so a refresh can tell "new row"
+  // (default-open) apart from "existing row" (leave expansion alone).
+  const seenNodeNames = useRef<Set<string>>(new Set());
 
   // Subscribe to the player's clock, transport, machine states, and snapshot.
   useEffect(() => {
@@ -173,18 +179,36 @@ export function TimelinePanel({
       setPaused(true);
       setTracks([]);
       setMachineStates([]);
+      setOpenLayers(new Set());
+      setOpenAnims(new Set());
+      seenNodeNames.current = new Set();
       return;
     }
-    const refresh = () => {
+    // `initial`: reset expansion to the default (all layers open, no
+    // animation rows open) — only on player-instance setup. Later refreshes
+    // (fired on every committed edit's `ready` event) must NOT clear
+    // expansion state; they only default-open rows for newly appeared nodes.
+    const refresh = (initial: boolean) => {
       const t = player.getTimelineTracks();
       setTracks(t);
       setDuration(player.duration);
       setMachineStates(player.getMachineStates());
-      setOpenLayers(new Set(t.map((_, i) => i)));
-      setOpenAnims(new Set());
+      const nodeNames = new Set(t.map((tr) => tr.nodeName));
+      if (initial) {
+        setOpenLayers(nodeNames);
+        setOpenAnims(new Set());
+      } else {
+        setOpenLayers((prev) => {
+          const next = new Set(prev);
+          for (const name of nodeNames)
+            if (!seenNodeNames.current.has(name)) next.add(name);
+          return next;
+        });
+      }
+      seenNodeNames.current = nodeNames;
     };
     setPaused(player.paused);
-    refresh();
+    refresh(true);
 
     const onTime = (e: Event) => {
       const d = (e as CustomEvent<{ time: number; duration: number }>).detail;
@@ -196,7 +220,7 @@ export function TimelinePanel({
       setPaused(player.paused);
       setMachineStates(player.getMachineStates());
     };
-    const onReady = () => refresh();
+    const onReady = () => refresh(false);
 
     player.addEventListener("timeupdate", onTime);
     player.addEventListener("statechange", onState);
@@ -356,7 +380,8 @@ export function TimelinePanel({
     [ppm, time, displayEnd, machineStates, seek, commitRetime, commitKeyframe],
   );
 
-  const toggleLayer = (i: number) => setOpenLayers((prev) => toggle(prev, i));
+  const toggleLayer = (name: string) =>
+    setOpenLayers((prev) => toggle(prev, name));
   const toggleAnim = (key: string) => setOpenAnims((prev) => toggle(prev, key));
 
   const commitTimeInput = () => {
@@ -542,11 +567,11 @@ export function TimelinePanel({
                     track={track}
                     ctx={ctx}
                     laneW={laneW}
-                    layerOpen={openLayers.has(i)}
+                    layerOpen={openLayers.has(track.nodeName)}
                     openAnims={openAnims}
                     selected={selected === i}
                     onSelect={() => setSelected(i)}
-                    onToggleLayer={() => toggleLayer(i)}
+                    onToggleLayer={() => toggleLayer(track.nodeName)}
                     onToggleAnim={toggleAnim}
                     onLaneDown={onLaneDown}
                     onLaneMove={onLaneMove}
@@ -639,14 +664,16 @@ function LayerBlock({
       {/* Animation rows. */}
       {layerOpen &&
         track.animations.map((a, ai) => {
-          const key = `${index}:${ai}`;
-          const animOpen = openAnims.has(key);
+          // Stable identity across snapshot refreshes (an array index isn't).
+          const animKey = `${track.nodeName}/${a.ruleSelector}/${a.name}`;
+          const animOpen = openAnims.has(animKey);
           return (
-            <div key={key}>
+            // biome-ignore lint/suspicious/noArrayIndexKey: stable within a snapshot
+            <div key={`${index}:${ai}`}>
               <div className="flex items-stretch">
                 <button
                   type="button"
-                  onClick={() => onToggleAnim(key)}
+                  onClick={() => onToggleAnim(animKey)}
                   style={{ width: LABEL_W }}
                   className="sticky left-0 z-10 flex h-7 shrink-0 items-center gap-1 border-r border-border/40 bg-background pl-5 pr-1 text-[11px] text-muted-foreground hover:bg-secondary/40 group-hover/layer:bg-secondary/20"
                 >
