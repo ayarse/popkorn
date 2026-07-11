@@ -1,8 +1,9 @@
 /* Interactive — Sprout, a mochi creature, and the firefly that chases your
    cursor. The firefly rides input(cursor.x/y) and flares when you hold the
    mouse down (input(cursor.isDown)); Sprout idles with layered keyframes
-   (breathing + an added flutter) and springs when you poke it (:hover/:active
-   tweened by transition). Move the light around, then give Sprout a poke. */
+   (breathing + an added flutter), watches the light with clamped eye tracking,
+   and springs when you poke it (:hover/:active tweened by transition). Move the
+   light around, then give Sprout a poke. */
 :root {
   width: 800px;
   height: 600px;
@@ -10,6 +11,10 @@
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
   --down: input(cursor.isDown);
+  /* Eye tracking: pupils drift toward the cursor, clamped inside the eye.
+     Distributed as c*s - k*s so calc's `-` follows a digit (minifier-safe). */
+  --eye-x: clamp(-6, calc(var(--cursor-x) * 0.03 - 12), 6);
+  --eye-y: clamp(-5, calc(var(--cursor-y) * 0.03 - 9.54), 5);
 }
 
 /* ---- ambient life (runs before you ever touch the scene) ---- */
@@ -80,19 +85,28 @@
     fill: #ddf8ee; opacity: 0.35;
   }
 
-  /* eyes (blink) with glossy glints */
+  /* eyes (blink) with glossy glints — track the cursor via a var()-bound
+     translate; blink animates `scale`, a separate channel, so both apply */
   > #eyeL {
     type: ellipse; cx: 366px; cy: 318px; rx: 15px; ry: 19px;
     fill: #203a44; transform-origin: 366px 318px;
+    transform: translate(var(--eye-x), var(--eye-y));
     animation: blink 4.2s ease-in-out infinite;
   }
   > #eyeR {
     type: ellipse; cx: 434px; cy: 318px; rx: 15px; ry: 19px;
     fill: #203a44; transform-origin: 434px 318px;
+    transform: translate(var(--eye-x), var(--eye-y));
     animation: blink 4.2s ease-in-out infinite;
   }
-  > #glintL { type: circle; cx: 371px; cy: 311px; r: 5px; fill: #ffffff; }
-  > #glintR { type: circle; cx: 439px; cy: 311px; r: 5px; fill: #ffffff; }
+  > #glintL {
+    type: circle; cx: 371px; cy: 311px; r: 5px; fill: #ffffff;
+    transform: translate(var(--eye-x), var(--eye-y));
+  }
+  > #glintR {
+    type: circle; cx: 439px; cy: 311px; r: 5px; fill: #ffffff;
+    transform: translate(var(--eye-x), var(--eye-y));
+  }
 
   /* rosy cheeks */
   > #cheekL { type: ellipse; cx: 344px; cy: 348px; rx: 13px; ry: 8px; fill: #ff96ab; opacity: 0.5; }
