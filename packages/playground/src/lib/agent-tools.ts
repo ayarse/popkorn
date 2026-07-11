@@ -32,6 +32,38 @@ function normalizeWs(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+// Shared comment/string skipping — the palette scanner (stripNonCode) and the
+// line-aware outline scanner (scanTop) both consume these so the "what counts
+// as code" rule lives in one place. `onNewline` lets a caller track line
+// numbers; omit it when line position doesn't matter.
+function skipComment(text: string, i: number, onNewline?: () => void): number {
+  i += 2; // past /*
+  const n = text.length;
+  while (i < n && !(text[i] === "*" && text[i + 1] === "/")) {
+    if (text[i] === "\n") onNewline?.();
+    i++;
+  }
+  return i + 2; // past */ (overshoot on unterminated is harmless — clamped by i<n)
+}
+function skipString(text: string, i: number, onNewline?: () => void): number {
+  const q = text[i];
+  const n = text.length;
+  i++;
+  while (i < n && text[i] !== q) {
+    if (text[i] === "\\") {
+      i++;
+      if (i < n) {
+        if (text[i] === "\n") onNewline?.();
+        i++;
+      }
+      continue;
+    }
+    if (text[i] === "\n") onNewline?.();
+    i++;
+  }
+  return i < n ? i + 1 : i; // past closing quote
+}
+
 function declProp(buf: string): string {
   const colon = buf.indexOf(":");
   if (colon === -1) return "";
@@ -48,29 +80,10 @@ function scanTop(text: string, baseLine = 1): TopItem[] {
   let line = baseLine;
 
   const eatComment = () => {
-    i += 2; // past /*
-    while (i < n && !(text[i] === "*" && text[i + 1] === "/")) {
-      if (text[i] === "\n") line++;
-      i++;
-    }
-    i += 2; // past */ (overshoot on unterminated is harmless — clamped by i<n)
+    i = skipComment(text, i, () => line++);
   };
   const eatString = () => {
-    const q = text[i];
-    i++;
-    while (i < n && text[i] !== q) {
-      if (text[i] === "\\") {
-        i++;
-        if (i < n) {
-          if (text[i] === "\n") line++;
-          i++;
-        }
-        continue;
-      }
-      if (text[i] === "\n") line++;
-      i++;
-    }
-    if (i < n) i++; // closing quote
+    i = skipString(text, i, () => line++);
   };
 
   let buf = "";
@@ -210,6 +223,213 @@ function summarize(block: Extract<TopItem, { kind: "block" }>): string {
   return parts.join("; ") || "(empty)";
 }
 
+// ----------------------------------------------------------------------------
+// Palette scan
+//
+// Colors used in the scene, most-frequent first — the recolor/swap-palette
+// hint. Runs over code with comments and strings stripped (stripNonCode), so
+// `content: "gold"` and commented-out colors never count.
+// ----------------------------------------------------------------------------
+
+// Return `text` with /* */ comments and quoted strings blanked to a space, so
+// braces/colons/colors inside them don't count. Mirrors scanTop's skipping via
+// the shared skipComment/skipString.
+function stripNonCode(text: string): string {
+  const n = text.length;
+  let out = "";
+  let i = 0;
+  while (i < n) {
+    const c = text[i];
+    if (c === "/" && text[i + 1] === "*") {
+      i = skipComment(text, i);
+      out += " ";
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      i = skipString(text, i);
+      out += " ";
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+// NOTE: pragmatic subset of the ~148 CSS named colors — the common ones seen in
+// hand-authored and converted scenes. Ceiling: an exotic name (e.g.
+// `lightgoldenrodyellow`) in a fill won't be flagged; add it here if it shows
+// up. `none`/`transparent`/`currentcolor` are intentionally excluded.
+const NAMED_COLORS = new Set([
+  "aqua",
+  "aquamarine",
+  "beige",
+  "black",
+  "blue",
+  "brown",
+  "chocolate",
+  "coral",
+  "crimson",
+  "cyan",
+  "darkblue",
+  "darkgray",
+  "darkgreen",
+  "darkgrey",
+  "darkred",
+  "fuchsia",
+  "gold",
+  "goldenrod",
+  "gray",
+  "green",
+  "grey",
+  "indigo",
+  "ivory",
+  "khaki",
+  "lavender",
+  "lightblue",
+  "lightgray",
+  "lightgreen",
+  "lightgrey",
+  "lime",
+  "magenta",
+  "maroon",
+  "navy",
+  "olive",
+  "orange",
+  "orchid",
+  "pink",
+  "plum",
+  "purple",
+  "rebeccapurple",
+  "red",
+  "salmon",
+  "sienna",
+  "silver",
+  "skyblue",
+  "slategray",
+  "slategrey",
+  "steelblue",
+  "tan",
+  "teal",
+  "tomato",
+  "turquoise",
+  "violet",
+  "wheat",
+  "white",
+  "yellow",
+]);
+
+const HEX_RE =
+  /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b/g;
+const FN_RE = /\b(rgba?|hsla?)\(([^)]*)\)/gi;
+const HEX_FULL =
+  /^#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})$/;
+const FN_FULL = /^(?:rgba?|hsla?)\([^)]*\)$/i;
+const COLOR_PROPS = new Set(["fill", "stroke", "background"]);
+const PALETTE_CAP = 24;
+
+// Canonical spelling of an rgb()/hsl() call: lowercase name, args trimmed and
+// comma-joined with ", " — so `rgb(255,230,109)` and `rgb(255, 230, 109)`
+// count as one.
+function canonFn(name: string, args: string): string {
+  const parts = args
+    .split(",")
+    .map((s) => normalizeWs(s))
+    .join(", ");
+  return `${name.toLowerCase()}(${parts})`;
+}
+
+function isColorValue(v: string): boolean {
+  return (
+    HEX_FULL.test(v) || FN_FULL.test(v) || NAMED_COLORS.has(v.toLowerCase())
+  );
+}
+
+// Append a `Palette:` line to the outline, or nothing if the scene has no
+// colors. Entries: `#hex ×N`, `rgb(...) ×N`, `name ×N`, and color custom
+// properties as `--brand: #e94560 (var, ×N uses)`.
+function paletteLine(source: string): string | null {
+  const code = stripNonCode(source);
+
+  // {key → {text, count, order}} for literal colors; insertion order = first
+  // seen, which we lean on for stable tie-breaking.
+  type Entry = { text: string; count: number; order: number };
+  const counts = new Map<string, Entry>();
+  let order = 0;
+  const bump = (key: string, display: string) => {
+    const hit = counts.get(key);
+    if (hit) hit.count++;
+    else counts.set(key, { text: display, count: 1, order: order++ });
+  };
+  const scanNamed = (val: string) => {
+    for (const m of val.matchAll(/[a-zA-Z]+/g)) {
+      const lower = m[0].toLowerCase();
+      if (NAMED_COLORS.has(lower)) bump(lower, m[0]);
+    }
+  };
+
+  // Custom-property color defs become distinct `--name (var, ×uses)` entries;
+  // their values are excluded from the literal scan so they aren't double-shown.
+  const varEntries: Entry[] = [];
+  for (const m of code.matchAll(/(--[\w-]+)\s*:\s*([^;{}]*)/g)) {
+    const name = m[1];
+    const val = normalizeWs(m[2]);
+    if (!isColorValue(val)) continue;
+    const useRe = new RegExp(
+      `var\\(\\s*${name.replace(/[-]/g, "\\$&")}\\s*\\)`,
+      "g",
+    );
+    const uses = (code.match(useRe) || []).length;
+    varEntries.push({
+      text: `${name}: ${val} (var, ×${uses} uses)`,
+      count: uses,
+      order: order++,
+    });
+  }
+
+  // Literal hex + rgb()/hsl() anywhere in code, minus custom-property def values.
+  const literalText = code.replace(/--[\w-]+\s*:\s*[^;{}]*/g, " ");
+  for (const m of literalText.matchAll(HEX_RE)) {
+    const hex = m[0].toLowerCase();
+    bump(hex, hex);
+  }
+  for (const m of literalText.matchAll(FN_RE)) {
+    const canon = canonFn(m[1], m[2]);
+    bump(canon, canon);
+  }
+
+  // Named colors only in color-bearing positions: the value of fill/stroke/
+  // background, or the args of a gradient/drop-shadow anywhere else.
+  for (const m of code.matchAll(/([\w-]+)\s*:\s*([^;{}]*)/g)) {
+    const prop = m[1].toLowerCase();
+    const val = m[2];
+    if (COLOR_PROPS.has(prop)) {
+      scanNamed(val);
+    } else {
+      for (const g of val.matchAll(
+        /(?:linear-gradient|radial-gradient|drop-shadow)\(([^)]*)\)/gi,
+      )) {
+        scanNamed(g[1]);
+      }
+    }
+  }
+
+  const literalEntries = [...counts.values()].map((e) => ({
+    text: `${e.text} ×${e.count}`,
+    count: e.count,
+    order: e.order,
+  }));
+  const all = [...literalEntries, ...varEntries];
+  if (all.length === 0) return null;
+  // Most-frequent first; stable sort keeps first-seen order for ties.
+  all.sort((a, b) => b.count - a.count || a.order - b.order);
+  const shown = all.slice(0, PALETTE_CAP);
+  const omitted = all.length - shown.length;
+  let line = `Palette: ${shown.map((e) => e.text).join(", ")}`;
+  if (omitted > 0) line += ` (+${omitted} more)`;
+  return line;
+}
+
 export function buildOutline(source: string): string {
   const totalLines = source === "" ? 0 : source.split("\n").length;
   const bytes = new TextEncoder().encode(source).length;
@@ -220,6 +440,8 @@ export function buildOutline(source: string): string {
   for (const b of blocks) {
     lines.push(`${b.header}  L${b.startLine}–${b.endLine}  ${summarize(b)}`);
   }
+  const palette = paletteLine(source);
+  if (palette) lines.push(palette);
   return lines.join("\n");
 }
 
@@ -368,9 +590,14 @@ function toolApplyEdit(
   if (typeof search !== "string" || typeof replace !== "string") {
     return "Error: apply_edit needs { search: string, replace: string }.";
   }
-  const res = applyEdits(ctx.getSource(), [{ search, replace }]);
+  const replaceAll = args.replace_all === true;
+  const res = applyEdits(ctx.getSource(), [{ search, replace, replaceAll }]);
   if (!res.ok) return res.error;
-  return commitValidated(res.result, ctx, "Edit applied");
+  const n = res.counts[0];
+  const verb = replaceAll
+    ? `Edit applied (${n} occurrence${n === 1 ? "" : "s"})`
+    : "Edit applied";
+  return commitValidated(res.result, ctx, verb);
 }
 
 function toolReadExample(
@@ -531,15 +758,20 @@ export const TOOL_DEFS: Array<{
     function: {
       name: "apply_edit",
       description:
-        "Replace one exact, unique run of text in the scene. `search` must match the CURRENT scene verbatim and occur exactly once; the result is parse-validated and only committed if it parses. Read the relevant rule first.",
+        "Replace an exact run of text in the scene. By default `search` must match the CURRENT scene verbatim and occur exactly once. Set replace_all to replace EVERY occurrence (needs ≥1 match) — use it for a repeated literal like a color across a palette swap. The result is parse-validated and only committed if it parses. Read the relevant rule first.",
       parameters: {
         type: "object",
         properties: {
           search: {
             type: "string",
-            description: "Exact unique text to replace.",
+            description: "Exact text to replace.",
           },
           replace: { type: "string", description: "Replacement text." },
+          replace_all: {
+            type: "boolean",
+            description:
+              "Replace every occurrence of `search` instead of requiring a single unique match.",
+          },
         },
         required: ["search", "replace"],
         additionalProperties: false,

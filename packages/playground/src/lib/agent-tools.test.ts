@@ -84,6 +84,78 @@ test("buildOutline on a real example scene", async () => {
   expect(outline).toContain(`${total} lines`);
 });
 
+test("buildOutline palette: hex case-normalizes and counts, most-frequent first", () => {
+  const src = `#a { fill: #E94560; stroke: #e94560; }
+#b { fill: #E94560; background: #4ECDC4; }`;
+  const outline = buildOutline(src);
+  // #e94560 seen 3× (case-folded), #4ecdc4 once, most-frequent first.
+  expect(outline).toMatch(/Palette: #e94560 ×3, #4ecdc4 ×1/);
+});
+
+test("buildOutline palette: rgb() whitespace/comma spacing is normalized", () => {
+  const src = `#a { fill: rgb(255, 230, 109); }
+#b { fill: rgb(255,230,109); }
+#c { fill: rgb(255,  230 , 109); }`;
+  const outline = buildOutline(src);
+  expect(outline).toContain("rgb(255, 230, 109) ×3");
+});
+
+test("buildOutline palette: named color counts in fill but keywords don't", () => {
+  const src = `#a { fill: gold; stroke: none; type: circle; }
+#b { fill: gold; background: none; }`;
+  const outline = buildOutline(src);
+  expect(outline).toContain("gold ×2");
+  expect(outline).not.toContain("none");
+  expect(outline).not.toContain("circle");
+});
+
+test("buildOutline palette: named colors inside gradient args count", () => {
+  const src = `#a { fill: linear-gradient(gold, crimson); }
+#b { filter: drop-shadow(2px 2px teal); }`;
+  const outline = buildOutline(src);
+  expect(outline).toContain("gold ×1");
+  expect(outline).toContain("crimson ×1");
+  expect(outline).toContain("teal ×1");
+});
+
+test("buildOutline palette: color custom props show as var entries with use counts", () => {
+  const src = `:root { --brand: #e94560; --accent: gold; }
+#a { fill: var(--brand); stroke: var(--brand); }
+#b { fill: var(--brand); background: var(--accent); }`;
+  const outline = buildOutline(src);
+  expect(outline).toContain("--brand: #e94560 (var, ×3 uses)");
+  expect(outline).toContain("--accent: gold (var, ×1 uses)");
+  // The var def's literal hex is not double-counted as a plain palette entry.
+  expect(outline).not.toContain("#e94560 ×");
+});
+
+test("buildOutline palette: colors in comments and strings are ignored", () => {
+  const src = `/* fill: #deadbe here */
+#a { content: "#c0ffee gold"; fill: #123456; }`;
+  const outline = buildOutline(src);
+  expect(outline).toContain("#123456 ×1");
+  expect(outline).not.toContain("#deadbe");
+  expect(outline).not.toContain("#c0ffee");
+  expect(outline).not.toContain("gold");
+});
+
+test("buildOutline palette: caps at 24 entries with an omitted note", () => {
+  const decls = Array.from(
+    { length: 30 },
+    (_, i) => `#n${i} { fill: #${i.toString(16).padStart(6, "0")}; }`,
+  ).join("\n");
+  const outline = buildOutline(decls);
+  const palette = outline.split("\n").find((l) => l.startsWith("Palette:"))!;
+  expect(palette).toContain("(+6 more)");
+  // 24 shown entries → 24 " ×" occurrences on the line.
+  expect(palette.match(/ ×/g)!.length).toBe(24);
+});
+
+test("buildOutline: no palette line when the scene has no colors", () => {
+  const outline = buildOutline("#a { type: circle; r: 20px; }");
+  expect(outline).not.toContain("Palette:");
+});
+
 test("TOOL_DEFS has one definition per tool", () => {
   const names = TOOL_DEFS.map((d) => d.function.name).sort();
   expect(names).toEqual(
@@ -129,6 +201,56 @@ test("apply_edit that breaks parsing is rejected without committing", () => {
   const out = executeTool(
     "apply_edit",
     { search: "  fill: #f00;\n}", replace: "  fill: #f00;" },
+    ctx,
+  );
+  expect(out).toContain("Edit rejected — resulting scene failed to parse");
+  expect(ctx.source).toBe(SCENE);
+});
+
+test("apply_edit replace_all swaps every occurrence and reports the count", () => {
+  const ctx = ctxOf(`#a { fill: #f00; }
+#b { fill: #f00; }
+#c { stroke: #f00; }`);
+  const out = executeTool(
+    "apply_edit",
+    { search: "#f00", replace: "#0f0", replace_all: true },
+    ctx,
+  );
+  expect(out).toContain("Edit applied (3 occurrences)");
+  expect(out).toContain("3 lines");
+  expect(ctx.source).not.toContain("#f00");
+  expect(ctx.source.match(/#0f0/g)!.length).toBe(3);
+});
+
+test("apply_edit replace_all with a single occurrence works", () => {
+  const ctx = ctxOf(SCENE);
+  const out = executeTool(
+    "apply_edit",
+    { search: "#f00", replace: "#0f0", replace_all: true },
+    ctx,
+  );
+  expect(out).toContain("Edit applied (1 occurrence)");
+  expect(out).not.toContain("occurrences");
+  expect(ctx.source).toContain("#0f0");
+});
+
+test("apply_edit replace_all with zero matches errors without committing", () => {
+  const ctx = ctxOf(SCENE);
+  const out = executeTool(
+    "apply_edit",
+    { search: "#0ff", replace: "#0f0", replace_all: true },
+    ctx,
+  );
+  expect(out).toContain("didn't match");
+  expect(ctx.source).toBe(SCENE);
+});
+
+test("apply_edit replace_all still reverts when the result won't parse", () => {
+  const ctx = ctxOf(SCENE);
+  // Replacing every "}" deletes the closing brace → parser throws.
+  const out = executeTool(
+    "apply_edit",
+    { search: "}", replace: "", replace_all: true },
     ctx,
   );
   expect(out).toContain("Edit rejected — resulting scene failed to parse");
