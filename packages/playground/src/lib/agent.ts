@@ -7,8 +7,12 @@ export type Message = {
   id: number;
   role: Role;
   text: string;
-  parseError?: string;
-  applied?: boolean;
+  // Compact activity log rendered inside the agent bubble; `ok: false` = a
+  // rejected/failed tool result.
+  toolEvents?: { label: string; ok: boolean }[];
+  // Set on an agent message whose run changed the scene: the snapshot to
+  // restore via the Revert button.
+  revertTo?: string;
 };
 
 export type AgentConfig = {
@@ -86,19 +90,6 @@ export function saveConfig(cfg: AgentConfig) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
 }
 
-export function wrapScene(source: string, request: string): string {
-  return `Current scene:\n\`\`\`css\n${source}\n\`\`\`\n\nRequest: ${request}`;
-}
-
-export function extractCss(text: string): string | null {
-  const re = /```css\s*\n([\s\S]*?)```/g;
-  let last: string | null = null;
-  for (let match = re.exec(text); match; match = re.exec(text)) {
-    last = match[1];
-  }
-  return last ? last.trim() : null;
-}
-
 // Shared line-buffered SSE reader: invokes onData with each `data:` payload
 // (still trimmed, "[DONE]" and keepalives included) until the stream ends.
 async function readSSE(
@@ -120,41 +111,6 @@ async function readSSE(
       onData(trimmed.slice(5).trim());
     }
   }
-}
-
-export async function streamLLM(
-  cfg: AgentConfig,
-  messages: { role: string; content: string }[],
-  signal: AbortSignal,
-  onToken: (delta: string) => void,
-): Promise<string> {
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${cfg.apiKey}`,
-    },
-    body: JSON.stringify({ model: cfg.model, messages, stream: true }),
-    signal,
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`${res.status}: ${err.slice(0, 200)}`);
-  }
-  let full = "";
-  await readSSE(res.body!, (data) => {
-    if (data === "[DONE]") return;
-    try {
-      const delta = JSON.parse(data).choices?.[0]?.delta?.content;
-      if (delta) {
-        full += delta;
-        onToken(delta);
-      }
-    } catch {
-      // keepalive or partial frame — ignore
-    }
-  });
-  return full;
 }
 
 export type ToolEvent = {

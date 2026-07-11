@@ -1,30 +1,10 @@
 import { expect, test } from "bun:test";
-import { applyEdits, extractEdits } from "@/lib/edits";
+import { applyEdits } from "@/lib/edits";
 
 const SCENE = `#ball {
   radius: 20px;
   fill: #f00;
 }`;
-
-test("extractEdits parses a search/replace block", () => {
-  const reply =
-    "Sure.\n```edit\n<<<<<<<\n  fill: #f00;\n=======\n  fill: #0f0;\n>>>>>>>\n```";
-  expect(extractEdits(reply)).toEqual([
-    { search: "  fill: #f00;", replace: "  fill: #0f0;" },
-  ]);
-});
-
-test("extractEdits parses a deletion (empty replacement)", () => {
-  const reply = "```edit\n<<<<<<<\n  radius: 20px;\n=======\n>>>>>>>\n```";
-  expect(extractEdits(reply)).toEqual([
-    { search: "  radius: 20px;", replace: "" },
-  ]);
-});
-
-test("extractEdits returns [] with no edit blocks", () => {
-  expect(extractEdits("just prose")).toEqual([]);
-  expect(extractEdits("```css\n#x {}\n```")).toEqual([]);
-});
 
 test("applyEdits applies sequentially and all-or-nothing", () => {
   const r = applyEdits(SCENE, [

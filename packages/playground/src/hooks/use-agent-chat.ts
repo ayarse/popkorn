@@ -1,20 +1,74 @@
-import { parse } from "@popkorn/parser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type AgentConfig,
-  extractCss,
   GREETING,
   loadConfig,
   type Message,
+  runAgent,
   SYSTEM_PROMPT,
   saveConfig,
-  streamLLM,
-  wrapScene,
+  type ToolEvent,
 } from "@/lib/agent";
-import { applyEdits, extractEdits } from "@/lib/edits";
+import {
+  buildOutline,
+  executeTool,
+  TOOL_DEFS,
+  type ToolContext,
+} from "@/lib/agent-tools";
 
-// The Copilot chat state machine: message log, streaming send loop, config, and
-// applying a reply (full ```css rewrite or ```edit search/replace) to the scene.
+// Scenes under this many chars are inlined verbatim into the request (skips
+// read round-trips); larger scenes send an outline and let the model read on
+// demand.
+const INLINE_SCENE_MAX = 3072;
+
+function buildUserMessage(source: string, request: string): string {
+  if (source.length < INLINE_SCENE_MAX) {
+    return `Current scene (full source):\n\`\`\`css\n${source}\n\`\`\`\n\nRequest: ${request}`;
+  }
+  return `Current scene outline:\n${buildOutline(source)}\n(Use the read/search tools for the source itself.)\n\nRequest: ${request}`;
+}
+
+// A compact human label for a tool call, shown as a status row in the bubble.
+function toolLabel(ev: ToolEvent): string {
+  switch (ev.name) {
+    case "get_outline":
+      return "outline";
+    case "read_rules": {
+      const sel = ev.args.selectors;
+      return Array.isArray(sel) ? `read ${sel.join(", ")}` : "read rules";
+    }
+    case "read_lines":
+      return `read lines ${ev.args.start}–${ev.args.end}`;
+    case "search":
+      return `searched ${JSON.stringify(ev.args.query)}`;
+    case "apply_edit":
+      return "edited scene";
+    case "rewrite_scene":
+      return "rewrote scene";
+    default:
+      return ev.name;
+  }
+}
+
+// NOTE: tool executors return plain strings, so failure is sniffed from the
+// known error/rejection prefixes in agent-tools.ts (and agent.ts's malformed-
+// args message) rather than a structured status. Success results start with a
+// line number, source header, or a "…applied/rewritten" confirmation.
+const ERROR_PREFIXES = [
+  "Error", // Error: …, Error running …
+  "Invalid", // malformed tool arguments
+  "Edit rejected", // parse-failed edit/rewrite
+  "Edit block", // applyEdits non-unique / no match
+  "No match", // search: No matches for …
+  'Rule "', // read_rules: Rule "…" not found
+];
+
+function toolFailed(result: string): boolean {
+  return ERROR_PREFIXES.some((p) => result.startsWith(p));
+}
+
+// The Copilot chat state machine: message log, the streaming agent tool-loop,
+// config, live per-edit apply to the scene, and per-run revert.
 export function useAgentChat(
   source: string,
   onApplySource: (css: string) => void,
@@ -40,12 +94,22 @@ export function useAgentChat(
     setSettingsOpen(false);
   }, []);
 
+  const revert = useCallback(
+    (messageId: number) => {
+      const msg = messages.find((m) => m.id === messageId);
+      if (msg?.revertTo !== undefined) onApplySource(msg.revertTo);
+    },
+    [messages, onApplySource],
+  );
+
   const send = useCallback(
     async (text: string) => {
       const body = text.trim();
       if (!body || typing) return;
       setError(null);
 
+      // History carries only bare request/summary text — never outlines or
+      // source dumps — so prior turns stay compact.
       const history = messages.map((m) => ({
         role: m.role === "user" ? "user" : "assistant",
         content: m.text,
@@ -68,66 +132,80 @@ export function useAgentChat(
       const apiMessages = [
         { role: "system", content: SYSTEM_PROMPT },
         ...history,
-        { role: "user", content: wrapScene(source, body) },
+        { role: "user", content: buildUserMessage(source, body) },
       ];
 
       const ac = new AbortController();
       abortRef.current = ac;
+
+      // Live apply: every committed edit lands in the editor immediately and
+      // the next tool call sees it. `changed` gates the revert affordance.
+      const snapshot = source;
+      let current = source;
+      let changed = false;
+      const ctx: ToolContext = {
+        getSource: () => current,
+        commit: (next) => {
+          current = next;
+          changed = true;
+          onApplySource(next);
+        },
+      };
+
+      // The streaming agent bubble is created lazily by the first token or
+      // tool event, whichever comes first.
       let agentId = -1;
+      const ensureAgent = () => {
+        if (agentId === -1) {
+          agentId = idRef.current++;
+          const id = agentId;
+          setStreamingId(id);
+          setMessages((m) => [...m, { id, role: "agent", text: "" }]);
+        }
+        return agentId;
+      };
       const onToken = (delta: string) => {
-        setMessages((m) => {
-          if (agentId === -1) {
-            agentId = idRef.current++;
-            setStreamingId(agentId);
-            return [...m, { id: agentId, role: "agent", text: delta }];
-          }
-          return m.map((msg) =>
-            msg.id === agentId ? { ...msg, text: msg.text + delta } : msg,
-          );
-        });
+        const id = ensureAgent();
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === id ? { ...msg, text: msg.text + delta } : msg,
+          ),
+        );
+      };
+      const onToolEvent = (ev: ToolEvent) => {
+        const id = ensureAgent();
+        const entry = { label: toolLabel(ev), ok: !toolFailed(ev.result) };
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === id
+              ? { ...msg, toolEvents: [...(msg.toolEvents ?? []), entry] }
+              : msg,
+          ),
+        );
       };
 
       try {
-        const reply = await streamLLM(config, apiMessages, ac.signal, onToken);
-        if (ac.signal.aborted) return;
-        if (agentId === -1) {
-          agentId = idRef.current++;
-          setMessages((m) => [
-            ...m,
-            { id: agentId, role: "agent", text: reply },
-          ]);
-        }
-        const fail = (msg: string) =>
-          setMessages((m) =>
-            m.map((x) => (x.id === agentId ? { ...x, parseError: msg } : x)),
-          );
-        const markApplied = () =>
-          setMessages((m) =>
-            m.map((x) => (x.id === agentId ? { ...x, applied: true } : x)),
-          );
-        const applyScene = (css: string) => {
-          try {
-            parse(css);
-            onApplySource(css);
-            markApplied();
-          } catch (e: any) {
-            fail(`Generated scene failed to parse: ${e?.message ?? String(e)}`);
-          }
-        };
-        const edits = extractEdits(reply);
-        if (edits.length > 0) {
-          const applied = applyEdits(source, edits);
-          if (!applied.ok) fail(applied.error);
-          else applyScene(applied.result);
-        } else {
-          const css = extractCss(reply);
-          if (css) applyScene(css);
-        }
+        await runAgent(config, apiMessages, {
+          tools: TOOL_DEFS,
+          executeTool: (name, args) => executeTool(name, args, ctx),
+          signal: ac.signal,
+          onToken,
+          onToolEvent,
+        });
       } catch (e: any) {
-        if (ac.signal.aborted) return;
-        setError(e.message ?? String(e));
+        if (!ac.signal.aborted) setError(e?.message ?? String(e));
       } finally {
         if (!ac.signal.aborted) {
+          // If the run changed the scene, hang the pre-run snapshot off the
+          // final agent message so the user can revert the whole run.
+          if (changed && agentId !== -1) {
+            const id = agentId;
+            setMessages((m) =>
+              m.map((msg) =>
+                msg.id === id ? { ...msg, revertTo: snapshot } : msg,
+              ),
+            );
+          }
           setTyping(false);
           setStreamingId(null);
         }
@@ -148,5 +226,6 @@ export function useAgentChat(
     setSettingsOpen,
     applyConfig,
     send,
+    revert,
   };
 }

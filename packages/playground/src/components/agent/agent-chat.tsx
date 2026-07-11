@@ -1,8 +1,8 @@
 import {
   AlertCircle,
-  Check,
   LoaderCircle,
   type LucideIcon,
+  RotateCcw,
   Send,
   Settings,
   Sparkles,
@@ -34,6 +34,7 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
     setSettingsOpen,
     applyConfig,
     send,
+    revert,
   } = useAgentChat(source, onApplySource);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -91,7 +92,7 @@ function AgentChat({ open, onClose, source, onApplySource }: AgentChatProps) {
         className="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
       >
         {messages.map((m) => (
-          <Bubble key={m.id} message={m} />
+          <Bubble key={m.id} message={m} onRevert={revert} />
         ))}
         {typing && streamingId === null && <TypingBubble />}
         {error && (
@@ -215,8 +216,16 @@ function MessageBody({ text }: { text: string }) {
   );
 }
 
-function Bubble({ message }: { message: Message }) {
+function Bubble({
+  message,
+  onRevert,
+}: {
+  message: Message;
+  onRevert: (id: number) => void;
+}) {
   const isUser = message.role === "user";
+  const toolEvents = message.toolEvents ?? [];
+  const hasText = message.text.length > 0;
   return (
     <div
       className={cn(
@@ -238,20 +247,45 @@ function Bubble({ message }: { message: Message }) {
               : "rounded-bl-sm bg-secondary text-secondary-foreground",
           )}
         >
+          {toolEvents.length > 0 && (
+            <div
+              className={cn(
+                "flex flex-col gap-0.5",
+                hasText && "mb-1.5 border-b border-border/60 pb-1.5",
+              )}
+            >
+              {toolEvents.map((ev, i) => (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: append-only log, index is stable
+                  key={i}
+                  className={cn(
+                    "flex items-center gap-1.5 text-[11px] leading-snug",
+                    ev.ok ? "text-muted-foreground" : "text-destructive",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-1 shrink-0 rounded-full",
+                      ev.ok ? "bg-muted-foreground/50" : "bg-destructive",
+                    )}
+                  />
+                  <span className="truncate">{ev.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
           {isUser ? message.text : <MessageBody text={message.text} />}
         </div>
       </div>
-      {!isUser && message.applied && (
-        <div className="ml-8 flex items-center gap-1 text-[11px] font-medium text-emerald-500">
-          <Check className="size-3" />
-          <span>Applied to editor</span>
-        </div>
-      )}
-      {message.parseError && (
-        <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11px] leading-relaxed text-destructive">
-          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-          <span>{message.parseError}</span>
-        </div>
+      {!isUser && message.revertTo !== undefined && (
+        <button
+          type="button"
+          onClick={() => onRevert(message.id)}
+          className="ml-8 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+        >
+          <RotateCcw className="size-3" />
+          <span>Revert</span>
+        </button>
       )}
     </div>
   );
