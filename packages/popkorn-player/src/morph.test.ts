@@ -4,6 +4,7 @@ import { interpolateKeyframes } from "./animation/keyframes";
 import {
   getPropHandler,
   gradientsCompatible,
+  interpolateColor,
   interpolateGradient,
   interpolatePath,
   interpolateProp,
@@ -193,4 +194,37 @@ test("fill gradient animates through @keyframes (interpolated at the midpoint)",
   resetNodeToBase(node);
   interpolateKeyframes(node, node.animations[0].keyframes, 0.5);
   expect(parseColor(node.fillGradient!.stops[0].color).r).toBe(128);
+});
+
+// --- (n) named / hsl color parsing ------------------------------------------
+
+test("parseColor: named color resolves (not black)", () => {
+  expect(parseColor("red")).toEqual({ r: 255, g: 0, b: 0, a: 1 });
+});
+
+test("parseColor: hsl() resolves", () => {
+  // hsl(120,100%,50%) == pure green
+  expect(parseColor("hsl(120, 100%, 50%)")).toEqual({
+    r: 0,
+    g: 255,
+    b: 0,
+    a: 1,
+  });
+});
+
+test("interpolateColor: named endpoints interpolate through color, not black", () => {
+  const mid = parseColor(interpolateColor("red", "blue", 0.5));
+  // was rgb(0,0,0) before named-color support
+  expect(mid.r).toBe(128);
+  expect(mid.b).toBe(128);
+  expect(mid.r + mid.g + mid.b).toBeGreaterThan(0);
+});
+
+test("builder: fill: hsl(...) produces a non-null fill", () => {
+  const node = firstNode(`
+    #r { type: rect; x: 0; y: 0; width: 10; height: 10; fill: hsl(120, 100%, 50%); }
+  `);
+  expect(node.fill).not.toBeNull();
+  expect(node.fill).not.toBeUndefined();
+  expect(parseColor(node.fill as string)).toEqual({ r: 0, g: 255, b: 0, a: 1 });
 });

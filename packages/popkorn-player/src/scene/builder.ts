@@ -34,7 +34,7 @@ import type {
   GradientStop,
   PathCommand,
 } from "../renderer/types";
-import { isGradientData } from "../renderer/types";
+import { isGradientData, tryParseColor } from "../renderer/types";
 import { buildMotionPath, parsePath } from "./path-parser";
 import { clamp01 } from "./transform";
 import type {
@@ -1859,14 +1859,21 @@ export class SceneBuilder {
       return { type: "color", color: value.value };
     }
     if (isKeywordValue(value)) {
+      if (value.value === "none") return { type: "color", color: null };
+      // Named colors normalize to canonical hex at build time (so animation
+      // endpoints are already hex); transparent/currentColor/unknown pass
+      // through untouched.
       return {
         type: "color",
-        color: value.value === "none" ? null : value.value,
+        color: this.canonicalColor(value.value) ?? value.value,
       };
     }
     if (
       isFunctionValue(value) &&
-      (value.name === "rgb" || value.name === "rgba")
+      (value.name === "rgb" ||
+        value.name === "rgba" ||
+        value.name === "hsl" ||
+        value.name === "hsla")
     ) {
       return { type: "color", color: this.buildColorString(value) };
     }
@@ -2104,15 +2111,36 @@ export class SceneBuilder {
   /** A CSS color string from a color/keyword/rgb()/rgba() value, else null. */
   private colorFromValue(value: Value): string | null {
     if (isColorValue(value)) return value.value;
-    if (isKeywordValue(value))
-      return value.value === "none" ? null : value.value;
+    if (isKeywordValue(value)) {
+      if (value.value === "none") return null;
+      // Normalize named colors (red, hsl-less keywords) to canonical hex once
+      // at build time so animation endpoints are already hex — the per-frame
+      // hot path only ever parses hex/rgb. Unrecognized keywords (transparent,
+      // currentColor) pass through untouched.
+      return this.canonicalColor(value.value) ?? value.value;
+    }
     if (
       isFunctionValue(value) &&
-      (value.name === "rgb" || value.name === "rgba")
+      (value.name === "rgb" ||
+        value.name === "rgba" ||
+        value.name === "hsl" ||
+        value.name === "hsla")
     ) {
       return this.buildColorString(value);
     }
     return null;
+  }
+
+  // Resolve any parseable color string to a canonical hex/rgba string, or null
+  // if unrecognized. Used to fold hsl()/named colors down to hex at build time.
+  private canonicalColor(raw: string): string | null {
+    const c = tryParseColor(raw);
+    if (!c) return null;
+    if (c.a >= 1) {
+      const hex = (n: number) => n.toString(16).padStart(2, "0");
+      return `#${hex(c.r)}${hex(c.g)}${hex(c.b)}`;
+    }
+    return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
   }
 
   /**
@@ -2152,6 +2180,18 @@ export class SceneBuilder {
       const b = getNumericValue(func.args[2]);
       const a = getNumericValue(func.args[3]);
       return `rgba(${r}, ${g}, ${b}, ${a})`;
+    } else if (func.name === "hsl" || func.name === "hsla") {
+      // Fold hsl()/hsla() to canonical hex/rgba once at build time so the
+      // per-frame hot path only parses hex/rgb (s/l args carry a `%` unit,
+      // which getNumericValue strips to 0..100).
+      const h = getNumericValue(func.args[0]);
+      const s = getNumericValue(func.args[1]);
+      const l = getNumericValue(func.args[2]);
+      const a = func.args[3] != null ? getNumericValue(func.args[3]) : 1;
+      const suffix = a >= 1 ? "" : `, ${a}`;
+      return (
+        this.canonicalColor(`hsla(${h}, ${s}%, ${l}%${suffix})`) ?? "#000000"
+      );
     }
     return "#000000";
   }
