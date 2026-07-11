@@ -56,10 +56,6 @@
   &:state(lamp.on) { animation: roomOn 800ms ease-out; }
 }
 
-/* ---- cord ---- the flex the bulb hangs from (stage coords) ---- */
-#cord   { type: rect; x: 397px; y: 0px;   width: 6px; height: 118px; fill: #262b3d; }
-#canopy { type: rect; x: 388px; y: 112px; width: 24px; height: 12px; rx: 4px; fill: #2f3550; }
-
 /* ---- the bulb assembly, authored in local recipe space, scaled to centre ---- */
 #lamp {
   type: group;
