@@ -8,23 +8,39 @@ description: Use when asked to check whether the repo docs are stale, sync docs 
 ## Overview
 
 The prose docs drift when a `feat`/`fix` changes behavior the docs describe.
-This finds that drift by diffing the docs' last-updated timestamps against the
-git log, then confirms each suspect against the actual source before editing.
-Core rule: **a commit message flags a suspect; the source confirms the drift.**
-Never rewrite a doc from the commit message alone.
+Behavior commits no longer carry their own doc edits (feature/fix work and doc
+work land separately now), so drift accumulates between doc passes — this skill
+is the catch-up. It finds drift by diffing the docs' last-updated timestamps
+against the git log, then confirms each suspect against the actual source before
+editing. Core rule: **a commit message flags a suspect; the source confirms the
+drift.** Never rewrite a doc from the commit message alone.
 
 ## Docs in scope
 
-- `CLAUDE.md` (root) and `README.md`
-- `docs/*.md` (ARCHITECTURE, REFERENCE, STATE-MACHINES, …)
-- `.claude/skills/*/SKILL.md` (the authoring/parity skills)
+The doc set gets restructured (files renamed, split, deleted) — **map a code
+change to a doc by topic, not filename.** Current set:
+
+- **Root:** `CLAUDE.md` (agent/architecture notes), `README.md`,
+  `packages/playground/CLAUDE.md`
+- **Package READMEs:** `packages/popkorn-player/README.md`,
+  `packages/popkorn-react-native/README.md`, `packages/expo-demo/README.md`,
+  `tools/harness/README.md`
+- **`docs/*.md`** — user-facing guides: `introduction`, `getting-started`,
+  `architecture`, `reference` (format/DSL syntax), `player-api`, `importing`
+  (Lottie + SVG converters), `state-machines`, `css-art-in-popkorn`, and
+  `README.md` (the docs index/nav — check its links when a doc is renamed or
+  added).
+- **Skills & agents:** `.claude/skills/*/SKILL.md`,
+  `.claude/skills/*/reference.md`, `.claude/agents/*.md`
 
 ## Process
 
 1. **Get each doc's last-changed time — use git, not `stat`.** Filesystem
    mtime is checkout time, not edit time. Git last-commit is authoritative:
    ```bash
-   for f in CLAUDE.md README.md docs/*.md .claude/skills/*/SKILL.md; do
+   for f in CLAUDE.md README.md docs/*.md packages/*/README.md \
+            packages/playground/CLAUDE.md tools/harness/README.md \
+            .claude/skills/*/*.md .claude/agents/*.md; do
      printf '%-50s %s\n' "$f" "$(git log -1 --format='%cd' \
        --date=format:'%Y-%m-%d %H:%M:%S' -- "$f")"
    done | sort -k2
