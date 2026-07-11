@@ -450,8 +450,13 @@ export function TimelinePanel({
           </span>
         )}
 
-        {/* Zoom slider. */}
-        <div className="ml-auto flex items-center gap-1.5 text-muted-foreground/60">
+        {/* Zoom slider — hidden while collapsed so it can't read as artboard zoom. */}
+        <div
+          className={cn(
+            "ml-auto flex items-center gap-1.5 text-muted-foreground/60",
+            !expanded && "hidden",
+          )}
+        >
           <span className="text-[11px]">Zoom</span>
           <input
             type="range"
