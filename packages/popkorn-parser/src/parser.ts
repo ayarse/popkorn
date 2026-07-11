@@ -35,6 +35,24 @@ import {
   isListValue,
   isNumberValue,
 } from "./ast";
+import type { Diagnostic, Severity } from "./diagnostics";
+import {
+  COLOR_KEYWORDS,
+  COLOR_PROPERTIES,
+  isReservedAnimationKeyword,
+  KNOWN_PROPERTIES,
+  NAMED_COLORS,
+  suggest,
+} from "./diagnostics";
+
+// A cross-sheet reference captured with its source span during the single
+// parse pass, resolved against the collected definitions after parsing (the AST
+// carries no spans, so refs remember their own offsets).
+interface Ref {
+  name: string;
+  start: number;
+  end: number;
+}
 
 const IDENT = /[a-zA-Z_][a-zA-Z0-9_-]*/y;
 const CUSTOM = /--[a-zA-Z_][a-zA-Z0-9_-]*/y;
@@ -51,7 +69,34 @@ const UNITS = ["deg", "rem", "px", "em", "ms", "s"] as const;
 
 class Cursor {
   pos = 0;
+  // Diagnostics + the side tables the cross-check pass resolves against. All
+  // live on the cursor so the recursive-descent helpers can push without an
+  // extra threaded context argument.
+  diagnostics: Diagnostic[] = [];
+  declaredKeyframes = new Set<string>();
+  declaredDefines = new Set<string>();
+  declaredIds = new Set<string>();
+  declaredVars = new Set<string>();
+  keyframeRefs: Ref[] = [];
+  defineRefs: Ref[] = [];
+  idRefs: Ref[] = [];
+  varRefs: Ref[] = [];
   constructor(readonly src: string) {}
+
+  report(
+    code: string,
+    severity: Severity,
+    message: string,
+    start: number,
+    end: number,
+    hint?: string,
+  ): void {
+    this.diagnostics.push(
+      hint === undefined
+        ? { code, severity, message, start, end }
+        : { code, severity, message, hint, start, end },
+    );
+  }
 
   /** Skip whitespace and `/* *\/` comments. */
   ws(): void {
@@ -130,15 +175,20 @@ export function parse(source: string): StyleSheet {
     definitions: [],
     machines: [],
     variables: [],
+    diagnostics: c.diagnostics,
   };
 
   while (!c.eof()) {
     if (c.eat("@keyframes")) {
-      sheet.keyframes.push(parseKeyframes(c));
+      const kf = parseKeyframes(c);
+      c.declaredKeyframes.add(kf.name);
+      sheet.keyframes.push(kf);
       continue;
     }
     if (c.eat("@define")) {
-      sheet.definitions.push(parseDefine(c));
+      const def = parseDefine(c);
+      c.declaredDefines.add(def.name);
+      sheet.definitions.push(def);
       continue;
     }
     if (c.eat("@machine")) {
@@ -155,14 +205,79 @@ export function parse(source: string): StyleSheet {
       sheet.variables = extractVariables(rule);
     } else sheet.rules.push(rule);
   }
+
+  resolveRefs(c);
   return sheet;
+}
+
+/** Convenience wrapper returning just the diagnostics (for lint/host UIs). */
+export function validate(source: string): Diagnostic[] {
+  return parse(source).diagnostics;
+}
+
+// Cross-check pass: every reference captured during parsing is resolved against
+// the fully-collected definition sets. Runs once, after the single parse pass.
+function resolveRefs(c: Cursor): void {
+  for (const r of c.keyframeRefs) {
+    if (!c.declaredKeyframes.has(r.name)) {
+      const hint = suggest(r.name, c.declaredKeyframes);
+      c.report(
+        "unknown-keyframes",
+        "warning",
+        `animation references unknown @keyframes '${r.name}'.`,
+        r.start,
+        r.end,
+        hint && `Did you mean '${hint}'?`,
+      );
+    }
+  }
+  for (const r of c.defineRefs) {
+    if (!c.declaredDefines.has(r.name)) {
+      const hint = suggest(r.name, c.declaredDefines);
+      c.report(
+        "unknown-define",
+        "warning",
+        `use: references undefined @define '${r.name}'.`,
+        r.start,
+        r.end,
+        hint && `Did you mean '${hint}'?`,
+      );
+    }
+  }
+  for (const r of c.idRefs) {
+    if (!c.declaredIds.has(r.name)) {
+      const hint = suggest(r.name, c.declaredIds);
+      c.report(
+        "unknown-id",
+        "warning",
+        `reference to unknown node id '#${r.name}'.`,
+        r.start,
+        r.end,
+        hint && `Did you mean '#${hint}'?`,
+      );
+    }
+  }
+  for (const r of c.varRefs) {
+    if (!c.declaredVars.has(r.name)) {
+      c.report(
+        "undefined-var",
+        "info",
+        `var(${r.name}) is never declared in this sheet.`,
+        r.start,
+        r.end,
+        "It may be provided by the host at runtime; add a fallback (var(--x, …)) to silence this.",
+      );
+    }
+  }
 }
 
 function parseSelector(c: Cursor): Selector {
   const ch = c.peek();
   if (ch === "#") {
     c.expect("#");
-    return { type: "id", name: c.ident() };
+    const name = c.ident();
+    c.declaredIds.add(name);
+    return { type: "id", name };
   }
   if (ch === ".") {
     c.expect(".");
@@ -281,8 +396,12 @@ function parseTrigger(c: Cursor): MachineTrigger {
     return { kind: "event", name: evName };
   }
   let target: { type: "id" | "root"; name: string };
-  if (c.eat("#")) target = { type: "id", name: c.ident() };
-  else if (c.eat(":")) {
+  if (c.eat("#")) {
+    const start = c.pos;
+    const id = c.ident();
+    c.idRefs.push({ name: id, start: start - 1, end: c.pos });
+    target = { type: "id", name: id };
+  } else if (c.eat(":")) {
     const kw = c.ident();
     if (kw !== "root") throw new Error(`unknown pointer target ':${kw}'`);
     target = { type: "root", name: "root" };
@@ -413,23 +532,111 @@ function parseStateBlock(c: Cursor): {
 }
 
 function parseDeclaration(c: Cursor): Declaration[] {
+  c.ws();
+  const propStart = c.pos;
   const property = c.match(CUSTOM) ?? c.ident();
+  const propEnd = c.pos;
   c.expect(":");
   // A value is one or more comma-separated groups, each a space-separated list
   // (CSS `animation: a 1s, b 2s`). Comma-free values keep the old shape exactly:
   // a lone value, or a plain space `list` with no separator.
+  c.ws();
+  const valStart = c.pos;
   const groups: Value[] = [];
   for (;;) {
     const values = parseValueList(c);
     groups.push(values.length === 1 ? values[0] : { type: "list", values });
     if (!c.eat(",")) break;
   }
+  const valEnd = c.pos;
   c.eat(";"); // optional trailing semicolon
   const value: Value =
     groups.length === 1
       ? groups[0]
       : { type: "list", values: groups, separator: "comma" };
-  return expandAliases(property, value);
+  lintDeclaration(c, property, value, propStart, propEnd, valStart, valEnd);
+  return expandAliases(c, property, value, propStart, propEnd);
+}
+
+// Author-confusion checks that don't change the AST: unknown properties (with a
+// "did you mean"), bad color keywords, and cross-sheet reference collection.
+function lintDeclaration(
+  c: Cursor,
+  property: string,
+  value: Value,
+  propStart: number,
+  propEnd: number,
+  valStart: number,
+  valEnd: number,
+): void {
+  if (property.startsWith("--")) {
+    c.declaredVars.add(property);
+  } else if (!KNOWN_PROPERTIES.has(property)) {
+    const hint = suggest(property, KNOWN_PROPERTIES);
+    c.report(
+      "unknown-property",
+      "warning",
+      `unknown property '${property}'.`,
+      propStart,
+      propEnd,
+      hint && `Did you mean '${hint}'?`,
+    );
+  }
+
+  // A bare keyword in a color slot must name a color.
+  if (COLOR_PROPERTIES.has(property) && value.type === "keyword") {
+    const kw = value.value.toLowerCase();
+    if (
+      !kw.startsWith("#") &&
+      !COLOR_KEYWORDS.has(kw) &&
+      !NAMED_COLORS.has(kw)
+    ) {
+      const hint = suggest(kw, NAMED_COLORS);
+      c.report(
+        "unknown-color",
+        "warning",
+        `'${value.value}' is not a recognized color.`,
+        valStart,
+        valEnd,
+        hint && `Did you mean '${hint}'?`,
+      );
+    }
+  }
+
+  // Cross-sheet references — resolved against the full sheet after parsing.
+  if (property === "animation-name" || property === "animation") {
+    const name = animationName(value, property);
+    if (name) c.keyframeRefs.push({ name, start: valStart, end: valEnd });
+  }
+  if (property === "use" && value.type === "keyword") {
+    c.defineRefs.push({ name: value.value, start: valStart, end: valEnd });
+  }
+  if (property === "mask" || property === "clip-path") {
+    for (const id of keywordTokens(value)) {
+      if (id.startsWith("#"))
+        c.idRefs.push({ name: id.slice(1), start: valStart, end: valEnd });
+    }
+  }
+}
+
+// All bare-keyword tokens at any list nesting (functions' args are not
+// descended into — a `url(#x)` inner ref is not a top-level keyword).
+function keywordTokens(v: Value): string[] {
+  if (v.type === "keyword") return [v.value];
+  if (v.type === "list") return v.values.flatMap(keywordTokens);
+  return [];
+}
+
+// The @keyframes name an `animation`/`animation-name` value references, or
+// undefined when there isn't exactly one candidate (ambiguous shorthand, `none`,
+// or a bare timing-only shorthand → skip rather than false-positive).
+function animationName(value: Value, property: string): string | undefined {
+  const kws = keywordTokens(value).filter(
+    (k) => !k.startsWith("#") && !k.includes("."),
+  );
+  if (property === "animation-name") return kws.find((k) => k !== "none");
+  const names = kws.filter((k) => !isReservedAnimationKeyword(k));
+  return names.length === 1 ? names[0] : undefined;
 }
 
 const decl = (property: string, value: Value): Declaration => ({
@@ -461,7 +668,13 @@ const BORDER_STYLES = new Set([
  * serializer never see alias spellings. Rejected forms warn (Popkorn has no box
  * model / no containing box) rather than vanishing silently.
  */
-function expandAliases(property: string, value: Value): Declaration[] {
+function expandAliases(
+  c: Cursor,
+  property: string,
+  value: Value,
+  start: number,
+  end: number,
+): Declaration[] {
   switch (property) {
     // Positional sugar. right/bottom have no containing box to resolve against.
     case "left":
@@ -470,8 +683,13 @@ function expandAliases(property: string, value: Value): Declaration[] {
       return [decl("y", value)];
     case "right":
     case "bottom":
-      console.warn(
-        `Popkorn: '${property}' has no containing box; position with x/y instead.`,
+      c.report(
+        "unsupported-property",
+        "warning",
+        `'${property}' has no containing box in Popkorn.`,
+        start,
+        end,
+        "Position with x/y instead.",
       );
       return [];
 
@@ -485,8 +703,13 @@ function expandAliases(property: string, value: Value): Declaration[] {
     // border-radius: <r>  ->  rx + ry (single value only).
     case "border-radius":
       if (isListValue(value)) {
-        console.warn(
-          "Popkorn: multi-value/elliptical border-radius isn't supported; use type: path for a custom outline.",
+        c.report(
+          "unsupported-value",
+          "warning",
+          "multi-value/elliptical border-radius isn't supported.",
+          start,
+          end,
+          "Use type: path for a custom outline.",
         );
         return [];
       }
@@ -494,15 +717,19 @@ function expandAliases(property: string, value: Value): Declaration[] {
 
     // border: <width> solid <color>  ->  stroke-width + stroke.
     case "border":
-      return expandBorder(value);
+      return expandBorder(c, value, start, end);
 
     // Box-model properties Popkorn has no concept of.
     case "padding":
     case "margin":
     case "display":
     case "position":
-      console.warn(
-        `Popkorn: '${property}' is not supported — Popkorn has no box model.`,
+      c.report(
+        "unsupported-property",
+        "warning",
+        `'${property}' is not supported — Popkorn has no box model.`,
+        start,
+        end,
       );
       return [];
 
@@ -513,7 +740,12 @@ function expandAliases(property: string, value: Value): Declaration[] {
 
 /** `border: <width> solid <color>` → `stroke-width` + `stroke`. Only `solid`
  * (and `none`, which clears the stroke) map; other styles warn. */
-function expandBorder(value: Value): Declaration[] {
+function expandBorder(
+  c: Cursor,
+  value: Value,
+  start: number,
+  end: number,
+): Declaration[] {
   const parts = isListValue(value) ? value.values : [value];
   const style = parts.find(
     (p) => isKeywordValue(p) && BORDER_STYLES.has(p.value),
@@ -522,8 +754,12 @@ function expandBorder(value: Value): Declaration[] {
     return [decl("stroke-width", { type: "number", value: 0 })];
   }
   if (style && isKeywordValue(style) && style.value !== "solid") {
-    console.warn(
-      `Popkorn: border-style '${style.value}' isn't supported; only 'solid' maps to a stroke.`,
+    c.report(
+      "unsupported-value",
+      "warning",
+      `border-style '${style.value}' isn't supported; only 'solid' maps to a stroke.`,
+      start,
+      end,
     );
     return [];
   }
@@ -571,6 +807,8 @@ function parseValue(c: Cursor): Value {
   if (isNumberStart(c, ch)) return readNumber(c);
 
   // Identifier-led: calc(), var(), function call, member expression, or bare keyword.
+  c.ws();
+  const identStart = c.pos;
   const name = c.ident();
   if (name === "calc" && c.peek() === "(") {
     return parseCalc(c);
@@ -588,6 +826,10 @@ function parseValue(c: Cursor): Value {
       if (c.peek() !== ")") fallback = parseValue(c);
     }
     c.expect(")");
+    // Only unfallback'd refs are worth flagging — a fallback means the author
+    // already handled absence.
+    if (fallback === undefined)
+      c.varRefs.push({ name: varName, start: identStart, end: c.pos });
     return { type: "variable", name: varName, fallback };
   }
   if (c.peek() === "(") {
@@ -689,10 +931,30 @@ function isWs(ch: string | undefined): boolean {
 }
 
 function readString(c: Cursor, quote: string): Value {
+  const start = c.pos;
   c.expect(quote);
   let out = "";
-  while (c.pos < c.src.length && c.src[c.pos] !== quote) out += c.src[c.pos++];
-  c.pos++; // closing quote
+  while (c.pos < c.src.length) {
+    const ch = c.src[c.pos];
+    if (ch === quote) {
+      c.pos++; // closing quote
+      return { type: "string", value: out };
+    }
+    // Per CSS, a raw newline terminates an unclosed string as a parse error;
+    // stopping here (rather than swallowing to EOF) lets the rest of the sheet
+    // still parse, so the diagnostic is delivered instead of throwing later.
+    if (ch === "\n") break;
+    out += ch;
+    c.pos++;
+  }
+  c.report(
+    "unterminated-string",
+    "error",
+    "unterminated string literal.",
+    start,
+    c.pos,
+    `Add a closing ${quote} quote.`,
+  );
   return { type: "string", value: out };
 }
 

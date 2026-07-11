@@ -1,4 +1,4 @@
-import { afterEach, expect, mock, test } from "bun:test";
+import { expect, test } from "bun:test";
 import { parse } from "./parser";
 import { serialize } from "./serializer";
 
@@ -15,21 +15,9 @@ const props = (src: string): [string, string][] =>
 const propNames = (src: string): string[] =>
   parse(src).rules[0].declarations.map((d) => d.property);
 
-// Capture console.warn for the rejection cases.
-function withWarnings(fn: () => void): string[] {
-  const warns: string[] = [];
-  const spy = mock((msg: string) => warns.push(msg));
-  const orig = console.warn;
-  console.warn = spy as unknown as typeof console.warn;
-  try {
-    fn();
-  } finally {
-    console.warn = orig;
-  }
-  return warns;
-}
-
-afterEach(() => mock.restore());
+// Rejected alias forms now surface as parse diagnostics (not console.warn).
+const diags = (src: string): string[] =>
+  parse(src).diagnostics.map((d) => d.message);
 
 test("left -> x, top -> y", () => {
   expect(props("#b { left: 10px; top: 20px; }")).toEqual([
@@ -126,32 +114,29 @@ test("serializer emits canonical names, never alias spellings", () => {
 });
 
 test("right/bottom warn and are dropped (no containing box)", () => {
-  const warns = withWarnings(() => {
-    expect(propNames("#b { right: 10px; bottom: 20px; }")).toEqual([]);
-  });
+  expect(propNames("#b { right: 10px; bottom: 20px; }")).toEqual([]);
+  const warns = diags("#b { right: 10px; bottom: 20px; }");
   expect(warns.length).toBe(2);
   expect(warns[0]).toContain("containing box");
 });
 
 test("multi-value border-radius warns, suggests type: path", () => {
-  const warns = withWarnings(() => {
-    expect(propNames("#b { border-radius: 10px 20px; }")).toEqual([]);
-  });
-  expect(warns[0]).toContain("type: path");
+  expect(propNames("#b { border-radius: 10px 20px; }")).toEqual([]);
+  const warns = diags("#b { border-radius: 10px 20px; }");
+  expect(warns.some((w) => w.includes("border-radius"))).toBe(true);
+  expect(
+    parse("#b { border-radius: 10px 20px; }").diagnostics[0].hint,
+  ).toContain("type: path");
 });
 
 test("non-solid border style warns", () => {
-  const warns = withWarnings(() => {
-    expect(propNames("#b { border: 2px dashed #fff; }")).toEqual([]);
-  });
-  expect(warns[0]).toContain("dashed");
+  expect(propNames("#b { border: 2px dashed #fff; }")).toEqual([]);
+  expect(diags("#b { border: 2px dashed #fff; }")[0]).toContain("dashed");
 });
 
 test("box-model properties warn: no box model", () => {
   for (const p of ["padding", "margin", "display", "position"]) {
-    const warns = withWarnings(() => {
-      expect(propNames(`#b { ${p}: 4px; }`)).toEqual([]);
-    });
-    expect(warns[0]).toContain("no box model");
+    expect(propNames(`#b { ${p}: 4px; }`)).toEqual([]);
+    expect(diags(`#b { ${p}: 4px; }`)[0]).toContain("no box model");
   }
 });

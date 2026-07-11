@@ -20,7 +20,11 @@ test("minify: number shortening is value-preserving (1.50→1.5, 2.0→2)", () =
     minify: true,
   });
   expect(out).toBe("#s{a:1.5;b:2;c:0.7px}");
-  expect(parse(out)).toEqual(parse("#s { a: 1.50; b: 2.0; c: 0.7px; }"));
+  // Compare the AST value only — the synthetic a/b/c props raise
+  // unknown-property diagnostics whose offsets differ between the two sources.
+  expect(parse(out).rules).toEqual(
+    parse("#s { a: 1.50; b: 2.0; c: 0.7px; }").rules,
+  );
 });
 
 test("pretty: 2-space indent, one decl per line", () => {
@@ -56,8 +60,13 @@ test("skew transform functions round-trip in both modes", () => {
 test("calc() round-trips (precedence + var/input operands) in both modes", () => {
   const src =
     "#s { cx: calc((var(--i) + 2) * 3px); cy: calc(100px - var(--k) / 2); }";
-  expect(parse(serialize(parse(src), { minify: true }))).toEqual(parse(src));
-  expect(parse(serialize(parse(src)))).toEqual(parse(src));
+  // Compare the AST value only — the undeclared var() operands raise
+  // (offset-bearing) info diagnostics that differ between the two sources.
+  const sansDiag = (s: string) => ({ ...parse(s), diagnostics: [] });
+  expect(sansDiag(serialize(parse(src), { minify: true }))).toEqual(
+    sansDiag(src),
+  );
+  expect(sansDiag(serialize(parse(src)))).toEqual(sansDiag(src));
 });
 
 test(":root background round-trips for named colors and rgb()/rgba()", () => {

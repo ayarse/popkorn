@@ -1,5 +1,7 @@
 // AST Type Definitions for the CSS-like DSL
 
+import type { Diagnostic } from "./diagnostics";
+
 export interface StyleSheet {
   type: "stylesheet";
   rules: Rule[];
@@ -8,6 +10,10 @@ export interface StyleSheet {
   machines: MachineRule[]; // Interactive state machines (@machine)
   canvas?: CanvasConfig;
   variables: VariableDefinition[];
+  // Position-tracked parse/lint diagnostics (unknown props, bad refs, …). Always
+  // present (possibly empty); not part of the AST *value* — the serializer
+  // ignores it and round-trip equality is checked over the rest of the tree.
+  diagnostics: Diagnostic[];
 }
 
 // A reusable symbol: `@define <name> { <rule body> }`. The body is the same

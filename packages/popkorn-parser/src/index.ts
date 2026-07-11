@@ -46,7 +46,9 @@ export {
   isStringValue,
   isVariableRefValue,
 } from "./ast";
-export { parse } from "./parser";
+export type { Diagnostic, Severity } from "./diagnostics";
+export { offsetToLineCol } from "./diagnostics";
+export { parse, validate } from "./parser";
 export type { SerializeOptions } from "./serializer";
 export { serialize } from "./serializer";
 

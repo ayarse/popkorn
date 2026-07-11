@@ -13,6 +13,7 @@ test("id rule: dimension + color", () => {
     definitions: [],
     machines: [],
     variables: [],
+    diagnostics: [],
     rules: [
       {
         type: "rule",
@@ -708,7 +709,10 @@ test("@machine: minified (whitespace-stripped) parses identically", () => {
     state idle { to: excited on click(#hitbox); to: hyper when style(--energy > 80) mix 300ms ease-in-out; }
     state * { to: idle on event(reset); }
   }`;
-  expect(parse(stripWs(src))).toEqual(parse(src));
+  // Compare the AST value only — diagnostics carry source offsets, which differ
+  // between the spaced and whitespace-stripped forms (e.g. the #hitbox ref).
+  const sansDiag = (s: string) => ({ ...parse(s), diagnostics: [] });
+  expect(sansDiag(stripWs(src))).toEqual(sansDiag(src));
 });
 
 // --- :state() pseudo blocks ----------------------------------------------
