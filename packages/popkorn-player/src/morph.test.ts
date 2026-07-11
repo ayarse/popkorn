@@ -228,3 +228,12 @@ test("builder: fill: hsl(...) produces a non-null fill", () => {
   expect(node.fill).not.toBeUndefined();
   expect(parseColor(node.fill as string)).toEqual({ r: 0, g: 255, b: 0, a: 1 });
 });
+
+test("builder: fill: red (named color) resolves to #ff0000-equivalent", () => {
+  const node = firstNode(`
+    #r { type: rect; x: 0; y: 0; width: 10; height: 10; fill: red; }
+  `);
+  expect(node.fill).not.toBeNull();
+  expect(node.fill).not.toBeUndefined();
+  expect(parseColor(node.fill as string)).toEqual({ r: 255, g: 0, b: 0, a: 1 });
+});

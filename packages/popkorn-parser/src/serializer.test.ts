@@ -60,6 +60,18 @@ test("calc() round-trips (precedence + var/input operands) in both modes", () =>
   expect(parse(serialize(parse(src)))).toEqual(parse(src));
 });
 
+test(":root background round-trips for named colors and rgb()/rgba()", () => {
+  const src = ":root { width: 400px; height: 300px; background: red; }";
+  expect(parse(serialize(parse(src), { minify: true }))).toEqual(parse(src));
+  expect(parse(serialize(parse(src)))).toEqual(parse(src));
+
+  const rgbSrc = ":root { background: rgba(26, 26, 46, 0.5); }";
+  expect(parse(serialize(parse(rgbSrc), { minify: true }))).toEqual(
+    parse(rgbSrc),
+  );
+  expect(parse(serialize(parse(rgbSrc)))).toEqual(parse(rgbSrc));
+});
+
 const examplesDir = fileURLToPath(
   new URL("../../../examples", import.meta.url),
 );

@@ -789,10 +789,33 @@ function extractCanvas(rule: Rule): CanvasConfig | undefined {
       cfg().height = decl.value.value;
     // `background` is rewritten to `fill` by the alias pass before it reaches
     // here, so read the stage color back from `fill` — its meaning is preserved.
-    else if (decl.property === "fill" && decl.value.type === "color")
-      cfg().background = decl.value.value;
+    // Colors parse as `color` (hex), `keyword` (named colors) or `function`
+    // (rgb()/rgba()); accept all three — stringifyColorValue keeps the raw
+    // text so serializer round-tripping (which just prints `color.value`
+    // verbatim) still works, and the player's parseColor already resolves
+    // named colors and rgb()/rgba() at render time.
+    else if (decl.property === "fill") {
+      const bg = stringifyColorValue(decl.value);
+      if (bg !== undefined) cfg().background = bg;
+    }
   }
   return config;
+}
+
+/** Render a color-ish {@link Value} back to CSS text — hex `color`, named
+ * `keyword`, or a `function` call (`rgb()`/`rgba()`/`hsl()`/...) with
+ * numeric/length args. Returns undefined for anything else (e.g. `var()`),
+ * which callers should ignore rather than store a bogus background. */
+function stringifyColorValue(v: Value): string | undefined {
+  if (v.type === "color" || v.type === "keyword") return v.value;
+  if (v.type === "number") return String(v.value);
+  if (v.type === "length") return `${v.value}${v.unit}`;
+  if (v.type === "function") {
+    const args = v.args.map(stringifyColorValue);
+    if (args.some((a) => a === undefined)) return undefined;
+    return `${v.name}(${args.join(", ")})`;
+  }
+  return undefined;
 }
 
 /** Collect `--custom-property` declarations from a `:root { ... }` rule. */

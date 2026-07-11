@@ -75,6 +75,20 @@ test("stage config hoisted from :root", () => {
   expect(ast.rules).toHaveLength(0);
 });
 
+test("stage background accepts a named color", () => {
+  const ast = parse(":root { width: 800px; height: 600px; background: red; }");
+  expect(ast.canvas).toEqual({ width: 800, height: 600, background: "red" });
+});
+
+test("stage background accepts rgb()/rgba()", () => {
+  expect(
+    parse(":root { background: rgb(26, 26, 46); }").canvas?.background,
+  ).toBe("rgb(26, 26, 46)");
+  expect(
+    parse(":root { background: rgba(26, 26, 46, 0.5); }").canvas?.background,
+  ).toBe("rgba(26, 26, 46, 0.5)");
+});
+
 test(":root with only custom properties leaves canvas unset", () => {
   const ast = parse(":root { --x: 5; }");
   expect(ast.canvas).toBeUndefined();
