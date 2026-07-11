@@ -11,6 +11,12 @@
     },
     "android": {
       "package": "dev.popkorn.skiademo"
-    }
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        { "cameraPermission": "Allow Popkorn to scan QR codes pointing to .css scenes." }
+      ]
+    ]
   }
 }
