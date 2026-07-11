@@ -1,12 +1,17 @@
 # Popkorn DSL — Complete Reference
 
+<!-- repo-only -->
 Source-verified against `packages/popkorn-parser/src/parser.ts` (parser),
 `packages/popkorn-player/src/scene/builder.ts` (semantics), the animation/runtime
-modules, and `examples/*.css`. The parser is **generic** — it accepts any
-`property: value`. Meaning is assigned downstream by the scene builder, so an
-unrecognized property parses fine and is **silently ignored** at build time.
+modules, and `examples/*.css`.
+<!-- /repo-only -->
+The parser is **generic** — it accepts any `property: value`. Meaning is assigned
+downstream by the scene builder, so an unrecognized property parses fine and is
+**silently ignored** at build time.
 
+<!-- repo-only -->
 Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → SceneNode tree → RenderLoop → Canvas2DRenderer`.
+<!-- /repo-only -->
 
 ---
 
@@ -71,20 +76,13 @@ no `width`/`height`, `<popkorn-player>` falls back to its own `width`/`height` a
 
 ## 3. Value types, units, colors
 
-### Value tagged union (8 variants)
+### Value forms
 
-| `type` | Example | Fields |
-|---|---|---|
-| `length` | `10px`, `45deg`, `50%`, `1.5s` | `value`, `unit` |
-| `number` | `0.5`, `-3`, `700` | `value` |
-| `color` | `#e94560`, `#fff`, `#rrggbbaa` | `value` (keeps `#`) |
-| `keyword` | `red`, `center`, `infinite`, `cursor.x` | `value` |
-| `string` | `"Hello"`, `'sans-serif'` | `value` |
-| `function` | `rgb(…)`, `cubic-bezier(…)`, `input(…)` | `name`, `args[]` |
-| `variable` | `var(--x)` | `name` |
-| `list` | `pulse 1.5s ease-in-out infinite` | `values[]` |
-
-Space-separated values in one declaration → a `list`. A single value is used directly.
+Values are lengths (`10px`), plain numbers (`0.5`), colors (`#e94560`),
+keywords (`red`, `center`), strings (`"Hello"`), functions (`rgb(…)`,
+`cubic-bezier(…)`, `input(…)`), and `var(--x)` references. Space-separated
+values in one declaration form a **list** (e.g. `pulse 1.5s ease-in-out
+infinite`); a single value is used directly.
 
 ### Units
 
@@ -384,11 +382,10 @@ Show a node (and its whole subtree) only during a time window, in **scene-local 
 
 Set with the `animation:` shorthand and/or the `animation-*` longhands
 (`-name`, `-duration`, `-timing-function`, `-iteration-count`, `-direction`,
-`-delay`, `-fill-mode`). They compose per CSS: declarations apply in source
-order and later ones win **per sub-property**; the shorthand resets the whole
-list, a longhand overrides only its own sub-property. A comma-separated
-longhand is matched positionally against the animation list (shorter lists
-cycle).
+`-delay`, `-fill-mode`), composing per standard CSS: source order wins per
+sub-property; the shorthand resets the whole list, a longhand overrides only
+its own sub-property; comma-separated longhands match positionally (shorter
+lists cycle).
 
 ```css
 animation: pulse 1.5s ease-in-out infinite;
@@ -513,13 +510,11 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 
 ## 13. Easing functions
 
+The standard CSS named easings — `linear`, `ease`, `ease-in`, `ease-out`,
+`ease-in-out` — all work as in CSS. Beyond those:
+
 | Name | Curve |
 |---|---|
-| `linear` | identity |
-| `ease` | cubic-bezier(0.25, 0.1, 0.25, 1.0) |
-| `ease-in` | cubic-bezier(0.42, 0, 1, 1) |
-| `ease-out` | cubic-bezier(0, 0, 0.58, 1) |
-| `ease-in-out` | cubic-bezier(0.42, 0, 0.58, 1) |
 | `step-start` | jump to 1 at t=0, hold (= `steps(1, jump-start)`) |
 | `step-end` | hold 0 until t=1, then 1 (= `steps(1, jump-end)`) |
 | `cubic-bezier(x1,y1,x2,y2)` | custom (Newton-Raphson solve) |
@@ -659,9 +654,12 @@ value to the target instead of snapping — on both enter and exit.
 For interaction a `:hover`/`:active` override **can't** express — a state that
 outlives the pointer (toggles, "intro once then loop", timeouts, app-state
 driven looks). `:hover`/`:active` still cover plain hover/press buttons; reach
-for `@machine` only when a state must persist. **Full spec + rationale:
+for `@machine` only when a state must persist.
+<!-- repo-only -->
+**Full spec + rationale:
 [docs/state-machines.md](../../../docs/state-machines.md); worked scenes:
 `examples/popkorn/11-state-machine.css` and `12-toggle-lamp.css`.**
+<!-- /repo-only -->
 
 ```css
 :root { --energy: 0; --tap: trigger; }   /* inputs = custom props; trigger auto-resets */
@@ -740,59 +738,16 @@ player.source = myDslCode;   // parse + build + play
 
 ---
 
-## 16. Example scenes
+## 16. Example scene
 
-### A. Static composition
-
-```css
-:root { width: 800px; height: 600px; background: #0f0f23; }
-
-#redCircle     { type: circle;  cx: 200px; cy: 300px; r: 80px; fill: #e94560; }
-#blueRect      { type: rect;    x: 400px; y: 200px; width: 150px; height: 200px;
-                 rx: 20px; ry: 20px; fill: #4ecdc4; }
-#yellowEllipse { type: ellipse; cx: 650px; cy: 300px; rx: 60px; ry: 100px; fill: #ffe66d; }
-#label         { type: text;    content: "Popkorn"; x: 400px; y: 500px;
-                 font-size: 48px; font-family: sans-serif; font-weight: bold;
-                 text-anchor: middle; fill: #ffffff; }
-```
-
-### B. Animated group with keyframes
-
-```css
-:root { width: 800px; height: 600px; background: #101020; }
-
-@keyframes pulse {
-  0%   { transform: scale(1);   opacity: 1;   }
-  50%  { transform: scale(1.3); opacity: 0.7; }
-  100% { transform: scale(1);   opacity: 1;   }
-}
-@keyframes spin {
-  0%   { transform: rotate(0deg);   }
-  100% { transform: rotate(360deg); }
-}
-
-#pulser {
-  type: circle; cx: 200px; cy: 300px; r: 60px; fill: #e94560;
-  animation: pulse 1.5s ease-in-out infinite;
-}
-#spinner {
-  type: group;
-  transform: translate(600px, 300px);
-  animation: spin 3s linear infinite;
-  > #blade {
-    type: rect; x: -50px; y: -10px; width: 100px; height: 20px;
-    fill: #4ecdc4; transform-origin: center;
-  }
-}
-```
-
-### C. Symbols, motion path, and interactivity
+One scene exercising the shapes that make Popkorn *not* plain CSS — `:root`
+stage config, `type:` shapes, `>` nesting, `@define`/`use:` symbols, keyframe
+wiring, a motion path, and `var(--…)`/`&:hover` interactivity:
 
 ```css
 :root {
   width: 800px; height: 600px; background: #0a0a1a;
   --cursor-x: input(cursor.x);
-  --cursor-y: input(cursor.y);
 }
 
 @keyframes twinkle {
@@ -800,35 +755,42 @@ player.source = myDslCode;   // parse + build + play
   50%      { transform: scale(1.6); opacity: 0.4; }
 }
 @keyframes travel {
-  0%   { offset-distance: 0%;   animation-timing-function: ease-in-out; }
+  0%   { offset-distance: 0%;   }
   100% { offset-distance: 100%; }
 }
 
-@define star {
+@define star {                    /* reusable symbol */
   type: circle; r: 8px; fill: #fbbf24;
   transform-origin: center;
   animation: twinkle 2s ease-in-out infinite;
 }
 
 #star1 { use: star; cx: 200px; cy: 120px; }
-#star2 { use: star; cx: 400px; cy: 120px; fill: #60a5fa; }
-#star3 { use: star; cx: 600px; cy: 120px; fill: #f472b6; }
+#star2 { use: star; cx: 400px; cy: 120px; fill: #60a5fa; }  /* fill overrides */
 
-#comet {
+#comet {                          /* rides a motion path */
   type: circle; r: 12px; fill: #ffffff;
   offset-path: path('M0 400 C200 200 600 200 800 400');
   offset-rotate: auto;
   animation: travel 4s linear infinite;
 }
 
-#follower {
-  type: circle; r: 30px; fill: #e94560;
-  cx: var(--cursor-x);
-  cy: var(--cursor-y);
-  &:hover  { fill: #ff6b8a; transform: scale(1.2); }
-  &:active { fill: #c73e54; transform: scale(0.9); }
+#scene {                          /* group with a > nested, interactive child */
+  type: group;
+  transform: translate(400px, 300px);
+  > #follower {
+    type: circle; r: 30px; fill: #e94560;
+    cx: var(--cursor-x);
+    &:hover  { fill: #ff6b8a; transform: scale(1.2); }
+    &:active { fill: #c73e54; transform: scale(0.9); }
+  }
 }
 ```
+
+<!-- repo-only -->
+More worked scenes (static composition, keyframe groups, state machines) live in
+`examples/popkorn/`.
+<!-- /repo-only -->
 
 ---
 
@@ -855,6 +817,7 @@ player.source = myDslCode;   // parse + build + play
 
 ---
 
+<!-- repo-only -->
 ## Source files
 
 - Parser & AST: `packages/popkorn-parser/src/{parser,ast,parser.test}.ts`
@@ -864,3 +827,4 @@ player.source = myDslCode;   // parse + build + play
 - Runtime & component: `packages/popkorn-player/src/runtime/{loop,inputs,variables,interaction,hit-test,state-machine}.ts`, `component.ts`
 - Examples: `examples/*.css`, `examples/lottie/*.css`
 - Lottie converter: `packages/popkorn-converters/src/lottie2popkorn.ts`
+<!-- /repo-only -->
