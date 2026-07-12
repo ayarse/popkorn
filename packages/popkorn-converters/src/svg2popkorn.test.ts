@@ -417,6 +417,21 @@ test("feDropShadow -> filter: drop-shadow()", () => {
   );
 });
 
+test("Figma layer-blur chain (feFlood + feBlend + feGaussianBlur) -> filter: blur()", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><defs><filter id="filter0_f_101_125" x="-50" y="-50" width="100" height="100" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="43" result="effect1_foregroundBlur_101_125"/></filter></defs><circle cx="5" cy="5" r="4" filter="url(#filter0_f_101_125)"/></svg>`,
+  );
+  expect(block(css, "circle1")).toContain("filter: blur(43px)");
+});
+
+test("Figma drop-shadow chain (feOffset/feColorMatrix) still warns and is skipped", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 10 10"><defs><filter id="filter0_d_1" x="-50" y="-50" width="100" height="100" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/><feOffset dy="4"/><feGaussianBlur stdDeviation="2"/><feComposite in2="hardAlpha" operator="out"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.25 0"/><feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/><feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/></filter></defs><rect width="4" height="4" filter="url(#filter0_d_1)"/></svg>`,
+  );
+  expect(warnings.some((w) => w.includes("filter"))).toBe(true);
+  expect(css).not.toContain("filter:");
+});
+
 test("unsupported multi-primitive filter warns and is skipped", () => {
   const { css, warnings } = conv(
     `<svg viewBox="0 0 10 10"><defs><filter id="f"><feGaussianBlur stdDeviation="1"/><feColorMatrix/></filter></defs><rect width="4" height="4" filter="url(#f)"/></svg>`,

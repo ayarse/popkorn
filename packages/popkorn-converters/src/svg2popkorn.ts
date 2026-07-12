@@ -2017,6 +2017,40 @@ export class Converter {
     const def = this.byId.get(m[1]);
     if (!def || def.tag !== "filter") return;
     const prims = def.children;
+    // Figma wraps a real blur in boilerplate: a transparent feFlood + a
+    // pass-through feBlend that just composites SourceGraphic over it.
+    // Neither carries visual information — strip them before judging
+    // whether the chain reduces to a single feGaussianBlur.
+    const floodResults = new Set<string>();
+    const stripped = prims.filter((p) => {
+      if (p.tag === "feflood" && p.attrs.get("flood-opacity") === "0") {
+        const res = p.attrs.get("result");
+        if (res) floodResults.add(res);
+        return false;
+      }
+      if (p.tag === "feblend") {
+        const mode = (p.attrs.get("mode") || "normal").toLowerCase();
+        const isPassthroughInput = (v: string | undefined) =>
+          v === "SourceGraphic" || (!!v && floodResults.has(v));
+        if (
+          mode === "normal" &&
+          isPassthroughInput(p.attrs.get("in")) &&
+          isPassthroughInput(p.attrs.get("in2"))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
+    if (stripped.length === 1 && stripped[0].tag === "fegaussianblur") {
+      const sd = parseFloat(
+        stripped[0].attrs.get("stdDeviation") ||
+          stripped[0].attrs.get("stddeviation") ||
+          "0",
+      );
+      if (sd > 0) rule.decls.push(`filter: blur(${num(sd)}px)`);
+      return;
+    }
     if (prims.length === 1 && prims[0].tag === "fegaussianblur") {
       const sd = parseFloat(
         prims[0].attrs.get("stdDeviation") ||
