@@ -4,7 +4,7 @@
 
 **What if a CSS animation could leave the browser?**
 
-https://github.com/user-attachments/assets/3b12477a-96ac-42f2-a7e6-0bdec74f26f8
+https://github.com/user-attachments/assets/7df900b1-42f8-4db8-8aec-5dd987ab1a42
 
 <sub>_One scene file, playing on web and native mobile._</sub>
 
