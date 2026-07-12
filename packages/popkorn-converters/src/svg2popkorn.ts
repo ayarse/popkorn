@@ -637,6 +637,59 @@ function pointsAttr(el: SvgNode): number[] {
     .filter((v) => !isNaN(v));
 }
 
+/** Absolute path commands for a rounded rect (rx/ry corners as elliptical arcs). */
+function roundedRectCmds(el: SvgNode): Cmd[] {
+  const x = n(el, "x"),
+    y = n(el, "y"),
+    w = n(el, "width"),
+    h = n(el, "height");
+  const hasRx = el.attrs.has("rx"),
+    hasRy = el.attrs.has("ry");
+  let rx = hasRx ? n(el, "rx") : n(el, "ry");
+  let ry = hasRy ? n(el, "ry") : n(el, "rx");
+  rx = Math.min(rx, w / 2);
+  ry = Math.min(ry, h / 2);
+  return [
+    { type: "M", x: x + rx, y },
+    { type: "L", x: x + w - rx, y },
+    {
+      type: "A",
+      rx,
+      ry,
+      angle: 0,
+      largeArc: false,
+      sweep: true,
+      x: x + w,
+      y: y + ry,
+    },
+    { type: "L", x: x + w, y: y + h - ry },
+    {
+      type: "A",
+      rx,
+      ry,
+      angle: 0,
+      largeArc: false,
+      sweep: true,
+      x: x + w - rx,
+      y: y + h,
+    },
+    { type: "L", x: x + rx, y: y + h },
+    {
+      type: "A",
+      rx,
+      ry,
+      angle: 0,
+      largeArc: false,
+      sweep: true,
+      x,
+      y: y + h - ry,
+    },
+    { type: "L", x, y: y + ry },
+    { type: "A", rx, ry, angle: 0, largeArc: false, sweep: true, x: x + rx, y },
+    { type: "Z" },
+  ];
+}
+
 /** Absolute path commands for any drawable element, or null if not geometry. */
 function elementCmds(el: SvgNode): Cmd[] | null {
   switch (el.tag) {
@@ -1247,6 +1300,23 @@ export class Converter {
     return node.tag === "image" && node.attrs.get("href") ? node : null;
   }
 
+  /**
+   * Clip decl for a single-image pattern fill, so the image is cropped to the
+   * source shape's own geometry rather than its (always-rectangular) bbox.
+   * A plain axis-aligned rect equals its own bbox, so it needs no clip.
+   */
+  private imagePatternClipDecl(el: SvgNode): string | undefined {
+    if (el.tag === "circle")
+      return `clip-path: circle(${num(n(el, "r"))}px at ${num(n(el, "cx"))}px ${num(n(el, "cy"))}px)`;
+    if (el.tag === "rect") {
+      if (!el.attrs.has("rx") && !el.attrs.has("ry")) return undefined;
+      return `clip-path: path('${cmdsToD(roundedRectCmds(el))}')`;
+    }
+    const cmds = elementCmds(el);
+    if (!cmds || cmds.length === 0) return undefined;
+    return `clip-path: path('${cmdsToD(cmds)}')`;
+  }
+
   /** Emit an image node at the shape's bbox for a single-image pattern fill. */
   private buildImagePatternLeaf(
     el: SvgNode,
@@ -1259,16 +1329,14 @@ export class Converter {
   ): Rule {
     const bbox = elementBBox(el);
     const href = imageEl.attrs.get("href") || "";
-    if (el.tag === "rect" && (el.attrs.has("rx") || el.attrs.has("ry")))
-      this.warnOnce(
-        "pattern-image fill on a rounded rect — corner clipping dropped",
-      );
+    const shapeClip = this.imagePatternClipDecl(el);
     const imgDecls = [
       `content: url('${href}')`,
       `x: ${num(bbox.x)}px`,
       `y: ${num(bbox.y)}px`,
       `width: ${num(bbox.w)}px`,
       `height: ${num(bbox.h)}px`,
+      ...(shapeClip ? [shapeClip] : []),
     ];
     const hasStroke =
       style.stroke !== undefined && style.stroke.trim() !== "none";

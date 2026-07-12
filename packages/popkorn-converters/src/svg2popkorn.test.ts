@@ -317,7 +317,7 @@ test("spreadMethod reflect/repeat warns (pad only)", () => {
   expect(warnings.some((w) => w.includes("spreadMethod"))).toBe(true);
 });
 
-test("single-image pattern fill resolves to an image node at the shape bbox", () => {
+test("single-image pattern fill on a plain rect resolves to an unclipped image at the shape bbox", () => {
   const uri = "data:image/png;base64,iVBORw0KGgo=";
   const { css, warnings } = conv(`<svg viewBox="0 0 100 100"><defs>
     <pattern id="p" patternContentUnits="objectBoundingBox" width="1" height="1">
@@ -332,18 +332,33 @@ test("single-image pattern fill resolves to an image node at the shape bbox", ()
   expect(b).toContain("y: 12px");
   expect(b).toContain("width: 40px");
   expect(b).toContain("height: 60px");
+  expect(b).not.toContain("clip-path");
   expect(warnings.some((w) => w.includes("unsupported fill reference"))).toBe(
     false,
   );
 });
 
-test("rounded-rect pattern-image fill warns about dropped corner clipping", () => {
-  const { warnings } = conv(`<svg viewBox="0 0 100 100"><defs>
+test("single-image pattern fill on a circle clips the image to circle()", () => {
+  const { css } = conv(`<svg viewBox="0 0 100 100"><defs>
+    <pattern id="p" patternContentUnits="objectBoundingBox" width="1" height="1">
+      <image id="img" width="10" height="10" href="data:image/png;base64,iVBORw0KGgo="/>
+    </pattern></defs>
+    <circle cx="45" cy="51" r="23" fill="url(#p)"/></svg>`);
+  const b = block(css, "circle1");
+  expect(b).toContain("type: image");
+  expect(b).toContain("clip-path: circle(23px at 45px 51px)");
+});
+
+test("single-image pattern fill on a rounded rect clips the image with a path()", () => {
+  const { css, warnings } = conv(`<svg viewBox="0 0 100 100"><defs>
     <pattern id="p" patternContentUnits="objectBoundingBox" width="1" height="1">
       <image id="img" width="10" height="10" href="data:image/png;base64,iVBORw0KGgo="/>
     </pattern></defs>
     <rect width="50" height="50" rx="6" fill="url(#p)"/></svg>`);
-  expect(warnings.some((w) => w.includes("corner clipping"))).toBe(true);
+  const b = block(css, "rect1");
+  expect(b).toContain("type: image");
+  expect(b).toMatch(/clip-path: path\('[^']+'\)/);
+  expect(warnings.some((w) => w.includes("corner clipping"))).toBe(false);
 });
 
 test("tiling / multi-child pattern still falls back to none", () => {
