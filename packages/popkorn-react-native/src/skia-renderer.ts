@@ -1,4 +1,5 @@
 import type {
+  CornerRadii,
   GradientData,
   MaskMode,
   Matrix3x3,
@@ -17,6 +18,7 @@ import {
   paintOrderSequence,
   resolveGradient,
   resolveStrokeDash,
+  roundedRectPath,
   setTextMeasurer,
 } from "@popkorn/player";
 
@@ -213,9 +215,24 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   // --- Shapes ----------------------------------------------------------------
 
-  drawRect(x: number, y: number, w: number, h: number, rx = 0, ry = 0): void {
-    const rect = this.skia.XYWHRect(x, y, w, h);
+  drawRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    rx = 0,
+    ry = 0,
+    corners?: CornerRadii,
+  ): void {
     const bounds: PaintBox = { x, y, width: w, height: h };
+    // Per-corner radii: RN Skia exposes no per-corner RRect constructor, so
+    // realize the shared rounded-rect path (same geometry the SVG backend uses).
+    if (corners) {
+      const path = this.buildPath(roundedRectPath(x, y, w, h, corners));
+      this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
+      return;
+    }
+    const rect = this.skia.XYWHRect(x, y, w, h);
     if (rx > 0 || ry > 0) {
       const rr = this.skia.RRectXY(rect, rx, ry);
       this.fillAndStroke(bounds, (p) => this.canvas!.drawRRect(rr, p));

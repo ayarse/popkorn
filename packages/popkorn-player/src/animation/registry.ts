@@ -5,7 +5,7 @@ import type {
 } from "../renderer/types";
 import { isGradientData, parseColor } from "../renderer/types";
 import { lerp } from "../scene/transform";
-import type { FilterOp, NodeBase, SceneNode } from "../scene/types";
+import type { FilterOp, NodeBase, RectData, SceneNode } from "../scene/types";
 
 /**
  * Property registry.
@@ -90,6 +90,36 @@ function geometryNumber(key: string): PropHandler {
   };
 }
 
+// --- per-corner rect radii (border-radius longhands) -------------------------
+// Each corner (0=tl,1=tr,2=br,3=bl) lives in RectData.cornerRadii; animating one
+// seeds the tuple from the uniform rx and marks the outline length stale (the
+// perimeter depends on the corner arcs). Falls back to rx when no per-corner
+// tuple exists yet, so a rect authored with a uniform rx animates a corner up
+// from that radius.
+function cornerRadiusNumber(index: number): PropHandler {
+  const read = (sd: {
+    type?: string;
+    cornerRadii?: readonly number[];
+    rx?: number;
+  }): number => sd.cornerRadii?.[index] ?? sd.rx ?? 0;
+  return {
+    kind: "number",
+    readBase: (base) => read(base.shapeData as never),
+    readLive: (node) => read(node.shapeData as never),
+    apply: (node, value) => {
+      if (node.shapeData.type !== "rect") return;
+      const rect = node.shapeData as RectData;
+      const seed = rect.rx || 0;
+      const c: [number, number, number, number] = rect.cornerRadii
+        ? [...rect.cornerRadii]
+        : [seed, seed, seed, seed];
+      c[index] = value as number;
+      rect.cornerRadii = c;
+      node.outlineLengthDirty = true;
+    },
+  };
+}
+
 // --- trim paths (fractions 0..1 of the outline; render clamps to range) ------
 function trimNumber(key: "trimStart" | "trimEnd" | "trimOffset"): PropHandler {
   return {
@@ -156,6 +186,10 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   height: geometryNumber("height"),
   rx: geometryNumber("rx"),
   ry: geometryNumber("ry"),
+  "border-top-left-radius": cornerRadiusNumber(0),
+  "border-top-right-radius": cornerRadiusNumber(1),
+  "border-bottom-right-radius": cornerRadiusNumber(2),
+  "border-bottom-left-radius": cornerRadiusNumber(3),
   cx: geometryNumber("cx"),
   cy: geometryNumber("cy"),
   r: geometryNumber("r"),

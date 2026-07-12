@@ -6,6 +6,7 @@ import type { Renderer } from "./interface";
 import { PaintStateRenderer } from "./paint-state";
 import { paintOrderSequence, resolveStrokeDash } from "./stroke";
 import type {
+  CornerRadii,
   GradientData,
   Matrix3x3,
   PathCommand,
@@ -75,11 +76,22 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     // No-op for Canvas2D (immediate mode)
   }
 
-  drawRect(x: number, y: number, w: number, h: number, rx = 0, ry = 0): void {
+  drawRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    rx = 0,
+    ry = 0,
+    corners?: CornerRadii,
+  ): void {
     this.ctx.beginPath();
-    if (rx > 0 || ry > 0) {
-      // Use roundRect for rounded corners
-      this.ctx.roundRect(x, y, w, h, [rx, ry]);
+    if (corners) {
+      // roundRect takes the per-corner array natively (tl, tr, br, bl).
+      this.ctx.roundRect(x, y, w, h, [...corners]);
+    } else if (rx > 0 || ry > 0) {
+      // Uniform (possibly elliptical) radius.
+      this.ctx.roundRect(x, y, w, h, [{ x: rx, y: ry }]);
     } else {
       this.ctx.rect(x, y, w, h);
     }

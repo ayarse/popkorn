@@ -147,6 +147,12 @@ export type PathCommand =
     }
   | { type: "Z" };
 
+// Per-corner rect radii in CSS border-radius order: [top-left, top-right,
+// bottom-right, bottom-left]. Circular only (one radius per corner) — the
+// elliptical slash form is not represented (see roundedRectPath NOTE). Present
+// on a RectData only when the corners differ; a uniform radius stays on rx/ry.
+export type CornerRadii = readonly [number, number, number, number];
+
 // Rec.709 luma coefficients (sRGB), shared by every backend's luminance matte
 // so a luminance mask reads identically across Canvas2D and Skia. (The SVG
 // backend uses feColorMatrix type="luminanceToAlpha", the browser built-in.)

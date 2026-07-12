@@ -1,4 +1,4 @@
-import { computePathBounds } from "../scene/path-parser";
+import { computePathBounds, roundedRectPath } from "../scene/path-parser";
 import type { MaskMode, TextAnchor } from "../scene/types";
 import type { PaintBox } from "./gradient-geometry";
 import { resolveGradient } from "./gradient-geometry";
@@ -6,6 +6,7 @@ import type { Renderer } from "./interface";
 import { PaintStateRenderer } from "./paint-state";
 import { resolveStrokeDash } from "./stroke";
 import type {
+  CornerRadii,
   GradientData,
   Matrix3x3,
   PathCommand,
@@ -486,7 +487,24 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
 
   // --- shapes ----------------------------------------------------------------
 
-  drawRect(x: number, y: number, w: number, h: number, rx = 0, ry = 0): void {
+  drawRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    rx = 0,
+    ry = 0,
+    corners?: CornerRadii,
+  ): void {
+    // SVG <rect> rx/ry is uniform-only, so per-corner radii emit a <path> from
+    // the shared rounded-rect geometry (pinned as a deliberate divergence in the
+    // SVG conformance test — Canvas/Skia keep a rect/RRect).
+    if (corners) {
+      const el = this.allocShape("path");
+      this.setAttr(el, "d", pathToD(roundedRectPath(x, y, w, h, corners)));
+      this.applyPaint(el, { x, y, width: w, height: h });
+      return;
+    }
     const el = this.allocShape("rect");
     this.setAttr(el, "x", String(x));
     this.setAttr(el, "y", String(y));

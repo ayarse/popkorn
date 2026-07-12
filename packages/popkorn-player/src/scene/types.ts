@@ -1,6 +1,6 @@
 import type { MachineRule, Value } from "@popkorn/parser";
 import type { PropValue } from "../animation/registry";
-import type { GradientData, PathCommand } from "../renderer/types";
+import type { CornerRadii, GradientData, PathCommand } from "../renderer/types";
 import { cloneGradient } from "../renderer/types";
 import type { MotionPath } from "./path-parser";
 
@@ -434,6 +434,10 @@ export interface RectData {
   height: number;
   rx: number;
   ry: number;
+  // Per-corner radii (CSS `border-radius: tl tr br bl`). Set only when the four
+  // corners differ; a uniform radius stays on rx/ry (native roundRect / rect
+  // rx). When present it overrides rx/ry. Circular only — see roundedRectPath.
+  cornerRadii?: CornerRadii;
 }
 
 export interface CircleData {

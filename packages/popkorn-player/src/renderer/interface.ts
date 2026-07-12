@@ -8,6 +8,7 @@ import type {
 } from "../scene/types";
 import type {
   Color,
+  CornerRadii,
   GradientData,
   Matrix3x3,
   PathCommand,
@@ -32,7 +33,9 @@ export interface Renderer {
   beginNode?(key: string): void;
   endNode?(): void;
 
-  // Shape rendering
+  // Shape rendering. `corners` (CSS per-corner border-radius) overrides rx/ry
+  // when present; each backend realizes it its own way (native roundRect array,
+  // an SVG path, a Skia path) from the shared corner order [tl, tr, br, bl].
   drawRect(
     x: number,
     y: number,
@@ -40,6 +43,7 @@ export interface Renderer {
     h: number,
     rx?: number,
     ry?: number,
+    corners?: CornerRadii,
   ): void;
   drawCircle(cx: number, cy: number, r: number): void;
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;

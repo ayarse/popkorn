@@ -57,6 +57,7 @@ export type { StrokeDashDecision } from "./renderer/stroke";
 export { paintOrderSequence, resolveStrokeDash } from "./renderer/stroke";
 export type {
   Color,
+  CornerRadii,
   GradientData,
   LinearGradientData,
   Matrix3x3,
@@ -103,6 +104,7 @@ export {
   computePathBounds,
   computePathLength,
   parsePath,
+  roundedRectPath,
 } from "./scene/path-parser";
 export { polystarToCommands } from "./scene/polystar";
 export type { TextMeasurer } from "./scene/transform";

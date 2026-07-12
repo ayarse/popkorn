@@ -239,6 +239,24 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
 
+  // --- per-corner border-radius (shared roundedRectPath geometry) ------------
+  {
+    // A rect with four distinct corner radii. Canvas realizes it via native
+    // roundRect's per-corner array, SVG/Skia via the shared rounded-rect path —
+    // three code paths that must all still fill AND stroke the shape (a backend
+    // that ignored or choked on the `corners` arg would drop a paint here).
+    name: "per-corner border-radius still fills and strokes on every backend",
+    ops: (r) => {
+      r.setFill("#0000ff");
+      r.setStroke("#ff0000", 2);
+      r.drawRect(0, 0, 20, 10, 0, 0, [2, 4, 6, 8]);
+    },
+    assert: (t, expect) => {
+      expect(t.paints.some((p) => p.kind === "fill")).toBe(true);
+      expect(t.paints.some((p) => p.kind === "stroke")).toBe(true);
+    },
+  },
+
   // --- #7 artboard clipping (shared walk's overflow:hidden default) ----------
   {
     // A rect clip at the stage box, then a shape straddling its edge. Under the

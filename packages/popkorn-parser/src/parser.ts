@@ -732,20 +732,39 @@ function expandAliases(
     case "color":
       return [decl("fill", value)];
 
-    // border-radius: <r>  ->  rx + ry (single value only).
-    case "border-radius":
-      if (isListValue(value)) {
+    // border-radius: 1–4 values. A single value stays uniform rx/ry (back-compat
+    // + animatable via rx/ry); 2–4 values expand to the per-corner longhands.
+    // NOTE: the elliptical slash form (`10px / 20px`) isn't supported — corners
+    // are circular; a `/` leaves a non-numeric token that trips the guard below.
+    case "border-radius": {
+      const parts = isListValue(value) ? value.values : [value];
+      const radii = parts.filter((p) => isLengthValue(p) || isNumberValue(p));
+      if (radii.length !== parts.length || radii.length > 4) {
         c.report(
           "unsupported-value",
           "warning",
-          "multi-value/elliptical border-radius isn't supported.",
+          "elliptical border-radius (with `/`) isn't supported.",
           start,
           end,
           "Use type: path for a custom outline.",
         );
         return [];
       }
-      return [decl("rx", value), decl("ry", value)];
+      if (radii.length <= 1) {
+        return [decl("rx", value), decl("ry", value)];
+      }
+      // CSS shorthand fill: [tl, tr, br, bl] from 2–4 values.
+      const tl = radii[0];
+      const tr = radii[1];
+      const br = radii[2] ?? radii[0];
+      const bl = radii[3] ?? radii[1];
+      return [
+        decl("border-top-left-radius", tl),
+        decl("border-top-right-radius", tr),
+        decl("border-bottom-right-radius", br),
+        decl("border-bottom-left-radius", bl),
+      ];
+    }
 
     // border: <width> solid <color>  ->  stroke-width + stroke.
     case "border":

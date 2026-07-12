@@ -1,6 +1,60 @@
-import type { PathCommand } from "../renderer/types";
+import type { CornerRadii, PathCommand } from "../renderer/types";
 import { polystarToCommands } from "./polystar";
 import type { SceneNode, ShapeData } from "./types";
+
+/**
+ * Outline of a rect with per-corner radii, as path commands, walking clockwise
+ * from the top edge. Corner order is CSS border-radius: [tl, tr, br, bl]. Each
+ * corner is a circular quarter-arc; a zero-radius corner degrades to a straight
+ * miter. Shared by the SVG and Skia backends (Canvas2D uses native roundRect);
+ * keeping one geometry source means the backends can't drift on corner shape.
+ * NOTE: each radius is clamped independently to half the shorter side — CSS's
+ * proportional overflow scaling (shrinking all radii together when they overlap
+ * an edge) isn't implemented; the elliptical slash form isn't represented.
+ */
+export function roundedRectPath(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  corners: CornerRadii,
+): PathCommand[] {
+  const max = Math.min(Math.abs(w), Math.abs(h)) / 2;
+  const clamp = (r: number) => Math.max(0, Math.min(r, max));
+  const [tl, tr, br, bl] = [
+    clamp(corners[0]),
+    clamp(corners[1]),
+    clamp(corners[2]),
+    clamp(corners[3]),
+  ];
+  const cmds: PathCommand[] = [];
+  const arc = (r: number, ex: number, ey: number) =>
+    cmds.push(
+      r > 0
+        ? {
+            type: "A",
+            rx: r,
+            ry: r,
+            angle: 0,
+            largeArc: false,
+            sweep: true,
+            x: ex,
+            y: ey,
+          }
+        : { type: "L", x: ex, y: ey },
+    );
+  cmds.push({ type: "M", x: x + tl, y });
+  cmds.push({ type: "L", x: x + w - tr, y });
+  arc(tr, x + w, y + tr);
+  cmds.push({ type: "L", x: x + w, y: y + h - br });
+  arc(br, x + w - br, y + h);
+  cmds.push({ type: "L", x: x + bl, y: y + h });
+  arc(bl, x, y + h - bl);
+  cmds.push({ type: "L", x, y: y + tl });
+  arc(tl, x + tl, y);
+  cmds.push({ type: "Z" });
+  return cmds;
+}
 
 /**
  * Parse SVG path data string into PathCommand array
@@ -826,6 +880,21 @@ export function shapeOutlineLength(sd: ShapeData): number {
     case "ellipse":
       return ellipsePerimeter(sd.rx, sd.ry);
     case "rect": {
+      // Per-corner: four independent quarter-circles + the straight runs each
+      // edge has left between its two corners.
+      if (sd.cornerRadii) {
+        const cap = Math.min(sd.width, sd.height) / 2;
+        const [tl, tr, br, bl] = sd.cornerRadii.map((r) =>
+          Math.max(0, Math.min(r, cap)),
+        );
+        const straight =
+          Math.max(0, sd.width - tl - tr) +
+          Math.max(0, sd.height - tr - br) +
+          Math.max(0, sd.width - br - bl) +
+          Math.max(0, sd.height - bl - tl);
+        const arcs = (Math.PI / 2) * (tl + tr + br + bl);
+        return straight + arcs;
+      }
       const rx = Math.min(Math.abs(sd.rx), sd.width / 2);
       const ry = Math.min(Math.abs(sd.ry), sd.height / 2);
       const straight = 2 * (sd.width - 2 * rx) + 2 * (sd.height - 2 * ry);

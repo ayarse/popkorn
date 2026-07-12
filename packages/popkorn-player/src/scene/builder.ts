@@ -101,6 +101,19 @@ const STATE_BLOCK_IGNORED = new Set([
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
   sd.type === "star" || sd.type === "polygon";
 
+// Set one corner (0=tl,1=tr,2=br,3=bl) of a rect's per-corner radii, seeding the
+// tuple from the current uniform rx so an unset corner keeps the uniform radius.
+function setCornerRadius(node: SceneNode, index: number, value: number): void {
+  if (node.shapeData.type !== "rect") return;
+  const rect = node.shapeData as RectData;
+  const seed = rect.rx || 0;
+  const c: [number, number, number, number] = rect.cornerRadii
+    ? [...rect.cornerRadii]
+    : [seed, seed, seed, seed];
+  c[index] = value;
+  rect.cornerRadii = c;
+}
+
 // CSS gradient functions accepted as a fill/stroke paint (+ their repeating
 // tiled variants). conic and every repeating-* form route through parseGradient.
 const GRADIENT_FN = new Set([
@@ -985,6 +998,22 @@ export class SceneBuilder {
         } else if (node.shapeData.type === "ellipse") {
           (node.shapeData as EllipseData).ry = getNumericValue(value);
         }
+        break;
+
+      // Per-corner radii (CSS border-radius longhands). Each seeds a full
+      // cornerRadii tuple (from the uniform rx if it isn't there yet) so a
+      // single corner declaration still yields a well-defined four-corner rect.
+      case "border-top-left-radius":
+        setCornerRadius(node, 0, getNumericValue(value));
+        break;
+      case "border-top-right-radius":
+        setCornerRadius(node, 1, getNumericValue(value));
+        break;
+      case "border-bottom-right-radius":
+        setCornerRadius(node, 2, getNumericValue(value));
+        break;
+      case "border-bottom-left-radius":
+        setCornerRadius(node, 3, getNumericValue(value));
         break;
 
       // Circle/ellipse properties

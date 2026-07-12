@@ -16,6 +16,7 @@ import type {
   ImageData,
   PathData,
   PolystarData,
+  RectData,
   TextData,
 } from "./types";
 import { resetNodeToBase } from "./types";
@@ -1393,4 +1394,44 @@ test("transform: translate(var()) registers a reactive binding, follows input", 
   );
   expect(t.translateX).toBe(200); // 300 - 100
   expect(t.translateY).toBe(5); // static channel re-applied verbatim
+});
+
+// --- per-corner border-radius ------------------------------------------------
+
+test("border-radius: single value stays uniform rx/ry (no cornerRadii)", () => {
+  const [n] = build(
+    "#b { type: rect; width: 20; height: 20; border-radius: 4; }",
+  ).children;
+  const sd = n.shapeData as RectData;
+  expect(sd.rx).toBe(4);
+  expect(sd.ry).toBe(4);
+  expect(sd.cornerRadii).toBeUndefined();
+});
+
+test("border-radius: 4 values -> per-corner cornerRadii [tl,tr,br,bl]", () => {
+  const [n] = build(
+    "#b { type: rect; width: 40; height: 40; border-radius: 1 2 3 4; }",
+  ).children;
+  const sd = n.shapeData as RectData;
+  expect(sd.cornerRadii).toEqual([1, 2, 3, 4]);
+});
+
+test("a single corner longhand seeds the tuple from uniform rx", () => {
+  const [n] = build(
+    "#b { type: rect; width: 40; height: 40; rx: 5; border-top-left-radius: 12; }",
+  ).children;
+  const sd = n.shapeData as RectData;
+  expect(sd.cornerRadii).toEqual([12, 5, 5, 5]);
+});
+
+test("per-corner radius is animatable via the registry (dirties outline length)", () => {
+  const [n] = build(
+    "#b { type: rect; width: 40; height: 40; border-top-left-radius: 4; }",
+  ).children;
+  const handler = getPropHandler("border-top-left-radius")!;
+  expect(handler.kind).toBe("number");
+  n.outlineLengthDirty = false;
+  handler.apply(n, 16);
+  expect((n.shapeData as RectData).cornerRadii?.[0]).toBe(16);
+  expect(n.outlineLengthDirty).toBe(true);
 });

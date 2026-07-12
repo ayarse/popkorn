@@ -130,13 +130,24 @@ test("right/bottom warn and are dropped (no containing box)", () => {
   expect(warns[0]).toContain("containing box");
 });
 
-test("multi-value border-radius warns, suggests type: path", () => {
-  expect(propNames("#b { border-radius: 10px 20px; }")).toEqual([]);
-  const warns = diags("#b { border-radius: 10px 20px; }");
-  expect(warns.some((w) => w.includes("border-radius"))).toBe(true);
-  expect(
-    parse("#b { border-radius: 10px 20px; }").diagnostics[0].hint,
-  ).toContain("type: path");
+test("border-radius: 2 values -> per-corner longhands (tl=br, tr=bl)", () => {
+  expect(propNames("#b { border-radius: 10px 20px; }")).toEqual([
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ]);
+  const vals = parse(
+    "#b { border-radius: 10px 20px; }",
+  ).rules[0].declarations.map((d) => (d.value as { value: number }).value);
+  expect(vals).toEqual([10, 20, 10, 20]); // tl, tr, br, bl
+});
+
+test("border-radius: 4 values map to tl tr br bl in order", () => {
+  const vals = parse(
+    "#b { border-radius: 1px 2px 3px 4px; }",
+  ).rules[0].declarations.map((d) => (d.value as { value: number }).value);
+  expect(vals).toEqual([1, 2, 3, 4]);
 });
 
 test("non-solid border style warns", () => {
