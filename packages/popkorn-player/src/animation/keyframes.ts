@@ -5,7 +5,7 @@ import type {
   SceneNode,
   TimingFunction,
 } from "../scene/types";
-import { applyEasing } from "./easing";
+import { applyEasing, holdsAtStart } from "./easing";
 import type { PropValue } from "./registry";
 import { getPropHandler, interpolateProp } from "./registry";
 
@@ -69,7 +69,7 @@ export function interpolateKeyframes(
   const range = next.offset - prev.offset;
   let localProgress = range > 0 ? (progress - prev.offset) / range : 0;
   const keyframeEasing = prev.easing || defaultEasing;
-  if (keyframeEasing === "step-end") {
+  if (holdsAtStart(keyframeEasing)) {
     // Hold (CSS step-end): the departing keyframe's value holds across the whole
     // segment and jumps at the next keyframe. Forcing local progress to 0 makes
     // every property interpolate to its `from` endpoint — before per-kind

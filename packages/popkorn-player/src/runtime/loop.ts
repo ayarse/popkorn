@@ -1,5 +1,5 @@
 import { isFunctionValue, isKeywordValue, type Value } from "@popkorn/parser";
-import { applyEasing } from "../animation/easing";
+import { applyEasing, holdsAtStart } from "../animation/easing";
 import { getPropHandler } from "../animation/registry";
 import {
   AnimationScheduler,
@@ -1091,7 +1091,7 @@ export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
     if (t >= a.input && t <= b.input) {
       const range = b.input - a.input;
       let f = range > 0 ? (t - a.input) / range : 0;
-      if (a.easing === "step-end") f = 0;
+      if (holdsAtStart(a.easing)) f = 0;
       else if (a.easing) f = applyEasing(f, a.easing);
       return a.output + (b.output - a.output) * f;
     }

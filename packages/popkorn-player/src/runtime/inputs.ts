@@ -1,9 +1,8 @@
 /**
- * Input tracking for cursor, touch, etc.
- * This is for Phase 3 (stretch goal) but we set up the structure now.
+ * Input tracking for cursor, touch, and scroll — feeds input(cursor.*)/input(scroll.*) bindings.
  */
 
-import { IDENTITY_VIEWPORT, type Viewport } from "./viewport";
+import { deviceToScene, IDENTITY_VIEWPORT, type Viewport } from "./viewport";
 
 export interface InputState {
   cursor: {
@@ -101,10 +100,9 @@ export class InputTracker {
     // viewport). getBoundingClientRect is CSS px regardless of backing-store size.
     const deviceX = (e.clientX - rect.left) * this.dpr;
     const deviceY = (e.clientY - rect.top) * this.dpr;
-    this.state.cursor.x =
-      (deviceX - this.viewport.offsetX) / this.viewport.scaleX;
-    this.state.cursor.y =
-      (deviceY - this.viewport.offsetY) / this.viewport.scaleY;
+    const scene = deviceToScene(this.viewport, deviceX, deviceY);
+    this.state.cursor.x = scene.x;
+    this.state.cursor.y = scene.y;
   }
 
   private handleMouseDown(_e: MouseEvent): void {

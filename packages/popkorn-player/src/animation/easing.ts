@@ -41,6 +41,21 @@ const EASE_IN_OUT_BEZIER: CubicBezier = {
 };
 
 /**
+ * Whether an easing holds at its departing (start) value across the whole
+ * segment and jumps only at the end — CSS `step-end` (steps(1, jump-end))
+ * semantics. Keyframe sampling (`animation/keyframes.ts`) and time-remap
+ * sampling (`runtime/loop.ts sampleTimeRemap`) both special-case this before
+ * per-kind dispatch, since forcing local progress to 0 is cheaper and more
+ * direct than routing every property through `stepEasing`; `applyEasing`
+ * uses the same predicate so direct callers see identical behavior.
+ */
+export function holdsAtStart(
+  timingFunction: TimingFunction | undefined,
+): boolean {
+  return timingFunction === "step-end";
+}
+
+/**
  * Apply easing function to a progress value
  */
 export function applyEasing(t: number, timingFunction: TimingFunction): number {
@@ -51,11 +66,8 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
     return t;
   }
 
-  // step-end / step-start are steps(1, jump-end) / steps(1, jump-start). step-end
-  // holds at the start value until the segment completes; the keyframe
-  // interpolator special-cases step-end before dispatch, so that path is only a
-  // fallback for direct callers.
-  if (timingFunction === "step-end") {
+  // step-end / step-start are steps(1, jump-end) / steps(1, jump-start).
+  if (holdsAtStart(timingFunction)) {
     return stepEasing(t, 1, "jump-end");
   }
 

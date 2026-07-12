@@ -51,7 +51,7 @@ type Segment = { start: number; end: number };
 // into the window's arc interval, intersect that with the authored dash's ON
 // intervals, and re-emit the result as one finite dash array + offset that
 // realizes BOTH — a single dash slot every backend can consume unchanged.
-export function composeDashInTrim(
+function composeDashInTrim(
   trim: TrimDescriptor,
   dashArray: number[],
   dashOffset: number,
