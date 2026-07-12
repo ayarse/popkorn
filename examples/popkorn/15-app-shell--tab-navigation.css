@@ -1,0 +1,472 @@
+/* App shell — a real mobile UI, navigable, built entirely in Popkorn. Popkorn
+   isn't just for motion graphics: this is a wireframe app running inside a phone
+   frame, with a working bottom tab bar you can actually click through.
+
+   The tab bar is a @machine ("nav"): tapping a tab flips the state, and per-tab
+   :state(nav.*) rules light the active icon/label and fade in its content panel.
+   Click Home / Search / Activity / Profile at the bottom of the screen.
+
+   The phone body is an SVG illustration imported through @popkorn/converters
+   (side buttons, bezel highlight, camera, antenna lines). The app is authored in
+   its own 390x830 "screen" space, then a single group transform maps it onto the
+   phone's display and a clip-path rounds it to the glass — the camera layer
+   paints last, so it sits on top of the running app. */
+   
+:root {
+  width: 72.5px;
+  height: 150px;
+}
+
+/* ---- bottom-tab navigation: one state per screen, any-state tap wins ---- */
+@machine nav {
+  initial: home;
+  state * {
+    to: home     on click(#tab-home);
+    to: search   on click(#tab-search);
+    to: activity on click(#tab-activity);
+    to: profile  on click(#tab-profile);
+  }
+  state home {}
+  state search {}
+  state activity {}
+  state profile {}
+}
+
+/* each content panel fades + slides up when its tab becomes active */
+@keyframes enter {
+  0%   { opacity: 0; transform: translateY(12px); animation-timing-function: ease-out; }
+  100% { opacity: 1; transform: translateY(0);    }
+}
+
+/* ---- wireframe primitives (reused across panels) ---- */
+@define card { type: rect; border-radius: 12px; fill: #26223a; }
+@define line { type: rect; border-radius: 4px; height: 12px; fill: #322d45; }
+
+/* ============================ PHONE HARDWARE ============================ */
+
+#side-buttons {
+  type: group;
+  > #volume-up {
+    type: group;
+    > #rect6 {
+      type: rect;
+      x: 0px;
+      y: 30.692px;
+      width: 7.642px;
+      height: 6.972px;
+      rx: 0.309px;
+      ry: 0.309px;
+      fill: linear-gradient(from 1.346px 30.692px to 1.346px 37.664px, #686171 0%, #575360 100%);
+      stroke-width: 0.2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    > #rect6-2 {
+      type: rect;
+      x: 0.062px;
+      y: 30.818px;
+      width: 7.23px;
+      height: 6.72px;
+      rx: 0.298px;
+      ry: 0.298px;
+      fill: linear-gradient(from 3.677px 30.818px to 3.677px 37.538px, #867e90 0%, #c5c4d1 17.473%, #8d8698 64.715%, #7a7184 100%);
+      stroke-width: 0.191px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+  > #mute-switch {
+    type: group;
+    transform: translate(-0.246px, 0px);
+    > #rect6-27 {
+      type: path;
+      d: 'M 0.55516486,42.77169 H 7.5795974 c 0.171066,0 0.3087834,0.137718 0.3087834,0.308784 v 10.627089 c 0,0.171066 -0.1377174,0.308784 -0.3087834,0.308784 H 0.55516486 c -0.17106598,0 -0.30878335,-0.137718 -0.30878335,-0.308784 V 43.080474 c 0,-0.171066 0.13771737,-0.308784 0.30878335,-0.308784 z';
+      fill: linear-gradient(from 1.839px 42.772px to 1.839px 49.744px, #686171 0%, #575360 100%);
+      stroke-width: 0.2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    > #rect6-2-9 {
+      type: path;
+      d: 'M 0.60575527,42.897755 H 7.240808 c 0.1648801,0 0.2976176,0.132737 0.2976176,0.297617 v 10.397297 c 0,0.16488 -0.1327375,0.297618 -0.2976176,0.297618 H 0.60575527 c -0.16488019,0 -0.29761767,-0.132738 -0.29761767,-0.297618 V 43.195372 c 0,-0.16488 0.13273748,-0.297617 0.29761767,-0.297617 z';
+      fill: linear-gradient(from 4.17px 42.898px to 4.17px 49.618px, #867e90 0%, #c5c4d1 17.473%, #8d8698 64.715%, #7a7184 100%);
+      stroke-width: 0.191px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+  > #power-button {
+    type: group;
+    transform: translate(72.746px, 3.822px) scale(-1, 1);
+    > #rect6-27-6 {
+      type: path;
+      d: 'M 0.55516486,42.77169 H 7.5795974 c 0.171066,0 0.3087834,0.137718 0.3087834,0.308784 v 17.177374 c 0,0.171066 -0.1377174,0.308784 -0.3087834,0.308784 H 0.55516486 c -0.17106598,0 -0.30878335,-0.137718 -0.30878335,-0.308784 V 43.080474 c 0,-0.171066 0.13771737,-0.308784 0.30878335,-0.308784 z';
+      fill: linear-gradient(from 71.153px 38.949px to 71.153px 45.922px, #686171 0%, #575360 100%);
+      stroke-width: 0.2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    > #rect6-2-9-5 {
+      type: path;
+      d: 'M 0.60575527,42.897755 H 7.240808 c 0.1648801,0 0.2976176,0.132737 0.2976176,0.297617 v 16.947582 c 0,0.16488 -0.1327375,0.297618 -0.2976176,0.297618 H 0.60575527 c -0.16488019,0 -0.29761767,-0.132738 -0.29761767,-0.297618 V 43.195372 c 0,-0.16488 0.13273748,-0.297617 0.29761767,-0.297617 z';
+      fill: linear-gradient(from 68.822px 39.075px to 68.822px 45.796px, #867e90 0%, #c5c4d1 17.473%, #8d8698 64.715%, #7a7184 100%);
+      stroke-width: 0.191px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+  > #volume-down {
+    type: group;
+    transform: translate(-0.246px, 14.23px);
+    > #rect6-27-3 {
+      type: path;
+      d: 'M 0.55516486,42.77169 H 7.5795974 c 0.171066,0 0.3087834,0.137718 0.3087834,0.308784 v 10.627089 c 0,0.171066 -0.1377174,0.308784 -0.3087834,0.308784 H 0.55516486 c -0.17106598,0 -0.30878335,-0.137718 -0.30878335,-0.308784 V 43.080474 c 0,-0.171066 0.13771737,-0.308784 0.30878335,-0.308784 z';
+      fill: linear-gradient(from 1.839px 28.542px to 1.839px 35.514px, #686171 0%, #575360 100%);
+      stroke-width: 0.2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    > #rect6-2-9-8 {
+      type: path;
+      d: 'M 0.60575527,42.897755 H 7.240808 c 0.1648801,0 0.2976176,0.132737 0.2976176,0.297617 v 10.397297 c 0,0.16488 -0.1327375,0.297618 -0.2976176,0.297618 H 0.60575527 c -0.16488019,0 -0.29761767,-0.132738 -0.29761767,-0.297618 V 43.195372 c 0,-0.16488 0.13273748,-0.297617 0.29761767,-0.297617 z';
+      fill: linear-gradient(from 4.17px 28.668px to 4.17px 35.388px, #867e90 0%, #c5c4d1 17.473%, #8d8698 64.715%, #7a7184 100%);
+      stroke-width: 0.191px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+}
+#device-body {
+  type: group;
+  > #rect32 {
+    type: rect;
+    x: 0.447px;
+    y: 0px;
+    width: 71.607px;
+    height: 150px;
+    rx: 12.866px;
+    ry: 12.866px;
+    fill: #716a7b;
+    stroke-width: 21.753px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+#screen {
+  type: group;
+  > #screen-fill {
+    type: group;
+    clip-path: path('M 0.447 0 L 72.053 0 L 72.053 150 L 0.447 150 Z');
+    > #screen-bezel {
+      type: path;
+      d: 'm 13.312381,0.50015231 c -6.8593976,0 -12.3651366,5.50573999 -12.3651366,12.36513969 V 137.13471 c 0,6.85939 5.505739,12.36514 12.3651366,12.36514 h 45.875234 c 6.8594,0 12.36514,-5.50575 12.36514,-12.36514 V 12.865292 c 0,-6.8593997 -5.50574,-12.36513969 -12.36514,-12.36513969 z';
+      fill: #9486a7;
+      stroke-width: 21.753px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    > #screen-surface {
+      type: path;
+      d: 'm 13.312383,0.90038112 c -6.6447174,0 -11.9667114,5.32043998 -11.9667114,11.96515988 V 137.13495 c 0,6.64471 5.321994,11.96466 11.9667114,11.96466 h 45.875234 c 6.64472,0 11.96671,-5.31995 11.96671,-11.96466 V 12.865541 c 0,-6.6447199 -5.32199,-11.96515988 -11.96671,-11.96515988 z';
+      fill: #f1eef4;
+      stroke-width: 21.753px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+  }
+}
+#screen-highlights {
+  type: group;
+  > #edge-highlight {
+    type: path;
+    d: 'M 56.059111,0 V 15.527734 H 0.44648437 v 1.055233 H 72.053483 V 15.527734 H 57.114343 V 0 Z M 0.44648437,133.41718 v 1.05523 H 15.385624 v 15.52774 h 1.055233 v -15.52774 h 55.612626 v -1.05523 z';
+    fill: #e7e3ec;
+    stroke-width: 13.754px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+#screen-black {
+  type: group;
+  > #black-fill {
+    type: path;
+    d: 'm 13.312378,0.97661114 c -6.603655,0 -11.888676,5.28502136 -11.888676,11.88868086 V 137.13471 c 0,6.60365 5.285021,11.88868 11.888676,11.88868 h 45.87524 c 6.60366,0 11.88868,-5.28503 11.88868,-11.88868 V 12.865292 c 0,-6.6036595 -5.28502,-11.88868086 -11.88868,-11.88868086 z';
+    fill: #000000;
+    stroke-width: 21.753px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  > #notch-highlight {
+    type: path;
+    d: 'm 29.068268,0.97661114 c 0.09826,0 0.286648,0.56482346 0.400492,0.56482346 h 13.56248 c 0.113844,0 0.302237,-0.56482346 0.400492,-0.56482346 z';
+    fill: linear-gradient(from 36.25px 0.977px to 36.25px 1.541px, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.1) 100%);
+    stroke-width: 1.784px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+#bezel-inner {
+  type: group;
+  > #inner-frame {
+    type: path;
+    d: 'm 13.312882,2.4648914 c -5.8047685,0 -10.4003983,4.5956227 -10.4003983,10.4003996 V 137.13471 c 0,5.80477 4.5956298,10.4004 10.4003983,10.4004 h 45.87472 c 5.80478,0 10.400398,-4.59563 10.400398,-10.4004 V 12.865291 C 69.588,7.0605141 64.992382,2.4648914 59.187602,2.4648914 Z M 28.818913,4.80325 h 14.862142 c 1.66928,0 3.013252,1.343978 3.013252,3.0132527 0,1.6692748 -1.343972,3.0132533 -3.013252,3.0132533 H 28.818913 c -1.66927,0 -3.012736,-1.3439785 -3.012736,-3.0132533 0,-1.6692747 1.343466,-3.0132527 3.012736,-3.0132527 z';
+    fill: #333333;
+    stroke-width: 21.753px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+/* ============================ APP UI (nested in the screen) ============================ */
+/* Authored in a 390x830 screen space (x 19..409, y 19..849), then this one
+   transform maps it onto the phone's #333333 display (x 2.9..69.6, y 2.5..147.5)
+   and the clip-path rounds it to the glass. Placed after #bezel-inner (the screen)
+   and before #front-camera-sensors (the camera), so the app IS the screen content
+   and the camera composites on top. */
+#app {
+  type: group;
+  transform: translate(-0.408px, -0.856px) scale(0.17478);
+  clip-path: path('M 78 19 L 350 19 A 59.5 59.5 0 0 1 409 78 L 409 790 A 59.5 59.5 0 0 1 350 849 L 78 849 A 59.5 59.5 0 0 1 19 790 L 19 78 A 59.5 59.5 0 0 1 78 19 Z');
+
+  /* dark "on" wallpaper filling the display */
+  > #screen-wallpaper {
+    type: rect; x: 19px; y: 19px; width: 390px; height: 830px;
+    border-radius: 59.5px; fill: radial-gradient(#2a2438, #0a0a12);
+  }
+
+  /* ---- status bar: clock + battery (flank the phone's camera) ---- */
+  > #clock {
+    type: text; content: "9:41"; x: 52px; y: 52px;
+    font-size: 15px; font-family: sans-serif; font-weight: bold;
+    text-anchor: start; fill: #d8d4e0;
+  }
+  > #battery {
+    type: rect; x: 356px; y: 40px; width: 22px; height: 11px;
+    border-radius: 3px; fill: none; stroke: #8f8b9c; stroke-width: 1.5px;
+  }
+  > #battery-fill {
+    type: rect; x: 358px; y: 42px; width: 14px; height: 7px;
+    border-radius: 1px; fill: #d8d4e0;
+  }
+  > #battery-tip {
+    type: rect; x: 379px; y: 43px; width: 2px; height: 5px;
+    border-radius: 1px; fill: #8f8b9c;
+  }
+
+  /* ---- HOME: hero card + list rows ---- */
+  > #panel-home {
+    type: group; opacity: 0; pointer-events: none;
+    transform-origin: 214px 400px;
+    &:state(nav.home) { animation: enter 320ms ease-out; }
+
+    > #home-hero { use: card; x: 44px; y: 118px; width: 340px; height: 152px; border-radius: 16px; fill: #2b2743; }
+    > #home-hero-l1 { use: line; x: 62px; y: 210px; width: 184px; height: 15px; fill: #4a4568; }
+    > #home-hero-l2 { use: line; x: 62px; y: 233px; width: 116px; height: 11px; fill: #3a3556; }
+
+    > #home-t1 { use: card; x: 44px; y: 296px; width: 46px; height: 46px; border-radius: 12px; fill: #2a2640; }
+    > #home-r1a { use: line; x: 104px; y: 305px; width: 210px; }
+    > #home-r1b { use: line; x: 104px; y: 325px; width: 132px; height: 10px; fill: #2a2640; }
+
+    > #home-t2 { use: card; x: 44px; y: 360px; width: 46px; height: 46px; border-radius: 12px; fill: #2a2640; }
+    > #home-r2a { use: line; x: 104px; y: 369px; width: 190px; }
+    > #home-r2b { use: line; x: 104px; y: 389px; width: 150px; height: 10px; fill: #2a2640; }
+
+    > #home-t3 { use: card; x: 44px; y: 424px; width: 46px; height: 46px; border-radius: 12px; fill: #2a2640; }
+    > #home-r3a { use: line; x: 104px; y: 433px; width: 200px; }
+    > #home-r3b { use: line; x: 104px; y: 453px; width: 110px; height: 10px; fill: #2a2640; }
+  }
+
+  /* ---- SEARCH: search field + 3x2 tile grid ---- */
+  > #panel-search {
+    type: group; opacity: 0; pointer-events: none;
+    transform-origin: 214px 400px;
+    &:state(nav.search) { animation: enter 320ms ease-out; }
+
+    > #search-field { use: card; x: 44px; y: 118px; width: 340px; height: 46px; border-radius: 14px; }
+    > #search-glass {
+      type: path; d: 'M 60 134 A 7 7 0 1 1 74 134 A 7 7 0 1 1 60 134 M 72 139 L 78 145';
+      fill: none; stroke: #6b6780; stroke-width: 2px; stroke-linecap: round;
+    }
+    > #search-ph { use: line; x: 92px; y: 135px; width: 130px; fill: #322d45; }
+
+    > #g1 { use: card; x: 44px;  y: 186px; width: 104px; height: 104px; }
+    > #g2 { use: card; x: 162px; y: 186px; width: 104px; height: 104px; }
+    > #g3 { use: card; x: 280px; y: 186px; width: 104px; height: 104px; }
+    > #g4 { use: card; x: 44px;  y: 302px; width: 104px; height: 104px; }
+    > #g5 { use: card; x: 162px; y: 302px; width: 104px; height: 104px; }
+    > #g6 { use: card; x: 280px; y: 302px; width: 104px; height: 104px; }
+  }
+
+  /* ---- ACTIVITY: bar chart card + two stat cards ---- */
+  > #panel-activity {
+    type: group; opacity: 0; pointer-events: none;
+    transform-origin: 214px 400px;
+    &:state(nav.activity) { animation: enter 320ms ease-out; }
+
+    > #act-card { use: card; x: 44px; y: 118px; width: 340px; height: 202px; border-radius: 16px; fill: #221f34; }
+    > #bar1 { type: rect; x: 74px;  y: 240px; width: 30px; height: 60px;  border-radius: 6px; fill: #46507e; }
+    > #bar2 { type: rect; x: 124px; y: 190px; width: 30px; height: 110px; border-radius: 6px; fill: #55619a; }
+    > #bar3 { type: rect; x: 174px; y: 220px; width: 30px; height: 80px;  border-radius: 6px; fill: #46507e; }
+    > #bar4 { type: rect; x: 224px; y: 160px; width: 30px; height: 140px; border-radius: 6px; fill: #6b78bf; }
+    > #bar5 { type: rect; x: 274px; y: 200px; width: 30px; height: 100px; border-radius: 6px; fill: #55619a; }
+    > #bar6 { type: rect; x: 324px; y: 150px; width: 30px; height: 150px; border-radius: 6px; fill: #7c8ad6; }
+
+    > #stat1 { use: card; x: 44px;  y: 344px; width: 164px; height: 84px; }
+    > #stat1-l1 { use: line; x: 60px; y: 364px; width: 70px; height: 22px; border-radius: 6px; fill: #4a4568; }
+    > #stat1-l2 { use: line; x: 60px; y: 398px; width: 110px; height: 10px; fill: #2f2b45; }
+    > #stat2 { use: card; x: 220px; y: 344px; width: 164px; height: 84px; }
+    > #stat2-l1 { use: line; x: 236px; y: 364px; width: 70px; height: 22px; border-radius: 6px; fill: #4a4568; }
+    > #stat2-l2 { use: line; x: 236px; y: 398px; width: 110px; height: 10px; fill: #2f2b45; }
+  }
+
+  /* ---- PROFILE: avatar + name + setting rows ---- */
+  > #panel-profile {
+    type: group; opacity: 0; pointer-events: none;
+    transform-origin: 214px 400px;
+    &:state(nav.profile) { animation: enter 320ms ease-out; }
+
+    > #avatar {
+      type: circle; cx: 214px; cy: 176px; r: 46px;
+      fill: #2a2640; stroke: #3f3a5c; stroke-width: 2px;
+    }
+    > #avatar-head { type: circle; cx: 214px; cy: 164px; r: 15px; fill: #4a4568; }
+    > #avatar-body { type: path; d: 'M 190 202 Q 214 176 238 202'; fill: #4a4568; }
+    > #prof-name { use: line; x: 144px; y: 244px; width: 140px; height: 16px; border-radius: 6px; fill: #4a4568; }
+    > #prof-sub  { use: line; x: 164px; y: 270px; width: 100px; height: 11px; fill: #2f2b45; }
+
+    > #set1 { use: card; x: 44px; y: 314px; width: 340px; height: 46px; fill: #221f34; }
+    > #set1-l { use: line; x: 62px; y: 331px; width: 170px; fill: #3a3556; }
+    > #set1-c { type: rect; x: 360px; y: 331px; width: 8px; height: 12px; border-radius: 2px; fill: #3a3556; }
+    > #set2 { use: card; x: 44px; y: 370px; width: 340px; height: 46px; fill: #221f34; }
+    > #set2-l { use: line; x: 62px; y: 387px; width: 140px; fill: #3a3556; }
+    > #set2-c { type: rect; x: 360px; y: 387px; width: 8px; height: 12px; border-radius: 2px; fill: #3a3556; }
+    > #set3 { use: card; x: 44px; y: 426px; width: 340px; height: 46px; fill: #221f34; }
+    > #set3-l { use: line; x: 62px; y: 443px; width: 200px; fill: #3a3556; }
+    > #set3-c { type: rect; x: 360px; y: 443px; width: 8px; height: 12px; border-radius: 2px; fill: #3a3556; }
+  }
+
+  /* ---- bottom tab bar ---- */
+  > #tabbar {
+    type: rect; x: 19px; y: 748px; width: 390px; height: 101px;
+    fill: #17141f;
+  }
+  > #tabbar-divider {
+    type: rect; x: 19px; y: 748px; width: 390px; height: 1.5px; fill: #2a2636;
+  }
+
+  > #tab-home {
+    type: group;
+    > #cell-home { type: rect; x: 20px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #icon-home {
+      type: path; d: 'M 55 779 L 68 767 L 81 779 M 58 777 L 58 790 L 78 790 L 78 777';
+      fill: none; stroke: #55525f; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round;
+      &:state(nav.home) { stroke: #7c9dff; }
+    }
+    > #label-home {
+      type: text; content: "Home"; x: 68px; y: 813px;
+      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      &:state(nav.home) { fill: #7c9dff; }
+    }
+  }
+
+  > #tab-search {
+    type: group;
+    > #cell-search { type: rect; x: 117px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #icon-search {
+      type: path; d: 'M 158 773 A 7 7 0 1 1 172 773 A 7 7 0 1 1 158 773 M 170 778 L 176 784';
+      fill: none; stroke: #55525f; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round;
+      &:state(nav.search) { stroke: #7c9dff; }
+    }
+    > #label-search {
+      type: text; content: "Search"; x: 165px; y: 813px;
+      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      &:state(nav.search) { fill: #7c9dff; }
+    }
+  }
+
+  > #tab-activity {
+    type: group;
+    > #cell-activity { type: rect; x: 215px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #icon-activity {
+      type: path; d: 'M 255 785 L 255 777 M 263 785 L 263 769 M 271 785 L 271 773';
+      fill: none; stroke: #55525f; stroke-width: 3px; stroke-linecap: round;
+      &:state(nav.activity) { stroke: #7c9dff; }
+    }
+    > #label-activity {
+      type: text; content: "Activity"; x: 263px; y: 813px;
+      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      &:state(nav.activity) { fill: #7c9dff; }
+    }
+  }
+
+  > #tab-profile {
+    type: group;
+    > #cell-profile { type: rect; x: 312px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #icon-profile {
+      type: path; d: 'M 355 771 A 5 5 0 1 1 365 771 A 5 5 0 1 1 355 771 M 350 787 Q 360 778 370 787';
+      fill: none; stroke: #55525f; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round;
+      &:state(nav.profile) { stroke: #7c9dff; }
+    }
+    > #label-profile {
+      type: text; content: "Profile"; x: 360px; y: 813px;
+      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      &:state(nav.profile) { fill: #7c9dff; }
+    }
+  }
+
+  /* home indicator */
+  > #home-indicator {
+    type: rect; x: 154px; y: 834px; width: 120px; height: 5px;
+    border-radius: 3px; fill: #6b6878; opacity: 0.85;
+  }
+}
+
+/* ============================ CAMERA / SENSORS (paints over the app) ============================ */
+#front-camera-sensors {
+  type: group;
+  > #dynamic-island {
+    type: rect;
+    x: 27.3px;
+    y: 4.3px;
+    width: 19.4px;
+    height: 7px;
+    rx: 3.5px;
+    ry: 3.5px;
+    fill: #050505;
+    stroke-width: 0.2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  > #camera-lens {
+    type: circle;
+    cx: 43.681px;
+    cy: 7.817px;
+    r: 0.924px;
+    fill: radial-gradient(circle 0.924px at 43.681px 7.431px, #39394e 0%, #1e1e21 100%);
+    stroke-width: 0.2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  > #sensor-dot-left-glow {
+    type: circle;
+    transform: rotate(15deg);
+    cx: 44.216px;
+    cy: -3.755px;
+    r: 0.682px;
+    fill: radial-gradient(circle 0.803px at 41.079px -14.895px, rgba(182, 151, 255, 0.522) 0%, rgba(54, 0, 174, 0.522) 56.404%, rgba(0, 0, 0, 0) 100%);
+    stroke-width: 0.2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  > #sensor-dot-right-glow {
+    type: circle;
+    transform: rotate(15deg) scale(-1, 1);
+    cx: -44.216px;
+    cy: -3.755px;
+    r: 0.682px;
+    fill: radial-gradient(circle 0.803px at 44.34px 7.993px, rgba(182, 151, 255, 0.522) 0%, rgba(54, 0, 174, 0.522) 56.404%, rgba(0, 0, 0, 0) 100%);
+    stroke-width: 0.2px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
