@@ -6,6 +6,8 @@
 
 https://github.com/user-attachments/assets/3b12477a-96ac-42f2-a7e6-0bdec74f26f8
 
+<sub>_One scene file, playing on web and native mobile._</sub>
+
 [**▶ Playground**](https://ayarse.github.io/popkorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
 </div>
@@ -140,6 +142,19 @@ bun run dev        # http://localhost:5173
 
 Popkorn covers most of what people reach for in real motion graphics:
 
+- **Runs where you need it.** One scene file plays in the browser (Canvas2D or
+  SVG) and on native mobile through React Native and Skia. No re-export per
+  target, no runtime lock-in.
+- **Imports what you already have.** Real Lottie files and SVGs convert into
+  readable Popkorn scenes and play back faithfully, so you can bring an existing
+  library across instead of starting from a blank file.
+- **Interactivity, built into the format.** Drive multi-state behavior with
+  hand-written state machines, react to pointer with `:hover` and `:active`
+  tweened by CSS `transition`s, and bind properties to live input with `var()`
+  and `input(cursor.x)`. Because it all runs on one continuous timeline,
+  interactive states compose cleanly on top of running animations instead of
+  restarting them. There's no script engine; the reactivity is part of the format
+  ([docs/state-machines.md](docs/state-machines.md)).
 - **Shapes & paint.** Circles, rects, ellipses, polygons, polystars, and full
   SVG paths. Solid fills, linear and radial gradients, strokes with dashes and
   caps.
@@ -152,13 +167,6 @@ Popkorn covers most of what people reach for in real motion graphics:
 - **Composition.** A real scene graph with parent/child transforms, symbols
   (reusable definitions), `z-index` layering, clipping, masks and track mattes,
   visibility windows, and per-subtree time scaling.
-- **Interactivity, declared not scripted.** Bind properties to live input with
-  `var()` and `input(cursor.x)`, react with `:hover` and `:active` tweened by CSS
-  `transition`s, and drive multi-state behavior with state machines. Because it
-  all runs on one continuous timeline, interactive states compose cleanly on top
-  of running animations instead of restarting them. There's no script engine; the
-  reactivity is part of the format
-  ([docs/state-machines.md](docs/state-machines.md)).
 
 The [playground](packages/playground) shows each of these as a live scene, and
 the sources live in [`examples/popkorn/`](examples/popkorn).
