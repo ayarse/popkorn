@@ -30,6 +30,10 @@ Popkorn started out as a what-if experiment, but it's grown surprisingly capable
 It's early still, but the core idea, that a CSS animation can be a portable
 artifact, is looking promising.
 
+Because of the familiar CSS syntax, LLMs are proving very capable at authoring
+scenes from scratch and at editing what's already there, like an imported Lottie,
+changing its colors, timing, or motion.
+
 **▶ [Try it live in the playground](https://ayarse.github.io/popkorn)**: edit
 scenes in the browser, no install.
 
