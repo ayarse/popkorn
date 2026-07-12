@@ -134,11 +134,16 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     fontFamily: string,
     fontWeight: string,
     anchor: TextAnchor,
+    letterSpacing = 0,
   ): void {
     this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
     this.ctx.textAlign =
       anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
     this.ctx.textBaseline = "alphabetic";
+    // ctx.letterSpacing is sticky — set it every draw (a CSS length string), so a
+    // 0 spacing clears a prior node's value. Guarded: not all engines expose it.
+    if ("letterSpacing" in this.ctx)
+      this.ctx.letterSpacing = `${letterSpacing}px`;
 
     // Bounding box (for gradients) mirrors scene/transform.getShapeBounds.
     const width = this.ctx.measureText(text).width;

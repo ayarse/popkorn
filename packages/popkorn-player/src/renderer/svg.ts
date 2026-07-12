@@ -551,6 +551,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     fontFamily: string,
     fontWeight: string,
     anchor: TextAnchor,
+    letterSpacing = 0,
   ): void {
     const el = this.allocShape("text");
     this.setAttr(el, "x", String(x));
@@ -559,6 +560,11 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.setAttr(el, "font-size", String(fontSize));
     this.setAttr(el, "font-weight", fontWeight);
     this.setAttr(el, "text-anchor", anchor);
+    this.setAttr(
+      el,
+      "letter-spacing",
+      letterSpacing ? String(letterSpacing) : null,
+    );
     if (this.textCache.get(el) !== text) {
       el.textContent = text;
       this.textCache.set(el, text);

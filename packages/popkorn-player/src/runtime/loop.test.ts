@@ -544,3 +544,17 @@ test("box-shadow: inset on a rounded rect clips to the outline path, not a bbox"
   expect(r.clips.some((c) => c.type === "rect")).toBe(false);
   expect(r.fills).toContain("#00ff00");
 });
+
+// --- multi-line text + letter-spacing ----------------------------------------
+
+test("text: multi-line content draws one line per \\n", () => {
+  const r = loadScene(
+    '#t { type: text; content: "a\\nb\\nc"; font-size: 10px; }',
+  );
+  expect(r.texts).toEqual(["a", "b", "c"]);
+});
+
+test("text: single line still draws exactly once", () => {
+  const r = loadScene('#t { type: text; content: "hello"; }');
+  expect(r.texts).toEqual(["hello"]);
+});

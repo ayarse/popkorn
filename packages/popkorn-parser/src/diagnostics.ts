@@ -87,6 +87,9 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "font-size",
   "font-weight",
   "text-anchor",
+  "text-align",
+  "letter-spacing",
+  "line-height",
   // transform
   "transform",
   "transform-origin",

@@ -62,14 +62,15 @@ export function getShapeBounds(node: SceneNode): {
       const t = node.shapeData as TextData;
       const { width, height } = measureText(node, t);
       // Anchor shifts the box like ctx.textAlign does; baseline is alphabetic,
-      // so the box sits above the y baseline.
+      // so the first line sits above the y baseline (top = y - fontSize) and any
+      // further lines extend DOWN, which `height` already accounts for.
       const x =
         t.anchor === "middle"
           ? t.x - width / 2
           : t.anchor === "end"
             ? t.x - width
             : t.x;
-      return { x, y: t.y - height, width, height };
+      return { x, y: t.y - t.fontSize, width, height };
     }
     default:
       return { x: 0, y: 0, width: 0, height: 0 };
@@ -123,27 +124,40 @@ export function measureText(
   )
     return node.cachedTextBounds;
 
-  let bounds: { width: number; height: number } | null = null;
-  if (textMeasurer) {
-    bounds = textMeasurer(t.content, {
-      fontSize: t.fontSize,
-      fontFamily: t.fontFamily,
-      fontWeight: t.fontWeight,
-    });
-  }
-  if (!bounds) {
-    const ctx = getScratchContext();
-    if (ctx) {
-      ctx.font = `${t.fontWeight} ${t.fontSize}px ${t.fontFamily}`;
-      bounds = { width: ctx.measureText(t.content).width, height: t.fontSize };
-    } else {
-      // NOTE: headless (no canvas) — estimate so tests/bun stay DOM-free.
-      bounds = {
-        width: 0.6 * t.fontSize * t.content.length,
-        height: t.fontSize,
-      };
+  // Multi-line: measure each `\n`-separated line, take the widest, and stack the
+  // heights by line-height (auto = 1.2·em). Single-line height stays fontSize.
+  const lines = t.content.split("\n");
+  const lh = t.lineHeight > 0 ? t.lineHeight : t.fontSize * 1.2;
+  const ls = t.letterSpacing || 0;
+
+  const lineWidth = (line: string): number => {
+    let w: number | null = null;
+    if (textMeasurer) {
+      const m = textMeasurer(line, {
+        fontSize: t.fontSize,
+        fontFamily: t.fontFamily,
+        fontWeight: t.fontWeight,
+      });
+      if (m) w = m.width;
     }
-  }
+    if (w === null) {
+      const ctx = getScratchContext();
+      if (ctx) {
+        ctx.font = `${t.fontWeight} ${t.fontSize}px ${t.fontFamily}`;
+        w = ctx.measureText(line).width;
+      } else {
+        // NOTE: headless (no canvas) — estimate so tests/bun stay DOM-free.
+        w = 0.6 * t.fontSize * line.length;
+      }
+    }
+    // letter-spacing adds one gap between each pair of glyphs on the line.
+    return w + Math.max(0, line.length - 1) * ls;
+  };
+
+  const width = Math.max(0, ...lines.map(lineWidth));
+  const height =
+    lines.length > 1 ? (lines.length - 1) * lh + t.fontSize : t.fontSize;
+  const bounds = { width, height };
 
   node.cachedTextBounds = bounds;
   node.textBoundsDirty = false;

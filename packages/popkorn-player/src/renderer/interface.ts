@@ -48,6 +48,10 @@ export interface Renderer {
   drawCircle(cx: number, cy: number, r: number): void;
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;
   drawPath(commands: PathCommand[]): void;
+  // One line of text. Multi-line splitting + line spacing happen in the shared
+  // walk (loop.ts), which calls this once per line. `letterSpacing` (px) is
+  // realized per backend (Canvas ctx.letterSpacing, SVG letter-spacing attr,
+  // Skia no-op — a pinned divergence).
   drawText(
     text: string,
     x: number,
@@ -56,6 +60,7 @@ export interface Renderer {
     fontFamily: string,
     fontWeight: string,
     anchor: TextAnchor,
+    letterSpacing?: number,
   ): void;
   // Draw a cached image (by src) into the x/y/w/h box. w/h <= 0 means natural
   // size. Loading/caching is the renderer's concern; nothing paints until the

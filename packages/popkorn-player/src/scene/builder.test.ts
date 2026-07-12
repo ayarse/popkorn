@@ -40,6 +40,8 @@ test("text: props mapped with defaults", () => {
     fontFamily: "sans-serif",
     fontWeight: "normal",
     anchor: "middle",
+    letterSpacing: 0,
+    lineHeight: 0,
   });
 });
 
@@ -1487,4 +1489,51 @@ test("box-shadow: none clears it; animatable via the registry", () => {
   ).children;
   expect(n.boxShadow).toBeNull();
   expect(getPropHandler("box-shadow")!.kind).toBe("path");
+});
+
+// --- text-align / letter-spacing / line-height / multi-line ------------------
+
+test("text-align maps onto the text-anchor semantics", () => {
+  const a = (align: string) =>
+    (
+      build(`#t { type: text; content: "x"; text-align: ${align}; }`)
+        .children[0].shapeData as TextData
+    ).anchor;
+  expect(a("left")).toBe("start");
+  expect(a("start")).toBe("start");
+  expect(a("center")).toBe("middle");
+  expect(a("right")).toBe("end");
+  expect(a("end")).toBe("end");
+});
+
+test("letter-spacing widens the measured box; animatable + dirties bounds", () => {
+  const t = build(
+    '#t { type: text; content: "AB"; font-size: 20px; letter-spacing: 4px; }',
+  ).children[0];
+  expect((t.shapeData as TextData).letterSpacing).toBe(4);
+  // Estimate 0.6*20*2 = 24, plus one 4px gap between the two glyphs.
+  expect(getShapeBounds(t).width).toBeCloseTo(24 + 4, 5);
+
+  getPropHandler("letter-spacing")!.apply(t, 10);
+  expect((t.shapeData as TextData).letterSpacing).toBe(10);
+  expect(t.textBoundsDirty).toBe(true);
+});
+
+test("line-height: unitless multiplies font-size; px passes through", () => {
+  const lh = (v: string) =>
+    (
+      build(
+        `#t { type: text; content: "x"; font-size: 20px; line-height: ${v}; }`,
+      ).children[0].shapeData as TextData
+    ).lineHeight;
+  expect(lh("1.5")).toBe(30); // 1.5 * 20
+  expect(lh("28px")).toBe(28);
+});
+
+test("multi-line \\n stacks height by line-height", () => {
+  const t = build(
+    '#t { type: text; content: "a\\nb\\nc"; font-size: 20px; line-height: 30px; }',
+  ).children[0];
+  // 3 lines: (3-1)*30 + 20 first-line ascent = 80.
+  expect(getShapeBounds(t).height).toBe(80);
 });

@@ -282,6 +282,9 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     fontFamily: string,
     fontWeight: string,
     anchor: TextAnchor,
+    // NOTE: letter-spacing is a pinned no-op here (like Skia's text-measure
+    // approximation) — RN Skia's simple drawText has no per-glyph advance knob.
+    _letterSpacing = 0,
   ): void {
     if (!this.canvas) return;
     const font = this.font(fontFamily, fontWeight, fontSize);

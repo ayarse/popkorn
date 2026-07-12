@@ -1124,12 +1124,19 @@ export class Converter {
    * can't be represented, so substitute the double quotes with single and warn.
    */
   private cssString(str: string): string {
-    if (!str.includes('"')) return `"${str}"`;
-    if (!str.includes("'")) return `'${str}'`;
+    // The player's string parser now unescapes CSS backslash escapes, so a
+    // literal backslash must be doubled and real line breaks emit `\n`/`\r`
+    // (which also lets Lottie multi-line text round-trip as `\n`-split lines).
+    const s = str
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "\\r");
+    if (!s.includes('"')) return `"${s}"`;
+    if (!s.includes("'")) return `'${s}'`;
     this.warnOnce(
       "text contains both quote characters; double quotes replaced with single",
     );
-    return `"${str.replace(/"/g, "'")}"`;
+    return `"${s.replace(/"/g, "'")}"`;
   }
 
   private buildTextRule(l: any, id: string): Rule {

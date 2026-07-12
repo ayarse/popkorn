@@ -1022,6 +1022,25 @@ function readString(c: Cursor, quote: string): Value {
       c.pos++; // closing quote
       return { type: "string", value: out };
     }
+    // Backslash escapes (CSS): \n \r \t become control chars (so a text `content`
+    // can carry line breaks), a backslash before a quote/backslash escapes it,
+    // and any other \<char> is that char literally. NOTE: \<hex> unicode escapes
+    // aren't unwound. An escaped newline is a line continuation (drops the break).
+    if (ch === "\\" && c.pos + 1 < c.src.length) {
+      const next = c.src[c.pos + 1];
+      out +=
+        next === "n"
+          ? "\n"
+          : next === "r"
+            ? "\r"
+            : next === "t"
+              ? "\t"
+              : next === "\n"
+                ? ""
+                : next;
+      c.pos += 2;
+      continue;
+    }
     // Per CSS, a raw newline terminates an unclosed string as a parse error;
     // stopping here (rather than swallowing to EOF) lets the rest of the sheet
     // still parse, so the diagnostic is delivered instead of throwing later.

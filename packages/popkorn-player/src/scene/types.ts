@@ -437,6 +437,13 @@ export interface TextData {
   fontFamily: string;
   fontWeight: string; // keyword ('bold') or numeric weight as a string ('700')
   anchor: TextAnchor;
+  // Extra advance between glyphs, px (CSS letter-spacing). Default 0. Canvas2D
+  // realizes it via ctx.letterSpacing, SVG via the letter-spacing attribute;
+  // Skia leaves it a no-op (pinned divergence, like its text-measure).
+  letterSpacing: number;
+  // Line box height in px for multi-line content (`\n`-separated). 0 = auto,
+  // resolved to ~1.2·fontSize at render/measure time.
+  lineHeight: number;
 }
 
 export interface GroupData {

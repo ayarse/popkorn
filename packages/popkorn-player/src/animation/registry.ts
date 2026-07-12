@@ -293,7 +293,30 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
       }
     },
   },
+  // letter-spacing / line-height: px fields on a text node; animating either
+  // shifts the measured box (advance width / line stacking), so mark it stale.
+  "letter-spacing": textNumber("letterSpacing"),
+  "line-height": textNumber("lineHeight"),
 };
+
+// A numeric text field (letterSpacing/lineHeight) that invalidates text bounds
+// when animated. Inert on non-text nodes (the key won't exist).
+function textNumber(key: "letterSpacing" | "lineHeight"): PropHandler {
+  const read = (sd: Record<string, unknown>): number =>
+    (sd[key] as number) ?? 0;
+  return {
+    kind: "number",
+    readBase: (base) => read(base.shapeData as never),
+    readLive: (node) => read(node.shapeData as never),
+    apply: (node, value) => {
+      const sd = node.shapeData as unknown as Record<string, unknown>;
+      if (key in sd) {
+        sd[key] = value;
+        node.textBoundsDirty = true;
+      }
+    },
+  };
+}
 
 export function getPropHandler(property: string): PropHandler | undefined {
   return PROPERTY_REGISTRY[property];

@@ -904,15 +904,22 @@ export class RenderLoop {
         break;
       case "text": {
         const t = node.shapeData as TextData;
-        this.renderer.drawText(
-          t.content,
-          t.x,
-          t.y,
-          t.fontSize,
-          t.fontFamily,
-          t.fontWeight,
-          t.anchor,
-        );
+        // Multi-line: `\n` splits lines, stacked by line-height (auto = 1.2·em).
+        // The decision lives here so backends stay single-line primitives.
+        const lines = t.content.split("\n");
+        const lh = t.lineHeight > 0 ? t.lineHeight : t.fontSize * 1.2;
+        for (let i = 0; i < lines.length; i++) {
+          this.renderer.drawText(
+            lines[i],
+            t.x,
+            t.y + i * lh,
+            t.fontSize,
+            t.fontFamily,
+            t.fontWeight,
+            t.anchor,
+            t.letterSpacing,
+          );
+        }
         break;
       }
       case "image": {

@@ -970,6 +970,41 @@ export class SceneBuilder {
           (node.shapeData as TextData).anchor = value.value as TextAnchor;
         }
         break;
+      // CSS text-align mapped onto the text-anchor semantics: left/start ->
+      // start, center -> middle, right/end -> end.
+      case "text-align":
+        if (node.shapeData.type === "text" && isKeywordValue(value)) {
+          const a =
+            value.value === "center"
+              ? "middle"
+              : value.value === "right" || value.value === "end"
+                ? "end"
+                : "start";
+          (node.shapeData as TextData).anchor = a;
+        }
+        break;
+      case "letter-spacing":
+        if (node.shapeData.type === "text") {
+          (node.shapeData as TextData).letterSpacing = getNumericValue(value);
+          node.textBoundsDirty = true;
+        }
+        break;
+      // line-height: px/% resolve against the font-size, a unitless number is a
+      // multiplier. NOTE: resolved once here against the font-size known at this
+      // point (author font-size before line-height); it doesn't re-resolve if
+      // font-size later animates.
+      case "line-height":
+        if (node.shapeData.type === "text") {
+          const t = node.shapeData as TextData;
+          t.lineHeight =
+            isLengthValue(value) && value.unit === "%"
+              ? (getNumericValue(value) / 100) * t.fontSize
+              : isNumberValue(value)
+                ? getNumericValue(value) * t.fontSize
+                : getNumericValue(value);
+          node.textBoundsDirty = true;
+        }
+        break;
       case "width":
         if (node.shapeData.type === "rect") {
           (node.shapeData as RectData).width = getNumericValue(value);
@@ -1359,6 +1394,8 @@ export class SceneBuilder {
             fontFamily: "sans-serif",
             fontWeight: "normal",
             anchor: "start",
+            letterSpacing: 0,
+            lineHeight: 0,
           };
           break;
         case "image":

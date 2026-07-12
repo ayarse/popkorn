@@ -23,7 +23,8 @@ import type { GradientData } from "./types";
  * backend-agnostic expectation. A fix that drifts one backend fails its column,
  * and the shared expectation constants keep the three honest against each other.
  *
- * Deliberate divergences (Skia luma·alpha matrix limit, Skia text/image no-ops,
+ * Deliberate divergences (Skia luma·alpha matrix limit, Skia text/image no-ops
+ * — letter-spacing included, which RN Skia's simple drawText can't apply —,
  * Skia no CSS-`filter` realization — blur/drop-shadow/color-adjust all degrade
  * unfiltered, while Canvas2D and SVG apply the shared filterToCSS string, SVG in
  * user space and Canvas in device space — and SVG text-measure approximation)
@@ -313,6 +314,24 @@ function insetShadowCases(): ConformanceCase[] {
       4,
       3,
     ),
+    // The exact reported case: a rounded rect with a stroke and a hard-edged
+    // (zero-blur) offset inset shadow. The shadow must clip to the rounded
+    // OUTLINE (a path), and the shape's fill AND stroke both still paint.
+    {
+      name: "zero-blur offset inset on a stroked rounded rect clips to the outline path",
+      ops: (r) => {
+        r.setFill("#101010");
+        r.setStroke("#4ecdc4", 2);
+        r.drawRect(0, 0, 40, 30, 6, 6); // rounded rect fill + stroke
+        driveInset(r, ROUNDED_RECT, 10, 10, 0); // inset: dx/dy 10, blur/spread 0
+      },
+      assert: (t, expect) => {
+        expect(t.clips.some((c) => c.type === "path")).toBe(true);
+        expect(t.clips.some((c) => c.type === "rect")).toBe(false);
+        expect(t.paints.some((p) => p.kind === "fill")).toBe(true);
+        expect(t.paints.some((p) => p.kind === "stroke")).toBe(true);
+      },
+    },
   ];
 }
 
