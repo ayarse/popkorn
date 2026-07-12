@@ -16,12 +16,23 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 **Full spec: [reference.md](reference.md). Read it before using any feature not shown below.**
 
-**No box model, ever** — no `position`/`margin`/`padding`/flex/grid, and no
-`::before`/`::after`. Layout is coordinate arithmetic on shape nodes
-(`x`/`y`, `cx`/`cy`, `transform: translate(...)`), and a pseudo-element
-becomes a named `> #child` shape (repeated ones via `@define` + `use:`). See
-[../../../docs/css-art-in-popkorn.md](../../../docs/css-art-in-popkorn.md)
-for worked before/after recipes.
+**No box model, ever** — permanent, not a gap. No `position`/`margin`/
+`padding`/flex/grid, and no `::before`/`::after`. Workarounds:
+
+- `left`/`top` → `x`/`y` (or `cx`/`cy`) — literal coordinates, not flow.
+- `margin`/`padding` → arithmetic on the child's own coordinates (e.g. a
+  "16px padding" is just `x: 16px; y: 16px` on the inner shape).
+- Centering → compute it: `(parentWidth - childWidth) / 2`, no `auto`.
+- Rows/columns → fixed-stride positions per child (`x: i * stridePx`), or
+  give a `group` a `transform: translate(...)` per row/column and keep each
+  child's geometry local to `(0,0)`.
+- Stacking → document order (later sibling paints on top), override with
+  `z-index: <int>` (negatives allowed).
+- Pseudo-elements (`::before`/`::after`) → a named `> #child` shape instead
+  of a pseudo-selector.
+- Repeated decoration (the CSS `box-shadow`-stamping trick) → `@define` the
+  shape once, then multiple `use:` instances, each overriding only what
+  differs (position, fill, etc.) — real, independently animatable copies.
 
 ## Workflow
 
