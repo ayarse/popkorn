@@ -12,22 +12,23 @@ https://github.com/user-attachments/assets/3b12477a-96ac-42f2-a7e6-0bdec74f26f8
 
 </div>
 
-Popkorn is a portable format for motion graphics, and a small runtime that plays
-it. A scene is a self-contained file written in syntax you already know
+Popkorn is a CSS-based portable format for motion graphics, and a small runtime
+that plays it. A scene is a self-contained file written in syntax you already know
 (`@keyframes`, `transform`, `offset-path`, `z-index`), and the same file runs on
 the web and on mobile today, natively through React Native. It keeps the
-familiar, readable syntax of CSS, so a scene is never an opaque binary or JSON blob.
+familiar, readable syntax of CSS, so a scene is never an opaque binary or JSON
+blob. And because it's CSS-shaped, language models already know it: no
+fine-tuning or special prompting.
 
-It began as a what-if and became a proof of concept, and it went further than
-expected. Popkorn renders vector shapes, gradients, masks, motion paths, and
-path morphing. Its interactivity goes past playback,
-too: the familiar CSS pseudo-classes `:hover` and `:active` just work ✨, layering
-on top of running animations without restarting them, and hand-written state
-machines can drive toggles, taps, and app-state behavior with no scripting. It even imports real Lottie files and SVGs,
-often a touch smaller than the source they came from.
+Popkorn already renders vector shapes, gradients, masks, motion paths, and
+path morphing. And it isn't only playback: the familiar CSS pseudo-classes
+`:hover` and `:active` just work ✨, and state machines drive toggles, taps, and
+app-state behavior with no scripting. It even imports real
+Lottie files and SVGs, often a touch smaller than the source they came from.
 
-It's still early, so it might have some rough edges. But the thing it set out to
-prove, that a CSS animation can be a portable artifact, already works.
+Popkorn started out as a what-if experiment, but it's grown surprisingly capable.
+It's early still, but the core idea, that a CSS animation can be a portable
+artifact, is looking promising.
 
 **▶ [Try it live in the playground](https://ayarse.github.io/popkorn)**: edit
 scenes in the browser, no install.
@@ -153,7 +154,10 @@ Popkorn covers most of what people reach for in real motion graphics:
   tweened by CSS `transition`s, and bind properties to live input with `var()`
   and `input(cursor.x)`. Because it all runs on one continuous timeline,
   interactive states compose cleanly on top of running animations instead of
-  restarting them. There's no script engine; the reactivity is part of the format
+  restarting them. And it's a two-way street with the host page or app: push live
+  values in with `setVariable`, fire named events with `fire()`, and listen for
+  `statechange` coming back out, so your app state and the scene stay in sync.
+  There's no script engine; the reactivity is part of the format
   ([docs/state-machines.md](docs/state-machines.md)).
 - **Shapes & paint.** Circles, rects, ellipses, polygons, polystars, and full
   SVG paths. Solid fills, linear and radial gradients, strokes with dashes and
