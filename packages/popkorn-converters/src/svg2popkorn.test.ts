@@ -317,6 +317,47 @@ test("spreadMethod reflect/repeat warns (pad only)", () => {
   expect(warnings.some((w) => w.includes("spreadMethod"))).toBe(true);
 });
 
+test("single-image pattern fill resolves to an image node at the shape bbox", () => {
+  const uri = "data:image/png;base64,iVBORw0KGgo=";
+  const { css, warnings } = conv(`<svg viewBox="0 0 100 100"><defs>
+    <pattern id="p" patternContentUnits="objectBoundingBox" width="1" height="1">
+      <use href="#img" transform="scale(0.001)"/>
+    </pattern>
+    <image id="img" width="1000" height="1000" href="${uri}"/></defs>
+    <rect x="8" y="12" width="40" height="60" fill="url(#p)"/></svg>`);
+  const b = block(css, "rect1");
+  expect(b).toContain("type: image");
+  expect(b).toContain(`content: url('${uri}')`);
+  expect(b).toContain("x: 8px");
+  expect(b).toContain("y: 12px");
+  expect(b).toContain("width: 40px");
+  expect(b).toContain("height: 60px");
+  expect(warnings.some((w) => w.includes("unsupported fill reference"))).toBe(
+    false,
+  );
+});
+
+test("rounded-rect pattern-image fill warns about dropped corner clipping", () => {
+  const { warnings } = conv(`<svg viewBox="0 0 100 100"><defs>
+    <pattern id="p" patternContentUnits="objectBoundingBox" width="1" height="1">
+      <image id="img" width="10" height="10" href="data:image/png;base64,iVBORw0KGgo="/>
+    </pattern></defs>
+    <rect width="50" height="50" rx="6" fill="url(#p)"/></svg>`);
+  expect(warnings.some((w) => w.includes("corner clipping"))).toBe(true);
+});
+
+test("tiling / multi-child pattern still falls back to none", () => {
+  const { css, warnings } = conv(`<svg viewBox="0 0 100 100"><defs>
+    <pattern id="p" patternContentUnits="objectBoundingBox" width="0.5" height="0.5">
+      <image id="img" width="10" height="10" href="data:image/png;base64,iVBORw0KGgo="/>
+    </pattern></defs>
+    <rect width="50" height="50" fill="url(#p)"/></svg>`);
+  expect(block(css, "rect1")).toContain("fill: none");
+  expect(warnings.some((w) => w.includes("unsupported fill reference"))).toBe(
+    true,
+  );
+});
+
 // --- clip / mask ------------------------------------------------------------
 
 test("clipPath with a single circle child -> circle()", () => {

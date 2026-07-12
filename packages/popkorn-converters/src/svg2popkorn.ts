@@ -1088,6 +1088,23 @@ export class Converter {
 
     const paint = () => this.paintDecls(el, style, emitCTM, bakeM);
 
+    // Figma-style single-image pattern fill: resolve to an image node stretched
+    // over the shape's bbox instead of dropping the fill to none. Only when the
+    // shape isn't baked (bbox is in the shape's own authored space).
+    if (!baking) {
+      const imageEl = this.imagePatternFill(style);
+      if (imageEl)
+        return this.buildImagePatternLeaf(
+          el,
+          style,
+          id,
+          transformDecls,
+          imageEl,
+          emitCTM,
+          bakeM,
+        );
+    }
+
     let type: string | null = null;
     if (el.tag === "text") {
       type = "text";
@@ -1193,6 +1210,103 @@ export class Converter {
     this.emitAnimation(style, rule, baking);
     this.emitSmil(el, rule, baking);
     return rule;
+  }
+
+  /**
+   * If `style.fill` is `url(#p)` referencing a pattern that is effectively one
+   * image stretched over the target's bounding box — objectBoundingBox content
+   * units, a full (1×1) tile, and a single renderable child that is an <image>
+   * directly or via one <use> hop — return that <image>. Otherwise null (the
+   * caller keeps the existing warn/none fallback for tiling/multi-child ones).
+   */
+  private imagePatternFill(style: Style): SvgNode | null {
+    const m = (style.fill ?? "")
+      .trim()
+      .match(/^url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/);
+    if (!m) return null;
+    const pat = this.byId.get(m[1]);
+    if (!pat || pat.tag !== "pattern") return null;
+    if (pat.attrs.get("patternContentUnits") !== "objectBoundingBox")
+      return null;
+    const full = (v?: string) =>
+      v !== undefined && Math.abs(parseFloat(v) - 1) < 1e-6;
+    if (!full(pat.attrs.get("width")) || !full(pat.attrs.get("height")))
+      return null;
+    const kids = pat.children.filter(
+      (c) => !["desc", "title", "metadata"].includes(c.tag),
+    );
+    if (kids.length !== 1) return null;
+    let node = kids[0];
+    if (node.tag === "use") {
+      const href = node.attrs.get("href") || "";
+      if (href[0] !== "#") return null;
+      const t = this.byId.get(href.slice(1));
+      if (!t) return null;
+      node = t;
+    }
+    return node.tag === "image" && node.attrs.get("href") ? node : null;
+  }
+
+  /** Emit an image node at the shape's bbox for a single-image pattern fill. */
+  private buildImagePatternLeaf(
+    el: SvgNode,
+    style: Style,
+    id: string,
+    transformDecls: string[],
+    imageEl: SvgNode,
+    emitCTM: Mat,
+    bakeM: Mat,
+  ): Rule {
+    const bbox = elementBBox(el);
+    const href = imageEl.attrs.get("href") || "";
+    if (el.tag === "rect" && (el.attrs.has("rx") || el.attrs.has("ry")))
+      this.warnOnce(
+        "pattern-image fill on a rounded rect — corner clipping dropped",
+      );
+    const imgDecls = [
+      `content: url('${href}')`,
+      `x: ${num(bbox.x)}px`,
+      `y: ${num(bbox.y)}px`,
+      `width: ${num(bbox.w)}px`,
+      `height: ${num(bbox.h)}px`,
+    ];
+    const hasStroke =
+      style.stroke !== undefined && style.stroke.trim() !== "none";
+    if (!hasStroke) {
+      const rule: Rule = {
+        id,
+        type: "image",
+        decls: [...transformDecls, ...imgDecls],
+        children: [],
+      };
+      this.applyClip(el, rule);
+      this.applyMaskRef(el, rule);
+      this.applyFilter(el, rule);
+      this.emitAnimation(style, rule, false);
+      this.emitSmil(el, rule, false);
+      return rule;
+    }
+    // Stroke stays on the shape: paint the image below a fill:none copy of it,
+    // wrapped so the element's own transform applies to the pair.
+    const imgRule: Rule = {
+      id: this.uniqueId(undefined, "image"),
+      type: "image",
+      decls: [...imgDecls],
+      children: [],
+    };
+    const shape = this.buildLeaf(
+      el,
+      { ...style, fill: "none" },
+      emitCTM,
+      bakeM,
+      [],
+    );
+    return {
+      id,
+      type: "group",
+      decls: [...transformDecls],
+      children: shape ? [imgRule, shape] : [imgRule],
+    };
   }
 
   // --- CSS @keyframes animation -------------------------------------------
