@@ -54,6 +54,14 @@ export type FilterOp =
       dy: number;
       blur: number;
       color: string;
+      // box-shadow extras (a CSS `filter: drop-shadow()` leaves both at their
+      // defaults). `spread` inflates the shadow shape; `inset` draws it inside
+      // the box. Both are realized in the shared walk (see renderBoxShadows),
+      // not expressible through the CSS-filter drop-shadow the outer/no-spread
+      // case rides. The `box-shadow` list reuses this op so it animates through
+      // the same interpolateFilter path as `filter`.
+      spread?: number;
+      inset?: boolean;
     }
   | { type: ColorFilterFn; amount: number };
 
@@ -265,6 +273,12 @@ export interface SceneNode {
   // it back through ctx.filter (see runtime/loop renderFilter). Null = no filter.
   filter: FilterOp[] | null;
 
+  // CSS `box-shadow`: a list of drop-shadow FilterOps (each may carry spread /
+  // inset). Rendered in the shared walk (renderBoxShadows) — outer, no-spread
+  // shadows ride the same CSS-filter drop-shadow path as `filter`; spread and
+  // inset draw geometric shadow shapes. Null = no box-shadow.
+  boxShadow: FilterOp[] | null;
+
   // CSS Motion Path. offsetPath is the (static) motion path with a cached
   // arc-length table, in the node's local space; offsetDistance is the animated
   // position along it (0..1); offsetRotate controls tangent-following rotation.
@@ -372,6 +386,9 @@ export interface NodeBase {
   // Filter list (blur/drop-shadow). Copied per frame so the registry's `filter`
   // handler can morph the blur radius on the live node without touching the base.
   filter: FilterOp[] | null;
+  // box-shadow list, copied per frame like `filter` so an animated shadow writes
+  // into the node copy, never the authored base.
+  boxShadow: FilterOp[] | null;
 }
 
 export type ShapeData =
@@ -665,6 +682,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
     strokeGradient: cloneGradient(node.strokeGradient),
     clipPath: cloneClipPath(node.clipPath),
     filter: cloneFilter(node.filter),
+    boxShadow: cloneFilter(node.boxShadow),
   };
 }
 
@@ -692,6 +710,7 @@ export function resetNodeToBase(node: SceneNode): void {
   // Fresh filter copy each frame so an animated blur radius writes into a node
   // copy, never the authored base.
   node.filter = cloneFilter(b.filter);
+  node.boxShadow = cloneFilter(b.boxShadow);
 }
 
 // Helper to create a default scene node
@@ -730,6 +749,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     mask: null,
     isMaskSource: false,
     filter: null,
+    boxShadow: null,
     offsetPath: null,
     offsetDistance: 0,
     offsetRotate: { auto: true, angle: 0 },
@@ -758,6 +778,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       strokeGradient: null,
       clipPath: null,
       filter: null,
+      boxShadow: null,
     },
     bindings: [],
     interactionState: "normal",

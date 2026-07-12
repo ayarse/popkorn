@@ -55,12 +55,18 @@ function createRecordingRenderer(): Renderer & {
   opacities: number[];
   fills: (Color | null)[];
   texts: string[];
+  paths: PathCommand[][];
+  filters: string[];
+  clips: ResolvedClip[];
   frames: number;
 } {
   return {
     opacities: [],
     fills: [],
     texts: [],
+    paths: [],
+    filters: [],
+    clips: [],
     frames: 0,
     clear() {},
     beginFrame() {
@@ -70,12 +76,23 @@ function createRecordingRenderer(): Renderer & {
     drawRect() {},
     drawCircle() {},
     drawEllipse() {},
-    drawPath(_c: PathCommand[]) {},
+    drawPath(c: PathCommand[]) {
+      this.paths.push(c);
+    },
     drawText(text: string) {
       this.texts.push(text);
     },
     drawImage() {},
-    clip(_c: ResolvedClip) {},
+    supportsFilter() {
+      return true;
+    },
+    compositeFilter(filter: string, drawContent: () => void) {
+      this.filters.push(filter);
+      drawContent();
+    },
+    clip(c: ResolvedClip) {
+      this.clips.push(c);
+    },
     compositeMask(_m: MaskMode, drawContent: () => void, drawMask: () => void) {
       drawContent();
       drawMask();
@@ -474,4 +491,45 @@ test("a string var in a numeric slot degrades to 0 (graceful)", () => {
   );
   loop.seek(0);
   expect(renderer.opacities.at(-1)).toBe(0);
+});
+
+// --- box-shadow --------------------------------------------------------------
+
+function loadScene(src: string) {
+  const renderer = createRecordingRenderer();
+  const loop = new RenderLoop(renderer);
+  loop.setScene(buildSceneGraph(parse(src)));
+  loop.seek(0);
+  return renderer;
+}
+
+test("box-shadow: outer no-spread rides the CSS drop-shadow filter path", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 10; height: 10; fill: #fff; box-shadow: 4px 6px 8px #ff0000; }",
+  );
+  // The shadow is realized as a drop-shadow() in the composited filter string.
+  expect(r.filters.some((f) => f.includes("drop-shadow("))).toBe(true);
+  expect(r.filters.some((f) => f.includes("#ff0000"))).toBe(true);
+});
+
+test("box-shadow: outer spread on a rect draws a blurred shadow shape", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 20; height: 20; fill: #fff; box-shadow: 0px 0px 5px 4px #ff0000; }",
+  );
+  // Geometric path: a blur filter wraps a drawn shadow shape filled with color.
+  expect(r.filters.some((f) => f.startsWith("blur("))).toBe(true);
+  expect(r.paths.length).toBeGreaterThan(0);
+  expect(r.fills).toContain("#ff0000");
+});
+
+test("box-shadow: inset clips to the shape and punches an evenodd hole", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 20; height: 20; fill: #fff; box-shadow: inset 0px 0px 4px 2px #00ff00; }",
+  );
+  // The inset shadow clips to the rect and draws a compound cover+hole path.
+  expect(
+    r.clips.some((c) => c.type === "rect" && c.width === 20 && c.height === 20),
+  ).toBe(true);
+  expect(r.paths.length).toBeGreaterThan(0);
+  expect(r.fills).toContain("#00ff00");
 });

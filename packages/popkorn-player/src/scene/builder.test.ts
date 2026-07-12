@@ -1435,3 +1435,56 @@ test("per-corner radius is animatable via the registry (dirties outline length)"
   expect((n.shapeData as RectData).cornerRadii?.[0]).toBe(16);
   expect(n.outlineLengthDirty).toBe(true);
 });
+
+// --- box-shadow --------------------------------------------------------------
+
+test("box-shadow: outer shadow parses to a drop-shadow FilterOp", () => {
+  const [n] = build(
+    "#b { type: rect; width: 10; height: 10; box-shadow: 4px 6px 8px #ff0000; }",
+  ).children;
+  expect(n.boxShadow).toEqual([
+    {
+      type: "drop-shadow",
+      dx: 4,
+      dy: 6,
+      blur: 8,
+      spread: 0,
+      color: "#ff0000",
+      inset: false,
+    },
+  ]);
+});
+
+test("box-shadow: inset + spread + multi (comma-separated)", () => {
+  const [n] = build(
+    "#b { type: rect; width: 20; height: 20; box-shadow: inset 1px 2px 3px 4px #000, 5px 6px #00f; }",
+  ).children;
+  expect(n.boxShadow).toEqual([
+    {
+      type: "drop-shadow",
+      dx: 1,
+      dy: 2,
+      blur: 3,
+      spread: 4,
+      color: "#000",
+      inset: true,
+    },
+    {
+      type: "drop-shadow",
+      dx: 5,
+      dy: 6,
+      blur: 0,
+      spread: 0,
+      color: "#00f",
+      inset: false,
+    },
+  ]);
+});
+
+test("box-shadow: none clears it; animatable via the registry", () => {
+  const [n] = build(
+    "#b { type: rect; width: 10; height: 10; box-shadow: none; }",
+  ).children;
+  expect(n.boxShadow).toBeNull();
+  expect(getPropHandler("box-shadow")!.kind).toBe("path");
+});

@@ -81,6 +81,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "opacity",
   "paint-order",
   "filter",
+  "box-shadow",
   // text
   "font-family",
   "font-size",

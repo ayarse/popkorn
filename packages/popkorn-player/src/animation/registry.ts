@@ -265,6 +265,16 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
+  // box-shadow: a drop-shadow FilterOp list, morphed by the same object-endpoint
+  // path as `filter` (interpolateProp -> interpolateFilter when structures match).
+  "box-shadow": {
+    kind: "path",
+    readBase: (base) => base.boxShadow,
+    apply: (node, value) => {
+      node.boxShadow = value as FilterOp[];
+    },
+  },
+
   // text: font-size lives on shapeData under a different key than its property
   // name, and animating it invalidates the cached text metrics.
   "font-size": {
@@ -386,13 +396,21 @@ function interpolateFilter(
       return { type: "blur", radius: lerp(fa.radius, fb.radius, t) };
     }
     if (fa.type === "drop-shadow" && fb.type === "drop-shadow") {
-      return {
+      const out: Extract<FilterOp, { type: "drop-shadow" }> = {
         type: "drop-shadow",
         dx: lerp(fa.dx, fb.dx, t),
         dy: lerp(fa.dy, fb.dy, t),
         blur: lerp(fa.blur, fb.blur, t),
         color: interpolateColor(fa.color, fb.color, t),
       };
+      // box-shadow extras only when present (a plain `filter: drop-shadow` keeps
+      // its exact shape). spread lerps; inset is discrete (holds the departing
+      // state — a shadow never smoothly crosses from outer to inset).
+      if (fa.spread !== undefined || fb.spread !== undefined)
+        out.spread = lerp(fa.spread ?? 0, fb.spread ?? 0, t);
+      if (fa.inset !== undefined || fb.inset !== undefined)
+        out.inset = fa.inset;
+      return out;
     }
     // Color-adjust functions (matched types): lerp the scalar amount.
     return {

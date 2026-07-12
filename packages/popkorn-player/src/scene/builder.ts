@@ -1138,6 +1138,13 @@ export class SceneBuilder {
         node.filter = this.parseFilter(value);
         break;
 
+      // CSS box-shadow: a comma-separated list of shadows, each parsed to a
+      // drop-shadow FilterOp (with spread/inset). Animatable via the registry's
+      // `box-shadow` handler (same interpolateFilter path as `filter`).
+      case "box-shadow":
+        node.boxShadow = this.parseBoxShadow(value);
+        break;
+
       // CSS Motion Path. offset-path is static (cached arc-length table built
       // once); offset-distance is animatable (registry) so it also lands here as
       // the authored default; offset-rotate is static.
@@ -2010,6 +2017,10 @@ export class SceneBuilder {
         // each op's numerics when two endpoints share the same function sequence
         // (else replace). See interpolateFilter.
         return this.parseFilter(value) ?? undefined;
+      case "box-shadow":
+        // Same object-endpoint contract as filter — a shadow list morphs when
+        // the two endpoints share the same length/inset structure.
+        return this.parseBoxShadow(value) ?? undefined;
       default:
         // Raw numeric/string value (geometry, dash offset, font-size, …).
         if (isNumberValue(value) || isLengthValue(value))
@@ -2359,6 +2370,53 @@ export class SceneBuilder {
           color,
         });
       }
+    }
+    return ops.length ? ops : null;
+  }
+
+  /**
+   * Parse CSS box-shadow into drop-shadow FilterOps. Syntax per shadow:
+   * `[inset] <dx> <dy> [<blur>] [<spread>] [<color>]`, comma-separated for a
+   * multi-shadow stack. Lengths are read in dx/dy/blur/spread order; the color
+   * (any supported form) may sit anywhere; a bare `inset` keyword flags it. CSS
+   * paints the FIRST listed shadow on top, which is the FilterOp order the
+   * renderer walks (front-to-back), so we keep source order.
+   */
+  private parseBoxShadow(value: Value): FilterOp[] | null {
+    if (isKeywordValue(value) && value.value === "none") return null;
+    // A comma-separated value is a list with separator 'comma'; each group is
+    // itself a space list (or a lone value for a one-part shadow).
+    const groups =
+      isListValue(value) && value.separator === "comma"
+        ? value.values
+        : [value];
+    const ops: FilterOp[] = [];
+    for (const g of groups) {
+      const parts = isListValue(g) ? g.values : [g];
+      const lengths: number[] = [];
+      let color = "#000000";
+      let inset = false;
+      for (const p of parts) {
+        if (isKeywordValue(p) && p.value === "inset") {
+          inset = true;
+        } else if (isLengthValue(p) || isNumberValue(p)) {
+          lengths.push(getNumericValue(p));
+        } else {
+          const c = colorStringFromValue(p);
+          if (c) color = c;
+        }
+      }
+      // dx/dy are required in CSS; a shadow with neither is inert — skip it.
+      if (lengths.length < 2) continue;
+      ops.push({
+        type: "drop-shadow",
+        dx: lengths[0],
+        dy: lengths[1],
+        blur: lengths[2] ?? 0,
+        spread: lengths[3] ?? 0,
+        color,
+        inset,
+      });
     }
     return ops.length ? ops : null;
   }

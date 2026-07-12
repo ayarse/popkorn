@@ -24,6 +24,11 @@ import type { GradientData } from "./types";
  * each harness, documenting the disagreement so a silent behavior change still
  * fails.
  *
+ * `box-shadow` isn't a Renderer primitive: the shared walk (loop.ts) realizes it
+ * over drawPath + clip + compositeFilter (all covered here). Its only per-backend
+ * divergence — Skia draws the shadow shapes SHARP because it has no filter — is
+ * the same pinned no-filter divergence above, so it needs no new case.
+ *
  * Cases drive the `Renderer` directly rather than a scene through `RenderLoop`:
  * the loop's `renderNode` walk is itself shared, so the per-backend behavior
  * under test lives in the `Renderer` methods, and exercising them directly is

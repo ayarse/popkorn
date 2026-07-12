@@ -9,6 +9,11 @@ import {
 import type { Renderer } from "../renderer/interface";
 import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
 import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
+import {
+  insetShadowCommands,
+  outerShadowCommands,
+  shapeClip,
+} from "../scene/box-shadow";
 import { extractIndividualTransform, extractTransform } from "../scene/builder";
 import { resolveClip } from "../scene/clip";
 import { colorStringFromValue } from "../scene/color";
@@ -788,9 +793,12 @@ export class RenderLoop {
     // filter is the outermost visual wrapper: composite this node's subtree
     // offscreen and blit it back through ctx.filter (so it wraps the masked
     // result too). skipFilter guards the re-entry from renderFilter itself.
-    if (!skipFilter && node.filter) {
+    // Outer, no-spread box-shadows ride the SAME CSS drop-shadow filter path
+    // (nearly free); spread/inset shadows draw geometrically in the normal walk.
+    const filterOps = skipFilter ? null : effectiveFilterOps(node);
+    if (filterOps) {
       if (this.renderer.supportsFilter?.() && this.renderer.compositeFilter) {
-        this.renderFilter(node, opts, inheritedAlpha);
+        this.renderFilter(node, opts, inheritedAlpha, filterOps);
         return;
       }
       // Renderer can't apply filters — warn once, then fall through to draw the
@@ -842,6 +850,10 @@ export class RenderLoop {
     // transform, before drawing — the save/restore below brackets it).
     const clip = resolveClip(node);
     if (clip) this.renderer.clip(clip);
+
+    // Outer geometric box-shadows (spread on a rect/circle/ellipse) paint behind
+    // the shape — before its own paint state is set, so they can't disturb it.
+    if (node.boxShadow) this.drawBoxShadows(node, alpha, false);
 
     // Set style
     this.renderer.setFill(node.fill);
@@ -912,6 +924,9 @@ export class RenderLoop {
         // Groups don't render themselves, just their children
         break;
     }
+
+    // Inset box-shadows paint on top of the shape, clipped to it (rim of colour).
+    if (node.boxShadow) this.drawBoxShadows(node, alpha, true);
 
     // Render children in paint order (z-index ascending, document order ties).
     for (const child of childrenInPaintOrder(node)) {
@@ -987,6 +1002,7 @@ export class RenderLoop {
     node: SceneNode,
     opts: RenderOpts,
     inheritedAlpha: number,
+    ops: FilterOp[],
   ): void {
     const parentWorld = multiplyMatrices(
       this.viewport,
@@ -1003,14 +1019,72 @@ export class RenderLoop {
     const scale = this.renderer.filtersUseUserSpace?.()
       ? matrixScale(world) / (matrixScale(parentWorld) || 1)
       : matrixScale(world);
-    // renderNode only reaches here with a non-null filter and a filter-capable
-    // renderer (see the guard in renderNode).
-    if (!node.filter || !this.renderer.compositeFilter) return;
-    const css = filterToCSS(node.filter, scale);
+    if (!this.renderer.compositeFilter) return;
+    const css = filterToCSS(ops, scale);
     this.renderer.compositeFilter(css, () => {
       this.renderer.setTransform(parentWorld);
       this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
     });
+  }
+
+  /**
+   * Draw the geometric box-shadows (spread outer, or inset) for one node, in the
+   * `inset` phase requested. Each shadow is an inflated (outer) or punched-out
+   * (inset, evenodd + clip) shape filled with the shadow colour and blurred via
+   * the same compositeFilter path `filter` uses — so a backend without filters
+   * (Skia) draws them sharp, consistent with its pinned no-filter divergence.
+   * The shadow paint is set inside its own bracket; the sticky fill it leaves is
+   * reset by the node's own setFill (outer runs before it) or by each child.
+   */
+  private drawBoxShadows(node: SceneNode, alpha: number, inset: boolean): void {
+    if (!node.boxShadow) return;
+    const shadows = node.boxShadow.filter(
+      (s): s is Extract<FilterOp, { type: "drop-shadow" }> =>
+        s.type === "drop-shadow" &&
+        isGeometricShadow(node, s) &&
+        (s.inset ?? false) === inset,
+    );
+    if (shadows.length === 0) return;
+    const world = multiplyMatrices(
+      this.viewport,
+      computeWorldMatrixFromRoot(node),
+    );
+    const scale = matrixScale(world);
+    const clip = inset ? shapeClip(node.shapeData) : null;
+    // CSS paints the first-listed shadow on top; draw back-to-front.
+    for (let i = shadows.length - 1; i >= 0; i--) {
+      const s = shadows[i];
+      const spread = s.spread ?? 0;
+      const commands = inset
+        ? insetShadowCommands(node.shapeData, s.dx, s.dy, spread)
+        : outerShadowCommands(node.shapeData, s.dx, s.dy, spread);
+      if (!commands) continue;
+      const draw = () => {
+        this.renderer.setTransform(world);
+        this.renderer.save();
+        this.renderer.setFill(s.color);
+        this.renderer.setFillGradient(null);
+        this.renderer.setStroke(null, 0);
+        this.renderer.setStrokeGradient(null);
+        this.renderer.setFillRule(inset ? "evenodd" : "nonzero");
+        this.renderer.setOpacity(alpha);
+        if (inset && clip) this.renderer.clip(clip);
+        this.renderer.drawPath(commands);
+        this.renderer.restore();
+      };
+      const blur = s.blur * scale;
+      if (
+        blur > 0 &&
+        this.renderer.supportsFilter?.() &&
+        this.renderer.compositeFilter
+      ) {
+        this.renderer.compositeFilter(`blur(${blur}px)`, draw);
+      } else {
+        this.renderer.save();
+        draw();
+        this.renderer.restore();
+      }
+    }
   }
 }
 
@@ -1019,6 +1093,34 @@ export class RenderLoop {
 function matrixScale(m: Matrix3x3): number {
   const det = m[0] * m[4] - m[1] * m[3];
   return Math.sqrt(Math.abs(det));
+}
+
+// A box-shadow that must draw as a geometric shape rather than ride the CSS
+// drop-shadow filter: an inset shadow, or an outer shadow with spread, on a
+// shape we can inflate (rect/circle/ellipse). Everything else (outer/no-spread,
+// or any shadow on a path/text/…) goes through the filter path.
+function isGeometricShadow(node: SceneNode, s: FilterOp): boolean {
+  if (s.type !== "drop-shadow") return false;
+  const t = node.shapeData.type;
+  const inflatable = t === "rect" || t === "circle" || t === "ellipse";
+  return inflatable && ((s.inset ?? false) || (s.spread ?? 0) !== 0);
+}
+
+// The filter ops the CSS drop-shadow path renders for a node: its authored
+// `filter` plus every box-shadow NOT handled geometrically. Inset shadows on a
+// non-inflatable shape are unsupported and dropped (NOTE). Null when empty.
+function effectiveFilterOps(node: SceneNode): FilterOp[] | null {
+  const authored = node.filter ?? [];
+  const shadows: FilterOp[] = [];
+  if (node.boxShadow) {
+    for (const s of node.boxShadow) {
+      if (s.type !== "drop-shadow" || isGeometricShadow(node, s)) continue;
+      if (s.inset) continue; // inset needs a clip we only do for inflatable shapes
+      shadows.push(s);
+    }
+  }
+  const ops = [...authored, ...shadows];
+  return ops.length > 0 ? ops : null;
 }
 
 /** Build a CSS filter string from the ops, scaling every length to device px. */
