@@ -12,16 +12,18 @@ New here? The fastest way to get a feel for it is the
 - [Introduction](introduction.md): what Popkorn is, and why it's built on CSS.
 - [Getting Started](getting-started.md): try it live, write your first scene,
   put it on a page.
-
-## Guides
-
-- [State machines](state-machines.md): named states and transitions for
-  toggles, taps, and app-driven behavior.
+- [Prompting with AI](prompting.md): make and edit scenes with the Copilot, and
+  why language models already speak the format.
 
 ## Working with existing art
 
 - [Importing Lottie and SVG](importing.md): bring an existing animation or
   drawing into a scene.
+
+## Guides
+
+- [State machines](state-machines.md): named states and transitions for
+  toggles, taps, and app-driven behavior.
 
 ## Putting a scene in your project
 

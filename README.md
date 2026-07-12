@@ -12,13 +12,12 @@ https://github.com/user-attachments/assets/7df900b1-42f8-4db8-8aec-5dd987ab1a42
 
 </div>
 
-Popkorn is a CSS-based portable format for motion graphics, and a small runtime
-that plays it. A scene is a self-contained file written in syntax you already know
-(`@keyframes`, `transform`, `offset-path`, `z-index`), and the same file runs on
-the web and on mobile today, natively through React Native. It keeps the
+Popkorn is a CSS-based portable format for motion graphics. You write a self-contained
+scene in syntax you already know (`@keyframes`, `transform`, `offset-path`, `z-index`),
+and the same file runs on the web and on mobile today, natively through React Native. It keeps the
 familiar, readable syntax of CSS, so a scene is never an opaque binary or JSON
 blob. And because it's CSS-shaped, language models already know it: no
-fine-tuning or special prompting.
+fine-tuning or special prompting required. You can make edits or even generate entire scenes from scratch with natural language.
 
 Popkorn already renders vector shapes, gradients, masks, motion paths, and
 path morphing. And it isn't only playback: the familiar CSS pseudo-classes
@@ -100,7 +99,8 @@ underneath both, you can always drop into the code to adjust:
   from a blank file.
 - **By prompting.** The playground's **Popkorn Copilot** builds a scene from a
   description or edits the live one on request. It works because the format stays
-  close enough to CSS that a model already knows it, no fine-tuning required.
+  close enough to CSS that a model already knows it, no fine-tuning required. See
+  [Prompting with AI](docs/prompting.md) for what that looks like.
 
 Hand-authoring is a first-class option too, for simple scenes or for anyone who
 enjoys writing CSS, and a visual creation tool may come in time. But whichever
