@@ -43,7 +43,16 @@ export function ImportModal({
           <DialogDescription>
             Drop a bodymovin <code className="font-mono">.json</code> or an{" "}
             <code className="font-mono">.svg</code> file, or paste Lottie JSON
-            or SVG markup. It will be converted to Popkorn DSL.
+            or SVG markup. It will be converted to Popkorn. Need a file?{" "}
+            <a
+              href="https://github.com/ayarse/popkorn/tree/main/examples/lottie"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline underline-offset-2"
+            >
+              Grab an example Lottie
+            </a>
+            .
           </DialogDescription>
         </DialogHeader>
 
