@@ -160,6 +160,12 @@ export interface TransformOrigin {
 export interface PropertyBinding {
   property: string; // e.g., 'cx', 'cy', 'r', 'opacity'
   value: Value; // The variable reference or input() function
+  // For string/keyword-valued properties (content, font-family, fill-rule, …)
+  // that are neither numeric-registry nor color-paint bindings: re-apply the
+  // resolved, var-free value through the builder's declaration switch each
+  // frame. Set at build time for those properties; absent for transform/
+  // numeric/color bindings, which applyBindings realizes inline.
+  applyString?: (node: SceneNode, value: Value) => void;
 }
 
 export interface Transform {

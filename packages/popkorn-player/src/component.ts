@@ -543,10 +543,14 @@ export class PopkornPlayer extends HTMLElementBase {
   // Set before the scene loads is remembered and applied on init; fire/get
   // before load no-op / return undefined (a momentary trigger has no meaning
   // without a running loop), matching how seek() tolerates the not-loaded case.
-  private pendingVariables: Map<string, number | boolean> = new Map();
+  private pendingVariables: Map<string, number | boolean | string> = new Map();
 
-  /** Set an author-declared `--variable` (number or boolean) from the host. */
-  setVariable(name: string, value: number | boolean): void {
+  /**
+   * Set an author-declared `--variable` from the host. Numbers/booleans feed
+   * numeric bindings and state-machine inputs; a string is treated as a color
+   * (for a `fill: var(--x)` / `stroke: var(--x)` paint binding).
+   */
+  setVariable(name: string, value: number | boolean | string): void {
     const resolver = this.renderLoop?.getVariableResolver();
     if (resolver) {
       resolver.setVariable(name, value);

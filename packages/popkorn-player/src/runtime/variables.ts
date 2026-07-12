@@ -31,7 +31,7 @@ export class VariableResolver {
   private dynamicVariables: Map<string, () => number> = new Map();
   // Host-set overrides (setVariable), authored triggers (`--x: trigger`), and
   // the triggers fired this frame (fire → read `true` once → endFrame resets).
-  private hostOverrides: Map<string, number | boolean> = new Map();
+  private hostOverrides: Map<string, VariableValue> = new Map();
   private triggers: Set<string> = new Set();
   private firedTriggers: Set<string> = new Set();
 
@@ -76,7 +76,7 @@ export class VariableResolver {
    * Set a variable's value from the host, overriding the authored value.
    * Accepts the name with or without the leading `--`.
    */
-  setVariable(name: string, value: number | boolean): void {
+  setVariable(name: string, value: VariableValue): void {
     this.hostOverrides.set(normalizeVarName(name), value);
   }
 
@@ -330,11 +330,20 @@ function normalizeVarName(name: string): string {
   return name.startsWith("--") ? name : `--${name}`;
 }
 
-/** A host primitive as an AST Value (booleans become `true`/`false` keywords). */
-function primitiveToValue(v: number | boolean): Value {
-  return typeof v === "boolean"
-    ? { type: "keyword", value: v ? "true" : "false" }
-    : { type: "number", value: v };
+/**
+ * A host primitive as an AST Value: booleans become `true`/`false` keywords,
+ * numbers stay numbers, strings become string values. A string is untyped at
+ * the host boundary (it could be text OR a color like "#f00"); the slot decides
+ * — a paint binding runs it through colorStringFromValue, a text/keyword slot
+ * reads it verbatim. NOTE: input() stays numeric; when string inputs land, this
+ * same StringValue plumbing carries them (dynamicVariables would return a Value
+ * instead of a number).
+ */
+function primitiveToValue(v: VariableValue): Value {
+  if (typeof v === "boolean")
+    return { type: "keyword", value: v ? "true" : "false" };
+  if (typeof v === "string") return { type: "string", value: v };
+  return { type: "number", value: v };
 }
 
 /** A resolved Value as a host primitive (`true`/`false` keywords → booleans). */

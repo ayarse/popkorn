@@ -22,6 +22,7 @@ import type {
 } from "../scene/types";
 import { createSceneNode, snapshotNode } from "../scene/types";
 import { RenderLoop } from "./loop";
+import { createVariableResolver } from "./variables";
 
 // A dot whose opacity ramps 0 -> 1 over one 3s iteration, forever. sceneDuration
 // is that single iteration (3000). The recording renderer captures the sampled
@@ -52,10 +53,14 @@ function fadingDot(): SceneNode {
 // counts frames (beginFrame calls) so tests can assert that a repaint happened.
 function createRecordingRenderer(): Renderer & {
   opacities: number[];
+  fills: (Color | null)[];
+  texts: string[];
   frames: number;
 } {
   return {
     opacities: [],
+    fills: [],
+    texts: [],
     frames: 0,
     clear() {},
     beginFrame() {
@@ -66,14 +71,18 @@ function createRecordingRenderer(): Renderer & {
     drawCircle() {},
     drawEllipse() {},
     drawPath(_c: PathCommand[]) {},
-    drawText() {},
+    drawText(text: string) {
+      this.texts.push(text);
+    },
     drawImage() {},
     clip(_c: ResolvedClip) {},
     compositeMask(_m: MaskMode, drawContent: () => void, drawMask: () => void) {
       drawContent();
       drawMask();
     },
-    setFill(_c: Color | null) {},
+    setFill(c: Color | null) {
+      this.fills.push(c);
+    },
     setFillGradient(_g: GradientData | null) {},
     setStroke(_c: Color | null, _w: number) {},
     setStrokeGradient(_g: GradientData | null) {},
@@ -404,4 +413,65 @@ test("tap between frames fires machine click (pressed edge latch)", () => {
     g.requestAnimationFrame = prevRaf;
     g.cancelAnimationFrame = prevCancel;
   }
+});
+
+// --- typed var() bindings (colors + strings) ---------------------------------
+
+// Build a scene, wire :root vars into a fresh resolver, and drive one frame.
+function loadWithResolver(src: string) {
+  const ast = parse(src);
+  const resolver = createVariableResolver();
+  resolver.setVariables(ast.variables);
+  const renderer = createRecordingRenderer();
+  const loop = new RenderLoop(renderer, undefined, undefined, resolver);
+  loop.setScene(buildSceneGraph(ast));
+  return { loop, renderer, resolver };
+}
+
+test("var() carries a color into fill; host setVariable re-resolves it", () => {
+  const { loop, renderer, resolver } = loadWithResolver(
+    `:root { --accent: #ff5533; }
+     #box { type: rect; width: 10; height: 10; fill: var(--accent); }`,
+  );
+  loop.seek(0);
+  // The last solid fill this frame is the resolved accent color.
+  expect(renderer.fills.at(-1)).toBe("#ff5533");
+
+  // A host color override (string) re-resolves through the binding step.
+  renderer.fills.length = 0;
+  resolver.setVariable("accent", "#00aa88");
+  loop.seek(0);
+  expect(renderer.fills.at(-1)).toBe("#00aa88");
+});
+
+test("named-color var() normalizes to hex in a paint slot", () => {
+  const { loop, renderer } = loadWithResolver(
+    `:root { --c: tomato; }
+     #box { type: rect; width: 10; height: 10; fill: var(--c); }`,
+  );
+  loop.seek(0);
+  expect(renderer.fills.at(-1)).toBe("#ff6347");
+});
+
+test("var() carries a string into text content; host update re-resolves", () => {
+  const { loop, renderer, resolver } = loadWithResolver(
+    `:root { --label: "Hi"; }
+     #t { type: text; content: var(--label); }`,
+  );
+  loop.seek(0);
+  expect(renderer.texts.at(-1)).toBe("Hi");
+
+  renderer.texts.length = 0;
+  resolver.setVariable("label", "Bye");
+  loop.seek(0);
+  expect(renderer.texts.at(-1)).toBe("Bye");
+});
+
+test("a string var in a numeric slot degrades to 0 (graceful)", () => {
+  const { loop, renderer } = loadWithResolver(
+    `:root { --oops: "not a number"; }
+     #box { type: rect; width: 10; height: 10; fill: #000; opacity: var(--oops); }`,
+  );
+  loop.seek(0);
+  expect(renderer.opacities.at(-1)).toBe(0);
 });

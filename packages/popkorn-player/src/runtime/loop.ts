@@ -11,6 +11,7 @@ import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
 import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
 import { extractIndividualTransform, extractTransform } from "../scene/builder";
 import { resolveClip } from "../scene/clip";
+import { colorStringFromValue } from "../scene/color";
 import { outlineLength } from "../scene/path-parser";
 import { polystarCommands } from "../scene/polystar";
 import {
@@ -626,8 +627,36 @@ export class RenderLoop {
         );
         continue;
       }
+      // Paint channels carry colors, not numbers: resolve the bound var() to a
+      // color string through the same live resolver and swap the solid paint.
+      // (A gradient var() is out of scope — colors only. `none` clears paint.) A
+      // non-color value (e.g. a string var in a paint slot) degrades to ignore.
+      if (binding.property === "fill" || binding.property === "stroke") {
+        const resolved = this.variableResolver.resolveValue(binding.value);
+        const color = colorStringFromValue(resolved);
+        if (color !== null) {
+          if (binding.property === "fill") node.fill = color;
+          else node.stroke = color;
+        } else if (isKeywordValue(resolved) && resolved.value === "none") {
+          if (binding.property === "fill") node.fill = null;
+          else node.stroke = null;
+        }
+        continue;
+      }
+      // String/keyword properties (content, font-family, fill-rule, …): re-apply
+      // the resolved, var-free value through the builder switch. Discrete — no
+      // interpolation. A numeric var here degrades however that property parses.
+      if (binding.applyString) {
+        binding.applyString(
+          node,
+          this.variableResolver.resolveValue(binding.value),
+        );
+        continue;
+      }
       const handler = getPropHandler(binding.property);
-      // Bindings resolve to numbers; skip anything without a numeric handler.
+      // Remaining bindings resolve to numbers; skip anything without a numeric
+      // handler (a mistyped var in a numeric slot resolves to 0 — see
+      // resolveNumeric — which is the documented graceful-degradation path).
       if (!handler || handler.kind !== "number") continue;
       handler.apply(node, resolve(binding.value));
     }

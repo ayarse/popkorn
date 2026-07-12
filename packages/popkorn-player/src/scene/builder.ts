@@ -37,7 +37,8 @@ import type {
   GradientStop,
   PathCommand,
 } from "../renderer/types";
-import { isGradientData, tryParseColor } from "../renderer/types";
+import { isGradientData } from "../renderer/types";
+import { colorStringFromValue } from "./color";
 import { buildMotionPath, parsePath } from "./path-parser";
 import { clamp01 } from "./transform";
 import type {
@@ -56,6 +57,7 @@ import type {
   MaskMode,
   PathData,
   PolystarData,
+  PropertyBinding,
   RectData,
   SceneNode,
   ShapeData,
@@ -108,6 +110,38 @@ const GRADIENT_FN = new Set([
   "repeating-linear-gradient",
   "repeating-radial-gradient",
   "repeating-conic-gradient",
+]);
+
+// Properties whose static `:root` var() references are folded to their literal
+// at build time (path/geometry dedup from the Lottie converter, hoisted custom
+// props). These carry structured, build-resolved data (a command list, a motion
+// path, a clip) — not a live value — so a static var here becomes a constant,
+// not a binding. Every OTHER property keeps its var() intact so it forms a
+// per-frame binding and stays host-overridable (setVariable re-resolves it).
+const STRUCTURAL_FOLD_PROPERTIES = new Set([
+  "d",
+  "offset-path",
+  "clip-path",
+  "mask",
+]);
+
+// String/keyword-valued properties a reactive var() may drive at runtime. These
+// have no registry handler (not animatable) and aren't color paint, so the
+// binding path re-applies their resolved value through the declaration switch
+// each frame. Discrete by nature (no interpolation). Numeric/color/transform
+// properties are handled by their own binding branches and stay out of this set.
+const STRING_BINDABLE_PROPERTIES = new Set([
+  "content",
+  "font-family",
+  "font-weight",
+  "text-anchor",
+  "text-align",
+  "fill-rule",
+  "stroke-linecap",
+  "stroke-linejoin",
+  "paint-order",
+  "visibility",
+  "mix-blend-mode",
 ]);
 
 // One warning per animation whose object-valued keyframes (gradients/paths)
@@ -782,11 +816,15 @@ export class SceneBuilder {
 
   private applyDeclaration(node: SceneNode, decl: Declaration): void {
     const { property } = decl;
-    // Resolve static `:root` var() references (path/image dedup, custom props)
-    // to their definitions here at build time, so a hoisted `d:`/`offset-path:`/
-    // `clip-path:`/`content:` value flows through normal parsing below. Reactive
-    // var()/input() refs are left intact for the numeric binding path.
-    const value = this.resolveStaticVars(decl.value);
+    // Fold static `:root` var() references to their definitions at build time
+    // ONLY for structural properties (path/clip/mask dedup, e.g. the hoisted
+    // `d:`/`offset-path:`/`clip-path:` the Lottie converter emits), so their
+    // build-resolved geometry flows through normal parsing below. Every other
+    // property keeps its var() intact so it forms a per-frame binding and stays
+    // host-overridable — setVariable re-resolves the color/string/number live.
+    const value = STRUCTURAL_FOLD_PROPERTIES.has(property)
+      ? this.resolveStaticVars(decl.value)
+      : decl.value;
 
     // animation-timeline holds a live 0..1 value SOURCE (var()/input()), not a
     // property binding — it scrubs the node's animations rather than writing a
@@ -800,8 +838,16 @@ export class SceneBuilder {
 
     // Check if this value contains a variable reference
     if (this.hasVariableReference(value)) {
-      // Store as a dynamic binding to be resolved at render time
-      node.bindings.push({ property, value });
+      // Store as a dynamic binding to be resolved at render time.
+      const binding: PropertyBinding = { property, value };
+      // String/keyword properties can't ride the numeric/color binding paths;
+      // capture a closure that re-applies the resolved (var-free) value through
+      // this same switch each frame, reusing the build-time field logic.
+      if (STRING_BINDABLE_PROPERTIES.has(property)) {
+        binding.applyString = (n, resolved) =>
+          this.applyDeclaration(n, { ...decl, value: resolved });
+      }
+      node.bindings.push(binding);
       return;
     }
 
@@ -1984,28 +2030,14 @@ export class SceneBuilder {
     if (isFunctionValue(value) && GRADIENT_FN.has(value.name)) {
       return { type: "gradient", gradient: this.parseGradient(value) };
     }
-    if (isColorValue(value)) {
-      return { type: "color", color: value.value };
+    // Named colors normalize to canonical hex at build time (so animation
+    // endpoints are already hex); transparent/currentColor/unknown keywords and
+    // rgb()/hsl() all flow through the shared color helper. `none` -> no paint.
+    if (isKeywordValue(value) && value.value === "none") {
+      return { type: "color", color: null };
     }
-    if (isKeywordValue(value)) {
-      if (value.value === "none") return { type: "color", color: null };
-      // Named colors normalize to canonical hex at build time (so animation
-      // endpoints are already hex); transparent/currentColor/unknown pass
-      // through untouched.
-      return {
-        type: "color",
-        color: this.canonicalColor(value.value) ?? value.value,
-      };
-    }
-    if (
-      isFunctionValue(value) &&
-      (value.name === "rgb" ||
-        value.name === "rgba" ||
-        value.name === "hsl" ||
-        value.name === "hsla")
-    ) {
-      return { type: "color", color: this.buildColorString(value) };
-    }
+    const color = colorStringFromValue(value);
+    if (color !== null) return { type: "color", color };
     return null;
   }
 
@@ -2143,14 +2175,7 @@ export class SceneBuilder {
   }
 
   private colorArgToString(value: Value): string | null {
-    if (isColorValue(value)) return value.value;
-    if (
-      isFunctionValue(value) &&
-      (value.name === "rgb" || value.name === "rgba")
-    ) {
-      return this.buildColorString(value);
-    }
-    return null;
+    return colorStringFromValue(value);
   }
 
   /**
@@ -2293,7 +2318,7 @@ export class SceneBuilder {
           if (isLengthValue(a) || isNumberValue(a))
             lengths.push(getNumericValue(a));
           else {
-            const c = this.colorFromValue(a);
+            const c = colorStringFromValue(a);
             if (c) color = c;
           }
         }
@@ -2307,41 +2332,6 @@ export class SceneBuilder {
       }
     }
     return ops.length ? ops : null;
-  }
-
-  /** A CSS color string from a color/keyword/rgb()/rgba() value, else null. */
-  private colorFromValue(value: Value): string | null {
-    if (isColorValue(value)) return value.value;
-    if (isKeywordValue(value)) {
-      if (value.value === "none") return null;
-      // Normalize named colors (red, hsl-less keywords) to canonical hex once
-      // at build time so animation endpoints are already hex — the per-frame
-      // hot path only ever parses hex/rgb. Unrecognized keywords (transparent,
-      // currentColor) pass through untouched.
-      return this.canonicalColor(value.value) ?? value.value;
-    }
-    if (
-      isFunctionValue(value) &&
-      (value.name === "rgb" ||
-        value.name === "rgba" ||
-        value.name === "hsl" ||
-        value.name === "hsla")
-    ) {
-      return this.buildColorString(value);
-    }
-    return null;
-  }
-
-  // Resolve any parseable color string to a canonical hex/rgba string, or null
-  // if unrecognized. Used to fold hsl()/named colors down to hex at build time.
-  private canonicalColor(raw: string): string | null {
-    const c = tryParseColor(raw);
-    if (!c) return null;
-    if (c.a >= 1) {
-      const hex = (n: number) => n.toString(16).padStart(2, "0");
-      return `#${hex(c.r)}${hex(c.g)}${hex(c.b)}`;
-    }
-    return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
   }
 
   /**
@@ -2367,34 +2357,6 @@ export class SceneBuilder {
     // Nothing recognized -> CSS default `auto`.
     if (!sawAuto && !sawAngle) auto = true;
     return { auto, angle };
-  }
-
-  private buildColorString(func: { name: string; args: Value[] }): string {
-    if (func.name === "rgb") {
-      const r = getNumericValue(func.args[0]);
-      const g = getNumericValue(func.args[1]);
-      const b = getNumericValue(func.args[2]);
-      return `rgb(${r}, ${g}, ${b})`;
-    } else if (func.name === "rgba") {
-      const r = getNumericValue(func.args[0]);
-      const g = getNumericValue(func.args[1]);
-      const b = getNumericValue(func.args[2]);
-      const a = getNumericValue(func.args[3]);
-      return `rgba(${r}, ${g}, ${b}, ${a})`;
-    } else if (func.name === "hsl" || func.name === "hsla") {
-      // Fold hsl()/hsla() to canonical hex/rgba once at build time so the
-      // per-frame hot path only parses hex/rgb (s/l args carry a `%` unit,
-      // which getNumericValue strips to 0..100).
-      const h = getNumericValue(func.args[0]);
-      const s = getNumericValue(func.args[1]);
-      const l = getNumericValue(func.args[2]);
-      const a = func.args[3] != null ? getNumericValue(func.args[3]) : 1;
-      const suffix = a >= 1 ? "" : `, ${a}`;
-      return (
-        this.canonicalColor(`hsla(${h}, ${s}%, ${l}%${suffix})`) ?? "#000000"
-      );
-    }
-    return "#000000";
   }
 
   /**
