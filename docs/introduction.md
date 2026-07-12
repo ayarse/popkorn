@@ -2,8 +2,8 @@
 
 **What if a CSS animation could leave the browser?**
 
-Popkorn is a portable format for motion graphics, and a small runtime that plays
-it. You describe a scene in a file that looks like the CSS you already know
+Popkorn is a CSS-based portable format for motion graphics, and a small runtime
+that plays it. You describe a scene in a file that looks like the CSS you already know
 (`@keyframes`, `transform`, `offset-path`, `z-index`), and the same file runs on
 the web and on mobile today, natively through React Native.
 
@@ -52,8 +52,9 @@ Popkorn covers most of what people reach for in real motion graphics: vector
 shapes, gradients, strokes, and full SVG paths; text and images; `@keyframes`
 animation with per-keyframe easing; motion along a path, trim paths, and path
 morphing; a real scene graph with parent/child transforms, symbols, `z-index`
-layering, clipping, and masks; and interactivity that goes past playback, from
-`:hover` and `:active` to hand-written state machines. See the
+layering, clipping, and masks. And it isn't only playback: `:hover` and
+`:active` just work, and state machines drive multi-state behavior with no
+scripting. See the
 [format reference](reference.md) for the full surface.
 
 ## Where it's at
