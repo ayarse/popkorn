@@ -32,7 +32,8 @@ artifact, is looking promising.
 
 Because of the familiar CSS syntax, LLMs are proving very capable at authoring
 scenes from scratch and at editing what's already there, like an imported Lottie,
-changing its colors, timing, or motion.
+changing its colors, timing, or motion. A case in point: the playground's example
+gallery is itself entirely LLM-generated.
 
 **▶ [Try it live in the playground](https://ayarse.github.io/popkorn)**: edit
 scenes in the browser, no install.
