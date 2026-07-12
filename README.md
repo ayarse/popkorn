@@ -6,7 +6,7 @@
 
 https://github.com/user-attachments/assets/7df900b1-42f8-4db8-8aec-5dd987ab1a42
 
-<sub>_One scene file, playing on web and native mobile._</sub>
+<sub>Cross Platform ⭐ AI Generatable ⭐ Human Readable ⭐ Converts Lottie &amp; SVG</sub>
 
 [**▶ Playground**](https://ayarse.github.io/popkorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
