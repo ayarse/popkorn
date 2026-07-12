@@ -50,6 +50,9 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Stage | `:root { width: 800px; height: 600px; background: #0f0f23; }` |
 | Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(sides,outer-radius,inner-radius) · `text` · `image` · `group` |
 | Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-dasharray`, `fill-rule`, `opacity` |
+| `border-radius` | 1 value → uniform `rx`/`ry`; 2–4 values → CSS corner shorthand, expands to animatable `border-top-left-radius` etc. (rect only; no elliptical `/` form) |
+| `box-shadow` | `[inset] dx dy [blur] [spread] [color]`, comma-separated multi-shadow, animatable; `spread` only inflates `rect`/`circle`/`ellipse` (paths ignore it) |
+| `mix-blend-mode` | all 16 CSS keywords, per-shape (no group isolation), static |
 | Transform | `transform: translate(x,y) rotate(45deg) scale(1.2)` · `transform-origin: center` (**no skew**) |
 | Individual transforms | `translate: 40px 10px` · `rotate: 45deg` · `scale: 1.2` (same channels as `transform:`, last-wins) |
 | Animate | `animation: <name> <dur> <easing> <count> <dir> <delay>` e.g. `pulse 1.5s ease-in-out infinite` |
@@ -60,7 +63,9 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Spring/bounce | `linear(0, 1 33%, 0.55 46%, 1 62%, 0.78 74%, 1)` — overshoot control points fake physics with 2 keyframes |
 | Symbols | `@define name {…}` then `#x { use: name; cx: …; fill: … }` (use-site overrides) |
 | Nesting | `> #child { … }` inside a rule body |
-| Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)` (numbers only); `&:hover {…}` `&:active {…}` |
+| Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)`; `&:hover {…}` `&:active {…}` |
+| Typed `var()` | `--brand: #e94560` / `--label: "Score"` / `--n: 30px` then `fill: var(--brand)` / `content: var(--label)` / `r: var(--n)` — numeric interpolates, color/string snap (discrete); `input()` stays numeric-only |
+| Text | `text-align: center` (maps to `text-anchor`) · `letter-spacing: 2px` (animatable; no-op on RN/Skia) · `line-height: 1.4` (animatable) · `content: "a\nb"` for multi-line (`\n \r \t \" \\` unescape) |
 | Transitions | `transition: fill 0.3s ease, transform 0.2s` — state flips tween (enter+exit) instead of snapping; runtime-only, timeline stays pure |
 | State machines | `@machine m { initial: off; state off { to: on on click(#btn) } state on { to: off on click(#btn) } }` + `#btn:state(on) { animation: … }` — named states that outlive the pointer (toggles, sequences, timeouts); `:state()` can start `animation:` (the jump over `:hover`). See reference.md §14, examples 11/12 |
 | Scrubbing | `animation-timeline: var(--progress)` or `input(scroll.progress)` — drive an animation by a 0..1 value instead of the clock |
@@ -78,10 +83,11 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 - **Shape invisible** → `fill` defaults to `none`. Set a fill (or stroke *color*, not just width).
 - **`type:` forgotten** → node becomes a `group` (nothing draws). Always declare `type:`.
-- **Property does nothing** → it's likely unsupported (`skew`, `mix-blend-mode`, `object-fit`, `text-align`, `href`, `points`, `line-height`). Parses silently, no effect. Check reference.md §17.
+- **Property does nothing** → it's likely unsupported (`skew`, `object-fit`, `href`, `points`). Parses silently, no effect. Check reference.md §17. (`mix-blend-mode`, `text-align`, `line-height`, `letter-spacing`, `border-radius`, `box-shadow` all **do** work now.)
 - **Wrong geometry prop for the type** → silently ignored (`r` on a rect, `x` on a circle).
 - **`.5` or `//` comments** → invalid. Write `0.5`; use `/* */` only.
-- **Animating a color via `var()`** → not supported; `var()`/`input()` bind numeric props only. (Solid colors, gradient stops, and path `d` *do* animate in `@keyframes` — gradients/paths only between compatible endpoints; see reference.md §12.)
+- **A color bound via `var()` doesn't tween** → it snaps instead of interpolating (the color-binding path re-resolves rather than lerping); numeric `var()`/`input()` still interpolate normally. (Solid colors, gradient stops, and path `d` *do* animate in `@keyframes` — gradients/paths only between compatible endpoints; see reference.md §12.)
+- **`letter-spacing` looks fine on web but does nothing on RN/Skia** — pinned backend divergence, not a bug.
 - **fill-mode surprise** → Popkorn defaults to `forwards` (holds final frame), unlike CSS's `none`.
 
 ## Verify a scene parses

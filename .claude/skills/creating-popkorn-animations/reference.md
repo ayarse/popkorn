@@ -112,6 +112,36 @@ and the math functions `min()`, `max()`, `clamp(MIN, VAL, MAX)` — each arg is 
 full `calc()` expr, they nest with `calc()`, and reactive operands
 (`var()`/`input()`) re-evaluate per frame.
 
+### `var()` is typed; `input()` is numeric-only
+
+A `:root` custom property carries **whatever type its value is** — number,
+color, or string — and `var(--x)` re-resolves that live at render time
+wherever it's used, not just on numeric props:
+
+```css
+:root {
+  --brand: #e94560; /* color */
+  --label: "Score"; /* string */
+  --radius: 30px; /* number */
+}
+#chip { fill: var(--brand); }
+#title { content: var(--label); }
+#dot { r: var(--radius); }
+```
+
+- Numeric `var()` **interpolates** through `@keyframes` like any other number.
+- Color `var()` **snaps** (no in-between blend) since the binding re-resolves
+  outside the color-lerp path.
+- String `var()` (driving `content`, `font-family`, and other keyword props)
+  is **discrete** — it swaps, never interpolates — and re-resolves whenever
+  the host calls `setVariable`.
+- `input(...)` stays **numeric only** (`cursor.x`, `scroll.progress`, etc.) —
+  there's no color/string input source.
+- A `:root` var used in a **structural** prop (`d`, `offset-path`,
+  `clip-path`, `mask`) is folded to its literal value once at build time
+  instead of staying a live binding — those props need real geometry to
+  build the scene graph, not a per-frame swap.
+
 ### Units
 
 `px`, `deg`, `em`, `rem`, `ms`, `s`, `%` (longest-match: `ms` before `s`, `rem` before `em`).
@@ -152,6 +182,17 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 - `star` vs `polygon`: polygon ignores `inner-radius`/`inner-roundness`. Vertex count is `sides` (**not `points`**), floored, min 2. Star vertices start at −90° + `rotation` (0 points up). `*-roundness` are percentages; 0 = straight edges.
 - Geometry props are **type-gated**: mismatched props (`r` on a rect) are silently ignored.
 
+**`border-radius` (rect only) — CSS 1–4 value shorthand:**
+
+```css
+#uniform { type: rect; width: 200px; height: 100px; border-radius: 12px; }        /* -> rx: 12px; ry: 12px */
+#corners { type: rect; width: 200px; height: 100px; border-radius: 0 12px 24px 4px; } /* -> tl 0, tr 12px, br 24px, bl 4px */
+```
+
+- **1 value** → uniform `rx`/`ry` (back-compat with the native rounded-rect path).
+- **2–4 values** → CSS corner order `[top-left, top-right, bottom-right, bottom-left]`, missing values fill from the CSS shorthand rule (2 → `[tl, tr, tl, tr]`, 3 → `[tl, tr, br, tr]`). Expands to the longhands `border-top-left-radius`/`border-top-right-radius`/`border-bottom-right-radius`/`border-bottom-left-radius`, each independently **animatable**.
+- **No elliptical slash form** (`10px / 20px`) — corners are always circular; a slash value warns and is dropped (use `type: path` for a custom outline).
+
 ---
 
 ## 5. Visual / style properties
@@ -169,6 +210,20 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 | `fill-rule`                               | `nonzero` \| `evenodd`                                                               | `nonzero`                                 |
 | `opacity`                                 | fraction                                                                             | `1`                                       |
 | `trim-start` / `trim-end` / `trim-offset` | `%`→fraction, clamped 0..1                                                           | `0` / `1` / `0`                           |
+| `box-shadow`                              | `[inset] <dx> <dy> [<blur>] [<spread>] [<color>]`, comma-separated                   | none                                      |
+
+### `box-shadow`
+
+```css
+#card { box-shadow: 4px 6px 8px rgba(0, 0, 0, 0.4); }              /* outer, blurred */
+#card { box-shadow: 0 0 0 4px #fff, 4px 6px 8px rgba(0, 0, 0, 0.4); } /* multi-shadow, first paints on top */
+#well { box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5); }            /* inset ring */
+```
+
+- Full CSS syntax: `[inset] dx dy [blur] [spread] [color]` (dx/dy required; blur/spread default `0`; color defaults black). Comma-separated for a shadow stack — the **first** listed shadow paints on top, matching CSS.
+- Rides the same `filter`/drop-shadow pipeline, so every field is **animatable** in `@keyframes`.
+- **Ceiling: `spread` only inflates `rect`/`circle`/`ellipse`** (their outline offsets exactly). On `path`/`star`/`polygon` the shadow falls back to a plain blurred silhouette and `spread` is ignored.
+- Inset shadows clip to the shape's real outline (rounded corners included), not just its bounding box.
 
 Gotchas:
 
@@ -208,7 +263,18 @@ fill: radial-gradient(
 
 ### Blend modes
 
-**Not supported** — no `mix-blend-mode`. Compositing is clip-path + masks only (§9).
+```css
+#highlight { mix-blend-mode: multiply; }
+```
+
+`mix-blend-mode` takes any of the 16 CSS keywords — `normal`, `multiply`, `screen`,
+`overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`,
+`soft-light`, `difference`, `exclusion`, `hue`, `saturation`, `color`,
+`luminosity` — and maps to all three backends (Canvas2D `globalCompositeOperation`,
+SVG `mix-blend-mode` style, Skia paint `BlendMode`), so nothing silently drops.
+Blending is **per-shape**, against the whole backdrop already painted — there's
+no group isolation (`isolation: isolate`) to scope it to sibling content only.
+Static (not animatable). Unrecognized keywords fall back to `normal`.
 
 ---
 
@@ -228,16 +294,34 @@ fill: radial-gradient(
 }
 ```
 
-| Property      | Value                              | Default      |
-| ------------- | ---------------------------------- | ------------ |
-| `content`     | string                             | `''`         |
-| `x` / `y`     | anchor x / alphabetic baseline y   | `0`          |
-| `font-size`   | number (animatable)                | `16`         |
-| `font-family` | string                             | `sans-serif` |
-| `font-weight` | keyword (`bold`) or number (`700`) | `normal`     |
-| `text-anchor` | `start` \| `middle` \| `end`       | `start`      |
+| Property         | Value                                   | Default      |
+| ---------------- | ---------------------------------------- | ------------ |
+| `content`        | string (`\n`/`\r`/`\t`/`\"`/`\\` unescape) | `''`         |
+| `x` / `y`        | anchor x / alphabetic baseline y (of the first line) | `0`          |
+| `font-size`      | number (animatable)                     | `16`         |
+| `font-family`    | string                                   | `sans-serif` |
+| `font-weight`    | keyword (`bold`) or number (`700`)       | `normal`     |
+| `text-anchor`    | `start` \| `middle` \| `end`             | `start`      |
+| `text-align`     | `left`/`start`, `center`, `right`/`end`  | maps to `text-anchor` |
+| `letter-spacing` | number, px (animatable)                  | `0`          |
+| `line-height`    | number (× font-size), `px`, or `%`       | font-size    |
 
-Text color uses **`fill`** (and `stroke`), not `color`. Gradients work. **No `text-align`, `line-height`, `letter-spacing`.** Single line only.
+Text color uses **`fill`** (and `stroke`), not `color`.  Gradients work.
+
+- `text-align` is sugar for `text-anchor` (`left`/`start` → `start`, `center` → `middle`, `right`/`end` → `end`) — set either one, not both.
+- `letter-spacing` is realized on Canvas2D (`ctx.letterSpacing`) and SVG; **it's a no-op on the RN/Skia backend** (pinned divergence).
+- `line-height` resolves once against the `font-size` present at that point in the declarations — it doesn't re-resolve if `font-size` animates later.
+- **Multi-line**: a `\n` inside a `content` string splits it into multiple lines (each laid out per `line-height`); `\r`, `\t`, `\"`, and `\\` also unescape now.
+
+```css
+#caption {
+  type: text;
+  content: "Line one\nLine two";
+  text-align: center;
+  letter-spacing: 2px;
+  line-height: 1.4;
+}
+```
 
 ---
 
@@ -572,11 +656,12 @@ Supported (standard CSS seek-forward). `animation: slide 1s linear -0.5s` starts
 
 ### Animatable properties
 
-Numeric (lerp): `translateX`, `translateY`, `rotate`, `scaleX`, `scaleY`, `opacity`, `stroke-width`, `x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `outer-radius`, `inner-radius`, `rotation`, `stroke-dashoffset`, `trim-start`, `trim-end`, `trim-offset`, `offset-distance`, `font-size`.
+Numeric (lerp): `translateX`, `translateY`, `rotate`, `scaleX`, `scaleY`, `opacity`, `stroke-width`, `x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`, `outer-radius`, `inner-radius`, `rotation`, `stroke-dashoffset`, `trim-start`, `trim-end`, `trim-offset`, `offset-distance`, `font-size`, `border-top-left-radius`, `border-top-right-radius`, `border-bottom-right-radius`, `border-bottom-left-radius` (the `border-radius` per-corner longhands), `letter-spacing`, `line-height`.
 Color (rgb/rgba lerp): `fill`, `stroke` (solid colors).
 Gradient paint: `fill`, `stroke` — interpolated when endpoints are **compatible** (same gradient type + stop count); otherwise step.
 Path shape: **`d` morphs** — interpolated when both keyframe paths have the **same command sequence** (same letters, same order/counts); otherwise step. Trim, fill-rule, hit-testing keep working on the morphing path.
-**Not animatable:** `sides` (star/polygon vertex count), `time-offset`, `time-scale`.
+Filter/shadow: `box-shadow` — each shadow's `dx`/`dy`/`blur`/`spread`/color animates through the same object-endpoint path as `filter`.
+**Not animatable:** `sides` (star/polygon vertex count), `time-offset`, `time-scale`, `mix-blend-mode` (static).
 
 ```css
 @keyframes recolor {
@@ -674,7 +759,7 @@ Direction semantics: `normal` → progress; `reverse` → 1−progress; `alterna
 ```
 
 Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `scroll.x`, `scroll.y`, `time` (ms). Unknown → `0`.
-**Constraint:** runtime bindings drive **numeric** props only — you cannot bind a color via `var()`/`input()`. Any value containing `var()`/`input()` is deferred to render-time.
+**`input()` is numeric only** — `cursor`/`scroll`/`time` feed numbers, no color/string input source. `var()` is typed (see §3): it can carry a number, a color, or a string, and re-resolves live wherever it's used. Any value containing `var()`/`input()` is deferred to render-time (except structural props, folded at build time — see §3).
 
 ### Pseudo-states
 
@@ -1011,8 +1096,8 @@ More worked scenes (static composition, keyframe groups, state machines) live in
 - **1000ms duration is real**, not a sentinel; the second shorthand time value is always the delay.
 - **`infinite` = ∞ iterations**.
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
-- **Unsupported (parse but do nothing):** `skew`, blend modes, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href`/`src` (use `content: url()`), `points` (use `sides`). (`steps()`/`linear()` easing **are** supported — see §13.)
-- **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
+- **Unsupported (parse but do nothing):** `skew`, `object-fit`, `href`/`src` (use `content: url()`), `points` (use `sides`). (`steps()`/`linear()` easing **are** supported — see §13; `text-align`/`line-height`/`letter-spacing` and `mix-blend-mode` **are** supported — see §5/§6.)
+- **`var()` is typed (number/color/string); `input()` stays numeric only** — see §3.
 - **Gradients + path `d` ARE animatable** — but only between _compatible_ endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).
 - **`time-scale`/`time-offset`** retime a node + its subtree (precomp-style); static, must be `> 0` for scale.
@@ -1021,6 +1106,9 @@ More worked scenes (static composition, keyframe groups, state machines) live in
 - **Geometry props are type-gated** — `r` on a rect is ignored, etc.
 - **`@machine` scenes are unbounded** — no loop-wrap/play-once clamp; `:state()` animations default to `fill-mode: both` (a one-shot holds its final frame), unlike the node-level `forwards`.
 - **`filter`** supports only `blur()` (animatable) and `drop-shadow()` (static); anything else is dropped.
+- **`border-radius` has no elliptical slash form** (`10px / 20px`) — corners are circular only; use `type: path` for an elliptical corner.
+- **`box-shadow` `spread` only inflates `rect`/`circle`/`ellipse`** — on `path`/`star`/`polygon` it falls back to a plain `filter: drop-shadow()` and spread is ignored.
+- **`letter-spacing` is a no-op on the RN/Skia backend** (pinned divergence) — Canvas2D and SVG both realize it.
 - Unrecognized enum keywords silently fall back to the default.
 - **No `//` comments, no `.5` numbers, no exponents** (`0.5`, not `.5`).
 
