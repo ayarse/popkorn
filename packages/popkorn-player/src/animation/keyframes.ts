@@ -9,6 +9,14 @@ import { applyEasing, holdsAtStart } from "./easing";
 import type { PropValue } from "./registry";
 import { getPropHandler, interpolateProp } from "./registry";
 
+// Synthetic implicit 0%/100% keyframes (CSS rule: a missing edge keyframe is
+// synthesized as empty, so its properties fall back to the base value via the
+// `missing` lookup below, and its missing `easing` falls through to
+// `defaultEasing`). Module-level singletons — this is a per-frame hot path,
+// no per-call allocation.
+const EMPTY_START: KeyframeData = { offset: 0, properties: {} };
+const EMPTY_END: KeyframeData = { offset: 1, properties: {} };
+
 /**
  * Sample the keyframe timeline at a given progress (0-1) and write the resolved
  * values directly into the node's live render fields.
@@ -47,14 +55,20 @@ export function interpolateKeyframes(
   // Clamp progress
   progress = Math.max(0, Math.min(1, progress));
 
-  // Find the bracketing keyframes. Below the first / above the last, both
-  // endpoints collapse to that boundary keyframe.
+  // Find the bracketing keyframes. Below the first / above the last, bracket
+  // against a synthetic empty keyframe at the timeline edge (CSS implicit
+  // 0%/100% keyframes) unless an authored keyframe already sits there.
   let prev = sorted[0];
   let next = sorted[sorted.length - 1];
   if (progress <= sorted[0].offset) {
-    prev = next = sorted[0];
+    prev = sorted[0].offset > 0 ? EMPTY_START : sorted[0];
+    next = sorted[0];
   } else if (progress >= sorted[sorted.length - 1].offset) {
-    prev = next = sorted[sorted.length - 1];
+    prev = sorted[sorted.length - 1];
+    next =
+      sorted[sorted.length - 1].offset < 1
+        ? EMPTY_END
+        : sorted[sorted.length - 1];
   } else {
     for (let i = 0; i < sorted.length - 1; i++) {
       if (progress >= sorted[i].offset && progress <= sorted[i + 1].offset) {
