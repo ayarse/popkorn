@@ -1,16 +1,21 @@
-# Popkorn DSL — Complete Reference
+# Popkorn Format Reference
 
 <!-- repo-only -->
+
 Source-verified against `packages/popkorn-parser/src/parser.ts` (parser),
 `packages/popkorn-player/src/scene/builder.ts` (semantics), the animation/runtime
 modules, and `examples/*.css`.
+
 <!-- /repo-only -->
+
 The parser is **generic** — it accepts any `property: value`. Meaning is assigned
 downstream by the scene builder, so an unrecognized property parses fine and is
 **silently ignored** at build time.
 
 <!-- repo-only -->
+
 Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → SceneNode tree → RenderLoop → Canvas2DRenderer`.
+
 <!-- /repo-only -->
 
 ---
@@ -27,11 +32,11 @@ A document is a flat list of three constructs, in any order:
 
 ```css
 :root {
-  width: 800px;        /* default 800 — numeric value only, unit ignored */
-  height: 600px;       /* default 600 */
+  width: 800px; /* default 800 — numeric value only, unit ignored */
+  height: 600px; /* default 600 */
   background: #0f0f23; /* only a hex/color VALUE is captured here */
-  overflow: hidden;    /* default — crop content to the stage box */
-  --brand: #e94560;    /* custom properties live here too */
+  overflow: hidden; /* default — crop content to the stage box */
+  --brand: #e94560; /* custom properties live here too */
   --cursor-x: input(cursor.x);
 }
 ```
@@ -43,7 +48,7 @@ no `width`/`height`, `<popkorn-player>` falls back to its own `width`/`height` a
 
 **Artboard clipping.** Content is cropped to the `width`×`height` box by default (`overflow: hidden`,
 like an AE comp / Lottie player) — draws past the edge are clipped and pointers outside the box miss.
-Use `overflow: visible` for scenes whose content is meant to sit *outside* the stage at rest (content
+Use `overflow: visible` for scenes whose content is meant to sit _outside_ the stage at rest (content
 merely flying in/out from off-stage during an animation does NOT need it — the clip only crops the
 resting frame). Clipping is skipped when the scene has no declared `width`/`height`.
 
@@ -51,13 +56,13 @@ resting frame). Clipping is skipped when the scene has no declared `width`/`heig
 
 ## 2. Selectors, nesting, grouping
 
-| Syntax | Meaning |
-|---|---|
-| `#id { }` | Node with id (`node.id`) |
+| Syntax       | Meaning                                     |
+| ------------ | ------------------------------------------- |
+| `#id { }`    | Node with id (`node.id`)                    |
 | `.class { }` | Node with class (`node.className`; id auto) |
-| `:root { }` | Stage config + global variables (hoisted) |
+| `:root { }`  | Stage config + global variables (hoisted)   |
 
-**No element/type selectors, no combinators.** A node's shape is set by a `type:` *declaration*, not the selector.
+**No element/type selectors, no combinators.** A node's shape is set by a `type:` _declaration_, not the selector.
 
 **Nesting** uses `>` as a prefix inside a rule body, followed by a full child rule:
 
@@ -65,7 +70,12 @@ resting frame). Clipping is skipped when the scene has no declared `width`/`heig
 #group {
   type: group;
   transform: translate(400px, 300px);
-  > #child { type: rect; width: 100px; height: 100px; fill: #4ecdc4; }
+  > #child {
+    type: rect;
+    width: 100px;
+    height: 100px;
+    fill: #4ecdc4;
+  }
 }
 ```
 
@@ -73,9 +83,17 @@ resting frame). Clipping is skipped when the scene has no declared `width`/`heig
 
 ```css
 #btn {
-  type: circle; r: 30px; fill: #e94560;
-  &:hover  { fill: #ff6b8a; transform: scale(1.2); }
-  &:active { fill: #c73e54; transform: scale(0.9); }
+  type: circle;
+  r: 30px;
+  fill: #e94560;
+  &:hover {
+    fill: #ff6b8a;
+    transform: scale(1.2);
+  }
+  &:active {
+    fill: #c73e54;
+    transform: scale(0.9);
+  }
 }
 ```
 
@@ -117,17 +135,17 @@ Number grammar `-?[0-9]+(\.[0-9]+)?` — **no exponents, no leading-dot** (`.5` 
 
 Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so declaration order doesn't matter.
 
-| `type:` | Geometry props | Per-type defaults |
-|---|---|---|
-| `group` (default) | — | container only |
-| `rect` | `x`, `y`, `width`, `height`, `rx`, `ry` | all `0` |
-| `circle` | `cx`, `cy`, `r` | all `0` |
-| `ellipse` | `cx`, `cy`, `rx`, `ry` | all `0` |
-| `path` | `d` (SVG path) | `d: ''` |
-| `star` | `sides`, `outer-radius`, `inner-radius`, `outer-roundness`, `inner-roundness`, `rotation`, `cx`, `cy` | `sides: 5`, radii/roundness `0`, `rotation: 0` |
-| `polygon` | `sides`, `outer-radius`, `outer-roundness`, `rotation`, `cx`, `cy` | same |
-| `text` | see §6 | |
-| `image` | see §7 | |
+| `type:`           | Geometry props                                                                                        | Per-type defaults                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `group` (default) | —                                                                                                     | container only                                 |
+| `rect`            | `x`, `y`, `width`, `height`, `rx`, `ry`                                                               | all `0`                                        |
+| `circle`          | `cx`, `cy`, `r`                                                                                       | all `0`                                        |
+| `ellipse`         | `cx`, `cy`, `rx`, `ry`                                                                                | all `0`                                        |
+| `path`            | `d` (SVG path)                                                                                        | `d: ''`                                        |
+| `star`            | `sides`, `outer-radius`, `inner-radius`, `outer-roundness`, `inner-roundness`, `rotation`, `cx`, `cy` | `sides: 5`, radii/roundness `0`, `rotation: 0` |
+| `polygon`         | `sides`, `outer-radius`, `outer-roundness`, `rotation`, `cx`, `cy`                                    | same                                           |
+| `text`            | see §6                                                                                                |                                                |
+| `image`           | see §7                                                                                                |                                                |
 
 - `rect` renders rounded corners when `rx>0` or `ry>0`.
 - `path` commands: `M L H V C S Q T A Z` (absolute + relative).
@@ -138,21 +156,22 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 
 ## 5. Visual / style properties
 
-| Property | Values | Default |
-|---|---|---|
-| `fill` | hex, `rgb()`/`rgba()`, `linear-gradient()`, `radial-gradient()`, named color, `none` | `none` |
-| `stroke` | same as fill | `none` |
-| `stroke-width` | number | `1` |
-| `stroke-linecap` | `butt` \| `round` \| `square` | `butt` |
-| `stroke-linejoin` | `miter` \| `round` \| `bevel` | `miter` |
-| `stroke-miterlimit` | number (only used when join is `miter`) | `4` (SVG/Lottie default, not Canvas's 10) |
-| `stroke-dasharray` | space-separated lengths | `[]` (solid) |
-| `stroke-dashoffset` | number | `0` |
-| `fill-rule` | `nonzero` \| `evenodd` | `nonzero` |
-| `opacity` | fraction | `1` |
-| `trim-start` / `trim-end` / `trim-offset` | `%`→fraction, clamped 0..1 | `0` / `1` / `0` |
+| Property                                  | Values                                                                               | Default                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `fill`                                    | hex, `rgb()`/`rgba()`, `linear-gradient()`, `radial-gradient()`, named color, `none` | `none`                                    |
+| `stroke`                                  | same as fill                                                                         | `none`                                    |
+| `stroke-width`                            | number                                                                               | `1`                                       |
+| `stroke-linecap`                          | `butt` \| `round` \| `square`                                                        | `butt`                                    |
+| `stroke-linejoin`                         | `miter` \| `round` \| `bevel`                                                        | `miter`                                   |
+| `stroke-miterlimit`                       | number (only used when join is `miter`)                                              | `4` (SVG/Lottie default, not Canvas's 10) |
+| `stroke-dasharray`                        | space-separated lengths                                                              | `[]` (solid)                              |
+| `stroke-dashoffset`                       | number                                                                               | `0`                                       |
+| `fill-rule`                               | `nonzero` \| `evenodd`                                                               | `nonzero`                                 |
+| `opacity`                                 | fraction                                                                             | `1`                                       |
+| `trim-start` / `trim-end` / `trim-offset` | `%`→fraction, clamped 0..1                                                           | `0` / `1` / `0`                           |
 
 Gotchas:
+
 - **A stroke only paints if a stroke color is set** — default `stroke-width: 1` alone paints nothing.
 - Gradient overrides solid color if both set; a gradient with no stops → no paint.
 - Trim affects only the **stroke** (fill always draws full). When a trim window is active, `stroke-dasharray` is ignored. Empty trim window → nothing strokes.
@@ -174,14 +193,18 @@ fill: radial-gradient(#fff, #000 100%);
 ```css
 fill: linear-gradient(from 0px 0px to 100px 100px, #ff6b6b 0%, #4ecdc4 100%);
 fill: radial-gradient(circle 40px at 150px 150px, #fff 0%, #333 100%);
-fill: radial-gradient(circle 40px at 150px 150px from 140px 140px, #fff 0%, #333 100%);
+fill: radial-gradient(
+  circle 40px at 150px 150px from 140px 140px,
+  #fff 0%,
+  #333 100%
+);
 ```
 
 - Linear `from <x> <y> to <x> <y>` — exact endpoints instead of an angle.
 - Radial `circle <r> at <cx> <cy>` — exact radius + center; optional `from <fx> <fy>` sets a **focal point** (offset inner-circle center, for off-axis highlights).
 - Angle/bbox-centered forms remain the fallback when geometry is omitted.
 
-- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are *compatible* — same gradient type and same stop count (stops pair index-for-index; colors, offsets, **and matching geometry fields** interpolate). Incompatible endpoints step (hold departing value).
+- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are _compatible_ — same gradient type and same stop count (stops pair index-for-index; colors, offsets, **and matching geometry fields** interpolate). Incompatible endpoints step (hold departing value).
 
 ### Blend modes
 
@@ -193,21 +216,26 @@ fill: radial-gradient(circle 40px at 150px 150px from 140px 140px, #fff 0%, #333
 
 ```css
 #label {
-  type: text; content: "Hello Popkorn";
-  x: 400px; y: 300px;
-  font-size: 40px; font-family: sans-serif; font-weight: bold;
-  text-anchor: middle; fill: #ffffff;
+  type: text;
+  content: "Hello Popkorn";
+  x: 400px;
+  y: 300px;
+  font-size: 40px;
+  font-family: sans-serif;
+  font-weight: bold;
+  text-anchor: middle;
+  fill: #ffffff;
 }
 ```
 
-| Property | Value | Default |
-|---|---|---|
-| `content` | string | `''` |
-| `x` / `y` | anchor x / alphabetic baseline y | `0` |
-| `font-size` | number (animatable) | `16` |
-| `font-family` | string | `sans-serif` |
-| `font-weight` | keyword (`bold`) or number (`700`) | `normal` |
-| `text-anchor` | `start` \| `middle` \| `end` | `start` |
+| Property      | Value                              | Default      |
+| ------------- | ---------------------------------- | ------------ |
+| `content`     | string                             | `''`         |
+| `x` / `y`     | anchor x / alphabetic baseline y   | `0`          |
+| `font-size`   | number (animatable)                | `16`         |
+| `font-family` | string                             | `sans-serif` |
+| `font-weight` | keyword (`bold`) or number (`700`) | `normal`     |
+| `text-anchor` | `start` \| `middle` \| `end`       | `start`      |
 
 Text color uses **`fill`** (and `stroke`), not `color`. Gradients work. **No `text-align`, `line-height`, `letter-spacing`.** Single line only.
 
@@ -218,16 +246,19 @@ Text color uses **`fill`** (and `stroke`), not `color`. Gradients work. **No `te
 ```css
 #photo {
   type: image;
-  content: url("data:image/png;base64,…");   /* or url("https://…") */
-  x: 100px; y: 100px; width: 200px; height: 150px;
+  content: url("data:image/png;base64,…"); /* or url("https://…") */
+  x: 100px;
+  y: 100px;
+  width: 200px;
+  height: 150px;
 }
 ```
 
-| Property | Value | Default |
-|---|---|---|
-| `content` | `url('<URL or data: URI>')` | `''` |
-| `x` / `y` | number | `0` |
-| `width` / `height` | number | `0` |
+| Property           | Value                       | Default |
+| ------------------ | --------------------------- | ------- |
+| `content`          | `url('<URL or data: URI>')` | `''`    |
+| `x` / `y`          | number                      | `0`     |
+| `width` / `height` | number                      | `0`     |
 
 Source property is **`content: url(...)`** (the CSS spelling — not `href`/`src`). **No `object-fit`.** `width`/`height` of `0` → natural size. Nothing paints until the image decodes.
 
@@ -237,13 +268,24 @@ Source property is **`content: url(...)`** (the CSS spelling — not `href`/`src
 
 ```css
 @define star {
-  type: circle; r: 10px; fill: #fbbf24;
+  type: circle;
+  r: 10px;
+  fill: #fbbf24;
   transform-origin: center;
   animation: twinkle 2s ease-in-out infinite;
 }
 
-#star1 { use: star; cx: 250px; cy: 320px; }
-#star2 { use: star; cx: 400px; cy: 320px; fill: #60a5fa; }  /* fill overrides */
+#star1 {
+  use: star;
+  cx: 250px;
+  cy: 320px;
+}
+#star2 {
+  use: star;
+  cx: 400px;
+  cy: 320px;
+  fill: #60a5fa;
+} /* fill overrides */
 ```
 
 - `use:` is a merge directive resolved before build (not a node type).
@@ -260,9 +302,9 @@ Source property is **`content: url(...)`** (the CSS spelling — not `href`/`src
 
 ```css
 clip-path: circle(80 at 200 200);
-clip-path: inset(10 20 10 20);          /* CSS shorthand: 1/2/4 values */
-clip-path: path('M0 0 L100 0 L50 100 Z');
-clip-path: path('M…Z') path('M…Z');     /* multi-shape mask: union (nonzero) */
+clip-path: inset(10 20 10 20); /* CSS shorthand: 1/2/4 values */
+clip-path: path("M0 0 L100 0 L50 100 Z");
+clip-path: path("M…Z") path("M…Z"); /* multi-shape mask: union (nonzero) */
 ```
 
 `circle(r at x y)`, `inset(t [r b l])` (resolved against bounding box), `path('…')`. A space-separated list of `path()` values unions into one clip region (Lottie mask add-mode). Applied with the node's `fill-rule`. Default: no clip.
@@ -270,7 +312,7 @@ clip-path: path('M…Z') path('M…Z');     /* multi-shape mask: union (nonzero)
 ### Masks
 
 ```css
-mask: #maskLayer alpha;   /* alpha | alpha-invert | luminance | luminance-invert */
+mask: #maskLayer alpha; /* alpha | alpha-invert | luminance | luminance-invert */
 ```
 
 - References another node by id (`#id`, `#` stripped). Default mode `alpha`.
@@ -281,8 +323,12 @@ mask: #maskLayer alpha;   /* alpha | alpha-invert | luminance | luminance-invert
 ### Filters
 
 ```css
-#glow { filter: blur(12px); }
-#card { filter: blur(2px) drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.4)); }
+#glow {
+  filter: blur(12px);
+}
+#card {
+  filter: blur(2px) drop-shadow(4px 6px 8px rgba(0, 0, 0, 0.4));
+}
 ```
 
 - Two functions only: `blur(<len>)` and `drop-shadow(<dx> <dy> <blur> <color>)`; applies to the node **and its whole subtree** (a group filters its composited output).
@@ -310,9 +356,9 @@ The CSS individual transform properties are also accepted as standalone
 declarations — in a rule body, in `@keyframes`, and in `&:hover`/`&:active`:
 
 ```css
-translate: 40px 10px;   /* <x> [<y>]  (y defaults to 0) */
-rotate: 45deg;          /* <angle> */
-scale: 1.2;             /* <n> [<n>]  (single value = uniform) */
+translate: 40px 10px; /* <x> [<y>]  (y defaults to 0) */
+rotate: 45deg; /* <angle> */
+scale: 1.2; /* <n> [<n>]  (single value = uniform) */
 ```
 
 NOTE: unlike CSS, these are **not** a separate transform layer — they write
@@ -323,8 +369,8 @@ node is **last-declaration-wins per channel**, not additive layering.
 ### transform-origin
 
 ```css
-transform-origin: center;     /* both axes 50% */
-transform-origin: 50% 100%;   /* x then y */
+transform-origin: center; /* both axes 50% */
+transform-origin: 50% 100%; /* x then y */
 transform-origin: left top;
 ```
 
@@ -346,9 +392,9 @@ coordinates with its pivot at the origin (or a numeric px `transform-origin`).
 ### Motion paths
 
 ```css
-offset-path: path('M0 0 C50 -80 150 -80 200 0');
-offset-distance: 50%;   /* animatable; normalized 0..1 */
-offset-rotate: auto;    /* auto | <deg> | auto <deg> */
+offset-path: path("M0 0 C50 -80 150 -80 200 0");
+offset-distance: 50%; /* animatable; normalized 0..1 */
+offset-rotate: auto; /* auto | <deg> | auto <deg> */
 ```
 
 Animate `offset-distance` to move along the path (positioned by arc length). At `offset-distance: 0` the node sits at the path's **first point** (per CSS), not at its bare anchor — so a node whose `offset-distance` animation hasn't started yet still rides the path start. `offset-rotate: auto` follows the tangent; a fixed angle orients rigidly; `auto <deg>` = tangent + offset.
@@ -363,9 +409,14 @@ fill modes, motion-path distance) follows along.
 ```css
 #slow-mo {
   type: group;
-  time-offset: 2s;    /* subtree starts 2s later on the parent timeline */
-  time-scale: 0.5;    /* ...and runs at half speed (2 = double, must be > 0) */
-  > #a { type: circle; r: 10px; fill: #e94560; animation: pulse 1s ease-in-out infinite; }
+  time-offset: 2s; /* subtree starts 2s later on the parent timeline */
+  time-scale: 0.5; /* ...and runs at half speed (2 = double, must be > 0) */
+  > #a {
+    type: circle;
+    r: 10px;
+    fill: #e94560;
+    animation: pulse 1s ease-in-out infinite;
+  }
 }
 ```
 
@@ -413,27 +464,28 @@ lists cycle).
 ```css
 animation: pulse 1.5s ease-in-out infinite;
 animation: spin 3s linear infinite;
-animation: slide 1s cubic-bezier(0.42,0,0.58,1) 2 reverse 0.5s;
+animation: slide 1s cubic-bezier(0.42, 0, 0.58, 1) 2 reverse 0.5s;
 
 /* longhands, alone or refining a shorthand */
 animation-name: pulse;
 animation-duration: 1.5s;
-animation: fade 1s;  animation-duration: 2s;   /* duration → 2s (later wins) */
+animation: fade 1s;
+animation-duration: 2s; /* duration → 2s (later wins) */
 ```
 
 ### Shorthand tokens (parsed by type, order-independent except time values)
 
-| Token | Effect | Default |
-|---|---|---|
-| keyword matching a `@keyframes` name | animation `name` | required |
-| `linear`/`ease`/`ease-in`/`ease-out`/`ease-in-out`/`step-start`/`step-end` | timing fn | `ease` |
-| `cubic-bezier(x1,y1,x2,y2)` / `steps(n, pos)` / `linear(stops)` | timing fn | |
-| `infinite` | iteration count ∞ | `1` |
-| bare integer `0 < n < 100` | iteration count | `1` |
-| `normal`/`reverse`/`alternate`/`alternate-reverse` | direction | `normal` |
-| `none`/`forwards`/`backwards`/`both` | fill mode | `forwards` |
-| first `s`/`ms` value | duration | `1000ms` |
-| second `s`/`ms` value | delay | `0` |
+| Token                                                                      | Effect            | Default    |
+| -------------------------------------------------------------------------- | ----------------- | ---------- |
+| keyword matching a `@keyframes` name                                       | animation `name`  | required   |
+| `linear`/`ease`/`ease-in`/`ease-out`/`ease-in-out`/`step-start`/`step-end` | timing fn         | `ease`     |
+| `cubic-bezier(x1,y1,x2,y2)` / `steps(n, pos)` / `linear(stops)`            | timing fn         |            |
+| `infinite`                                                                 | iteration count ∞ | `1`        |
+| bare integer `0 < n < 100`                                                 | iteration count   | `1`        |
+| `normal`/`reverse`/`alternate`/`alternate-reverse`                         | direction         | `normal`   |
+| `none`/`forwards`/`backwards`/`both`                                       | fill mode         | `forwards` |
+| first `s`/`ms` value                                                       | duration          | `1000ms`   |
+| second `s`/`ms` value                                                      | delay             | `0`        |
 
 **Time-value order rule:** first time value is always duration, second always delay, regardless of magnitude. `s` × 1000; `ms` as-is.
 
@@ -442,7 +494,10 @@ animation: fade 1s;  animation-duration: 2s;   /* duration → 2s (later wins) *
 Defaults to **`forwards`** (CSS defaults to `none`) so scenes hold their final frame. The longhand composes by source order like any other sub-property — put it after the shorthand to override the shorthand's fill mode:
 
 ```css
-#node { animation: fade 1s ease; animation-fill-mode: both; }  /* → both */
+#node {
+  animation: fade 1s ease;
+  animation-fill-mode: both;
+} /* → both */
 ```
 
 ### animation-composition
@@ -454,7 +509,10 @@ the `animation` shorthand** (which resets it to `replace`), and matched
 positionally against the animation list like the other longhands.
 
 ```css
-#node { animation: shake 0.4s linear infinite; animation-composition: add; }
+#node {
+  animation: shake 0.4s linear infinite;
+  animation-composition: add;
+}
 ```
 
 - `add` / `accumulate` — numeric channels (`translateX/Y`, `rotate`, `scaleX/Y`,
@@ -481,14 +539,30 @@ Supported (standard CSS seek-forward). `animation: slide 1s linear -0.5s` starts
 
 ```css
 @keyframes pulse {
-  0%   { transform: scale(1);   opacity: 1;   }
-  50%  { transform: scale(1.3); opacity: 0.7; }
-  100% { transform: scale(1);   opacity: 1;   }
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes twinkle {
-  0%, 100% { transform: scale(1);   opacity: 1;   }
-  50%      { transform: scale(1.6); opacity: 0.5; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.5;
+  }
 }
 ```
 
@@ -505,13 +579,23 @@ Path shape: **`d` morphs** — interpolated when both keyframe paths have the **
 **Not animatable:** `sides` (star/polygon vertex count), `time-offset`, `time-scale`.
 
 ```css
-@keyframes recolor {          /* gradient stop animation (compatible endpoints) */
-  0%   { fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%); }
-  100% { fill: linear-gradient(45deg, #ffe66d 0%, #a855f7 100%); }
+@keyframes recolor {
+  /* gradient stop animation (compatible endpoints) */
+  0% {
+    fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%);
+  }
+  100% {
+    fill: linear-gradient(45deg, #ffe66d 0%, #a855f7 100%);
+  }
 }
-@keyframes blob {             /* path morph — identical command sequence */
-  0%   { d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 Z'; }
-  100% { d: 'M 400 130 C 520 180 580 240 560 320 C 540 400 460 470 380 460 Z'; }
+@keyframes blob {
+  /* path morph — identical command sequence */
+  0% {
+    d: "M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 Z";
+  }
+  100% {
+    d: "M 400 130 C 520 180 580 240 560 320 C 540 400 460 470 380 460 Z";
+  }
 }
 ```
 
@@ -521,13 +605,21 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 
 ```css
 @keyframes move {
-  0%   { transform: translateX(0);     animation-timing-function: ease-out; }
-  50%  { transform: translateX(100px); animation-timing-function: step-end; } /* HOLD */
-  100% { transform: translateX(200px); }
+  0% {
+    transform: translateX(0);
+    animation-timing-function: ease-out;
+  }
+  50% {
+    transform: translateX(100px);
+    animation-timing-function: step-end;
+  } /* HOLD */
+  100% {
+    transform: translateX(200px);
+  }
 }
 ```
 
-`step-end` holds the *from* value and jumps at the next keyframe. No easing → falls back to the animation-level timing function.
+`step-end` holds the _from_ value and jumps at the next keyframe. No easing → falls back to the animation-level timing function.
 
 ---
 
@@ -536,13 +628,13 @@ Put `animation-timing-function:` **inside** a keyframe block — controls the tr
 The standard CSS named easings — `linear`, `ease`, `ease-in`, `ease-out`,
 `ease-in-out` — all work as in CSS. Beyond those:
 
-| Name | Curve |
-|---|---|
-| `step-start` | jump to 1 at t=0, hold (= `steps(1, jump-start)`) |
-| `step-end` | hold 0 until t=1, then 1 (= `steps(1, jump-end)`) |
-| `cubic-bezier(x1,y1,x2,y2)` | custom (Newton-Raphson solve) |
-| `steps(<n>, <position>?)` | staircase of `n` intervals |
-| `linear(<stop-list>)` | piecewise-linear (springs/bounces) |
+| Name                        | Curve                                             |
+| --------------------------- | ------------------------------------------------- |
+| `step-start`                | jump to 1 at t=0, hold (= `steps(1, jump-start)`) |
+| `step-end`                  | hold 0 until t=1, then 1 (= `steps(1, jump-end)`) |
+| `cubic-bezier(x1,y1,x2,y2)` | custom (Newton-Raphson solve)                     |
+| `steps(<n>, <position>?)`   | staircase of `n` intervals                        |
+| `linear(<stop-list>)`       | piecewise-linear (springs/bounces)                |
 
 **`steps(<n>, <position>?)`** — CSS Easing L1 step function. `position` is one of
 `jump-start`/`jump-end` (default)/`jump-none`/`jump-both`, plus the aliases
@@ -573,7 +665,9 @@ Direction semantics: `normal` → progress; `reverse` → 1−progress; `alterna
   --cursor-y: input(cursor.y);
 }
 #follower {
-  type: circle; r: 30px; fill: #e94560;
+  type: circle;
+  r: 30px;
+  fill: #e94560;
   cx: var(--cursor-x);
   cy: var(--cursor-y);
 }
@@ -586,9 +680,17 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 
 ```css
 #btn {
-  type: circle; r: 30px; fill: #e94560;
-  &:hover  { fill: #ff6b8a; transform: scale(1.2); }
-  &:active { fill: #c73e54; transform: scale(0.9); }
+  type: circle;
+  r: 30px;
+  fill: #e94560;
+  &:hover {
+    fill: #ff6b8a;
+    transform: scale(1.2);
+  }
+  &:active {
+    fill: #c73e54;
+    transform: scale(0.9);
+  }
 }
 ```
 
@@ -597,8 +699,9 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 - `active` falls back to `hover` styles if no `&:active` block.
 - **Transform overrides layer on top of running animations:** `translate`/`rotate` additive, `scale` multiplicative.
 
-**Hit-testing bubbles like the DOM.** Any shape whose *geometry* contains the
+**Hit-testing bubbles like the DOM.** Any shape whose _geometry_ contains the
 pointer credits its **nearest interactive ancestor-or-self**:
+
 - A `&:hover`/`&:active` on a `type: group` now works — hovering **any**
   descendant shape flips the group's state (groups have no geometry of their own,
   so this is the only way they get hit).
@@ -624,11 +727,23 @@ state block (the DSL spelling of CSS `#card:hover > #icon { … }`):
 
 ```css
 #card {
-  type: rect; width: 200px; height: 120px; fill: #1a1a2e;
-  > #icon { type: circle; cx: 100px; cy: 60px; r: 20px; fill: #888; }
+  type: rect;
+  width: 200px;
+  height: 120px;
+  fill: #1a1a2e;
+  > #icon {
+    type: circle;
+    cx: 100px;
+    cy: 60px;
+    r: 20px;
+    fill: #888;
+  }
   &:hover {
-    fill: #2a2a4a;                          /* the card itself */
-    > #icon { fill: #fff; transform: rotate(15deg); }  /* that child */
+    fill: #2a2a4a; /* the card itself */
+    > #icon {
+      fill: #fff;
+      transform: rotate(15deg);
+    } /* that child */
   }
 }
 ```
@@ -643,7 +758,7 @@ state block (the DSL spelling of CSS `#card:hover > #icon { … }`):
 - **Transition fallback for a targeted child:** its own node-level `transition:`
   (declared in its normal `> #child` body) wins; else the `transition:` declared
   inside the parent's state block governs the children it lists; else the change
-  snaps. Either way the tween is anchored on the *parent's* state flip.
+  snaps. Either way the tween is anchored on the _parent's_ state flip.
 - One level is the supported depth: a child driven this way does not re-cascade
   its own state-child rules.
 
@@ -655,9 +770,16 @@ value to the target instead of snapping — on both enter and exit.
 
 ```css
 #btn {
-  type: circle; r: 30px; fill: #e94560;
-  transition: fill 0.3s ease, transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
-  &:hover  { fill: #ff6b8a; transform: scale(1.2); }
+  type: circle;
+  r: 30px;
+  fill: #e94560;
+  transition:
+    fill 0.3s ease,
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  &:hover {
+    fill: #ff6b8a;
+    transform: scale(1.2);
+  }
 }
 ```
 
@@ -678,26 +800,45 @@ For interaction a `:hover`/`:active` override **can't** express — a state that
 outlives the pointer (toggles, "intro once then loop", timeouts, app-state
 driven looks). `:hover`/`:active` still cover plain hover/press buttons; reach
 for `@machine` only when a state must persist.
+
 <!-- repo-only -->
+
 **Full spec + rationale:
 [docs/state-machines.md](../../../docs/state-machines.md); worked scenes:
 `examples/popkorn/11-state-machine.css` and `12-toggle-lamp.css`.**
+
 <!-- /repo-only -->
 
 ```css
-:root { --energy: 0; --tap: trigger; }   /* inputs = custom props; trigger auto-resets */
+:root {
+  --energy: 0;
+  --tap: trigger;
+} /* inputs = custom props; trigger auto-resets */
 
 @machine cat {
   initial: idle;
-  state idle    { to: excited on click(#hitbox);
-                  to: hyper  when style(--energy > 80) mix 300ms ease-in-out; }
-  state excited { to: idle   on complete; }        /* this state's animations finished */
-  state hyper   { to: idle   when style(--energy <= 80); emit: overheat; }
-  state *       { to: idle   on event(reset); }    /* any-state, checked before current */
+  state idle {
+    to: excited on click(#hitbox);
+    to: hyper when style(--energy > 80) mix 300ms ease-in-out;
+  }
+  state excited {
+    to: idle on complete;
+  } /* this state's animations finished */
+  state hyper {
+    to: idle when style(--energy <= 80);
+    emit: overheat;
+  }
+  state * {
+    to: idle on event(reset);
+  } /* any-state, checked before current */
 }
 
-#cat:state(idle)    { animation: breathe 2s ease-in-out infinite; }
-#cat:state(excited) { animation: jump 600ms ease-out; }   /* restarts on entry */
+#cat:state(idle) {
+  animation: breathe 2s ease-in-out infinite;
+}
+#cat:state(excited) {
+  animation: jump 600ms ease-out;
+} /* restarts on entry */
 ```
 
 - One `@machine` = one graph; **multiple blocks run concurrently** (a blink loop
@@ -713,7 +854,7 @@ for `@machine` only when a state must persist.
   `state-time > 2s` (reserved per-machine timer → timeouts), plus `media.*`
   (`prefers-reduced-motion`, `hover`, `width`, `height`).
 - **`:state(name)` is a full rule** — including `animation:`, which is the
-  capability jump over `:hover` (a state can *start* an animation, re-anchored at
+  capability jump over `:hover` (a state can _start_ an animation, re-anchored at
   entry time). Namespace as `:state(cat.idle)` if two machines share a name.
 - **Machine scenes are unbounded** (no loop-wrap / play-once clamp); a one-shot
   `:state()` animation holds its final frame — `:state()` animations default to
@@ -731,8 +872,14 @@ Drive an animation by a **0..1 value** instead of the clock — the same
 `var()`/`input()` vocabulary used everywhere else:
 
 ```css
-#bar  { animation: fill-up 1s linear; animation-timeline: var(--progress); }   /* host-fed 0..1 */
-#hero { animation: reveal 1s ease-out; animation-timeline: input(scroll.progress); }
+#bar {
+  animation: fill-up 1s linear;
+  animation-timeline: var(--progress);
+} /* host-fed 0..1 */
+#hero {
+  animation: reveal 1s ease-out;
+  animation-timeline: input(scroll.progress);
+}
 ```
 
 - `scroll.progress` is scroll position normalized to 0..1 (raw offset stays
@@ -755,64 +902,103 @@ Auto-registered custom element wrapping a shadow-DOM canvas.
 - **Events:** `ready` (`detail.sceneRoot`), `error` (`detail.error`).
 
 ```js
-const player = document.querySelector('popkorn-player');
-player.source = myDslCode;   // parse + build + play
+const player = document.querySelector("popkorn-player");
+player.source = myDslCode; // parse + build + play
 ```
 
 ---
 
 ## 16. Example scene
 
-One scene exercising the shapes that make Popkorn *not* plain CSS — `:root`
+One scene exercising the shapes that make Popkorn _not_ plain CSS — `:root`
 stage config, `type:` shapes, `>` nesting, `@define`/`use:` symbols, keyframe
 wiring, a motion path, and `var(--…)`/`&:hover` interactivity:
 
 ```css
 :root {
-  width: 800px; height: 600px; background: #0a0a1a;
+  width: 800px;
+  height: 600px;
+  background: #0a0a1a;
   --cursor-x: input(cursor.x);
 }
 
 @keyframes twinkle {
-  0%, 100% { transform: scale(1);   opacity: 1;   }
-  50%      { transform: scale(1.6); opacity: 0.4; }
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.4;
+  }
 }
 @keyframes travel {
-  0%   { offset-distance: 0%;   }
-  100% { offset-distance: 100%; }
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
 }
 
-@define star {                    /* reusable symbol */
-  type: circle; r: 8px; fill: #fbbf24;
+@define star {
+  /* reusable symbol */
+  type: circle;
+  r: 8px;
+  fill: #fbbf24;
   transform-origin: center;
   animation: twinkle 2s ease-in-out infinite;
 }
 
-#star1 { use: star; cx: 200px; cy: 120px; }
-#star2 { use: star; cx: 400px; cy: 120px; fill: #60a5fa; }  /* fill overrides */
+#star1 {
+  use: star;
+  cx: 200px;
+  cy: 120px;
+}
+#star2 {
+  use: star;
+  cx: 400px;
+  cy: 120px;
+  fill: #60a5fa;
+} /* fill overrides */
 
-#comet {                          /* rides a motion path */
-  type: circle; r: 12px; fill: #ffffff;
-  offset-path: path('M0 400 C200 200 600 200 800 400');
+#comet {
+  /* rides a motion path */
+  type: circle;
+  r: 12px;
+  fill: #ffffff;
+  offset-path: path("M0 400 C200 200 600 200 800 400");
   offset-rotate: auto;
   animation: travel 4s linear infinite;
 }
 
-#scene {                          /* group with a > nested, interactive child */
+#scene {
+  /* group with a > nested, interactive child */
   type: group;
   transform: translate(400px, 300px);
   > #follower {
-    type: circle; r: 30px; fill: #e94560;
+    type: circle;
+    r: 30px;
+    fill: #e94560;
     cx: var(--cursor-x);
-    &:hover  { fill: #ff6b8a; transform: scale(1.2); }
-    &:active { fill: #c73e54; transform: scale(0.9); }
+    &:hover {
+      fill: #ff6b8a;
+      transform: scale(1.2);
+    }
+    &:active {
+      fill: #c73e54;
+      transform: scale(0.9);
+    }
   }
 }
 ```
 
 <!-- repo-only -->
+
 More worked scenes (static composition, keyframe groups, state machines) live in
 `examples/popkorn/`.
+
 <!-- /repo-only -->
 
 ---
@@ -827,11 +1013,11 @@ More worked scenes (static composition, keyframe groups, state machines) live in
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
 - **Unsupported (parse but do nothing):** `skew`, blend modes, `object-fit`, `text-align`/`line-height`/`letter-spacing`, `href`/`src` (use `content: url()`), `points` (use `sides`). (`steps()`/`linear()` easing **are** supported — see §13.)
 - **`var()`/`input()` bind numbers only** — colors can't be bound at runtime.
-- **Gradients + path `d` ARE animatable** — but only between *compatible* endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
+- **Gradients + path `d` ARE animatable** — but only between _compatible_ endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).
 - **`time-scale`/`time-offset`** retime a node + its subtree (precomp-style); static, must be `> 0` for scale.
 - **Paint order = document order**, override with `z-index` (negatives allowed); it also sets hit-test priority.
-- **`visible-from`/`visible-until`** gate a node + subtree to a scene-local time window (skipped in render *and* hit-test outside it).
+- **`visible-from`/`visible-until`** gate a node + subtree to a scene-local time window (skipped in render _and_ hit-test outside it).
 - **Geometry props are type-gated** — `r` on a rect is ignored, etc.
 - **`@machine` scenes are unbounded** — no loop-wrap/play-once clamp; `:state()` animations default to `fill-mode: both` (a one-shot holds its final frame), unlike the node-level `forwards`.
 - **`filter`** supports only `blur()` (animatable) and `drop-shadow()` (static); anything else is dropped.
@@ -841,6 +1027,7 @@ More worked scenes (static composition, keyframe groups, state machines) live in
 ---
 
 <!-- repo-only -->
+
 ## Source files
 
 - Parser & AST: `packages/popkorn-parser/src/{parser,ast,parser.test}.ts`
