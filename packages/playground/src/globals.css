@@ -310,3 +310,65 @@
     text-rendering: optimizeLegibility;
   }
 }
+
+/* driver.js onboarding tour — themed to the dark playground UI. Selectors carry
+   an extra `.popkorn-tour` class (the popover's `popoverClass`) so they outrank
+   driver.css's own single-class rules regardless of stylesheet import order. */
+.driver-popover.popkorn-tour {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px oklch(0 0 0 / 0.5);
+}
+.popkorn-tour .driver-popover-title {
+  font: 600 14px / 1.4 var(--font-sans);
+  color: var(--foreground);
+}
+.popkorn-tour .driver-popover-description {
+  font: 400 13px / 1.5 var(--font-sans);
+  color: var(--muted-foreground);
+}
+.popkorn-tour .driver-popover-progress-text {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.popkorn-tour .driver-popover-close-btn {
+  color: var(--muted-foreground);
+}
+.popkorn-tour .driver-popover-close-btn:hover,
+.popkorn-tour .driver-popover-close-btn:focus {
+  color: var(--foreground);
+}
+.popkorn-tour .driver-popover-footer-btn {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border: 0;
+  border-radius: var(--radius-sm);
+  font: 500 12px / 1.3 var(--font-sans);
+  padding: 4px 10px;
+}
+.popkorn-tour .driver-popover-footer-btn:hover,
+.popkorn-tour .driver-popover-footer-btn:focus {
+  background-color: color-mix(in oklch, var(--primary) 90%, black);
+}
+.popkorn-tour .driver-popover-prev-btn {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.popkorn-tour .driver-popover-prev-btn:hover {
+  background-color: color-mix(in oklch, var(--secondary) 80%, transparent);
+}
+/* Arrow triangle: recolor only the pointing side; the others stay transparent. */
+.driver-popover.popkorn-tour .driver-popover-arrow-side-left {
+  border-left-color: var(--popover);
+}
+.driver-popover.popkorn-tour .driver-popover-arrow-side-right {
+  border-right-color: var(--popover);
+}
+.driver-popover.popkorn-tour .driver-popover-arrow-side-top {
+  border-top-color: var(--popover);
+}
+.driver-popover.popkorn-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--popover);
+}

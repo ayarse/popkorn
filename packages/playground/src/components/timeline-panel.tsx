@@ -394,7 +394,10 @@ export function TimelinePanel({
   const playheadX = LABEL_W + time * ppm;
 
   return (
-    <div className="shrink-0 border-t border-border bg-background">
+    <div
+      data-tour="timeline"
+      className="shrink-0 border-t border-border bg-background"
+    >
       {/* Always-visible bar. */}
       <div className="flex h-9 items-center gap-2 px-2">
         <Button

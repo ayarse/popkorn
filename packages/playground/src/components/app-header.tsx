@@ -1,5 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
-import { BookText, ChevronDown, Sparkles, Upload } from "lucide-react";
+import {
+  BookText,
+  ChevronDown,
+  HelpCircle,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
 import { ImportStatusChip } from "@/components/import-status-chip";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -11,8 +17,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { examples } from "@/examples";
 import type { ImportResult } from "@/lib/import-size";
+import { startTour } from "@/lib/tour";
 
 export function AppHeader({
   currentExample,
@@ -55,7 +67,12 @@ export function AppHeader({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1.5">
+          <Button
+            data-tour="examples"
+            variant="ghost"
+            size="sm"
+            className="gap-1.5"
+          >
             Examples
             <ChevronDown className="size-3.5 opacity-60" />
           </Button>
@@ -85,6 +102,7 @@ export function AppHeader({
           <ImportStatusChip result={importResult} onDismiss={onDismissImport} />
         )}
         <Button
+          data-tour="import"
           variant="secondary"
           size="sm"
           className="gap-1.5"
@@ -94,6 +112,7 @@ export function AppHeader({
           Import Lottie/SVG
         </Button>
         <Button
+          data-tour="copilot"
           variant={chatOpen ? "default" : "secondary"}
           size="sm"
           className="gap-1.5"
@@ -102,6 +121,19 @@ export function AppHeader({
           <Sparkles className="size-3.5" />
           Copilot
         </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => startTour()}
+              aria-label="Take a tour"
+            >
+              <HelpCircle className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Take a tour</TooltipContent>
+        </Tooltip>
         <a
           href="https://github.com/ayarse/popkorn"
           target="_blank"

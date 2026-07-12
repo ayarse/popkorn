@@ -1,5 +1,5 @@
 import type { PopkornPlayer } from "@popkorn/player";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
@@ -9,6 +9,7 @@ import { SourcePanel } from "@/components/source-panel";
 import { TimelinePanel } from "@/components/timeline-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useScene } from "@/hooks/use-scene";
+import { maybeStartTour } from "@/lib/tour";
 
 function App() {
   const scene = useScene();
@@ -17,6 +18,13 @@ function App() {
   const [player, setPlayer] = useState<PopkornPlayer | null>(null);
   const split = useHorizontalSplit();
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
+
+  // First-run onboarding tour — fire once the layout has painted so every
+  // `[data-tour]` target exists to be highlighted.
+  useEffect(() => {
+    const t = window.setTimeout(maybeStartTour, 600);
+    return () => window.clearTimeout(t);
+  }, []);
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -33,6 +41,7 @@ function App() {
 
         <div className="flex flex-1 overflow-hidden">
           <div
+            data-tour="source"
             className="flex min-w-0 overflow-hidden"
             style={
               sourceCollapsed
@@ -66,6 +75,7 @@ function App() {
               shrink together when the chat sidebar opens; collapsed source
               hands its width fully to the player. */}
           <div
+            data-tour="player"
             className="flex min-w-0 overflow-hidden"
             style={{ flex: `${sourceCollapsed ? 1 : 1 - split.frac} 1 0` }}
           >
