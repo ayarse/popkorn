@@ -234,6 +234,86 @@ group and everything inside moves with it) — the closest Popkorn equivalent
 to `position: relative` scoping, but declared as a real transform rather than
 inferred from box containment.
 
+## `margin`/`padding`, centering, and rows/columns
+
+None of these are layout algorithms in Popkorn — there's no box to reflow, so
+"spacing" is just arithmetic on the coordinates you already write. This is a
+permanent trade, not a missing feature: a scene's positions are meant to be
+literal and diffable, not solved for at render time.
+
+```css
+/* before: a card with 16px padding around its label */
+.card { width: 200px; height: 80px; padding: 16px; }
+.card .label { /* flows to x=16, y=16 inside the padding box */ }
+```
+
+```css
+/* after: bake the offset into the child's coordinates */
+#card {
+  type: group;
+  > #bg    { type: rect; x: 0px; y: 0px; width: 200px; height: 80px; fill: #1e293b; }
+  > #label { type: text; content: "Title"; x: 16px; y: 16px; fill: #fff; } /* 16px "padding" */
+}
+```
+
+Centering is the same arithmetic, just solved once: a child at
+`(parentWidth - childWidth) / 2` instead of `margin: 0 auto`.
+
+```css
+/* before: center a 40px dot in a 200px-wide card via auto margins */
+.dot { width: 40px; margin: 0 auto; }
+```
+
+```css
+/* after: compute the centered coordinate directly (card is 200px wide, dot r=20px) */
+#dot { type: circle; cx: 100px; cy: 40px; r: 20px; fill: #22d3ee; } /* 200/2, 80/2 */
+```
+
+Rows and columns are the same idea repeated: either compute each child's
+`x`/`y` by hand (a fixed gap times its index), or — cleaner for a symbol
+repeated many times — give the group a `transform: translate(...)` per
+instance and let every child keep local `(0,0)`-relative geometry.
+
+```css
+/* before: a row of three 48px icons with 12px gaps via flexbox */
+.toolbar { display: flex; gap: 12px; }
+```
+
+```css
+/* after: fixed-step arithmetic (icon width 48px + 12px gap = 60px stride) */
+@define icon { type: rect; width: 48px; height: 48px; fill: #6366f1; }
+#icon-1 { use: icon; x: 0px;   y: 0px; }
+#icon-2 { use: icon; x: 60px;  y: 0px; }
+#icon-3 { use: icon; x: 120px; y: 0px; }
+
+/* or, translate a group per row/column instead of restating x/y each time */
+#row-2 { type: group; transform: translate(0px, 60px); > #icon-4 { use: icon; } }
+```
+
+## Stacking order without `z-index: auto` flow rules
+
+CSS stacking contexts (`z-index` interacting with `position`, `isolation`,
+opacity-creates-a-layer, etc.) are one of the fussier corners of the box
+model. Popkorn's paint order is much flatter: siblings paint in document
+order, and `z-index` (plain ascending integers, default `0`, negative values
+allowed) overrides that — full stop, no stacking-context nesting to reason
+about, and the same order drives hit-testing.
+
+```css
+/* before: relying on stacking-context quirks to get an overlay above content */
+.overlay { position: absolute; z-index: 10; }
+```
+
+```css
+/* after: reorder by document position, or override with z-index directly */
+#card {
+  type: group;
+  > #bg      { type: rect; x: 0px; y: 0px; width: 200px; height: 80px; fill: #1e293b; }
+  > #label   { type: text; content: "Title"; x: 16px; y: 16px; fill: #fff; }
+  > #ribbon  { type: path; d: '...'; z-index: -1; } /* pinned behind bg despite coming last */
+}
+```
+
 ## Checkbox hack
 
 `:checked` + a sibling combinator is CSS art's only way to get durable,
