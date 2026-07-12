@@ -195,6 +195,8 @@ export class PopkornPlayer extends HTMLElementBase {
   private sceneHeight: number = 300;
 
   private resizeObserver: ResizeObserver | null = null;
+  private _resizeRaf: number | null = null;
+  private _lastSize: { bw: number; bh: number; dpr: number } | null = null;
 
   // Controls UI (shadow DOM).
   private controlsEl: HTMLDivElement;
@@ -315,7 +317,16 @@ export class PopkornPlayer extends HTMLElementBase {
   connectedCallback() {
     // Responsive: repaint + resize the backing store whenever the host resizes.
     if (typeof ResizeObserver !== "undefined") {
-      this.resizeObserver = new ResizeObserver(() => this.syncSize());
+      // Coalesce bursts (splitter drags fire per pointermove) into one
+      // resize+repaint per frame — syncSize reallocs the backing store and
+      // repaints the whole scene, which janks on large scenes if run per tick.
+      this.resizeObserver = new ResizeObserver(() => {
+        if (this._resizeRaf !== null) return;
+        this._resizeRaf = requestAnimationFrame(() => {
+          this._resizeRaf = null;
+          this.syncSize();
+        });
+      });
       this.resizeObserver.observe(this);
     }
 
@@ -327,6 +338,10 @@ export class PopkornPlayer extends HTMLElementBase {
   disconnectedCallback() {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    if (this._resizeRaf !== null) {
+      cancelAnimationFrame(this._resizeRaf);
+      this._resizeRaf = null;
+    }
     this.stop();
   }
 
@@ -690,6 +705,8 @@ export class PopkornPlayer extends HTMLElementBase {
       this.renderer = this.useSvg
         ? new SVGRenderer(this.svg!)
         : new Canvas2DRenderer(this.canvas);
+      // Fresh renderer surface must be sized even if the element size didn't change.
+      this._lastSize = null;
       this.scheduler = new AnimationScheduler();
 
       this.renderLoop = new RenderLoop(this.renderer, this.scheduler);
@@ -794,6 +811,11 @@ export class PopkornPlayer extends HTMLElementBase {
 
     const bw = Math.max(1, Math.round(elemW * dpr));
     const bh = Math.max(1, Math.round(elemH * dpr));
+    // No-op resizes (observer fires without a real size change) skip the
+    // backing-store realloc + full repaint entirely.
+    const last = this._lastSize;
+    if (last && last.bw === bw && last.bh === bh && last.dpr === dpr) return;
+    this._lastSize = { bw, bh, dpr };
     // Both backends work in the same device-px space (viewport folds in DPR/fit);
     // each backend's resize() sizes its own surface (canvas w/h vs SVG viewBox).
     this.renderer?.resize(bw, bh);

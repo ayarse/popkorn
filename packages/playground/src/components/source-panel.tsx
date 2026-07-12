@@ -46,25 +46,41 @@ export function SourcePanel({
   const diags = useDiagnostics(source);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  if (collapsed) {
-    return (
-      <div className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-card/30 pt-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleCollapse}
-              aria-label="Expand source editor"
-            >
-              <PanelLeftOpen className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Expand editor</TooltipContent>
-        </Tooltip>
-      </div>
-    );
-  }
+  // Cache the highlighted HTML by source. Editor re-renders (e.g. the collapse
+  // toggle flipping props) re-call `highlight`; returning the identical string
+  // lets React skip the dangerouslySetInnerHTML write — on a 340KB imported
+  // Lottie an uncached re-highlight + relayout blocks the main thread ~700ms.
+  const hlCache = useRef<{ code: string; html: string } | null>(null);
+  const highlight = (code: string): string => {
+    if (hlCache.current?.code !== code) {
+      hlCache.current = {
+        code,
+        html: Prism.highlight(code, Prism.languages.css, "css"),
+      };
+    }
+    return hlCache.current.html;
+  };
+
+  // The expanded panel below stays mounted (just display:none) while collapsed:
+  // remounting the editor re-highlights + re-lays-out the whole document in one
+  // main-thread task (~650ms on a 340KB imported Lottie), which janks expand.
+  const rail = collapsed && (
+    <div className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-card/30 pt-2">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapse}
+            aria-label="Expand source editor"
+          >
+            <PanelLeftOpen className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Expand editor</TooltipContent>
+      </Tooltip>
+    </div>
+  );
 
   // Crush is destructive (renames every identifier, unrecoverable), so gate it
   // behind an explicit confirmation that spells out the trade-off.
@@ -94,82 +110,86 @@ export function SourcePanel({
   };
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden border-r border-border bg-card/30">
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onToggleCollapse}
-              aria-label="Collapse source editor"
-            >
-              <PanelLeftClose className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="right">Collapse editor</TooltipContent>
-        </Tooltip>
-        <div className="ml-auto flex items-center gap-2">
-          {sizeDelta && (
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {humanBytes(sizeDelta.before)} → {humanBytes(sizeDelta.after)} (
-              {fmtPct(pct(sizeDelta.before, sizeDelta.after))})
-            </span>
-          )}
+    <>
+      {rail}
+      <div
+        className="flex flex-1 flex-col overflow-hidden border-r border-border bg-card/30"
+        style={collapsed ? { display: "none" } : undefined}
+      >
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={onToggleMinify}>
-                {minified ? (
-                  <UnfoldVertical className="size-4" />
-                ) : (
-                  <FoldVertical className="size-4" />
-                )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onToggleCollapse}
+                aria-label="Collapse source editor"
+              >
+                <PanelLeftClose className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              {minified ? "Format source" : "Minify source"}
-            </TooltipContent>
+            <TooltipContent side="right">Collapse editor</TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={confirmCrush}>
-                <Shrink className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Crush: minify + irreversibly rename identifiers (smaller, not
-              human-readable)
-            </TooltipContent>
-          </Tooltip>
+          <div className="ml-auto flex items-center gap-2">
+            {sizeDelta && (
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {humanBytes(sizeDelta.before)} → {humanBytes(sizeDelta.after)} (
+                {fmtPct(pct(sizeDelta.before, sizeDelta.after))})
+              </span>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={onToggleMinify}>
+                  {minified ? (
+                    <UnfoldVertical className="size-4" />
+                  ) : (
+                    <FoldVertical className="size-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {minified ? "Format source" : "Minify source"}
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={confirmCrush}>
+                  <Shrink className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Crush: minify + irreversibly rename identifiers (smaller, not
+                human-readable)
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-      </div>
-      <div className="flex-1 overflow-auto">
-        <div ref={wrapRef} className="relative" style={{ minHeight: "100%" }}>
-          <Editor
-            value={source}
-            onValueChange={onSourceChange}
-            highlight={(code) =>
-              Prism.highlight(code, Prism.languages.css, "css")
-            }
-            padding={16}
-            style={{
-              minHeight: "100%",
-              fontSize: "13px",
-              fontFamily: "var(--font-mono)",
-              lineHeight: "1.6",
-              backgroundColor: "transparent",
-            }}
-          />
-          {diags.length > 0 && (
-            <DiagnosticsOverlay
-              source={source}
-              diags={diags}
-              containerRef={wrapRef}
+        <div className="flex-1 overflow-auto">
+          <div ref={wrapRef} className="relative" style={{ minHeight: "100%" }}>
+            <Editor
+              value={source}
+              onValueChange={onSourceChange}
+              highlight={highlight}
+              padding={16}
+              style={{
+                minHeight: "100%",
+                fontSize: "13px",
+                fontFamily: "var(--font-mono)",
+                lineHeight: "1.6",
+                backgroundColor: "transparent",
+              }}
             />
-          )}
+            {diags.length > 0 && (
+              <DiagnosticsOverlay
+                source={source}
+                diags={diags}
+                containerRef={wrapRef}
+              />
+            )}
+          </div>
         </div>
+        <ProblemsStrip source={source} diags={diags} onJump={jumpTo} />
       </div>
-      <ProblemsStrip source={source} diags={diags} onJump={jumpTo} />
-    </div>
+    </>
   );
 }
