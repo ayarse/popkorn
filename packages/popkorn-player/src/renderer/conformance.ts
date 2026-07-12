@@ -1,4 +1,11 @@
-import type { MaskMode } from "../scene/types";
+import { insetShadowCommands, shapeClip } from "../scene/box-shadow";
+import type {
+  CircleData,
+  EllipseData,
+  MaskMode,
+  PathData,
+  RectData,
+} from "../scene/types";
 import { resolveGradient } from "./gradient-geometry";
 import type { Renderer } from "./interface";
 import type { GradientData } from "./types";
@@ -217,6 +224,98 @@ const GRAD_REPEAT_LINEAR: GradientData = {
 const BOX_20x10 = { x: 0, y: 0, width: 20, height: 10 };
 const BOX_10x10 = { x: 0, y: 0, width: 10, height: 10 };
 
+// Drive the renderer with the clip + evenodd cover/hole an inset shadow emits,
+// exactly as the shared walk (drawBoxShadows) does.
+function driveInset(
+  r: Renderer,
+  sd: RectData | CircleData | EllipseData | PathData,
+  dx: number,
+  dy: number,
+  spread: number,
+): void {
+  const clip = shapeClip(sd);
+  const commands = insetShadowCommands(sd, dx, dy, spread);
+  if (!clip || !commands) return;
+  r.save();
+  r.setFill("#000000");
+  r.setStroke(null, 0);
+  r.setFillRule("evenodd");
+  r.clip(clip);
+  r.drawPath(commands);
+  r.restore();
+}
+
+const SHARP_RECT: RectData = {
+  type: "rect",
+  x: 0,
+  y: 0,
+  width: 20,
+  height: 20,
+  rx: 0,
+  ry: 0,
+};
+const ROUNDED_RECT: RectData = { ...SHARP_RECT, rx: 6, ry: 6 };
+const INSET_ELLIPSE: EllipseData = {
+  type: "ellipse",
+  cx: 10,
+  cy: 10,
+  rx: 10,
+  ry: 6,
+};
+const INSET_PATH: PathData = {
+  type: "path",
+  d: "M0 0 L20 0 L10 18 Z",
+  commands: [
+    { type: "M", x: 0, y: 0 },
+    { type: "L", x: 20, y: 0 },
+    { type: "L", x: 10, y: 18 },
+    { type: "Z" },
+  ],
+};
+
+// One inset case: assert the clip GEOMETRY KIND (rect vs shape-outline path) and
+// that the shadow fill is emitted, uniformly across all three backends.
+function insetShadowCases(): ConformanceCase[] {
+  const case_ = (
+    name: string,
+    sd: RectData | CircleData | EllipseData | PathData,
+    clipKind: ClipObs["type"],
+    dx = 0,
+    dy = 0,
+    spread = 2,
+  ): ConformanceCase => ({
+    name,
+    ops: (r) => driveInset(r, sd, dx, dy, spread),
+    assert: (t, expect) => {
+      expect(t.clips.length).toBe(1);
+      expect(t.clips[0].type).toBe(clipKind);
+      expect(t.paints.some((p) => p.kind === "fill")).toBe(true);
+    },
+  });
+  return [
+    case_("inset shadow on a sharp rect clips to a rect", SHARP_RECT, "rect"),
+    case_(
+      "inset shadow on a rounded rect clips to its outline path",
+      ROUNDED_RECT,
+      "path",
+    ),
+    case_(
+      "inset shadow on an ellipse clips to its outline path",
+      INSET_ELLIPSE,
+      "path",
+    ),
+    case_("inset shadow on a path clips to that path", INSET_PATH, "path"),
+    case_(
+      "inset shadow on a rounded rect with offset + spread still fills",
+      ROUNDED_RECT,
+      "path",
+      3,
+      4,
+      3,
+    ),
+  ];
+}
+
 export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
   // --- #3 paint order -------------------------------------------------------
   {
@@ -261,6 +360,15 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
       expect(t.paints.some((p) => p.kind === "stroke")).toBe(true);
     },
   },
+
+  // --- inset box-shadow: shape-accurate clip + punched inverse ---------------
+  // The shared walk realizes an inset shadow as `clip to the shape` + an evenodd
+  // cover-with-hole path fill. These cases drive that exact primitive sequence
+  // and assert every backend records the SAME clip GEOMETRY KIND — proving a
+  // rounded rect / ellipse / path clips to its real outline (a `path` clip), not
+  // its bounding box, and that the shadow still fills. Guards the reported bug
+  // where an inset shadow ignored the shape and clipped to a plain rect.
+  ...insetShadowCases(),
 
   // --- #7 artboard clipping (shared walk's overflow:hidden default) ----------
   {

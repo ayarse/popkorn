@@ -1096,14 +1096,23 @@ function matrixScale(m: Matrix3x3): number {
 }
 
 // A box-shadow that must draw as a geometric shape rather than ride the CSS
-// drop-shadow filter: an inset shadow, or an outer shadow with spread, on a
-// shape we can inflate (rect/circle/ellipse). Everything else (outer/no-spread,
-// or any shadow on a path/text/…) goes through the filter path.
+// drop-shadow filter. Inset shadows always draw geometrically (clip to the shape
+// + punched inverse) for any shape with an outline; outer shadows only when they
+// carry spread AND the shape can be inflated exactly (rect/circle/ellipse).
+// Everything else (outer/no-spread, outer-spread on a path) rides the filter.
 function isGeometricShadow(node: SceneNode, s: FilterOp): boolean {
   if (s.type !== "drop-shadow") return false;
   const t = node.shapeData.type;
+  const hasOutline =
+    t === "rect" ||
+    t === "circle" ||
+    t === "ellipse" ||
+    t === "path" ||
+    t === "star" ||
+    t === "polygon";
   const inflatable = t === "rect" || t === "circle" || t === "ellipse";
-  return inflatable && ((s.inset ?? false) || (s.spread ?? 0) !== 0);
+  if (s.inset ?? false) return hasOutline;
+  return inflatable && (s.spread ?? 0) !== 0;
 }
 
 // The filter ops the CSS drop-shadow path renders for a node: its authored

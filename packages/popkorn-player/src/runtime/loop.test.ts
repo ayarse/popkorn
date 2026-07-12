@@ -533,3 +533,14 @@ test("box-shadow: inset clips to the shape and punches an evenodd hole", () => {
   expect(r.paths.length).toBeGreaterThan(0);
   expect(r.fills).toContain("#00ff00");
 });
+
+test("box-shadow: inset on a rounded rect clips to the outline path, not a bbox", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 20; height: 20; border-radius: 6; fill: #fff; box-shadow: inset 1px 1px 4px 2px #00ff00; }",
+  );
+  // Regression: a rounded rect must clip to its real outline (a path clip), so
+  // the inset shadow hugs the rounded corners instead of leaking to a bbox rect.
+  expect(r.clips.some((c) => c.type === "path")).toBe(true);
+  expect(r.clips.some((c) => c.type === "rect")).toBe(false);
+  expect(r.fills).toContain("#00ff00");
+});

@@ -55,6 +55,11 @@ class FakePath2D {
   quadraticCurveTo(): void {
     this.__clip ??= { type: "path" };
   }
+  // A rounded-rect / ellipse clip path lands here (arcs -> ctx.ellipse); it's a
+  // compound outline, so record it as a `path` clip (not a native circle).
+  ellipse(): void {
+    this.__clip ??= { type: "path" };
+  }
   closePath(): void {}
 }
 
