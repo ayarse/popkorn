@@ -1,5 +1,6 @@
 import { insetShadowCommands, shapeClip } from "../scene/box-shadow";
 import type {
+  BlendMode,
   CircleData,
   EllipseData,
   MaskMode,
@@ -65,6 +66,9 @@ export interface PaintObs {
   gradient?: NormGradient;
   dashArray?: number[];
   dashOffset?: number;
+  // Realized mix-blend-mode at this paint (undefined == 'normal'). Each harness
+  // reverse-maps its platform blend (Canvas gCO / SVG style / Skia paint blend).
+  blend?: BlendMode;
 }
 
 // One realized track-matte composite, its platform primitive reverse-mapped to
@@ -377,6 +381,31 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       expect(t.paints.some((p) => p.kind === "fill")).toBe(true);
       expect(t.paints.some((p) => p.kind === "stroke")).toBe(true);
+    },
+  },
+
+  // --- mix-blend-mode: same blend realized on every backend ------------------
+  {
+    // A non-normal blend must reach the paint identically across backends
+    // (Canvas gCO, SVG element style, Skia paint blend). Also checks the reset:
+    // after setBlendMode('normal') a later paint carries no blend, so it can't
+    // leak to siblings — exactly how the shared walk brackets a node's shape.
+    name: "mix-blend-mode realizes the same blend on every backend, then resets",
+    ops: (r) => {
+      r.setBlendMode("multiply");
+      r.setFill("#00ff00");
+      r.setStroke(null, 0);
+      r.drawRect(0, 0, 10, 10);
+      r.setBlendMode("normal");
+      r.setFill("#0000ff");
+      r.drawRect(0, 0, 10, 10);
+    },
+    assert: (t, expect) => {
+      const blended = t.paints.find((p) => p.color === "#00ff00");
+      const plain = t.paints.find((p) => p.color === "#0000ff");
+      expect(blended?.blend).toBe("multiply");
+      // normal blend records as undefined (no gCO / style / non-SrcOver paint).
+      expect(plain?.blend).toBeUndefined();
     },
   },
 

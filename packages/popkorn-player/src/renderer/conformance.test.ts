@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
-import type { MaskMode } from "../scene/types";
+import type { BlendMode, MaskMode } from "../scene/types";
 import { Canvas2DRenderer } from "./canvas2d";
+
+// Canvas globalCompositeOperation -> CSS blend keyword (source-over == normal,
+// recorded as undefined). Every other gCO value IS the CSS mix-blend-mode name.
+function gcoToBlend(gco: string): BlendMode | undefined {
+  return !gco || gco === "source-over" ? undefined : (gco as BlendMode);
+}
+
 import type {
   ClipObs,
   ConformanceHarness,
@@ -180,6 +187,8 @@ function recCtx(
         style && style.__grad
           ? { kind: "fill", gradient: normRecGradient(style) }
           : { kind: "fill", color: style };
+      const blend = gcoToBlend(ctx.globalCompositeOperation);
+      if (blend) obs.blend = blend;
       log.push({ type: "paint", index, obs });
     },
     stroke() {
@@ -198,6 +207,8 @@ function recCtx(
               dashArray: dash.slice(),
               dashOffset: ctx.lineDashOffset,
             };
+      const blend = gcoToBlend(ctx.globalCompositeOperation);
+      if (blend) obs.blend = blend;
       log.push({ type: "paint", index, obs });
     },
     fillText() {},
@@ -436,6 +447,11 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
       el.getAttribute("paint-order") === "stroke"
         ? ["stroke", "fill"]
         : ["fill", "stroke"];
+    // mix-blend-mode rides the element's `style`; reverse-map to the keyword.
+    const styleAttr = el.getAttribute("style") ?? "";
+    const blend = styleAttr.includes("mix-blend-mode:")
+      ? (styleAttr.split("mix-blend-mode:")[1].trim() as BlendMode)
+      : undefined;
     for (const kind of order) {
       if (kind === "fill" && fillAttr && fillAttr !== "none") {
         const grad = fillAttr.startsWith("url(")
@@ -443,8 +459,8 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
           : undefined;
         paints.push(
           grad
-            ? { kind: "fill", gradient: grad }
-            : { kind: "fill", color: fillAttr },
+            ? { kind: "fill", gradient: grad, blend }
+            : { kind: "fill", color: fillAttr, blend },
         );
       } else if (kind === "stroke" && strokeAttr && strokeAttr !== "none") {
         const grad = strokeAttr.startsWith("url(")
@@ -452,8 +468,14 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
           : undefined;
         paints.push(
           grad
-            ? { kind: "stroke", gradient: grad, dashArray, dashOffset }
-            : { kind: "stroke", color: strokeAttr, dashArray, dashOffset },
+            ? { kind: "stroke", gradient: grad, dashArray, dashOffset, blend }
+            : {
+                kind: "stroke",
+                color: strokeAttr,
+                dashArray,
+                dashOffset,
+                blend,
+              },
         );
       }
     }

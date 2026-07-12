@@ -1537,3 +1537,15 @@ test("multi-line \\n stacks height by line-height", () => {
   // 3 lines: (3-1)*30 + 20 first-line ascent = 80.
   expect(getShapeBounds(t).height).toBe(80);
 });
+
+// --- mix-blend-mode ----------------------------------------------------------
+
+test("mix-blend-mode: a known keyword sets the node blend; a typo stays normal", () => {
+  const blend = (v: string) =>
+    build(`#b { type: rect; width: 10; height: 10; mix-blend-mode: ${v}; }`)
+      .children[0].mixBlendMode;
+  expect(blend("screen")).toBe("screen");
+  expect(blend("color-dodge")).toBe("color-dodge");
+  expect(blend("luminosity")).toBe("luminosity");
+  expect(blend("nope")).toBe("normal"); // unknown -> ignored, stays normal
+});

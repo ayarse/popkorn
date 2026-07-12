@@ -46,6 +46,7 @@ import type {
   AnimationDirection,
   AnimationFillMode,
   AnimationInstance,
+  BlendMode,
   CircleData,
   ClipPathData,
   CompositeOperation,
@@ -155,6 +156,26 @@ const STRING_BINDABLE_PROPERTIES = new Set([
   "paint-order",
   "visibility",
   "mix-blend-mode",
+]);
+
+// CSS mix-blend-mode keywords (every one maps to all three backends).
+const BLEND_MODES = new Set<string>([
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
 ]);
 
 // One warning per animation whose object-valued keyframes (gradients/paths)
@@ -1178,6 +1199,15 @@ export class SceneBuilder {
       // `box-shadow` handler (same interpolateFilter path as `filter`).
       case "box-shadow":
         node.boxShadow = this.parseBoxShadow(value);
+        break;
+
+      // CSS mix-blend-mode. A recognized keyword sets the node's blend; an
+      // unknown one is ignored (stays 'normal') — every CSS mode is mappable, so
+      // there's nothing to drop-with-warning beyond a typo.
+      case "mix-blend-mode":
+        if (isKeywordValue(value) && BLEND_MODES.has(value.value)) {
+          node.mixBlendMode = value.value as BlendMode;
+        }
         break;
 
       // CSS Motion Path. offset-path is static (cached arc-length table built

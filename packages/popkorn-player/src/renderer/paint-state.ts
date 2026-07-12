@@ -1,4 +1,5 @@
 import type {
+  BlendMode,
   FillRule,
   PaintOrder,
   StrokeLineCap,
@@ -38,6 +39,7 @@ export abstract class PaintStateRenderer {
   protected fillRule: FillRule = "nonzero";
   protected paintOrder: PaintOrder = "normal";
   protected opacity = 1;
+  protected blendMode: BlendMode = "normal";
 
   setFill(color: Color | null): void {
     this.fillColor = color ? colorToCSS(color) : null;
@@ -76,6 +78,12 @@ export abstract class PaintStateRenderer {
   }
   setOpacity(opacity: number): void {
     this.opacity = opacity;
+  }
+  // Sticky like the rest; the loop sets it before a node's shape draw and resets
+  // it to 'normal' after. Backends read `blendMode` at draw (Canvas gCO, SVG
+  // element style, Skia paint) — a subclass may override to apply it eagerly.
+  setBlendMode(mode: BlendMode): void {
+    this.blendMode = mode;
   }
 
   // --- opt-in JS CTM mirror (SVG/Skia). Canvas2D leaves these untouched. ---

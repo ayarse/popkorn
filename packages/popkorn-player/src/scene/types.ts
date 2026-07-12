@@ -79,6 +79,29 @@ export type ColorFilterFn =
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
 export type FillRule = "nonzero" | "evenodd";
 
+// CSS mix-blend-mode. Every keyword is shared by all three backends: Canvas2D
+// globalCompositeOperation (normal -> 'source-over'), SVG `mix-blend-mode` style,
+// Skia BlendMode. No CSS separable/non-separable mode is unmappable, so nothing
+// is dropped. NOTE: applied per shape against the current backdrop (no group
+// isolation) — a group's own mix-blend-mode doesn't composite its subtree as one.
+export type BlendMode =
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "darken"
+  | "lighten"
+  | "color-dodge"
+  | "color-burn"
+  | "hard-light"
+  | "soft-light"
+  | "difference"
+  | "exclusion"
+  | "hue"
+  | "saturation"
+  | "color"
+  | "luminosity";
+
 // Text alignment; maps to CanvasRenderingContext2D.textAlign (left/center/right).
 export type TextAnchor = "start" | "middle" | "end";
 
@@ -231,6 +254,11 @@ export interface SceneNode {
 
   // Paint order of this node's own fill/stroke (static). Default 'normal'.
   paintOrder: PaintOrder;
+
+  // CSS mix-blend-mode: how this node's shape composites against the backdrop
+  // already drawn. Default 'normal'. Set at build (or via a var() binding); the
+  // shared walk brackets the shape draw with setBlendMode, backends realize it.
+  mixBlendMode: BlendMode;
 
   // Whether this node (and its subtree) participate in hit-testing (static).
   // 'none' skips them entirely; see PointerEvents. Default 'auto'.
@@ -743,6 +771,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     strokeDashOffset: 0,
     fillRule: "nonzero",
     paintOrder: "normal",
+    mixBlendMode: "normal",
     pointerEvents: "auto",
     cachedOutlineLength: null,
     outlineLengthDirty: true,

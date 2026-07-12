@@ -1,4 +1,5 @@
 import type {
+  BlendMode,
   FillRule,
   MaskMode,
   PaintOrder,
@@ -117,6 +118,9 @@ export interface Renderer {
   // Paint order for the next shape: 'stroke' draws stroke behind fill.
   setPaintOrder(order: PaintOrder): void;
   setOpacity(opacity: number): void;
+  // CSS mix-blend-mode against the backdrop. The shared walk brackets a node's
+  // shape draw with this (mode then 'normal'); each backend realizes it.
+  setBlendMode(mode: BlendMode): void;
 
   // Transform stack
   save(): void;

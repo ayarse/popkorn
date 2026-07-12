@@ -16,7 +16,15 @@ import { SkiaRenderer } from '../src/skia-renderer';
 // return normalized geometry so gradient realization can be cross-checked.
 
 type SkColorMock = Float32Array & { __css: string };
-interface DrawRecord { op: string; style?: number; colorCss?: string; shader?: NormGradient; dash?: number[]; dashOffset?: number }
+interface DrawRecord { op: string; style?: number; colorCss?: string; shader?: NormGradient; dash?: number[]; dashOffset?: number; blend?: number }
+
+// SkBlendMode int -> CSS mix-blend-mode keyword (SrcOver/undefined == normal).
+const SK_BLEND_TO_CSS: Record<number, string> = {
+  24: 'multiply', 14: 'screen', 15: 'overlay', 16: 'darken', 17: 'lighten',
+  18: 'color-dodge', 19: 'color-burn', 20: 'hard-light', 21: 'soft-light',
+  22: 'difference', 23: 'exclusion', 25: 'hue', 26: 'saturation', 27: 'color',
+  28: 'luminosity',
+};
 interface LayerRecord { op: 'saveLayer'; blend?: number; filter?: unknown }
 
 const SkBlend = { DstIn: 6, DstOut: 8 } as const;
@@ -52,7 +60,7 @@ function mockSkia() {
 
   // Snapshot the paint's observable fields at draw time (the paint is reused +
   // reset for the next shape, so we must not hold a live reference).
-  const record = (op: string, p: any) => { draws.push({ op, style: p.__style, colorCss: p.__colorCss, shader: p.__shader, dash: p.__dash, dashOffset: p.__dashOffset }); };
+  const record = (op: string, p: any) => { draws.push({ op, style: p.__style, colorCss: p.__colorCss, shader: p.__shader, dash: p.__dash, dashOffset: p.__dashOffset, blend: p.__blend }); };
 
   const canvas: any = {
     save: () => {}, restore: () => {}, concat: () => {},
@@ -115,6 +123,8 @@ function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], clips: ClipObs[],
     const kind = d.style === 1 ? 'stroke' : 'fill';
     const base: PaintObs = d.shader ? { kind, gradient: d.shader } : { kind, color: d.colorCss };
     if (kind === 'stroke') { base.dashArray = d.dash ?? []; base.dashOffset = d.dashOffset ?? 0; }
+    const blend = d.blend !== undefined ? SK_BLEND_TO_CSS[d.blend] : undefined;
+    if (blend) base.blend = blend as PaintObs['blend'];
     return base;
   });
   // The mask-carrying layer is the one whose paint set a blend mode.

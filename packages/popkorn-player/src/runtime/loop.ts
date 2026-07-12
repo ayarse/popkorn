@@ -855,6 +855,12 @@ export class RenderLoop {
     // the shape — before its own paint state is set, so they can't disturb it.
     if (node.boxShadow) this.drawBoxShadows(node, alpha, false);
 
+    // mix-blend-mode: composite this node's shape against the backdrop. Bracketed
+    // tight around the shape (reset to 'normal' after) — simple per-shape blend,
+    // no group isolation (see BlendMode NOTE).
+    const blend = node.mixBlendMode;
+    if (blend !== "normal") this.renderer.setBlendMode(blend);
+
     // Set style
     this.renderer.setFill(node.fill);
     this.renderer.setFillGradient(node.fillGradient);
@@ -931,6 +937,9 @@ export class RenderLoop {
         // Groups don't render themselves, just their children
         break;
     }
+
+    // End the blend bracket before inset shadows / children so it doesn't leak.
+    if (blend !== "normal") this.renderer.setBlendMode("normal");
 
     // Inset box-shadows paint on top of the shape, clipped to it (rim of colour).
     if (node.boxShadow) this.drawBoxShadows(node, alpha, true);

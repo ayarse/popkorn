@@ -13,6 +13,7 @@ import { IDENTITY_MATRIX } from "../renderer/types";
 import { buildSceneGraph } from "../scene/builder";
 import type {
   AnimationInstance,
+  BlendMode,
   CircleData,
   FillRule,
   MaskMode,
@@ -58,6 +59,7 @@ function createRecordingRenderer(): Renderer & {
   paths: PathCommand[][];
   filters: string[];
   clips: ResolvedClip[];
+  blends: BlendMode[];
   frames: number;
 } {
   return {
@@ -67,6 +69,7 @@ function createRecordingRenderer(): Renderer & {
     paths: [],
     filters: [],
     clips: [],
+    blends: [],
     frames: 0,
     clear() {},
     beginFrame() {
@@ -110,6 +113,9 @@ function createRecordingRenderer(): Renderer & {
     setDash() {},
     setFillRule(_r: FillRule) {},
     setPaintOrder() {},
+    setBlendMode(mode: BlendMode) {
+      this.blends.push(mode);
+    },
     setOpacity(opacity: number) {
       this.opacities.push(opacity);
     },
@@ -557,4 +563,19 @@ test("text: multi-line content draws one line per \\n", () => {
 test("text: single line still draws exactly once", () => {
   const r = loadScene('#t { type: text; content: "hello"; }');
   expect(r.texts).toEqual(["hello"]);
+});
+
+// --- mix-blend-mode ----------------------------------------------------------
+
+test("mix-blend-mode brackets the shape draw (mode then reset to normal)", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 10; height: 10; fill: #f00; mix-blend-mode: multiply; }",
+  );
+  // The blend is set before the shape and reset after — so it can't leak.
+  expect(r.blends).toEqual(["multiply", "normal"]);
+});
+
+test("mix-blend-mode: normal (default) sets no blend at all", () => {
+  const r = loadScene("#b { type: rect; width: 10; height: 10; fill: #f00; }");
+  expect(r.blends).toEqual([]);
 });

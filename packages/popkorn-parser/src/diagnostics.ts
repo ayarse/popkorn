@@ -82,6 +82,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "paint-order",
   "filter",
   "box-shadow",
+  "mix-blend-mode",
   // text
   "font-family",
   "font-size",

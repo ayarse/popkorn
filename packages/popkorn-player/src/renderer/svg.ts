@@ -910,6 +910,13 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       "opacity",
       this.opacity === 1 ? null : String(this.opacity),
     );
+    // mix-blend-mode is a CSS/style property (SVG has no presentation attr for
+    // it). The keyword is identical to the CSS value; 'normal' clears it.
+    this.setAttr(
+      el,
+      "style",
+      this.blendMode === "normal" ? null : `mix-blend-mode:${this.blendMode}`,
+    );
   }
 
   private ensureGradient(id: string, g: GradientData, bounds: PaintBox): void {

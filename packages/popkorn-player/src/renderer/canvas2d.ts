@@ -1,5 +1,5 @@
 import { applyCommandsToPath, computePathBounds } from "../scene/path-parser";
-import type { MaskMode, TextAnchor } from "../scene/types";
+import type { BlendMode, MaskMode, TextAnchor } from "../scene/types";
 import type { PaintBox } from "./gradient-geometry";
 import { resolveGradient } from "./gradient-geometry";
 import type { Renderer } from "./interface";
@@ -74,6 +74,15 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
   endFrame(): void {
     // No-op for Canvas2D (immediate mode)
+  }
+
+  // Apply eagerly onto the ctx: the CSS keyword IS the globalCompositeOperation
+  // value for every blend mode, except `normal` -> `source-over`. The loop resets
+  // to 'normal' after the node's shape, so it doesn't leak to siblings.
+  setBlendMode(mode: BlendMode): void {
+    super.setBlendMode(mode);
+    this.ctx.globalCompositeOperation =
+      mode === "normal" ? "source-over" : (mode as GlobalCompositeOperation);
   }
 
   drawRect(

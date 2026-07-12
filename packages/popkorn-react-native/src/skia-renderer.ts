@@ -68,6 +68,27 @@ const ClipOp_Intersect = 1; // ClipOp.Intersect
 const BlendMode_DstIn = 6; // SkBlendMode.DstIn:  r = d * sa
 const BlendMode_DstOut = 8; // SkBlendMode.DstOut: r = d * (1-sa)
 
+// CSS mix-blend-mode -> SkBlendMode integer (stable Skia C++ enum). `normal` is
+// SrcOver (paint.reset()'s default), so it needn't be set. Covers every CSS
+// separable + non-separable mode — nothing is unmappable on Skia.
+const BLEND_MODE: Record<string, number> = {
+  multiply: 24,
+  screen: 14,
+  overlay: 15,
+  darken: 16,
+  lighten: 17,
+  "color-dodge": 18,
+  "color-burn": 19,
+  "hard-light": 20,
+  "soft-light": 21,
+  difference: 22,
+  exclusion: 23,
+  hue: 25,
+  saturation: 26,
+  color: 27,
+  luminosity: 28,
+};
+
 // Luminance -> alpha colour matrix (4x5, RGBA row-major, last column = bias).
 // Zeroes RGB and writes Rec.709 luma into alpha, so a luminance matte becomes an
 // alpha matte the DstIn/DstOut blend below consumes. Matches Canvas2DRenderer's
@@ -599,6 +620,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     if (this.fillGradient) {
       const paint = this.fillPaint;
       paint.reset();
+      this.applyBlend(paint);
       paint.setAntiAlias(true);
       paint.setStyle(PaintStyle.Fill);
       paint.setShader(this.makeShader(this.fillGradient, bounds));
@@ -608,6 +630,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     if (this.fillColor) {
       const paint = this.fillPaint;
       paint.reset();
+      this.applyBlend(paint);
       paint.setAntiAlias(true);
       paint.setStyle(PaintStyle.Fill);
       const c = this.color(this.fillColor);
@@ -616,6 +639,13 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       return paint;
     }
     return null;
+  }
+
+  // Apply the sticky mix-blend-mode onto a freshly-reset paint (SrcOver default
+  // needs nothing). Called by both paint builders so fill and stroke blend alike.
+  private applyBlend(paint: SkPaint): void {
+    const m = BLEND_MODE[this.blendMode];
+    if (m !== undefined) paint.setBlendMode(m);
   }
 
   private makeStrokePaint(bounds: PaintBox): SkPaint | null {
@@ -628,6 +658,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
     const paint = this.strokePaint;
     paint.reset();
+    this.applyBlend(paint);
     paint.setAntiAlias(true);
     paint.setStyle(PaintStyle.Stroke);
     paint.setStrokeWidth(this.strokeWidth);
