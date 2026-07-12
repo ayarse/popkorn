@@ -83,7 +83,7 @@ export const SYSTEM_PROMPT = [
 export const GREETING: Message = {
   id: 0,
   role: "agent",
-  text: "I'm your Popkorn Copilot. Describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the DSL welcome too.",
+  text: "I'm your Popkorn Copilot. Describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the Popkorn format welcome too.",
 };
 
 export const SUGGESTIONS = [
