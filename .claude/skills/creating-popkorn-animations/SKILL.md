@@ -16,6 +16,13 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 **Full spec: [reference.md](reference.md). Read it before using any feature not shown below.**
 
+**No box model, ever** — no `position`/`margin`/`padding`/flex/grid, and no
+`::before`/`::after`. Layout is coordinate arithmetic on shape nodes
+(`x`/`y`, `cx`/`cy`, `transform: translate(...)`), and a pseudo-element
+becomes a named `> #child` shape (repeated ones via `@define` + `use:`). See
+[../../../docs/css-art-in-popkorn.md](../../../docs/css-art-in-popkorn.md)
+for worked before/after recipes.
+
 ## Workflow
 
 1. Start with `:root { width; height; background }` (only hex colors register here; custom `--props` live here too).
