@@ -18,8 +18,12 @@ const SVG_RE =
 // import/minify logic that loads and transforms it. App keeps only view state
 // (which modal/sidebar is open) and wires these into the panels.
 export function useScene() {
-  const [currentExample, setCurrentExample] = useState<string | null>("motion");
-  const [source, setSource] = useState(examples[5].source);
+  const defaultExample =
+    examples.find((e) => e.key === "lottie--magic-eye") ?? examples[0];
+  const [currentExample, setCurrentExample] = useState<string | null>(
+    defaultExample.key,
+  );
+  const [source, setSource] = useState(defaultExample.source);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [minified, setMinified] = useState(false);
