@@ -32,13 +32,13 @@ const STORAGE_KEY = "popkorn.agent.config";
 
 export const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
-export const DEFAULT_MODEL = "anthropic/claude-sonnet-5";
+export const DEFAULT_MODEL = "openai/gpt-5.5";
 
 export const MODEL_PRESETS = [
+  "openai/gpt-5.5",
   "anthropic/claude-sonnet-5",
   "anthropic/claude-opus-4.8",
   "anthropic/claude-sonnet-4.6",
-  "openai/gpt-5.5",
   "z-ai/glm-5.2",
   "deepseek/deepseek-v4-pro",
   "minimax/m3",
@@ -102,8 +102,8 @@ export function loadConfig(): AgentConfig | null {
       baseUrl: parsed.baseUrl,
       apiKey: parsed.apiKey,
       model: parsed.model ?? DEFAULT_MODEL,
-      // Absent in old stored configs stays absent (model default).
-      ...(parsed.reasoning ? { reasoning: parsed.reasoning } : {}),
+      // Reasoning is off by default; absent stored value falls back to "off".
+      reasoning: parsed.reasoning ?? "off",
     };
   } catch {
     return null;

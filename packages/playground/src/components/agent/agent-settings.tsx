@@ -252,8 +252,9 @@ export function AgentSettings({
                 baseUrl: baseUrl.trim() || DEFAULT_BASE_URL,
                 apiKey: apiKey.trim(),
                 model,
-                // Preserve any reasoning mode set from the composer control.
-                ...(current?.reasoning ? { reasoning: current.reasoning } : {}),
+                // Preserve any reasoning mode set from the composer control;
+                // off by default.
+                reasoning: current?.reasoning ?? "off",
               })
             }
           >
