@@ -1,6 +1,6 @@
 {
   "name": "@popkorn/player",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Renderer and animation player for Popkorn DSL",
   "license": "MIT",
   "repository": {
