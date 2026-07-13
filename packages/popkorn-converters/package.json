@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "description": "Lottie and SVG converters for the Popkorn DSL",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ayarse/popkorn.git",
+    "directory": "packages/popkorn-converters"
+  },
+  "homepage": "https://github.com/ayarse/popkorn#readme",
+  "bugs": "https://github.com/ayarse/popkorn/issues",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

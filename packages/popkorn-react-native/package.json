@@ -2,6 +2,13 @@
   "name": "@popkorn/react-native",
   "description": "React Native Skia renderer backend for the Popkorn player",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ayarse/popkorn.git",
+    "directory": "packages/popkorn-react-native"
+  },
+  "homepage": "https://github.com/ayarse/popkorn#readme",
+  "bugs": "https://github.com/ayarse/popkorn/issues",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
