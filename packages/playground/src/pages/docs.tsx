@@ -91,9 +91,31 @@ export default function Docs() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden sm:flex-row">
+        {/* Mobile section nav — native select (the sidebar is desktop-only) */}
+        <div className="shrink-0 border-b border-border bg-card/30 p-2 sm:hidden">
+          {/* biome-ignore lint/a11y/useSemanticElements: native select is the mobile nav */}
+          <select
+            aria-label="Documentation section"
+            value={active}
+            onChange={(e) =>
+              navigate({
+                to: "/docs/$section",
+                params: { section: e.target.value },
+              })
+            }
+            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[13px]"
+          >
+            {DOCS.map((d) => (
+              <option key={d.key} value={d.key}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Primary section nav */}
-        <aside className="w-56 shrink-0 overflow-auto border-r border-border bg-card/30 p-3">
+        <aside className="hidden w-56 shrink-0 overflow-auto border-r border-border bg-card/30 p-3 sm:block">
           <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             <BookOpen className="size-3.5" />
             Documentation
@@ -121,7 +143,7 @@ export default function Docs() {
 
         {/* Rendered markdown */}
         <main ref={scrollRef} className="flex-1 overflow-auto">
-          <div className="mx-auto max-w-3xl px-8 py-8">
+          <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
             <div
               ref={proseRef}
               className="docs-prose"
