@@ -26,6 +26,7 @@ import { examples } from "@/examples";
 import { track } from "@/lib/analytics";
 import type { ImportResult } from "@/lib/import-size";
 import { startTour } from "@/lib/tour";
+import { cn } from "@/lib/utils";
 
 export function AppHeader({
   currentExample,
@@ -50,7 +51,7 @@ export function AppHeader({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
       <BrandMark
         suffix={
-          <span className="ml-1.5 text-[13px] font-normal text-muted-foreground">
+          <span className="ml-1.5 hidden text-[13px] font-normal text-muted-foreground sm:inline">
             Playground
           </span>
         }
@@ -63,7 +64,7 @@ export function AppHeader({
         onClick={() => navigate({ to: "/docs" })}
       >
         <BookText className="size-3.5" />
-        Docs
+        <span className="hidden sm:inline">Docs</span>
       </Button>
 
       <DropdownMenu>
@@ -110,7 +111,7 @@ export function AppHeader({
           onClick={onImport}
         >
           <Upload className="size-3.5" />
-          Import Lottie/SVG
+          <span className="hidden sm:inline">Import Lottie/SVG</span>
         </Button>
         <Button
           data-tour="copilot"
@@ -120,7 +121,7 @@ export function AppHeader({
           onClick={onToggleChat}
         >
           <Sparkles className="size-3.5" />
-          Copilot
+          <span className="hidden sm:inline">Copilot</span>
         </Button>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -129,6 +130,7 @@ export function AppHeader({
               size="icon"
               onClick={() => startTour()}
               aria-label="Take a tour"
+              className="hidden sm:inline-flex"
             >
               <HelpCircle className="size-4" />
             </Button>
@@ -141,7 +143,10 @@ export function AppHeader({
           rel="noreferrer"
           aria-label="GitHub repository"
           onClick={() => track("github_click")}
-          className={buttonVariants({ variant: "ghost", size: "icon" })}
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "icon" }),
+            "hidden sm:inline-flex",
+          )}
         >
           <svg
             viewBox="0 0 24 24"

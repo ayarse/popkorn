@@ -6,6 +6,8 @@ import "prismjs/themes/prism-tomorrow.css";
 import type { Diagnostic } from "@popkorn/parser";
 import {
   FoldVertical,
+  PanelBottomClose,
+  PanelBottomOpen,
   PanelLeftClose,
   PanelLeftOpen,
   Shrink,
@@ -22,6 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { fmtPct, humanBytes, pct, type SizeDelta } from "@/lib/import-size";
 
 export function SourcePanel({
@@ -45,6 +48,12 @@ export function SourcePanel({
 }) {
   const diags = useDiagnostics(source);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Editor sits left of the canvas on desktop (collapse to a left rail) and
+  // below it on mobile (collapse to a bottom bar) — pick the matching affordance.
+  const isMobile = useIsMobile();
+  const CollapseIcon = isMobile ? PanelBottomClose : PanelLeftClose;
+  const ExpandIcon = isMobile ? PanelBottomOpen : PanelLeftOpen;
+  const tipSide = isMobile ? "top" : "right";
 
   // Cache the highlighted HTML by source. Editor re-renders (e.g. the collapse
   // toggle flipping props) re-call `highlight`; returning the identical string
@@ -65,7 +74,7 @@ export function SourcePanel({
   // remounting the editor re-highlights + re-lays-out the whole document in one
   // main-thread task (~650ms on a 340KB imported Lottie), which janks expand.
   const rail = collapsed && (
-    <div className="flex w-9 shrink-0 flex-col items-center border-r border-border bg-card/30 pt-2">
+    <div className="flex shrink-0 items-center border-border bg-card/30 max-sm:h-9 max-sm:w-full max-sm:border-t max-sm:px-2 sm:w-9 sm:flex-col sm:border-r sm:pt-2">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -74,11 +83,14 @@ export function SourcePanel({
             onClick={onToggleCollapse}
             aria-label="Expand source editor"
           >
-            <PanelLeftOpen className="size-4" />
+            <ExpandIcon className="size-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="right">Expand editor</TooltipContent>
+        <TooltipContent side={tipSide}>Expand editor</TooltipContent>
       </Tooltip>
+      <span className="ml-2 text-[11px] text-muted-foreground sm:hidden">
+        Source
+      </span>
     </div>
   );
 
@@ -113,7 +125,7 @@ export function SourcePanel({
     <>
       {rail}
       <div
-        className="flex flex-1 flex-col overflow-hidden border-r border-border bg-card/30"
+        className="flex flex-1 flex-col overflow-hidden bg-card/30 sm:border-r sm:border-border"
         style={collapsed ? { display: "none" } : undefined}
       >
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-2">
@@ -125,10 +137,10 @@ export function SourcePanel({
                 onClick={onToggleCollapse}
                 aria-label="Collapse source editor"
               >
-                <PanelLeftClose className="size-4" />
+                <CollapseIcon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="right">Collapse editor</TooltipContent>
+            <TooltipContent side={tipSide}>Collapse editor</TooltipContent>
           </Tooltip>
           <div className="ml-auto flex items-center gap-2">
             {sizeDelta && (

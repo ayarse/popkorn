@@ -4,10 +4,11 @@ import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
-import { ResizeHandle, useHorizontalSplit } from "@/components/resize-handle";
+import { ResizeHandle, useSplit } from "@/components/resize-handle";
 import { SourcePanel } from "@/components/source-panel";
 import { TimelinePanel } from "@/components/timeline-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useScene } from "@/hooks/use-scene";
 import { maybeStartTour } from "@/lib/tour";
 
@@ -16,7 +17,10 @@ function App() {
   const [showImport, setShowImport] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [player, setPlayer] = useState<PopkornPlayer | null>(null);
-  const split = useHorizontalSplit();
+  // Desktop: editor left / player right (horizontal split). Mobile: player on
+  // top / editor below (vertical stack), no timeline.
+  const isMobile = useIsMobile();
+  const split = useSplit(isMobile);
   const [sourceCollapsed, setSourceCollapsed] = useState(false);
 
   // First-run onboarding tour — fire once the layout has painted so every
@@ -25,6 +29,27 @@ function App() {
     const t = window.setTimeout(maybeStartTour, 600);
     return () => window.clearTimeout(t);
   }, []);
+
+  const playerNode = (
+    <PlayerPanel
+      source={scene.source}
+      error={scene.error}
+      onError={scene.setError}
+      onPlayerReady={setPlayer}
+    />
+  );
+  const sourceNode = (
+    <SourcePanel
+      source={scene.source}
+      onSourceChange={scene.editSource}
+      sizeDelta={scene.sizeDelta}
+      minified={scene.minified}
+      onToggleMinify={scene.toggleMinify}
+      onCrush={scene.crush}
+      collapsed={sourceCollapsed}
+      onToggleCollapse={() => setSourceCollapsed((v) => !v)}
+    />
+  );
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -39,26 +64,31 @@ function App() {
           onToggleChat={() => setChatOpen((v) => !v)}
         />
 
-        <div className="flex flex-1 overflow-hidden">
+        {/* Desktop: [editor | handle | player]. Mobile: [player / handle /
+            editor] stacked. The first slot holds whichever panel leads
+            (editor on desktop, player on mobile) and the handle's frac sizes
+            it. When the editor collapses, it shrinks to its rail (0 0 auto)
+            and the other panel takes the rest — independent of orientation. */}
+        <div
+          className={
+            isMobile
+              ? "flex flex-1 flex-col overflow-hidden"
+              : "flex flex-1 overflow-hidden"
+          }
+        >
           <div
-            data-tour="source"
-            className="flex min-w-0 overflow-hidden"
-            style={
-              sourceCollapsed
-                ? { flex: "0 0 auto" }
-                : { flex: `${split.frac} 1 0` }
-            }
+            data-tour={isMobile ? "player" : "source"}
+            className="flex min-h-0 min-w-0 overflow-hidden"
+            style={{
+              // First slot is the editor on desktop, the player on mobile.
+              flex: sourceCollapsed
+                ? isMobile
+                  ? "1 1 0"
+                  : "0 0 auto"
+                : `${split.frac} 1 0`,
+            }}
           >
-            <SourcePanel
-              source={scene.source}
-              onSourceChange={scene.editSource}
-              sizeDelta={scene.sizeDelta}
-              minified={scene.minified}
-              onToggleMinify={scene.toggleMinify}
-              onCrush={scene.crush}
-              collapsed={sourceCollapsed}
-              onToggleCollapse={() => setSourceCollapsed((v) => !v)}
-            />
+            {isMobile ? playerNode : sourceNode}
           </div>
 
           {!sourceCollapsed && (
@@ -66,41 +96,45 @@ function App() {
               frac={split.frac}
               min={split.min}
               max={split.max}
+              vertical={isMobile}
               onPointerDown={split.onPointerDown}
               onKeyDown={split.onKeyDown}
             />
           )}
 
-          {/* flex-grow of (1-frac) mirrors the source's frac, so both panels
-              shrink together when the chat sidebar opens; collapsed source
-              hands its width fully to the player. */}
           <div
-            data-tour="player"
-            className="flex min-w-0 overflow-hidden"
-            style={{ flex: `${sourceCollapsed ? 1 : 1 - split.frac} 1 0` }}
+            data-tour={isMobile ? "source" : "player"}
+            className="flex min-h-0 min-w-0 overflow-hidden"
+            style={{
+              // Second slot is the editor on mobile, the player on desktop.
+              flex: sourceCollapsed
+                ? isMobile
+                  ? "0 0 auto"
+                  : "1 1 0"
+                : `${1 - split.frac} 1 0`,
+            }}
           >
-            <PlayerPanel
-              source={scene.source}
-              error={scene.error}
-              onError={scene.setError}
-              onPlayerReady={setPlayer}
-            />
+            {isMobile ? sourceNode : playerNode}
           </div>
 
-          {/* Agent chat sidebar — toggled from the header */}
+          {/* Agent chat — sidebar on desktop, fullscreen drawer on mobile */}
           <AgentChat
             open={chatOpen}
             onClose={() => setChatOpen(false)}
             source={scene.source}
             onApplySource={scene.applyGenerated}
+            fullscreen={isMobile}
           />
         </div>
 
-        <TimelinePanel
-          player={player}
-          source={scene.source}
-          onEditSource={scene.editSource}
-        />
+        {/* Timeline is desktop-only — skip it entirely on mobile. */}
+        {!isMobile && (
+          <TimelinePanel
+            player={player}
+            source={scene.source}
+            onEditSource={scene.editSource}
+          />
+        )}
 
         {showImport && (
           <ImportModal
