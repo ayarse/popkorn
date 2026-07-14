@@ -1,11 +1,11 @@
 import { useNavigate, useParams } from "@tanstack/react-router";
 import Prism from "prismjs";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "prismjs/themes/prism-tomorrow.css";
 import "prismjs/components/prism-clike";
 import "prismjs/components/prism-javascript";
 import "prismjs/components/prism-css";
-import { ArrowLeft, BookOpen, ListTree } from "lucide-react";
+import { ArrowLeft, BookOpen, ListTree, Menu } from "lucide-react";
 import { marked } from "marked";
 import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ export default function Docs() {
     () => marked.parse(docSource(activeDoc.file)) as string,
     [activeDoc.file],
   );
+  const [navOpen, setNavOpen] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
   const proseRef = useRef<HTMLDivElement>(null);
   const { toc, activeId, scrollToHeading } = useToc(proseRef, scrollRef, html);
@@ -73,6 +74,16 @@ export default function Docs() {
     <div className="flex h-full flex-col bg-background text-foreground">
       {/* Header — mirrors the playground shell */}
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="sm:hidden"
+          aria-label="Toggle documentation menu"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen((v) => !v)}
+        >
+          <Menu className="size-4" />
+        </Button>
         <BrandMark
           suffix={
             <span className="text-[15px] text-muted-foreground/70">/ Docs</span>
@@ -91,31 +102,25 @@ export default function Docs() {
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col overflow-hidden sm:flex-row">
-        {/* Mobile section nav — native select (the sidebar is desktop-only) */}
-        <div className="shrink-0 border-b border-border bg-card/30 p-2 sm:hidden">
-          {/* biome-ignore lint/a11y/useSemanticElements: native select is the mobile nav */}
-          <select
-            aria-label="Documentation section"
-            value={active}
-            onChange={(e) =>
-              navigate({
-                to: "/docs/$section",
-                params: { section: e.target.value },
-              })
-            }
-            className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[13px]"
-          >
-            {DOCS.map((d) => (
-              <option key={d.key} value={d.key}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Backdrop — mobile only, closes the drawer */}
+        {navOpen && (
+          <button
+            type="button"
+            aria-label="Close documentation menu"
+            className="fixed inset-0 top-12 z-40 bg-black/50 sm:hidden"
+            onClick={() => setNavOpen(false)}
+          />
+        )}
 
-        {/* Primary section nav */}
-        <aside className="hidden w-56 shrink-0 overflow-auto border-r border-border bg-card/30 p-3 sm:block">
+        {/* Primary section nav — static sidebar on desktop, slide-in drawer on mobile */}
+        <aside
+          className={cn(
+            "w-56 shrink-0 overflow-auto border-r border-border bg-card/30 p-3",
+            "max-sm:fixed max-sm:inset-y-0 max-sm:top-12 max-sm:left-0 max-sm:z-50 max-sm:bg-background max-sm:transition-transform",
+            navOpen ? "max-sm:translate-x-0" : "max-sm:-translate-x-full",
+          )}
+        >
           <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
             <BookOpen className="size-3.5" />
             Documentation
@@ -125,9 +130,13 @@ export default function Docs() {
               <button
                 type="button"
                 key={d.key}
-                onClick={() =>
-                  navigate({ to: "/docs/$section", params: { section: d.key } })
-                }
+                onClick={() => {
+                  navigate({
+                    to: "/docs/$section",
+                    params: { section: d.key },
+                  });
+                  setNavOpen(false);
+                }}
                 className={cn(
                   "flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors",
                   active === d.key
