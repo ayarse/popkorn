@@ -2,6 +2,7 @@ import { convertLottie, convertSvg } from "@popkorn/converters";
 import { parse, serialize } from "@popkorn/parser";
 import { useState } from "react";
 import { examples } from "@/examples";
+import { track } from "@/lib/analytics";
 import {
   buildImportResult,
   bytes,
@@ -48,6 +49,7 @@ export function useScene() {
   function selectExample(key: string) {
     const ex = examples.find((e) => e.key === key);
     if (!ex) return;
+    track("example_view", { example: key });
     setCurrentExample(key);
     setSource(ex.source);
     setMinified(false);
@@ -92,6 +94,11 @@ export function useScene() {
     blocked: string[],
   ) {
     loadSource(css);
+    track("import", {
+      format,
+      blocked: blocked.length,
+      warnings: warnings.length,
+    });
     const result = buildImportResult(format, label, text, css);
     result.warnings = warnings;
     result.blocked = blocked;

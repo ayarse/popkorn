@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { examples } from "@/examples";
+import { track } from "@/lib/analytics";
 import type { ImportResult } from "@/lib/import-size";
 import { startTour } from "@/lib/tour";
 
@@ -139,6 +140,7 @@ export function AppHeader({
           target="_blank"
           rel="noreferrer"
           aria-label="GitHub repository"
+          onClick={() => track("github_click")}
           className={buttonVariants({ variant: "ghost", size: "icon" })}
         >
           <svg
