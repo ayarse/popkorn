@@ -417,6 +417,29 @@ test("feDropShadow -> filter: drop-shadow()", () => {
   );
 });
 
+test("Adobe drop-shadow chain (feOffset+feGaussianBlur+feFlood+feComposite) -> drop-shadow()", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><defs><filter id="ds"><feOffset dx="1" dy="3"/><feGaussianBlur result="blur" stdDeviation="4"/><feFlood flood-color="#000" flood-opacity=".5"/><feComposite in2="blur" operator="in"/><feComposite in="SourceGraphic"/></filter></defs><path d="M0 0h4v4H0z" filter="url(#ds)"/></svg>`,
+  );
+  expect(block(css, "path1")).toContain(
+    "filter: drop-shadow(1px 3px 4px rgba(0, 0, 0, 0.5))",
+  );
+});
+
+test('filter referenced via style="" is honored', () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><defs><filter id="b"><feGaussianBlur stdDeviation="2"/></filter></defs><rect width="4" height="4" style="fill:#fff;filter:url(#b)"/></svg>`,
+  );
+  expect(block(css, "rect1")).toContain("filter: blur(2px)");
+});
+
+test("filter on a leaf shape (not the group) is applied", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><defs><filter id="d"><feDropShadow dx="1" dy="1" stdDeviation="1" flood-color="#000"/></filter></defs><g><circle cx="5" cy="5" r="4" filter="url(#d)"/></g></svg>`,
+  );
+  expect(block(css, "circle1")).toContain("filter: drop-shadow(");
+});
+
 test("Figma layer-blur chain (feFlood + feBlend + feGaussianBlur) -> filter: blur()", () => {
   const { css } = conv(
     `<svg viewBox="0 0 10 10"><defs><filter id="filter0_f_101_125" x="-50" y="-50" width="100" height="100" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="BackgroundImageFix"/><feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/><feGaussianBlur stdDeviation="43" result="effect1_foregroundBlur_101_125"/></filter></defs><circle cx="5" cy="5" r="4" filter="url(#filter0_f_101_125)"/></svg>`,

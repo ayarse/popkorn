@@ -1125,7 +1125,7 @@ export class Converter {
     }
     this.applyClip(el, rule);
     this.applyMaskRef(el, rule);
-    this.applyFilter(el, rule);
+    this.applyFilter(el, style, rule);
   }
 
   private buildLeaf(
@@ -1259,7 +1259,7 @@ export class Converter {
     const rule: Rule = { id, type, decls, children: [] };
     this.applyClip(el, rule);
     this.applyMaskRef(el, rule);
-    this.applyFilter(el, rule);
+    this.applyFilter(el, style, rule);
     this.emitAnimation(style, rule, baking);
     this.emitSmil(el, rule, baking);
     return rule;
@@ -1349,7 +1349,7 @@ export class Converter {
       };
       this.applyClip(el, rule);
       this.applyMaskRef(el, rule);
-      this.applyFilter(el, rule);
+      this.applyFilter(el, style, rule);
       this.emitAnimation(style, rule, false);
       this.emitSmil(el, rule, false);
       return rule;
@@ -2009,8 +2009,10 @@ export class Converter {
     return id;
   }
 
-  private applyFilter(el: SvgNode, rule: Rule) {
-    const f = el.attrs.get("filter");
+  private applyFilter(el: SvgNode, style: Style, rule: Rule) {
+    // Prefer the computed style (covers `style="filter:url(#…)"` and matched
+    // CSS); fall back to the `filter` presentation attribute.
+    const f = style.filter ?? el.attrs.get("filter");
     if (!f) return;
     const m = f.match(/^url\(\s*['"]?#([^'")\s]+)['"]?\s*\)/);
     if (!m) return;
@@ -2071,6 +2073,40 @@ export class Converter {
         0, 0, 0, 1,
       ];
       const fo = p.attrs.get("flood-opacity");
+      const a = col[3] * (fo !== undefined ? parseFloat(fo) : 1);
+      rule.decls.push(
+        `filter: drop-shadow(${num(dx)}px ${num(dy)}px ${num(sd)}px ${colorString([col[0], col[1], col[2], a])})`,
+      );
+      return;
+    }
+    // Canonical Adobe/Illustrator drop-shadow: feOffset + feGaussianBlur +
+    // feFlood wired together by feComposite×2. The feComposites are just
+    // plumbing (mask the flood to the blurred offset, then draw the source
+    // over it) — reduce the chain to a CSS drop-shadow like a lone
+    // feDropShadow would.
+    const offset = prims.find((p) => p.tag === "feoffset");
+    const gblur = prims.find((p) => p.tag === "fegaussianblur");
+    const flood = prims.find((p) => p.tag === "feflood");
+    const others = prims.filter(
+      (p) => p !== offset && p !== gblur && p !== flood,
+    );
+    if (
+      offset &&
+      gblur &&
+      flood &&
+      others.every((p) => p.tag === "fecomposite")
+    ) {
+      const dx = parseFloat(offset.attrs.get("dx") || "0"),
+        dy = parseFloat(offset.attrs.get("dy") || "0");
+      const sd = parseFloat(
+        gblur.attrs.get("stdDeviation") ||
+          gblur.attrs.get("stddeviation") ||
+          "0",
+      );
+      const col = parseColor(flood.attrs.get("flood-color") || "#000") ?? [
+        0, 0, 0, 1,
+      ];
+      const fo = flood.attrs.get("flood-opacity");
       const a = col[3] * (fo !== undefined ? parseFloat(fo) : 1);
       rule.decls.push(
         `filter: drop-shadow(${num(dx)}px ${num(dy)}px ${num(sd)}px ${colorString([col[0], col[1], col[2], a])})`,
