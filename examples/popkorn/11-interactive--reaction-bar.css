@@ -1,0 +1,210 @@
+/* Reaction bar: six emoji buttons on a white pill. Each one idles with a
+   gentle staggered float, pops from its own center on hover, and credits a
+   click to its group id (#like, #love, #lol, #wow, #sad, #angry). A few
+   icons carry their own small micro-animation on top: a heartbeat pulse, a
+   laughing mouth/tongue bounce, a dripping tear. */
+:root {
+  width: 418px;
+  height: 94px;
+  background: #eef0f3;
+}
+
+@keyframes bob {
+  0%   { translate: 0px 0px; }
+  100% { translate: 0px -6px; }
+}
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+@keyframes chomp {
+  0%, 100% { transform: scale(1, 1); }
+  50%      { transform: scale(1, 0.85); }
+}
+@keyframes drip {
+  0%   { translate: 0px 0px; opacity: 1; }
+  75%  { translate: 0px 10px; opacity: 0; }
+  100% { translate: 0px 0px; opacity: 1; }
+}
+
+#pill {
+  type: path;
+  d: 'M369.42 78.93H46.58c-19.29 0-34.93-15.64-34.93-34.93S27.29 9.07 46.58 9.07h322.83c19.29 0 34.93 15.64 34.93 34.93s-15.64 34.93-34.93 34.93Z';
+  fill: #ffffff;
+  filter: drop-shadow(1px 3px 4px rgba(0, 0, 0, 0.5));
+}
+
+/* ---- like: blue thumbs-up ---- */
+#like-float {
+  animation: bob 2.6s ease-in-out infinite alternate;
+  > #like {
+    cursor: pointer;
+    transform-origin: 49.81px 44px;
+    transition: transform 200ms ease-out;
+    &:hover {
+      transform: scale(1.15);
+    }
+    > #like-circle {
+      type: circle;
+      cx: 49.81px; cy: 44px; r: 25.2px;
+      fill: #4080ff;
+    }
+    > #like-icon {
+      type: path;
+      d: 'M35.69 40.1h6.57v14.78h-6.57zM61.76 42.05c.65-.41 1.08-1.13 1.08-1.95 0-1.27-1.03-2.31-2.31-2.31h-7.07c.08-1.47.14-3.83-.11-6.11-.41-3.7-4.31-2.05-4.31-2.05 2.05 4.52-4.31 12.52-4.31 12.52v11.96H57.9a2.305 2.305 0 0 0 1.64-3.93 2.31 2.31 0 0 0 1.99-2.28c0-.63-.26-1.21-.67-1.62A2.31 2.31 0 0 0 62.85 44c0-.82-.43-1.54-1.08-1.95Z';
+      fill: #ffffff;
+    }
+  }
+}
+
+/* ---- love: pink heart, with its own slow heartbeat pulse ---- */
+#love-float {
+  animation: bob 2.6s ease-in-out infinite alternate -0.4s;
+  > #love {
+    cursor: pointer;
+    transform-origin: 112.3px 44px;
+    transition: transform 200ms ease-out;
+    &:hover {
+      transform: scale(1.15);
+    }
+    > #love-circle {
+      type: circle;
+      cx: 112.3px; cy: 44px; r: 25.2px;
+      fill: #f25268;
+    }
+    > #love-icon {
+      type: path;
+      d: 'M112.3 59.01 124.68 49c1.36-1.1 2.46-2.58 3.01-4.32 2.27-7.13-4.19-14.76-11.84-11.76-2.07.81-3.55 3.52-3.55 3.52s-1.48-2.71-3.55-3.52c-7.65-2.99-14.12 4.63-11.84 11.76.55 1.74 1.65 3.21 3.01 4.32z';
+      fill: #ffffff;
+      transform-origin: 112.3px 47px;
+      animation: heartbeat 1.4s ease-in-out infinite;
+    }
+  }
+}
+
+/* ---- lol: yellow laughing face; mouth and tongue chomp out of phase ---- */
+#lol-float {
+  animation: bob 2.6s ease-in-out infinite alternate -0.8s;
+  > #lol {
+    cursor: pointer;
+    transform-origin: 174.78px 44px;
+    transition: transform 200ms ease-out;
+    &:hover {
+      transform: scale(1.15);
+    }
+    > #lol-circle {
+      type: circle;
+      cx: 174.78px; cy: 44px; r: 25.2px;
+      fill: #fdda74;
+    }
+    > #lol-mouth {
+      type: path;
+      d: 'M193.39 44.31c0 10.28-8.33 18.61-18.61 18.61s-18.61-8.33-18.61-18.61z';
+      fill: #3c3c3b;
+      transform-origin: 174.78px 53px;
+      animation: chomp 0.9s ease-in-out infinite;
+    }
+    > #lol-tongue {
+      type: path;
+      d: 'M174.78 51.24c-5.33 0-10.12 2.25-13.51 5.84 3.39 3.59 8.18 5.84 13.51 5.84s10.12-2.25 13.51-5.84c-3.39-3.59-8.18-5.84-13.51-5.84';
+      fill: #f25268;
+      transform-origin: 174.78px 54px;
+      animation: chomp 0.9s ease-in-out infinite -0.15s;
+    }
+    > #lol-eyes {
+      type: path;
+      d: 'M157.43 38.87a.99.99 0 0 1-.2-1.96l7.6-1.58-5.76-3.24a.99.99 0 0 1-.38-1.35c.27-.48.87-.65 1.35-.38l8.07 4.53c.36.2.56.61.49 1.01a.99.99 0 0 1-.78.82l-10.19 2.12c-.07.01-.14.02-.2.02ZM192.14 38.87c-.07 0-.14 0-.2-.02l-10.19-2.12c-.4-.08-.71-.41-.78-.82-.06-.41.13-.81.49-1.01l8.07-4.53a.99.99 0 0 1 1.35.38c.27.48.1 1.08-.38 1.35l-5.76 3.24 7.6 1.58c.53.11.88.64.77 1.17-.1.47-.51.79-.97.79Z';
+      fill: #3c3c3b;
+    }
+  }
+}
+
+/* ---- wow: yellow surprised face (open oval mouth, raised eyebrows) ---- */
+#wow-float {
+  animation: bob 2.6s ease-in-out infinite alternate -1.2s;
+  > #wow {
+    cursor: pointer;
+    transform-origin: 238.58px 44px;
+    transition: transform 200ms ease-out;
+    &:hover {
+      transform: scale(1.15);
+    }
+    > #wow-circle {
+      type: circle;
+      cx: 238.58px; cy: 44px; r: 25.2px;
+      fill: #fdda74;
+    }
+    > #wow-mouth {
+      type: ellipse;
+      cx: 238.58px; cy: 54.68px; rx: 6.52px; ry: 9.86px;
+      fill: #3c3c3b;
+    }
+    > #wow-eyes {
+      type: path;
+      d: 'M229.95 38.07c0 2.66-1.43 4.81-3.18 4.81s-3.18-2.15-3.18-4.81 1.43-4.81 3.18-4.81 3.18 2.15 3.18 4.81M253.58 38.07c0 2.66-1.43 4.81-3.18 4.81s-3.18-2.15-3.18-4.81 1.43-4.81 3.18-4.81 3.18 2.15 3.18 4.81M230.79 28.37c-.25 0-.51-.1-.7-.29-1.5-1.5-4.11-1.5-5.6 0-.39.39-1.01.39-1.4 0s-.39-1.01 0-1.4c1.12-1.12 2.62-1.74 4.2-1.74s3.08.62 4.2 1.74c.39.39.39 1.01 0 1.4-.19.19-.45.29-.7.29M253.02 28.37c-.25 0-.51-.1-.7-.29-1.5-1.5-4.11-1.5-5.6 0a.984.984 0 0 1-1.4 0 .984.984 0 0 1 0-1.4c1.12-1.12 2.61-1.74 4.2-1.74s3.08.62 4.2 1.74c.39.39.39 1.01 0 1.4-.19.19-.45.29-.7.29';
+      fill: #3c3c3b;
+    }
+  }
+}
+
+/* ---- sad: yellow crying face with a tear that drips and resets ---- */
+#sad-float {
+  animation: bob 2.6s ease-in-out infinite alternate -1.6s;
+  > #sad {
+    cursor: pointer;
+    transform-origin: 301.06px 44px;
+    transition: transform 200ms ease-out;
+    &:hover {
+      transform: scale(1.15);
+    }
+    > #sad-circle {
+      type: circle;
+      cx: 301.06px; cy: 44px; r: 25.2px;
+      fill: #fdda74;
+    }
+    > #sad-face {
+      type: path;
+      d: 'M292.07 42.36c0 2.13-1.43 3.86-3.18 3.86s-3.18-1.73-3.18-3.86 1.43-3.86 3.18-3.86 3.18 1.73 3.18 3.86M283.66 38.91c-.13 0-.25-.02-.38-.07a.994.994 0 0 1-.54-1.29c.6-1.47 1.74-2.61 3.21-3.23 1.46-.61 3.08-.62 4.55-.01.5.21.75.79.54 1.29a.99.99 0 0 1-1.29.54c-.98-.4-2.06-.4-3.03 0-.98.41-1.74 1.17-2.14 2.15-.16.38-.53.61-.91.61ZM310.06 42.36c0 2.13 1.43 3.86 3.18 3.86s3.18-1.73 3.18-3.86-1.43-3.86-3.18-3.86-3.18 1.73-3.18 3.86M318.47 38.91c-.39 0-.76-.23-.91-.61-.4-.98-1.16-1.74-2.14-2.15s-2.05-.41-3.03 0c-.5.2-1.08-.03-1.29-.54a.98.98 0 0 1 .54-1.29 5.944 5.944 0 0 1 7.76 3.24.982.982 0 0 1-.92 1.36ZM308.45 57.66c-.31 0-.61-.14-.8-.4-1.72-2.35-4.37-3.7-7.26-3.7s-5.54 1.35-7.26 3.7a.98.98 0 0 1-1.38.21.98.98 0 0 1-.21-1.38c2.07-2.82 5.38-4.51 8.86-4.51s6.79 1.69 8.86 4.51c.32.44.23 1.06-.21 1.38a.98.98 0 0 1-.58.19Z';
+      fill: #3c3c3b;
+    }
+    > #sad-tear {
+      type: path;
+      d: 'M317.4 68.5c-3.37 0-5.67-3.4-4.42-6.52l4.42-11.05 4.42 11.05c1.25 3.13-1.05 6.52-4.42 6.52';
+      fill: #4f90fc;
+      animation: drip 2.2s ease-in infinite;
+    }
+  }
+}
+
+/* ---- angry: gradient face (furrowed brows, pursed mouth) ---- */
+#angry-float {
+  animation: bob 2.6s ease-in-out infinite alternate -2s;
+  > #angry {
+    cursor: pointer;
+    transform-origin: 366.19px 44px;
+    transition: transform 200ms ease-out;
+    &:hover {
+      transform: scale(1.15);
+    }
+    > #angry-circle {
+      type: circle;
+      cx: 366.19px; cy: 44px; r: 25.2px;
+      fill: linear-gradient(from 366.19px 69.2px to 366.19px 18.8px, #fdda74 0%, #e64850 100%);
+    }
+    > #angry-eyes {
+      type: path;
+      d: 'M374.29 51.27c0 1.72 1.15 3.12 2.57 3.12s2.57-1.4 2.57-3.12-1.15-3.12-2.57-3.12-2.57 1.4-2.57 3.12M357.58 51.27c0 1.72-1.15 3.12-2.57 3.12s-2.57-1.4-2.57-3.12 1.15-3.12 2.57-3.12 2.57 1.4 2.57 3.12';
+      fill: #3c3c3b;
+    }
+    > #angry-brows {
+      type: path;
+      d: 'M369.32 49.98c-.52 0-.96-.41-.99-.94a.987.987 0 0 1 .94-1.04c7-.38 13.61-1.63 14.16-2.68 0-.55.44-.95.98-.95s.98.48.98 1.03c0 3.07-8.71 4.19-16.02 4.58zM362.55 49.98h-.05c-7.31-.39-16.02-1.5-16.02-4.58 0-.55.44-.99.99-.99s.99.44.99.99c.53.98 7.15 2.23 14.15 2.6a1 1 0 0 1 .94 1.04.99.99 0 0 1-.99.94Z';
+      fill: #3c3c3b;
+    }
+    > #angry-mouth {
+      type: path;
+      d: 'M372.14 61.27c-.09 0-.18-.01-.27-.04-5.88-1.67-12.09-.01-12.16 0a.987.987 0 0 1-1.21-.69.995.995 0 0 1 .69-1.22c.28-.07 6.79-1.83 13.22 0 .53.15.83.7.68 1.22-.12.44-.52.72-.95.72Z';
+      fill: #3c3c3b;
+    }
+  }
+}
