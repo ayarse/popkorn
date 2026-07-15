@@ -231,12 +231,24 @@ export function parsePath(d: string): PathCommand[] {
       }
 
       case "A": {
+        // Arc flags are single 0/1 chars; svgo/authoring tools glue them onto
+        // the following number (`011.5` = flags 0,1 then x=1.5). Peel one char
+        // off the front of the current token, leaving the remainder in the
+        // stream for the next flag or coordinate.
+        const readFlag = (): boolean => {
+          const tok = tokens[i];
+          const flag = tok[0] === "1";
+          const rest = tok.slice(1);
+          if (rest.length > 0) tokens[i] = rest;
+          else i++;
+          return flag;
+        };
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const rx = parseFloat(tokens[i++]);
           const ry = parseFloat(tokens[i++]);
           const angle = parseFloat(tokens[i++]);
-          const largeArc = tokens[i++] === "1";
-          const sweep = tokens[i++] === "1";
+          const largeArc = readFlag();
+          const sweep = readFlag();
           const x = parseFloat(tokens[i++]);
           const y = parseFloat(tokens[i++]);
 
