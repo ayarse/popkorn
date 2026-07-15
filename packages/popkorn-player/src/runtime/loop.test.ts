@@ -22,12 +22,14 @@ import type {
   TextAnchor,
 } from "../scene/types";
 import { createSceneNode, snapshotNode } from "../scene/types";
-import { RenderLoop } from "./loop";
+import { RenderLoop, sceneIsPerpetual } from "./loop";
 import { createVariableResolver } from "./variables";
 
-// A dot whose opacity ramps 0 -> 1 over one 3s iteration, forever. sceneDuration
-// is that single iteration (3000). The recording renderer captures the sampled
-// opacity as the first (only) setOpacity call per frame.
+// A dot whose opacity ramps 0 -> 1 over a single 3s iteration, then holds
+// (fill: forwards). sceneDuration is that iteration (3000). A FINITE clip — it
+// exercises the wrap/clamp/complete machinery; contrast `perpetualDot`. The
+// recording renderer captures the sampled opacity as the first (only) setOpacity
+// call per frame.
 function fadingDot(): SceneNode {
   const node = createSceneNode("dot", "circle");
   node.shapeData = { type: "circle", cx: 0, cy: 0, r: 10 };
@@ -37,7 +39,7 @@ function fadingDot(): SceneNode {
     name: "fade",
     duration: 3000,
     timingFunction: "linear",
-    iterationCount: Infinity,
+    iterationCount: 1,
     direction: "normal",
     delay: 0,
     fillMode: "forwards",
@@ -47,6 +49,15 @@ function fadingDot(): SceneNode {
     ],
   };
   node.animations = [fade];
+  return node;
+}
+
+// Like `fadingDot` but the ramp is `infinite`. sceneDuration is still the single
+// iteration (3000), yet the scene has no honest end: it's all-infinite with no
+// visibility window, so the loop treats it as unbounded and free-runs the clock.
+function perpetualDot(): SceneNode {
+  const node = fadingDot();
+  node.animations[0].iterationCount = Infinity;
   return node;
 }
 
@@ -195,10 +206,9 @@ test("seek repaints synchronously while paused (does not wait for the next rAF)"
   }
 });
 
-// Loop OFF: past the scene duration the timeline holds at the end of one full
-// pass ("play once and stop") — an infinite animation must NOT keep cycling.
-// (Paused first, mirroring the demo's scrub flow, so currentTime is exact rather
-// than free-running by wall clock.)
+// Loop OFF: past the scene duration a finite timeline holds at the end of one
+// full pass ("play once and stop"). (Paused first, mirroring the demo's scrub
+// flow, so currentTime is exact rather than free-running by wall clock.)
 test("loop off: time past duration clamps to sceneDuration", () => {
   const renderer = createRecordingRenderer();
   const loop = new RenderLoop(renderer);
@@ -209,8 +219,7 @@ test("loop off: time past duration clamps to sceneDuration", () => {
   const opacityAtEnd = renderer.opacities.at(-1)!;
   expect(loop.currentTime).toBe(3000);
 
-  // Seek well past the end: currentTime and the sampled frame both hold at 3000
-  // (not a later point on the still-cycling infinite ramp).
+  // Seek well past the end: currentTime and the sampled frame both hold at 3000.
   loop.seek(9000);
   expect(loop.currentTime).toBe(3000);
   expect(renderer.opacities.at(-1)!).toBe(opacityAtEnd);
@@ -324,15 +333,122 @@ test("machine scene: isStatic never becomes true (never finishes)", () => {
   expect(loop.isStatic()).toBe(false);
 });
 
-// Contrast (regression guard for task 1's fence): a plain scene with no machine
-// still wraps exactly as before — proven by the existing 'loop on: time past
-// duration wraps' test above; this one just pins the non-loop clamp still holds.
-test("non-machine scene still clamps past duration (unchanged)", () => {
+// Contrast: a finite clip (no machine, no all-infinite free-run) still clamps
+// past its duration exactly as before — the unbounded opt-out must not leak to
+// scenes that have an honest end.
+test("finite scene still clamps past duration (unchanged)", () => {
   const loop = new RenderLoop(createRecordingRenderer());
-  loop.setScene(fadingDot()); // no machine, sceneDuration 3000
+  loop.setScene(fadingDot()); // finite, sceneDuration 3000
   loop.pause();
   loop.seek(9000);
   expect(loop.currentTime).toBe(3000); // still clamped, not free-running
+});
+
+// --- all-infinite scenes are unbounded ---------------------------------------
+
+// The predicate: true only when the scene has an animation and EVERY animation
+// is infinite, with no visibility windows anywhere.
+test("sceneIsPerpetual: true for an all-infinite scene", () => {
+  expect(sceneIsPerpetual(perpetualDot())).toBe(true);
+});
+
+test("sceneIsPerpetual: false when any animation is finite", () => {
+  const root = perpetualDot();
+  // Add a second, finite animation on the same node -> not all-infinite.
+  root.animations.push({
+    ...root.animations[0],
+    name: "blip",
+    iterationCount: 2,
+  });
+  expect(sceneIsPerpetual(root)).toBe(false);
+  // A plain finite scene is likewise not perpetual.
+  expect(sceneIsPerpetual(fadingDot())).toBe(false);
+});
+
+test("sceneIsPerpetual: false with no animations at all", () => {
+  const bare = createSceneNode("dot", "circle");
+  expect(sceneIsPerpetual(bare)).toBe(false);
+});
+
+test("sceneIsPerpetual: false when an all-infinite node has a visibility window", () => {
+  const root = perpetualDot();
+  root.visibleFrom = 1000; // opens once under a monotonic clock; bars free-run
+  expect(sceneIsPerpetual(root)).toBe(false);
+});
+
+// The loop treats an all-infinite scene as unbounded: with looping ON the clock
+// does NOT fold at sceneDuration (contrast the finite `loop on: wraps` test,
+// which folds 4000 -> 1000). The animations cycle by wall clock instead.
+test("all-infinite scene: loop on does not wrap past sceneDuration", () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(perpetualDot()); // sceneDuration 3000
+  loop.setLoop(true);
+
+  loop.seek(4000); // past sceneDuration
+  expect(loop.currentTime).toBeCloseTo(4000, 0); // free-running, NOT folded to 1000
+});
+
+// It never "completes" and never settles — perpetual by definition (CSS infinite
+// never ends), even with looping OFF.
+test("all-infinite scene: never completes, never static", () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(perpetualDot()); // loop off
+  let completes = 0;
+  loop.setCompleteCallback(() => completes++);
+
+  loop.seek(9000); // well past sceneDuration
+  expect(loop.currentTime).toBeCloseTo(9000, 0); // free-runs, no play-once clamp
+  expect(completes).toBe(0); // infinite never ends
+  expect(loop.isStatic()).toBe(false); // perpetually animating
+});
+
+// A scene with ANY finite-iteration animation is NOT perpetual, so the wrap
+// stays — this is the fence that keeps converted Lottie (which never emits
+// `infinite`) on the wrapping clock.
+test("mixed finite+infinite scene keeps the wrap", () => {
+  const root = buildSceneGraph(
+    parse(`
+    :root { width: 100px; height: 100px; }
+    #spin { type: circle; r: 5; animation: turn 2000ms linear infinite; }
+    #once { type: circle; r: 5; animation: slide 3000ms linear; }
+    @keyframes turn { 0% { cx: 0 } 100% { cx: 10 } }
+    @keyframes slide { 0% { cx: 0 } 100% { cx: 10 } }
+  `),
+  );
+  expect(sceneIsPerpetual(root)).toBe(false);
+
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root); // sceneDuration 3000
+  loop.setLoop(true);
+  loop.seek(4000);
+  expect(loop.currentTime).toBeCloseTo(1000, 0); // folded 4000 % 3000
+});
+
+// Continuity across the old wrap boundary: two infinite animations of different
+// periods (2000, 3000) give sceneDuration 3000. Node #a returns to its start
+// each 2000ms cycle, so under the free-running clock its cx at t=duration-1 and
+// t=duration+1 is frame-continuous. Under the old wrap, t=3001 folded to 1 and
+// snapped #a from mid-cycle back to phase 0 (a ~20px jump). Path morphs would
+// write shapeData.commands; here the animated channel is shapeData.cx.
+test("all-infinite scene: values are continuous across the old wrap boundary", () => {
+  const root = buildSceneGraph(
+    parse(`
+    :root { width: 100px; height: 100px; }
+    #a { type: circle; r: 5; animation: bob 2000ms linear infinite; }
+    #b { type: circle; r: 5; animation: drift 3000ms linear infinite; }
+    @keyframes bob { 0% { cx: 0 } 50% { cx: 20 } 100% { cx: 0 } }
+    @keyframes drift { 0% { cx: 0 } 100% { cx: 30 } }
+  `),
+  );
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root); // sceneDuration 3000
+  loop.setLoop(true);
+
+  loop.seek(2999);
+  const before = nodeCx(root, "a");
+  loop.seek(3001);
+  const after = nodeCx(root, "a");
+  expect(Math.abs(after - before)).toBeLessThan(0.1); // no wrap-induced jump
 });
 
 // A one-shot state animation with the default (unwritten) fill holds its final

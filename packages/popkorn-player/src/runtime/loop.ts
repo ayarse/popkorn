@@ -137,12 +137,13 @@ export class RenderLoop {
   // end times measured in each subtree's LOCAL time) is not the scene's end on
   // the root timeline, so the play-once clamp below can't trust it and stays off.
   private sceneTimeScoped: boolean = false;
-  // Cached at setScene: does the scene have a state machine (or any `:state()`
-  // set, which can be authored without a machine)? Such a scene is not a finite
-  // clip — machine state lives off the timeline, so there's no end to hold, wrap,
-  // or finish at. The clock free-runs monotonically; `sceneDuration` (a max of
-  // BASE animation ends) is not a bound, and wrapping it would fold the clock
-  // back BEFORE a later state's entry time, replaying that state's animation.
+  // Cached at setScene: is this scene not a finite clip? True for a state machine
+  // (or any `:state()` set, authorable without a machine) — machine state lives
+  // off the timeline — AND for a scene of only-infinite animations, which has no
+  // honest end either. Such a scene's clock free-runs monotonically; `sceneDuration`
+  // (a max of BASE animation ends) is not a bound, and wrapping it would fold the
+  // clock back — replaying a later state's entry, or snapping every infinite
+  // animation to phase 0 in lockstep. See `sceneIsPerpetual`.
   private sceneUnbounded: boolean = false;
   // Fires once per rendered frame with the current timeline time (drives the
   // controls scrubber off the existing loop tick — no extra rAF).
@@ -205,7 +206,12 @@ export class RenderLoop {
     this.hasCompleted = false;
     this.sceneDynamic = sceneHasDynamicContent(root);
     this.sceneTimeScoped = sceneHasTimeScoping(root);
-    this.sceneUnbounded = sceneIsUnbounded(root);
+    // A scene of only-infinite animations free-runs like a state-machine scene:
+    // no honest end to wrap or clamp at. Excluded when time-scoped — a time-remap
+    // curve holds at its endpoints under a non-wrapping clock and needs the wrap.
+    this.sceneUnbounded =
+      sceneIsUnbounded(root) ||
+      (!this.sceneTimeScoped && sceneIsPerpetual(root));
   }
 
   /** The scene's state-machine runner (host events, tests). */
@@ -1284,6 +1290,34 @@ function subtreeHasStateStyles(node: SceneNode): boolean {
   for (const child of node.children)
     if (subtreeHasStateStyles(child)) return true;
   return false;
+}
+
+/**
+ * Is this scene nothing but perpetual animation — at least one animation, EVERY
+ * animation in the tree `infinite`, and no node carrying a visibility window?
+ * Such a scene has no honest end: `computeSceneDuration` counts each infinite
+ * animation as ONE iteration, yielding an arbitrary finite period whose wrap
+ * would snap every animation back to phase 0 in lockstep (a visible jump). Like
+ * a state-machine scene it opts into a free-running clock (see `sceneUnbounded`)
+ * so the animations cycle independently forever, as CSS `infinite` animations
+ * do in a browser. A `visible-from`/`visible-until` window bars it: under a
+ * monotonic clock that window would open once and never come round again.
+ * (Callers additionally require the scene NOT be time-scoped — a time-remap
+ * curve holds at its endpoints under a non-wrapping clock, so it needs the wrap.)
+ */
+export function sceneIsPerpetual(root: SceneNode): boolean {
+  let sawAnimation = false;
+  const visit = (node: SceneNode): boolean => {
+    if (node.visibleFrom !== -Infinity || node.visibleUntil !== Infinity)
+      return false;
+    for (const a of node.animations) {
+      if (a.iterationCount !== Infinity) return false;
+      sawAnimation = true;
+    }
+    for (const child of node.children) if (!visit(child)) return false;
+    return true;
+  };
+  return visit(root) && sawAnimation;
 }
 
 /** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */
