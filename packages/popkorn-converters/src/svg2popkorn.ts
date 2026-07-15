@@ -102,6 +102,17 @@ function isIdentity(m: Mat): boolean {
 
 const DEG = Math.PI / 180;
 
+// SVG number token: authoring tools (svgo) drop separators when a sign or dot
+// can act as one — `translate(20-5)`, `.7071-.7071`, `5.5.5`. matchAll over a
+// proper number grammar tokenizes those; it also just skips any trailing CSS
+// unit (`10px`, `45deg`) since a unit isn't part of a number match.
+const SVG_NUMBER = /[+-]?(?:\d*\.\d+|\d+\.?)(?:[eE][+-]?\d+)?/g;
+function parseNumbers(s: string): number[] {
+  const out: number[] = [];
+  for (const m of s.matchAll(SVG_NUMBER)) out.push(Number(m[0]));
+  return out;
+}
+
 /** Parse an SVG `transform` attribute into a composed matrix. */
 function parseTransform(s: string): Mat {
   let m: Mat = IDENTITY;
@@ -109,10 +120,7 @@ function parseTransform(s: string): Mat {
   let match: RegExpExecArray | null = re.exec(s);
   for (; match !== null; match = re.exec(s)) {
     const name = match[1];
-    const args = match[2]
-      .split(/[\s,]+/)
-      .map(Number)
-      .filter((n) => !isNaN(n));
+    const args = parseNumbers(match[2]);
     let t: Mat | null = null;
     switch (name) {
       case "translate":
@@ -552,7 +560,11 @@ function computeStyle(
   if (inline)
     for (const d of inline.split(";")) {
       const i = d.indexOf(":");
-      if (i > 0) s[d.slice(0, i).trim().toLowerCase()] = d.slice(i + 1).trim();
+      if (i > 0)
+        s[d.slice(0, i).trim().toLowerCase()] = d
+          .slice(i + 1)
+          .replace(/\s*!important\s*$/i, "")
+          .trim();
     }
   return s;
 }
@@ -630,11 +642,7 @@ function ellipseCmds(cx: number, cy: number, rx: number, ry: number): Cmd[] {
 }
 
 function pointsAttr(el: SvgNode): number[] {
-  return (el.attrs.get("points") || "")
-    .trim()
-    .split(/[\s,]+/)
-    .map(Number)
-    .filter((v) => !isNaN(v));
+  return parseNumbers(el.attrs.get("points") || "");
 }
 
 /** Absolute path commands for a rounded rect (rx/ry corners as elliptical arcs). */

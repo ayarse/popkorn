@@ -89,6 +89,14 @@ test("line/polyline/polygon synthesize a path d (polygon closes with Z)", () => 
   expect(block(c, "polygon3")).toContain(`d: 'M 0 0 L 5 0 L 5 5 Z'`);
 });
 
+test("compact points (minus/dot separators) still synthesize a path", () => {
+  // svgo strips separators when a sign/dot can act as one: `1-2 3-4 5.5.5`.
+  const c = conv(
+    `<svg viewBox="0 0 10 10"><polygon points="1-2 3-4 5.5.5"/></svg>`,
+  ).css;
+  expect(block(c, "polygon1")).toContain(`d: 'M 1 -2 L 3 -4 L 5.5 0.5 Z'`);
+});
+
 test("fill-rule evenodd is emitted", () => {
   const { css } = conv(
     `<svg viewBox="0 0 10 10"><path d="M0 0 H10 V10 H0 Z" fill-rule="evenodd"/></svg>`,
@@ -171,6 +179,13 @@ test("cascade precedence: presentation < <style> < inline", () => {
   expect(block(css, "rect1")).toContain("fill: #0000ff"); // inline blue wins
 });
 
+test("inline style strips a trailing !important before parsing the color", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 10 10"><rect style="fill:red !important" width="5" height="5"/></svg>`,
+  );
+  expect(block(css, "rect1")).toContain("fill: #ff0000");
+});
+
 test("specificity: #id rule beats .class rule", () => {
   const { css } = conv(
     `<svg viewBox="0 0 10 10"><style>.a{fill:green} #r{fill:red}</style><rect id="r" class="a" width="5" height="5"/></svg>`,
@@ -237,6 +252,31 @@ test("sheared transform bakes geometry into a transformed path + does not emit a
   expect(css).toContain("type: path");
   expect(block(css, "g1")).not.toContain("transform:");
   expect(css).toContain("fill: #ff0000");
+});
+
+test("svgo compact separators (minus/dot) still parse the transform", () => {
+  // svgo drops the comma/space when a sign or leading dot can separate args.
+  const { css } = conv(
+    `<svg viewBox="0 0 100 100"><g transform="translate(20-5)"><rect width="5" height="5"/></g></svg>`,
+  );
+  expect(block(css, "g2")).toContain("transform: translate(20px, -5px)");
+});
+
+test("svgo compact matrix() with dot/minus separators decomposes", () => {
+  // matrix(.7071-.7071.7071.7071 0 0) is a 45deg rotation with no separators.
+  const { css } = conv(
+    `<svg viewBox="0 0 100 100"><g transform="matrix(.7071-.7071.7071.7071 0 0)"><rect width="5" height="5"/></g></svg>`,
+  );
+  expect(block(css, "g2")).toMatch(/rotate\(-?4[45](\.\d+)?deg\)/);
+});
+
+test("CSS-unit transform in style= strips px/deg before parsing", () => {
+  const { css } = conv(
+    `<svg viewBox="0 0 100 100"><g style="transform:translate(10px, 5px) rotate(45deg)"><rect width="5" height="5"/></g></svg>`,
+  );
+  const b = block(css, "g2");
+  expect(b).toContain("translate(10px, 5px)");
+  expect(b).toContain("rotate(45deg)");
 });
 
 // --- use / symbol -----------------------------------------------------------

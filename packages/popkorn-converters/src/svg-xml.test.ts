@@ -14,6 +14,12 @@ test("parses a simple element with attributes and returns the root", () => {
   expect(root.children).toEqual([]);
 });
 
+test("skips a leading UTF-8 BOM before the root element", () => {
+  const root = parseXml('﻿<svg width="100"></svg>');
+  expect(root.tag).toBe("svg");
+  expect(root.attrs.get("width")).toBe("100");
+});
+
 test("nesting and document-order children", () => {
   const root = parseXml("<g><rect/><circle/><path/></g>");
   expect(tags(root)).toEqual(["rect", "circle", "path"]);

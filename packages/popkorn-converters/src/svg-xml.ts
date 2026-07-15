@@ -242,6 +242,9 @@ function parseElement(c: Cursor): SvgNode {
 
 /** Parse XML source and return the root element (e.g. the `<svg>`). */
 export function parseXml(source: string): SvgNode {
+  // Strip a leading UTF-8 BOM; the prolog skipper only eats ASCII whitespace,
+  // so a BOM-prefixed file would otherwise fail the root-element check.
+  if (source.charCodeAt(0) === 0xfeff) source = source.slice(1);
   const c = new Cursor(source);
   // Skip any prolog: whitespace, XML declaration, comments, DOCTYPE.
   for (;;) {
