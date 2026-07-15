@@ -124,6 +124,85 @@ function hitTestNode(
 }
 
 /**
+ * A resolved click target: the credited node plus its ancestor id path (root →
+ * node, inclusive) for delegation-style matching.
+ */
+export interface ClickHit {
+  node: SceneNode;
+  path: string[];
+}
+
+/**
+ * Full-tree hit-test for click resolution. Unlike {@link hitTest} (which only
+ * credits interactive nodes), this resolves the TOPMOST shape whose geometry
+ * contains the point regardless of `interactive`, then credits the nearest
+ * interactive ancestor-or-self of that shape when one exists (so `cursor:
+ * pointer` on a group makes a click report the group id, not the leaf). Returns
+ * null when nothing is hit. Callers run this only on press/release edges — it
+ * walks the whole tree, so it must not be used per-frame.
+ */
+export function hitTestClick(root: SceneNode, point: Point): ClickHit | null {
+  // Topmost (highest paint depth) shape containing the point, and its nearest
+  // interactive ancestor-or-self.
+  const found: {
+    depth: number;
+    node: SceneNode | null;
+    credited: SceneNode | null;
+  } = { depth: -Infinity, node: null, credited: null };
+  clickTestNode(root, point, IDENTITY_MATRIX, { value: 0 }, null, found);
+  if (!found.node) return null;
+  const target = found.credited ?? found.node;
+  return { node: target, path: ancestorPath(target) };
+}
+
+/** Ancestor ids from the root down to `node` (inclusive). */
+function ancestorPath(node: SceneNode): string[] {
+  const ids: string[] = [];
+  for (let n: SceneNode | null = node; n; n = n.parent) ids.push(n.id);
+  return ids.reverse();
+}
+
+/**
+ * Full-tree variant of {@link hitTestNode}: records the topmost shape (any
+ * geometry, `interactive` or not) plus the nearest interactive ancestor-or-self
+ * to credit. Skips the same non-hittable subtrees (hidden / mask source /
+ * pointer-events:none / outside clip) so it agrees with what is painted.
+ */
+function clickTestNode(
+  node: SceneNode,
+  point: Point,
+  parentWorld: Matrix3x3,
+  order: { value: number },
+  nearestInteractive: SceneNode | null,
+  found: { depth: number; node: SceneNode | null; credited: SceneNode | null },
+): void {
+  if (node.hidden) return;
+  if (node.isMaskSource) return;
+  if (node.pointerEvents === "none") return;
+
+  const world = computeWorldMatrix(node, parentWorld);
+  const depth = order.value++;
+  const local = transformPoint(invertMatrix(world), point.x, point.y);
+
+  const clip = resolveClip(node);
+  if (clip && !isPointInClip(clip, local, node.fillRule)) return;
+
+  const credited = node.interactive ? node : nearestInteractive;
+
+  // Any shape (not just interactive ones) containing the point competes to be
+  // the topmost hit; groups have no geometry (isPointInShape returns false).
+  if (isPointInShape(node, local) && depth > found.depth) {
+    found.depth = depth;
+    found.node = node;
+    found.credited = credited;
+  }
+
+  for (const child of childrenInPaintOrder(node)) {
+    clickTestNode(child, point, world, order, credited, found);
+  }
+}
+
+/**
  * Test whether a local-space point lies inside a resolved clip region.
  * All three cases are pure math (no DOM/Path2D), so clipping works headless and
  * on React Native exactly as it does in the browser.

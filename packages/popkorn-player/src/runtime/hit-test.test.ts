@@ -6,8 +6,8 @@ import { buildSceneGraph } from "../scene/builder";
 import { parsePath } from "../scene/path-parser";
 import type { FillRule, MaskMode, SceneNode } from "../scene/types";
 import { createSceneNode, snapshotNode } from "../scene/types";
-import { hitTest } from "./hit-test";
-import { RenderLoop } from "./loop";
+import { hitTest, hitTestClick } from "./hit-test";
+import { type ClickDetail, RenderLoop } from "./loop";
 
 // These tests are DOM-free ON PURPOSE: they run headless where `Path2D` is
 // undefined, which is exactly the React Native environment where the old
@@ -125,6 +125,93 @@ test("path clip: a curved clip region accepts inside and rejects outside", () =>
 
   expect(hitTest(root, { x: 100, y: 100 })?.id).toBe("clipped"); // inside bulb
   expect(hitTest(root, { x: 10, y: 10 })).toBeNull(); // in rect, outside clip
+});
+
+// --- Full-tree click resolution (hitTestClick) ------------------------------
+
+test("hitTestClick: resolves the topmost shape even with no interactive nodes", () => {
+  const root = buildSceneGraph(
+    parse(`
+      :root { width: 200px; height: 200px; }
+      #bg  { type: rect; x: 0; y: 0; width: 200px; height: 200px; fill: #111; }
+      #dot { type: circle; cx: 100px; cy: 100px; r: 30px; fill: #f00; }
+    `),
+  );
+  // Nothing is interactive, so the legacy hit-tester credits no one...
+  expect(hitTest(root, { x: 100, y: 100 })).toBeNull();
+  // ...but click resolution still returns the topmost (later-painted) shape.
+  const hit = hitTestClick(root, { x: 100, y: 100 });
+  expect(hit?.node.id).toBe("dot");
+  expect(hit?.path).toEqual(["root", "dot"]);
+  // Over only the background rect, the rect itself is the hit.
+  expect(hitTestClick(root, { x: 10, y: 10 })?.node.id).toBe("bg");
+  // Outside every shape -> null.
+  expect(hitTestClick(root, { x: 100, y: 100 })).not.toBeNull();
+});
+
+test("hitTestClick: credits the nearest interactive ancestor (cursor:pointer group)", () => {
+  const root = buildSceneGraph(
+    parse(`
+      :root { width: 200px; height: 200px; }
+      #btn {
+        type: group;
+        cursor: pointer;
+        > #leaf { type: circle; cx: 100px; cy: 100px; r: 30px; fill: #f00; }
+      }
+    `),
+  );
+  const hit = hitTestClick(root, { x: 100, y: 100 });
+  // Topmost shape is #leaf, but the click credits the cursor:pointer group.
+  expect(hit?.node.id).toBe("btn");
+  expect(hit?.path).toEqual(["root", "btn"]);
+});
+
+// --- Click-edge event synthesis for a machine-less scene --------------------
+
+test("click edge fires popkorn:click for a machine-less scene", () => {
+  const g = globalThis as unknown as {
+    requestAnimationFrame?: (cb: (t: number) => void) => number;
+    cancelAnimationFrame?: (id: number) => void;
+  };
+  const prevRaf = g.requestAnimationFrame;
+  const prevCancel = g.cancelAnimationFrame;
+  const q: ((t: number) => void)[] = [];
+  g.requestAnimationFrame = (cb) => q.push(cb);
+  g.cancelAnimationFrame = () => {};
+  try {
+    const root = buildSceneGraph(
+      parse(`
+        :root { width: 200px; height: 200px; }
+        #box { type: rect; x: 50px; y: 50px; width: 100px; height: 100px; fill: #fff; }
+      `),
+    );
+    const loop = new RenderLoop(noopRenderer());
+    let clicked: ClickDetail | null = null;
+    loop.setClickCallback((d) => {
+      clicked = d;
+    });
+    loop.setScene(root);
+    loop.start(); // live frame 0, schedules frame 1
+
+    const cursor = loop.getInputTracker().getState().cursor;
+    cursor.x = 100; // inside #box
+    cursor.y = 100;
+    cursor.isDown = true;
+    cursor.pressed = true; // press latched
+    cursor.isDown = false; // release before the next frame samples
+
+    q.shift()?.(16); // live frame 1 — down+up edge -> click
+
+    expect(clicked).not.toBeNull();
+    expect(clicked!.id).toBe("box");
+    expect(clicked!.path).toEqual(["root", "box"]);
+    expect(clicked!.x).toBe(100);
+    expect(clicked!.y).toBe(100);
+    loop.stop();
+  } finally {
+    g.requestAnimationFrame = prevRaf;
+    g.cancelAnimationFrame = prevCancel;
+  }
 });
 
 // --- End-to-end: RN drive path fires a machine click on a PATH shape --------

@@ -36,7 +36,7 @@ import type {
   TimeRemapStop,
 } from "../scene/types";
 import { childrenInPaintOrder, resetNodeToBase } from "../scene/types";
-import { hitTest } from "./hit-test";
+import { hitTest, hitTestClick } from "./hit-test";
 import { createInputTracker, type InputTracker } from "./inputs";
 import {
   applyStateStyles,
@@ -68,6 +68,15 @@ interface RenderOpts {
   skipMask?: boolean;
 }
 
+/** Detail of a `popkorn:click` — the hit node's id, its ancestor id path (root
+ *  → node), and the click point in scene coordinates. */
+export interface ClickDetail {
+  id: string;
+  path: string[];
+  x: number;
+  y: number;
+}
+
 /**
  * Main render loop.
  *
@@ -97,6 +106,13 @@ export class RenderLoop {
   private prevIsDown: boolean = false;
   private prevHit: SceneNode | null = null;
   private downHit: SceneNode | null = null;
+  // Full-tree click resolution (crediting the nearest interactive ancestor) at
+  // the last pointerdown edge — matched against the release edge to synthesize a
+  // `popkorn:click`. Runs on edges only, never per-frame.
+  private downClick: ReturnType<typeof hitTestClick> = null;
+  // Forwarded to the host (component) as a `popkorn:click` DOM event on a click
+  // edge (press+release on the same node). Fires for machine-less scenes too.
+  private clickCallback: ((detail: ClickDetail) => void) | null = null;
   // Fit-to-container: root transform (scene -> device px) applied each frame, plus
   // the scene box size the background fills. Default identity = 1:1, no fit.
   private viewport: Matrix3x3 = IDENTITY_MATRIX;
@@ -184,6 +200,7 @@ export class RenderLoop {
     this.prevIsDown = false;
     this.prevHit = null;
     this.downHit = null;
+    this.downClick = null;
     this.sceneDuration = computeSceneDuration(root);
     this.hasCompleted = false;
     this.sceneDynamic = sceneHasDynamicContent(root);
@@ -199,6 +216,11 @@ export class RenderLoop {
   /** Register a callback for machine transitions/emits (component wiring). */
   setMachineEventCallback(cb: ((output: MachineOutput) => void) | null): void {
     this.machineEventCallback = cb;
+  }
+
+  /** Register a callback fired on a click edge with the hit node's id/path/point. */
+  setClickCallback(cb: ((detail: ClickDetail) => void) | null): void {
+    this.clickCallback = cb;
   }
 
   /** Enqueue an external `on event(name)` occurrence for the next live frame. */
@@ -406,13 +428,22 @@ export class RenderLoop {
       // wrapped/clamped timeline time) is the machine time base — the same value
       // the walk anchors state animations against. Pointer triggers come from
       // the shared hit-tester; the outputs are forwarded to the host.
-      if (live && this.machineRunner.hasMachines()) {
-        const outputs = this.machineRunner.evaluate(t, {
-          variableResolver: this.variableResolver,
-          pointerEvents: this.detectPointerEvents(),
-        });
-        if (this.machineEventCallback)
-          for (const o of outputs) this.machineEventCallback(o);
+      // Pointer edges drive machine triggers AND the `popkorn:click` DOM event.
+      // detectPointerEvents runs every live frame (not just for machine scenes)
+      // so clicks resolve with no opt-in; it only runs the expensive full-tree
+      // click hit-test on press/release edges. Machine evaluation consumes its
+      // (interactive-only) hover/pointer events, and is skipped when there are
+      // no machines.
+      if (live) {
+        const events = this.detectPointerEvents();
+        if (this.machineRunner.hasMachines()) {
+          const outputs = this.machineRunner.evaluate(t, {
+            variableResolver: this.variableResolver,
+            pointerEvents: events,
+          });
+          if (this.machineEventCallback)
+            for (const o of outputs) this.machineEventCallback(o);
+        }
       }
 
       this.resolveNode(this.sceneRoot, t, now, t);
@@ -668,23 +699,37 @@ export class RenderLoop {
   }
 
   /**
-   * Detect this frame's pointer events for machine triggers, reusing the shared
-   * hit-tester (invariant: no reimplemented hit-testing). Returns hover
-   * enter/leave, down/up, and a synthetic click (down+up crediting the same top
-   * node). The credited node is the nearest interactive ancestor — machine
-   * pointer targets are flagged interactive at build time so they qualify. Edge
+   * Detect this frame's pointer edges. Runs every LIVE frame (regardless of
+   * machines) so the `popkorn:click` DOM event resolves with no opt-in, but the
+   * expensive full-tree click hit-test only runs on press/release edges.
+   *
+   * Two hit-testers, kept distinct on purpose (invariant: no reimplemented
+   * hit-testing):
+   * - Machine triggers use the per-frame INTERACTIVE-only {@link hitTest} (only
+   *   built when there are machines to feed) and its credited nearest-interactive
+   *   node — machine pointer targets are flagged interactive at build time.
+   * - `popkorn:click` uses the FULL-TREE {@link hitTestClick}, resolving the
+   *   topmost shape and crediting the nearest interactive ancestor; run on edges
+   *   only.
+   *
+   * Returns the machine trigger events (empty when there are no machines). Edge
    * state is wall-clock/input driven and lives off the timeline.
    */
   private detectPointerEvents(): PointerTriggerEvent[] {
     const events: PointerTriggerEvent[] = [];
     if (!this.sceneRoot) return events;
     const st = this.inputTracker.getState();
+    const point = { x: st.cursor.x, y: st.cursor.y };
     // A clipped-out pointer can't hit content the artboard hides.
-    const hit = this.clippedOut(st.cursor.x, st.cursor.y)
-      ? null
-      : hitTest(this.sceneRoot, { x: st.cursor.x, y: st.cursor.y });
+    const clippedOut = this.clippedOut(point.x, point.y);
+    const hasMachines = this.machineRunner.hasMachines();
 
-    if (hit !== this.prevHit) {
+    // Interactive-only hover hit — only feeds machine hover/pointer triggers, so
+    // it's skipped entirely for machine-less scenes (the :hover path itself
+    // lives in InteractionManager and runs regardless).
+    const hit =
+      hasMachines && !clippedOut ? hitTest(this.sceneRoot, point) : null;
+    if (hasMachines && hit !== this.prevHit) {
       if (this.prevHit) events.push({ event: "hoverend", node: this.prevHit });
       if (hit) events.push({ event: "hoverstart", node: hit });
     }
@@ -692,23 +737,43 @@ export class RenderLoop {
     const down = st.cursor.isDown;
     // `pressed` latches a press that happened since the last frame even if the
     // release already flipped `isDown` back to false — so a quick tap whose
-    // down+up both land between two frames still produces a rising edge (and,
-    // below, a matching falling edge + click). Consumed here, once per frame.
+    // down+up both land between two frames still produces a rising edge (and a
+    // matching falling edge + click). Consumed here, once per frame.
     const pressed = st.cursor.pressed;
     st.cursor.pressed = false;
+    const downEdge = (down || pressed) && !this.prevIsDown;
+    const upEdge = !down && (this.prevIsDown || pressed);
 
-    if ((down || pressed) && !this.prevIsDown) {
-      events.push({ event: "pointerdown", node: hit });
-      this.downHit = hit;
+    if (downEdge) {
+      if (hasMachines) {
+        events.push({ event: "pointerdown", node: hit });
+        this.downHit = hit;
+      }
+      // Full-tree click resolution (edge only): topmost shape, credited to its
+      // nearest interactive ancestor.
+      this.downClick = clippedOut ? null : hitTestClick(this.sceneRoot, point);
     }
-    if (!down && (this.prevIsDown || pressed)) {
-      events.push({ event: "pointerup", node: hit });
-      if (hit && hit === this.downHit)
-        events.push({ event: "click", node: hit });
-      this.downHit = null;
+    if (upEdge) {
+      if (hasMachines) {
+        events.push({ event: "pointerup", node: hit });
+        if (hit && hit === this.downHit)
+          events.push({ event: "click", node: hit });
+        this.downHit = null;
+      }
+      // Click edge: press and release resolved to the same credited node.
+      const up = clippedOut ? null : hitTestClick(this.sceneRoot, point);
+      if (up && this.downClick && up.node === this.downClick.node) {
+        this.clickCallback?.({
+          id: up.node.id,
+          path: up.path,
+          x: point.x,
+          y: point.y,
+        });
+      }
+      this.downClick = null;
     }
 
-    this.prevHit = hit;
+    if (hasMachines) this.prevHit = hit;
     this.prevIsDown = down;
     return events;
   }

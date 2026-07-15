@@ -27,6 +27,7 @@
   stroke: #2f9d97;
   stroke-width: 4px;
   stroke-dasharray: 10px 7px;
+  cursor: pointer;
   animation: bob 2.6s ease-in-out infinite;
   transition: r 250ms ease, fill 250ms ease, stroke 250ms ease, stroke-dashoffset 350ms ease-out;
   &:hover {
@@ -49,6 +50,7 @@
   stroke-linecap: round;
   trim-end: 78%;
   transform-origin: center;
+  cursor: pointer;
   animation: spin-slow 6s linear infinite;
   transition: r 250ms ease, stroke 250ms ease, trim-end 300ms ease-out;
   &:hover {
@@ -64,6 +66,7 @@
   stroke: #a8434b;
   stroke-width: 4px;
   stroke-dasharray: 9px 6px;
+  cursor: pointer;
   animation: bob 2.6s ease-in-out infinite 0.3s;
   transition: r 250ms ease, fill 250ms ease, stroke 250ms ease, stroke-dashoffset 350ms ease-out;
   &:hover {
@@ -82,6 +85,7 @@
   stroke-linecap: round;
   trim-end: 65%;
   transform-origin: center;
+  cursor: pointer;
   animation: spin-slow 6s linear infinite reverse;
   transition: r 250ms ease, stroke 250ms ease, trim-end 300ms ease-out;
   &:hover {

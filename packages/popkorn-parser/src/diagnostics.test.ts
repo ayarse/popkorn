@@ -49,6 +49,12 @@ test("custom properties are never unknown", () => {
   expect(parse("#box { --my-var: 3; }").diagnostics).toEqual([]);
 });
 
+test("cursor: pointer is a known property (no diagnostics)", () => {
+  expect(
+    parse("#btn { type: circle; r: 10px; cursor: pointer; }").diagnostics,
+  ).toEqual([]);
+});
+
 test("unsupported-property: box-model props flagged and dropped", () => {
   const d = must("#box { padding: 4px; }", "unsupported-property");
   expect(d.severity).toBe("warning");

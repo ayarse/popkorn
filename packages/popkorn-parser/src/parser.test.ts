@@ -147,6 +147,12 @@ test("root variables + input() member expression", () => {
   ]);
 });
 
+test("cursor: pointer parses as a keyword declaration", () => {
+  const decl = parse("#btn { cursor: pointer; }").rules[0].declarations[0];
+  expect(decl.property).toBe("cursor");
+  expect(decl.value).toEqual({ type: "keyword", value: "pointer" });
+});
+
 test("var() reference", () => {
   expect(
     parse("#f { cx: var(--cursor-x); }").rules[0].declarations[0].value,

@@ -1293,6 +1293,16 @@ export class SceneBuilder {
         }
         break;
 
+      // CSS cursor (subset): `pointer` marks the node interactive (so it is
+      // hit-tested and clicks credit it) and flags it so the component sets the
+      // canvas cursor to `pointer` on hover. Static keyword; not animatable.
+      case "cursor":
+        if (isKeywordValue(value) && value.value === "pointer") {
+          node.cursorPointer = true;
+          node.interactive = true;
+        }
+        break;
+
       // Trim paths: percentages normalized to 0..1 (like opacity is authored as
       // a fraction) and clamped to range.
       case "trim-start":

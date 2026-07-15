@@ -364,6 +364,10 @@ export interface SceneNode {
   hoverStyles: StateStyles | null;
   activeStyles: StateStyles | null;
   interactive: boolean; // Whether this node responds to mouse events
+  // `cursor: pointer` — static, non-animatable. Also sets `interactive` so the
+  // node is hit-tested; the component reads this on the hovered node to set the
+  // canvas CSS cursor to `pointer`.
+  cursorPointer: boolean;
   // Node-level CSS transitions (apply to interaction state changes, both enter
   // and exit). Empty = state overrides snap. Runtime tween state is held in the
   // InteractionManager, so the timeline stays a pure function of time.
@@ -821,6 +825,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     hoverStyles: null,
     activeStyles: null,
     interactive: false,
+    cursorPointer: false,
     transitions: [],
     stateChildren: [],
     stateStyles: [],

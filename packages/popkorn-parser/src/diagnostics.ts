@@ -105,6 +105,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "visible-until",
   "overflow",
   "pointer-events",
+  "cursor",
   "clip-path",
   "mask",
   // motion path
