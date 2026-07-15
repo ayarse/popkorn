@@ -68,14 +68,18 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 
 ### Web Component Events
 
+All events are namespaced under `popkorn:`.
+
 | Event | Detail | Description |
 |-------|--------|-------------|
-| `ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations) |
-| `complete` | — | Fired once when a non-looping timeline reaches its end |
-| `error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
+| `popkorn:ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations) |
+| `popkorn:complete` | — | Fired once when a non-looping timeline reaches its end |
+| `popkorn:error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
+| `popkorn:timeupdate` | `{ time: number, duration: number }` | Fired every rendered frame (drives external scrubbers) |
+| `popkorn:click` | `{ id: string, path: string[], x: number, y: number }` | Fired (no opt-in) when a press+release land on the same shape; `id`/`path` credit the nearest `cursor: pointer`/interactive ancestor, `x`/`y` are scene coordinates |
 
-For interactive scenes the player also dispatches `statechange` and
-`machine-event` — see the
+For interactive scenes the player also dispatches `popkorn:statechange` and
+`popkorn:machine-event` — see the
 [state machines guide](https://github.com/ayarse/popkorn/blob/main/docs/state-machines.md).
 
 ## React Integration

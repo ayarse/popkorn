@@ -79,12 +79,12 @@ export function MotionCanvas({
       onError?.(customEvent.detail.error);
     };
 
-    player.addEventListener("ready", handleReady);
-    player.addEventListener("error", handleError);
+    player.addEventListener("popkorn:ready", handleReady);
+    player.addEventListener("popkorn:error", handleError);
 
     return () => {
-      player.removeEventListener("ready", handleReady);
-      player.removeEventListener("error", handleError);
+      player.removeEventListener("popkorn:ready", handleReady);
+      player.removeEventListener("popkorn:error", handleError);
     };
   }, [onSceneReady, onError]);
 

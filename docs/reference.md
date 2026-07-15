@@ -790,6 +790,17 @@ state block overrides the node-level transition when entering that state
   sources aren't hittable.
 - `pointer-events: none` removes a node **and its whole subtree** from
   hit-testing; unlike CSS, a descendant can't opt back in.
+- `cursor: pointer` marks a node interactive (so it is hit-tested and credited by
+  clicks) and switches the canvas cursor to a pointer while the node is hovered.
+  Static keyword; not animatable.
+
+**Clicks** fire a `popkorn:click` DOM event with no opt-in whenever a press and
+release land on the same shape — even for a scene with no `@machine` or
+`:hover`. `detail` is `{ id, path, x, y }`: `id` is the hit node's id (the
+nearest `cursor: pointer` / interactive ancestor when one exists, else the
+topmost shape), `path` is the ancestor ids from the root to that node, and
+`x`/`y` are the click point in scene coordinates. Click resolution hit-tests the
+full tree; the cheap per-frame hover path (interactive nodes only) is unchanged.
 
 ## State Machines
 
@@ -901,13 +912,14 @@ player.fire('--tap');                 // pulse a trigger variable
 player.fire('reset');                 // deliver an `on event(reset)` trigger
 ```
 
-The player dispatches two `CustomEvent`s: `statechange` on every transition
-(`detail: {machine, from, to}`) and `machine-event` when a state's `emit:` fires
-(`detail: {machine, name}`).
+The player dispatches two `CustomEvent`s (all player events are namespaced under
+`popkorn:`): `popkorn:statechange` on every transition (`detail: {machine, from,
+to}`) and `popkorn:machine-event` when a state's `emit:` fires (`detail:
+{machine, name}`).
 
 ```js
-player.addEventListener('statechange', (e) => console.log(e.detail.from, '→', e.detail.to));
-player.addEventListener('machine-event', (e) => console.log(e.detail.name));
+player.addEventListener('popkorn:statechange', (e) => console.log(e.detail.from, '→', e.detail.to));
+player.addEventListener('popkorn:machine-event', (e) => console.log(e.detail.name));
 ```
 
 ## Scrubbing (`animation-timeline`)

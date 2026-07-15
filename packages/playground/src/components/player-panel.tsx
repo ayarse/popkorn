@@ -10,7 +10,7 @@ import {
   RepeatOff,
   Video,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BgContextMenu,
   PLAYER_BACKGROUNDS,
@@ -78,6 +78,44 @@ export function PlayerPanel({
   } | null>(null);
   // Right-click context menu over the player area ({x,y} | null).
   const [bgMenu, setBgMenu] = useState<{ x: number; y: number } | null>(null);
+  // The live player element (captured from onPlayerReady) and the latest player
+  // DOM event, flashed as an ephemeral badge so the interactivity is demoable
+  // without per-example JS. Newest replaces the previous; auto-dismisses.
+  const [player, setPlayer] = useState<
+    import("@popkorn/player").PopkornPlayer | null
+  >(null);
+  const [eventBadge, setEventBadge] = useState<string | null>(null);
+  const badgeTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!player) return;
+    const flash = (text: string) => {
+      setEventBadge(text);
+      if (badgeTimer.current !== null) clearTimeout(badgeTimer.current);
+      badgeTimer.current = window.setTimeout(() => setEventBadge(null), 1500);
+    };
+    const onClick = (e: Event) =>
+      flash(`Event fired: popkorn:click → #${(e as CustomEvent).detail.id}`);
+    const onMachine = (e: Event) =>
+      flash(
+        `Event fired: popkorn:machine-event → ${(e as CustomEvent).detail.name}`,
+      );
+    const onState = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      flash(
+        `Event fired: popkorn:statechange → ${d.machine}: ${d.from}→${d.to}`,
+      );
+    };
+    player.addEventListener("popkorn:click", onClick);
+    player.addEventListener("popkorn:machine-event", onMachine);
+    player.addEventListener("popkorn:statechange", onState);
+    return () => {
+      player.removeEventListener("popkorn:click", onClick);
+      player.removeEventListener("popkorn:machine-event", onMachine);
+      player.removeEventListener("popkorn:statechange", onState);
+      if (badgeTimer.current !== null) clearTimeout(badgeTimer.current);
+    };
+  }, [player]);
 
   const setProgress = (format: "GIF" | "MP4") => (progress: number) =>
     setExporting({ format, progress });
@@ -342,9 +380,20 @@ export function PlayerPanel({
             style={{ height: "100%", backgroundColor: activeBg.value }}
             onError={(err) => onError(err.message)}
             onSceneReady={() => onError(null)}
-            onPlayerReady={onPlayerReady}
+            onPlayerReady={(p) => {
+              setPlayer(p);
+              onPlayerReady?.(p);
+            }}
           />
         </div>
+
+        {/* Event badge — flashes the latest player DOM event (click / machine).
+            Non-interactive so it never intercepts the pointer. */}
+        {eventBadge && (
+          <div className="pointer-events-none absolute top-4 right-4 z-30 rounded-md border border-border/60 bg-background/80 px-2.5 py-1.5 font-mono text-xs text-foreground backdrop-blur-md">
+            {eventBadge}
+          </div>
+        )}
 
         {/* Error toast */}
         {error && (

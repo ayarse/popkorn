@@ -2,7 +2,7 @@ import { parse } from "@popkorn/parser";
 import { AnimationScheduler } from "./animation/scheduler";
 import { Canvas2DRenderer } from "./renderer/canvas2d";
 import { SVGRenderer } from "./renderer/svg";
-import { RenderLoop } from "./runtime/loop";
+import { type ClickDetail, RenderLoop } from "./runtime/loop";
 import {
   computeViewport,
   type FitMode,
@@ -205,6 +205,8 @@ export class PopkornPlayer extends HTMLElementBase {
   private timeEl: HTMLSpanElement;
   private scrubbing = false;
   private wasPlaying = false;
+  // Last cursor written to the render surface, so we only touch the DOM on change.
+  private _lastCursor = "";
 
   static get observedAttributes() {
     return [
@@ -421,7 +423,9 @@ export class PopkornPlayer extends HTMLElementBase {
     } catch (error) {
       if (token !== this._loadToken) return;
       console.error("PopkornPlayer: Failed to load src", error);
-      this.dispatchEvent(new CustomEvent("error", { detail: { error } }));
+      this.dispatchEvent(
+        new CustomEvent("popkorn:error", { detail: { error } }),
+      );
     }
   }
 
@@ -720,23 +724,28 @@ export class PopkornPlayer extends HTMLElementBase {
       // Non-looping timeline reached its end -> notify the host once (Lottie's
       // `complete`). Looping/state-machine scenes never fire it.
       this.renderLoop.setCompleteCallback(() => {
-        this.dispatchEvent(new CustomEvent("complete"));
+        this.dispatchEvent(new CustomEvent("popkorn:complete"));
       });
       // Machine transitions/emits -> DOM events for the host.
       this.renderLoop.setMachineEventCallback((o) => {
         if (o.type === "statechange") {
           this.dispatchEvent(
-            new CustomEvent("statechange", {
+            new CustomEvent("popkorn:statechange", {
               detail: { machine: o.machine, from: o.from, to: o.to },
             }),
           );
         } else {
           this.dispatchEvent(
-            new CustomEvent("machine-event", {
+            new CustomEvent("popkorn:machine-event", {
               detail: { machine: o.machine, name: o.name },
             }),
           );
         }
+      });
+      // Pointer click edges (press+release on the same node) -> a DOM event for
+      // the host; fires for every scene, machines or not.
+      this.renderLoop.setClickCallback((detail: ClickDetail) => {
+        this.dispatchEvent(new CustomEvent("popkorn:click", { detail }));
       });
 
       // Background: explicit attr wins, else the authored `:root` background.
@@ -774,13 +783,15 @@ export class PopkornPlayer extends HTMLElementBase {
       this.refreshControls();
 
       this.dispatchEvent(
-        new CustomEvent("ready", {
+        new CustomEvent("popkorn:ready", {
           detail: { sceneRoot, duration: this.duration },
         }),
       );
     } catch (error) {
       console.error("PopkornPlayer: Failed to initialize", error);
-      this.dispatchEvent(new CustomEvent("error", { detail: { error } }));
+      this.dispatchEvent(
+        new CustomEvent("popkorn:error", { detail: { error } }),
+      );
     }
   }
 
@@ -867,10 +878,14 @@ export class PopkornPlayer extends HTMLElementBase {
     // when the built-in controls bar is hidden.
     const d = this.duration;
     this.dispatchEvent(
-      new CustomEvent("timeupdate", {
+      new CustomEvent("popkorn:timeupdate", {
         detail: { time: d > 0 ? Math.min(t, d) : 0, duration: d },
       }),
     );
+    // Reflect `cursor: pointer` on the hovered node onto the render surface's CSS
+    // cursor (the per-frame hover node is already resolved by the interaction
+    // manager — no extra hit-test). Only written on change.
+    this.syncCursor();
     if (!this.boolAttr("controls")) return;
     if (!this.scrubbing) {
       const d = this.duration;
@@ -881,6 +896,17 @@ export class PopkornPlayer extends HTMLElementBase {
       this.scrub.value = String(shown);
       this.timeEl.textContent = `${formatTime(shown)} / ${formatTime(d)}`;
     }
+  }
+
+  /** Set the render surface's CSS cursor to `pointer` while the hovered node
+   *  carries `cursor: pointer`, else clear it. Called per frame; DOM only on change. */
+  private syncCursor(): void {
+    const hovered = this.renderLoop?.getInteractionManager().getHoveredNode();
+    const cursor = hovered?.cursorPointer ? "pointer" : "";
+    if (cursor === this._lastCursor) return;
+    this._lastCursor = cursor;
+    const surface = this.useSvg && this.svg ? this.svg : this.canvas;
+    surface.style.cursor = cursor;
   }
 
   /** Sync the controls bar to the current attr + scene state. */

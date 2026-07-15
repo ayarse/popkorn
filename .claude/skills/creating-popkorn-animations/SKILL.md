@@ -63,7 +63,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Spring/bounce | `linear(0, 1 33%, 0.55 46%, 1 62%, 0.78 74%, 1)` — overshoot control points fake physics with 2 keyframes |
 | Symbols | `@define name {…}` then `#x { use: name; cx: …; fill: … }` (use-site overrides) |
 | Nesting | `> #child { … }` inside a rule body |
-| Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)`; `&:hover {…}` `&:active {…}` |
+| Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)`; `&:hover {…}` `&:active {…}`; `cursor: pointer` (pointer cursor on hover); clicks emit a `popkorn:click` DOM event (`detail.{id,path,x,y}`, no opt-in) |
 | Typed `var()` | `--brand: #e94560` / `--label: "Score"` / `--n: 30px` then `fill: var(--brand)` / `content: var(--label)` / `r: var(--n)` — numeric interpolates, color/string snap (discrete); `input()` stays numeric-only |
 | Text | `text-align: center` (maps to `text-anchor`) · `letter-spacing: 2px` (animatable; no-op on RN/Skia) · `line-height: 1.4` (animatable) · `content: "a\nb"` for multi-line (`\n \r \t \" \\` unescape) |
 | Transitions | `transition: fill 0.3s ease, transform 0.2s` — state flips tween (enter+exit) instead of snapping; runtime-only, timeline stays pure |

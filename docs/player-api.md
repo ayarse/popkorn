@@ -56,14 +56,37 @@ point the `src` attribute at a file to fetch.
 
 ### Events
 
-| Event      | Detail                     | Fires when                                        |
-| ---------- | -------------------------- | ------------------------------------------------- |
-| `ready`    | `{ sceneRoot, duration }`  | the scene is parsed and ready (`duration` in ms). |
-| `complete` | none                       | a non-looping timeline reaches its end.           |
-| `error`    | `{ error }`                | a parse, load, or initialization error occurs.    |
+All events are namespaced under `popkorn:`.
 
-For interactive scenes, the player also dispatches `statechange` and
-`machine-event` (see [State machines](state-machines.md)).
+| Event               | Detail                     | Fires when                                        |
+| ------------------- | -------------------------- | ------------------------------------------------- |
+| `popkorn:ready`     | `{ sceneRoot, duration }`  | the scene is parsed and ready (`duration` in ms). |
+| `popkorn:complete`  | none                       | a non-looping timeline reaches its end.           |
+| `popkorn:error`     | `{ error }`                | a parse, load, or initialization error occurs.    |
+| `popkorn:timeupdate`| `{ time, duration }`       | every rendered frame (drives external scrubbers). |
+| `popkorn:click`     | `{ id, path, x, y }`       | a click lands on a shape (see below).             |
+
+`popkorn:click` needs no opt-in — it fires for any scene when a press and
+release land on the same shape. `id` is the hit node's id (the nearest
+`cursor: pointer` / interactive ancestor when one exists, else the topmost
+shape); `path` is the ancestor ids from the root to that node (for
+delegation-style matching); `x`/`y` are the click point in scene coordinates.
+
+Use `path` to handle a click on anything inside a group (event delegation):
+
+```js
+player.addEventListener("popkorn:click", (e) => {
+  if (e.detail.path.includes("menu")) openMenu();
+});
+```
+
+Marking the group `cursor: pointer` retargets `detail.id` to the group itself,
+so you can match `id` directly and `path` is only needed when the group isn't
+marked. There is deliberately no `onClick()` / `matches()` helper — this
+listener is the whole API.
+
+For interactive scenes, the player also dispatches `popkorn:statechange` and
+`popkorn:machine-event` (see [State machines](state-machines.md)).
 
 ## In React
 

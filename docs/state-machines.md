@@ -163,10 +163,12 @@ state hyper { emit: overheat; }   /* fires on entry */
 ```
 
 ```js
-player.addEventListener("statechange", (e) =>
+player.addEventListener("popkorn:statechange", (e) =>
   console.log(e.detail.from, "->", e.detail.to),
 );
-player.addEventListener("machine-event", (e) => console.log(e.detail.name)); // 'overheat'
+player.addEventListener("popkorn:machine-event", (e) =>
+  console.log(e.detail.name),
+); // 'overheat'
 ```
 
 ## A few more things

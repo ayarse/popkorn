@@ -946,7 +946,8 @@ for `@machine` only when a state must persist.
   `animation-fill-mode: both`, not the node-level `forwards`.
 - **Host API:** `player.setVariable('--energy', 80)` / `player.fire('--tap')` /
   `player.getVariable(...)`; events out are `emit: name` (on entry) →
-  `machine-event` CustomEvent, plus `statechange` on every transition.
+  `popkorn:machine-event` CustomEvent, plus `popkorn:statechange` on every
+  transition. (All player DOM events are namespaced under `popkorn:`.)
 - Seek stays pure as a function of `(time, machineState)` — machine state lives
   off the timeline (invariant 4 holds). `mix` currently hard-cuts (tween parses
   but isn't wired yet).
@@ -984,7 +985,14 @@ Auto-registered custom element wrapping a shadow-DOM canvas.
   - `fit` — how the scene scales into the element box: `contain` (default, letterbox), `cover` (crop to fill), `fill` (stretch per-axis), `none` (1:1, top-left, may clip).
 - **JS props:** `source`, `width`, `height`, `background`, `loop`, `currentTime` (ms, read-only).
 - **Methods:** `play()`, `stop()`, `reset()`, `pause()` (freezes timeline, keeps interaction), `resume()`, `seek(ms)`.
-- **Events:** `ready` (`detail.sceneRoot`), `error` (`detail.error`).
+- **Events** (namespaced under `popkorn:`): `popkorn:ready`
+  (`detail.sceneRoot`), `popkorn:error` (`detail.error`), `popkorn:complete`,
+  `popkorn:timeupdate` (`detail.time/duration`), and `popkorn:click`
+  (`detail.{id,path,x,y}` — fires with no opt-in when a press+release land on the
+  same shape; `id`/`path` credit the nearest `cursor: pointer`/interactive
+  ancestor).
+- **`cursor: pointer`** on a node marks it interactive and shows a pointer cursor
+  on hover (static, not animatable).
 
 ```js
 const player = document.querySelector("popkorn-player");

@@ -222,13 +222,13 @@ export function TimelinePanel({
     };
     const onReady = () => refresh(false);
 
-    player.addEventListener("timeupdate", onTime);
-    player.addEventListener("statechange", onState);
-    player.addEventListener("ready", onReady);
+    player.addEventListener("popkorn:timeupdate", onTime);
+    player.addEventListener("popkorn:statechange", onState);
+    player.addEventListener("popkorn:ready", onReady);
     return () => {
-      player.removeEventListener("timeupdate", onTime);
-      player.removeEventListener("statechange", onState);
-      player.removeEventListener("ready", onReady);
+      player.removeEventListener("popkorn:timeupdate", onTime);
+      player.removeEventListener("popkorn:statechange", onState);
+      player.removeEventListener("popkorn:ready", onReady);
     };
   }, [player]);
 
