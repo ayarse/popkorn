@@ -926,7 +926,8 @@ export function outlineLength(node: SceneNode): number {
 
 function tokenizePath(d: string): string[] {
   const tokens: string[] = [];
-  const regex = /([MmLlHhVvCcSsQqTtAaZz])|(-?[\d.]+)/g;
+  const regex =
+    /([MmLlHhVvCcSsQqTtAaZz])|([+-]?(?:\d*\.\d+|\d+\.?)(?:[eE][+-]?\d+)?)/g;
   let match = regex.exec(d);
   while (match !== null) {
     tokens.push(match[0]);
