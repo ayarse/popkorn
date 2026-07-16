@@ -1,81 +1,93 @@
 /*
- * Sprite-sheet animation via object-view-box. hero-walk.png is a real CC0
- * sprite sheet (see packages/playground/public/examples/CREDITS.md): 240x448,
- * 6 columns x 7 rows of 40x64 frames, one row per facing direction. The walk
- * crop pages through the 6 columns of a row: steps(6) advances xywh's x by
- * one 40px frame per step, so a single still image plays as a loop. The
- * facing sprite below picks its row via a click-driven @machine — each state
- * swaps object-view-box's y offset to row-index * 64px.
+ * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
+ * sprite sheet (see packages/playground/public/examples/CREDITS.md): 864x640,
+ * a 9x5 grid of 96x128 frames. The walk cycle is 8 frames on the row at
+ * y=512 (x = 0, 96, 192 ... 672); the run cycle is 3 frames on the row at
+ * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,
+ * so a still image plays as a loop. The poser below toggles walk <-> run via
+ * a click-driven @machine, each state pointing object-view-box at its row.
  */
 
 :root {
-  width: 640px;
-  height: 360px;
+  width: 800px;
+  height: 340px;
   background: #12141c;
 }
 
 @keyframes walk {
-  from { object-view-box: xywh(0 0 40px 64px); }
-  to   { object-view-box: xywh(240px 0 40px 64px); }   /* 6 frames past the last */
+  from { object-view-box: xywh(0px 512px 96px 128px); }
+  to   { object-view-box: xywh(768px 512px 96px 128px); }   /* 8 frames past the last */
+}
+
+@keyframes run {
+  from { object-view-box: xywh(576px 256px 96px 128px); }
+  to   { object-view-box: xywh(864px 256px 96px 128px); }   /* 3 frames past the last */
 }
 
 #sheet-label {
   type: text;
-  content: 'hero-walk.png — 6x7 frames';
-  x: 40px; y: 40px;
+  content: 'robot-walk.png — 9x5 frames';
+  x: 40px; y: 30px;
   font-family: system-ui, sans-serif;
   font-size: 15px; font-weight: 600;
   fill: #9aa4b2;
 }
 
-/* The full sheet, unclamped, so you can see every row and column at once. */
+/* The full sheet, unclamped, so you can see every pose row at once. */
 #sheet {
   type: image;
-  content: url('/examples/hero-walk.png');
-  x: 40px; y: 56px; width: 240px; height: 448px;
-}
-
-/* The paged sprite: crop to row 0 (facing down), advance a column per step. */
-#walker {
-  type: image;
-  content: url('/examples/hero-walk.png');
-  x: 340px; y: 60px; width: 160px; height: 256px;
-  object-view-box: xywh(0 0 40px 64px);
-  animation: walk 0.9s steps(6) infinite;
+  content: url('/examples/robot-walk.png');
+  x: 40px; y: 48px; width: 270px; height: 200px;
 }
 
 #walker-label {
   type: text;
-  content: 'steps(6) pages the walk cycle';
-  x: 420px; y: 48px;
+  content: 'steps(8) pages the walk cycle';
+  x: 436px; y: 30px;
   text-anchor: middle;
   font-family: system-ui, sans-serif;
   font-size: 15px; font-weight: 600;
   fill: #e8ecf1;
 }
 
-/* Facing selector: click cycles rows (directions) of the sheet. */
-@machine facing {
-  initial: row0;
-  state row0 { to: row1 on click(#facing-btn); }
-  state row1 { to: row2 on click(#facing-btn); }
-  state row2 { to: row3 on click(#facing-btn); }
-  state row3 { to: row0 on click(#facing-btn); }
-}
-
-#facing {
+/* The paged sprite: crop to the walk row, advance a column per step. */
+#walker {
   type: image;
-  content: url('/examples/hero-walk.png');
-  x: 340px; y: 344px; width: 100px; height: 160px;
-  object-view-box: xywh(0 0 40px 64px);
-  &:state(facing.row1) { object-view-box: xywh(0 64px 40px 64px); }
-  &:state(facing.row2) { object-view-box: xywh(0 128px 40px 64px); }
-  &:state(facing.row3) { object-view-box: xywh(0 192px 40px 64px); }
+  content: url('/examples/robot-walk.png');
+  x: 340px; y: 48px; width: 192px; height: 256px;
+  object-view-box: xywh(0px 512px 96px 128px);
+  animation: walk 0.8s steps(8) infinite;
 }
 
-#facing-btn {
+#gait-label {
+  type: text;
+  content: 'click to toggle walk / run';
+  x: 652px; y: 30px;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+  font-size: 14px; font-weight: 600;
+  fill: #e8ecf1;
+}
+
+/* Gait selector: click toggles between the walk and run cycles. */
+@machine gait {
+  initial: walk;
+  state walk { to: run  on click(#toggle-btn); }
+  state run  { to: walk on click(#toggle-btn); }
+}
+
+#poser {
+  type: image;
+  content: url('/examples/robot-walk.png');
+  x: 580px; y: 48px; width: 144px; height: 192px;
+  object-view-box: xywh(0px 512px 96px 128px);
+  &:state(gait.walk) { animation: walk 0.8s steps(8) infinite; }
+  &:state(gait.run)  { animation: run 0.45s steps(3) infinite; }
+}
+
+#toggle-btn {
   type: rect;
-  x: 460px; y: 344px; width: 140px; height: 40px;
+  x: 580px; y: 250px; width: 144px; height: 40px;
   rx: 8px;
   fill: #2a2f3e;
   stroke: #4d96ff;
@@ -83,10 +95,10 @@
   cursor: pointer;
 }
 
-#facing-btn-label {
+#toggle-btn-label {
   type: text;
-  content: 'click to change facing';
-  x: 530px; y: 368px;
+  content: 'toggle';
+  x: 652px; y: 275px;
   text-anchor: middle;
   font-family: system-ui, sans-serif;
   font-size: 13px;
