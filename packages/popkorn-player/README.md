@@ -72,7 +72,7 @@ All events are namespaced under `popkorn:`.
 
 | Event | Detail | Description |
 |-------|--------|-------------|
-| `popkorn:ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations) |
+| `popkorn:ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations, `Infinity` for an unbounded state-machine/all-loops scene) |
 | `popkorn:complete` | — | Fired once when a non-looping timeline reaches its end |
 | `popkorn:error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
 | `popkorn:timeupdate` | `{ time: number, duration: number }` | Fired every rendered frame (drives external scrubbers) |

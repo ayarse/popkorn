@@ -66,6 +66,11 @@ All events are namespaced under `popkorn:`.
 | `popkorn:timeupdate`| `{ time, duration }`       | every rendered frame (drives external scrubbers). |
 | `popkorn:click`     | `{ id, path, x, y }`       | a click lands on a shape (see below).             |
 
+`duration` is `Infinity` for an unbounded scene — one driven by a `@machine` or
+built entirely from infinite loops, which free-runs and has no honest end. The
+web component hides its scrubber and time readout in that case; if you drive your
+own scrubber off `popkorn:timeupdate`, guard for a non-finite `duration`.
+
 `popkorn:click` needs no opt-in — it fires for any scene when a press and
 release land on the same shape. `id` is the hit node's id (the nearest
 `cursor: pointer` / interactive ancestor when one exists, else the topmost

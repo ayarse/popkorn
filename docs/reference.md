@@ -674,6 +674,16 @@ the endpoints hold. When present it **replaces** `time-offset`/`time-scale`.
 }
 ```
 
+Unlike `time-offset`/`time-scale`, `time-remap` is **animatable**. Given a
+single time value in `@keyframes` or a `:state()`, it becomes a scalar the
+animation drives — scrubbing the subtree to that instant of its local timeline.
+This is how a `@machine` plays, loops, or reverses a segment of a subtree's
+master timeline (e.g. stepping between levels):
+
+```css
+@keyframes seg { from { time-remap: 1.017s; } to { time-remap: 1.483s; } }
+```
+
 ## Layering & Visibility
 
 By default siblings paint in document order (first child behind, last in front).
