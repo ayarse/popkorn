@@ -1,6 +1,6 @@
 ---
-"@popkorn/parser": minor
-"@popkorn/player": minor
+"@popkorn/parser": patch
+"@popkorn/player": patch
 "@popkorn/react-native": patch
 ---
 
