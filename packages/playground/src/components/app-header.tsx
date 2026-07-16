@@ -79,7 +79,10 @@ export function AppHeader({
             <ChevronDown className="size-3.5 opacity-60" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuContent
+          align="start"
+          className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto"
+        >
           <DropdownMenuLabel className="flex items-center justify-between">
             <span>Example scenes</span>
             <span className="text-[10px] font-normal tracking-widest text-muted-foreground">
