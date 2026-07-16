@@ -27,6 +27,8 @@ jobs:
         with:
           version: bun run version-packages
           publish: bun run release
+          title: "chore: update versions"
+          commit: "chore: update versions"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
