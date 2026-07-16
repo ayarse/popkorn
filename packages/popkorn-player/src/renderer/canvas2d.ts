@@ -183,7 +183,17 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     }
   }
 
-  drawImage(src: string, x: number, y: number, w: number, h: number): void {
+  drawImage(
+    src: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    sx?: number,
+    sy?: number,
+    sw?: number,
+    sh?: number,
+  ): void {
     if (!src) return;
     let entry = this.images.get(src);
     if (!entry) {
@@ -192,6 +202,18 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       entry = loaded;
     }
     if (!entry.loaded || !entry.img) return; // repaints in once the decode lands
+    // Source-cropped (object-view-box): 9-arg sample of the sub-rect into the box.
+    if (
+      sx !== undefined &&
+      sy !== undefined &&
+      sw !== undefined &&
+      sh !== undefined
+    ) {
+      const dw = w > 0 ? w : sw;
+      const dh = h > 0 ? h : sh;
+      this.ctx.drawImage(entry.img, sx, sy, sw, sh, x, y, dw, dh);
+      return;
+    }
     const dw = w > 0 ? w : imgWidth(entry.img);
     const dh = h > 0 ? h : imgHeight(entry.img);
     this.ctx.drawImage(entry.img, x, y, dw, dh);

@@ -5,7 +5,13 @@ import type {
 } from "../renderer/types";
 import { isGradientData, parseColor } from "../renderer/types";
 import { lerp } from "../scene/transform";
-import type { FilterOp, NodeBase, RectData, SceneNode } from "../scene/types";
+import type {
+  FilterOp,
+  ImageViewBox,
+  NodeBase,
+  RectData,
+  SceneNode,
+} from "../scene/types";
 
 /**
  * Property registry.
@@ -28,7 +34,8 @@ export type PropValue =
   | string
   | GradientData
   | PathCommand[]
-  | FilterOp[];
+  | FilterOp[]
+  | ImageViewBox;
 
 export interface PropHandler {
   kind: PropKind;
@@ -254,6 +261,22 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
+  // object-view-box: the image source-crop rect. The whole {x,y,w,h} is the
+  // endpoint; interpolateProp lerps it component-wise (so steps() timing pages a
+  // sprite sheet frame-by-frame). Object-endpoint contract like clip-path — the
+  // renderer reads node.shapeData.viewBox live each frame, so no cache/dirty flag
+  // keys off it. `null` (base has no crop) draws the whole bitmap.
+  "object-view-box": {
+    kind: "path",
+    readBase: (base) =>
+      base.shapeData.type === "image" ? base.shapeData.viewBox : null,
+    apply: (node, value) => {
+      if (node.shapeData.type === "image") {
+        node.shapeData.viewBox = (value as ImageViewBox | null) ?? null;
+      }
+    },
+  },
+
   // star / polygon geometry (sides is static, so not registered)
   "outer-radius": geometryNumber("outerRadius"),
   "inner-radius": geometryNumber("innerRadius"),
@@ -381,6 +404,20 @@ export function interpolateProp(
   to: PropValue | null,
   t: number,
 ): PropValue | null {
+  // Image source-crop endpoints ({x,y,width,height}): lerp component-wise. A
+  // half-present pair (crop <-> no crop) steps to the defined rect.
+  if (isViewBox(from) || isViewBox(to)) {
+    if (isViewBox(from) && isViewBox(to)) {
+      return {
+        x: lerp(from.x, to.x, t),
+        y: lerp(from.y, to.y, t),
+        width: lerp(from.width, to.width, t),
+        height: lerp(from.height, to.height, t),
+      };
+    }
+    return (from ?? to) as PropValue;
+  }
+
   // Gradient endpoints.
   if (isGradientData(from) || isGradientData(to)) {
     if (
@@ -416,6 +453,19 @@ export function interpolateProp(
     return interpolateColor(from, to, t);
   }
   return lerp((from as number) ?? 0, (to as number) ?? 0, t);
+}
+
+// An ImageViewBox {x,y,width,height} — distinguished from gradients (carry
+// `stops`), filters (carry a `type`), and paths (arrays) by having neither.
+export function isViewBox(v: PropValue | null): v is ImageViewBox {
+  return (
+    !!v &&
+    typeof v === "object" &&
+    !Array.isArray(v) &&
+    !("stops" in v) &&
+    !("type" in v) &&
+    typeof (v as ImageViewBox).width === "number"
+  );
 }
 
 // --- filters ----------------------------------------------------------------

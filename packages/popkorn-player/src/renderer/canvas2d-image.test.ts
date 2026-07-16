@@ -56,3 +56,32 @@ test("worker path (fetch + createImageBitmap) decodes, settles, and caches", asy
     (globalThis as any).createImageBitmap = origCIB;
   }
 });
+
+// A source-crop (object-view-box) realizes as the 9-arg drawImage: the sub-rect
+// [sx,sy,sw,sh] samples into the dest box [x,y,dw,dh].
+test("source-crop paints via the 9-arg drawImage form", async () => {
+  if (typeof Image !== "undefined") return; // worker branch only
+
+  const bitmap = { width: 256, height: 64 } as unknown as ImageBitmap;
+  const origFetch = globalThis.fetch;
+  const origCIB = (globalThis as any).createImageBitmap;
+  (globalThis as any).fetch = async () => ({ blob: async () => ({}) }) as any;
+  (globalThis as any).createImageBitmap = async () => bitmap;
+
+  try {
+    const canvas = mockImageCanvas();
+    const r = new Canvas2DRenderer(canvas);
+    const src = "data:image/png;base64,BBBB";
+
+    r.drawImage(src, 0, 0, 64, 64, 128, 0, 64, 64); // kicks off decode
+    await r.whenImagesSettled();
+
+    r.drawImage(src, 5, 7, 64, 64, 128, 0, 64, 64);
+    expect(canvas.drawCalls.length).toBe(1);
+    // (img, sx, sy, sw, sh, dx, dy, dw, dh)
+    expect(canvas.drawCalls[0]).toEqual([bitmap, 128, 0, 64, 64, 5, 7, 64, 64]);
+  } finally {
+    globalThis.fetch = origFetch;
+    (globalThis as any).createImageBitmap = origCIB;
+  }
+});

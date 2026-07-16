@@ -14,7 +14,11 @@ import {
   outerShadowCommands,
   shapeClip,
 } from "../scene/box-shadow";
-import { extractIndividualTransform, extractTransform } from "../scene/builder";
+import {
+  extractImageViewBox,
+  extractIndividualTransform,
+  extractTransform,
+} from "../scene/builder";
 import { resolveClip } from "../scene/clip";
 import { colorStringFromValue } from "../scene/color";
 import { outlineLength } from "../scene/path-parser";
@@ -674,6 +678,15 @@ export class RenderLoop {
         );
         continue;
       }
+      // Image source-crop: re-extract the xywh() rect each frame, resolving its
+      // var()/input()/calc() operands live (so a host `--frame`/`--row` pages the
+      // sprite sheet). Same reactive-value contract as the transform channels.
+      if (binding.property === "object-view-box") {
+        if (node.shapeData.type === "image") {
+          node.shapeData.viewBox = extractImageViewBox(binding.value, resolve);
+        }
+        continue;
+      }
       if (
         binding.property === "translate" ||
         binding.property === "rotate" ||
@@ -1023,7 +1036,31 @@ export class RenderLoop {
       }
       case "image": {
         const im = node.shapeData as ImageData;
-        this.renderer.drawImage(im.src, im.x, im.y, im.width, im.height);
+        const vb = im.viewBox;
+        if (vb) {
+          // Degenerate crop (zero/negative source size): nothing to sample, so
+          // skip the draw entirely. An out-of-bounds crop passes through — the
+          // backend draws only the overlapping region (fully-out => nothing).
+          if (vb.width <= 0 || vb.height <= 0) break;
+          // Crop math lives here (shared walk, invariant 7); backends only
+          // realize the source→dest sample. A 0 dest w/h falls back to the
+          // crop's own pixel size (not the whole bitmap's).
+          const dw = im.width > 0 ? im.width : vb.width;
+          const dh = im.height > 0 ? im.height : vb.height;
+          this.renderer.drawImage(
+            im.src,
+            im.x,
+            im.y,
+            dw,
+            dh,
+            vb.x,
+            vb.y,
+            vb.width,
+            vb.height,
+          );
+        } else {
+          this.renderer.drawImage(im.src, im.x, im.y, im.width, im.height);
+        }
         break;
       }
       case "group":

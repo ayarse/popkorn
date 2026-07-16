@@ -1086,6 +1086,7 @@ test("image: props map with a default-0 box until natural size is known", () => 
     width: 0,
     height: 0,
     src: "x.png",
+    viewBox: null,
   });
 });
 
@@ -1100,6 +1101,7 @@ test("image: x/y/width/height populate the box", () => {
     width: 40,
     height: 30,
     src: "a.png",
+    viewBox: null,
   });
 });
 

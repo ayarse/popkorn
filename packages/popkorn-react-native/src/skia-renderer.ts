@@ -330,7 +330,17 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     );
   }
 
-  drawImage(src: string, x: number, y: number, w: number, h: number): void {
+  drawImage(
+    src: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    sx?: number,
+    sy?: number,
+    sw?: number,
+    sh?: number,
+  ): void {
     if (!this.canvas || !src) return;
     let entry = this.images.get(src);
     if (!entry) entry = this.loadImage(src);
@@ -338,8 +348,17 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     const img = entry.image;
     const iw = img.width();
     const ih = img.height();
-    const dw = w > 0 ? w : iw;
-    const dh = h > 0 ? h : ih;
+    // Source-cropped (object-view-box): sample the sub-rect; else the whole bitmap.
+    const cropped =
+      sx !== undefined &&
+      sy !== undefined &&
+      sw !== undefined &&
+      sh !== undefined;
+    const srcRect = cropped
+      ? this.skia.XYWHRect(sx, sy, sw, sh)
+      : this.skia.XYWHRect(0, 0, iw, ih);
+    const dw = w > 0 ? w : cropped ? sw : iw;
+    const dh = h > 0 ? h : cropped ? sh : ih;
     if (!this.imagePaint) this.imagePaint = this.skia.Paint();
     const paint = this.imagePaint;
     paint.reset();
@@ -347,7 +366,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     paint.setAlphaf(this.opacity); // cascade group opacity onto the image
     this.canvas.drawImageRect(
       img,
-      this.skia.XYWHRect(0, 0, iw, ih),
+      srcRect,
       this.skia.XYWHRect(x, y, dw, dh),
       paint,
     );

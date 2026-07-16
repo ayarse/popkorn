@@ -1,0 +1,53 @@
+/*
+ * Sprite-sheet animation via object-view-box. One 256x64 bitmap holds four
+ * 64px frames (a white ball bouncing over a cycling background). The crop pages
+ * through them: steps(4) advances xywh's x by one 64px frame per step, so a
+ * single still image plays as a loop. The whole sheet is shown up top for
+ * reference; the big sprite below is the cropped, paged view.
+ */
+
+:root {
+  width: 640px;
+  height: 360px;
+  background: #12141c;
+}
+
+@keyframes play {
+  from { object-view-box: xywh(0 0 64px 64px); }
+  to   { object-view-box: xywh(256px 0 64px 64px); }   /* 4 frames past the last */
+}
+
+/* The full sheet, unclamped, so you can see all four frames at once. */
+#sheet {
+  type: image;
+  src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNTYnIGhlaWdodD0nNjQnPjxyZWN0IHg9JzAnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nI2ZmNmI2YicvPjxjaXJjbGUgY3g9JzMyJyBjeT0nNTAnIHI9JzExJyBmaWxsPScjZmZmZmZmJy8+PGNpcmNsZSBjeD0nMzInIGN5PSc1MCcgcj0nNCcgZmlsbD0nI2ZmNmI2YicvPjxyZWN0IHg9JzY0JyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyNmZmQ5M2QnLz48Y2lyY2xlIGN4PSc5NicgY3k9JzMwJyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9Jzk2JyBjeT0nMzAnIHI9JzQnIGZpbGw9JyNmZmQ5M2QnLz48cmVjdCB4PScxMjgnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nIzZiY2I3NycvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPSc0JyBmaWxsPScjNmJjYjc3Jy8+PHJlY3QgeD0nMTkyJyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyM0ZDk2ZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nMTEnIGZpbGw9JyNmZmZmZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nNCcgZmlsbD0nIzRkOTZmZicvPjwvc3ZnPg==';
+  x: 40px; y: 48px; width: 512px; height: 128px;
+}
+
+#sheet-label {
+  type: text;
+  content: 'the sheet — 4 frames';
+  x: 40px; y: 40px;
+  font-family: system-ui, sans-serif;
+  font-size: 15px; font-weight: 600;
+  fill: #9aa4b2;
+}
+
+/* The paged sprite: crop to one frame, advance a frame per step. */
+#sprite {
+  type: image;
+  src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNTYnIGhlaWdodD0nNjQnPjxyZWN0IHg9JzAnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nI2ZmNmI2YicvPjxjaXJjbGUgY3g9JzMyJyBjeT0nNTAnIHI9JzExJyBmaWxsPScjZmZmZmZmJy8+PGNpcmNsZSBjeD0nMzInIGN5PSc1MCcgcj0nNCcgZmlsbD0nI2ZmNmI2YicvPjxyZWN0IHg9JzY0JyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyNmZmQ5M2QnLz48Y2lyY2xlIGN4PSc5NicgY3k9JzMwJyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9Jzk2JyBjeT0nMzAnIHI9JzQnIGZpbGw9JyNmZmQ5M2QnLz48cmVjdCB4PScxMjgnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nIzZiY2I3NycvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPSc0JyBmaWxsPScjNmJjYjc3Jy8+PHJlY3QgeD0nMTkyJyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyM0ZDk2ZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nMTEnIGZpbGw9JyNmZmZmZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nNCcgZmlsbD0nIzRkOTZmZicvPjwvc3ZnPg==';
+  x: 248px; y: 210px; width: 128px; height: 128px;
+  object-view-box: xywh(0 0 64px 64px);
+  animation: play 1s steps(4) infinite;
+}
+
+#sprite-label {
+  type: text;
+  content: 'steps(4) pages the crop';
+  x: 312px; y: 200px;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+  font-size: 15px; font-weight: 600;
+  fill: #e8ecf1;
+}

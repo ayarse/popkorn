@@ -53,6 +53,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "type",
   "use",
   "content",
+  "object-view-box",
   "d",
   "x",
   "y",

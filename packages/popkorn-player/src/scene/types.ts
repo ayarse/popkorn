@@ -461,8 +461,21 @@ export type ShapeData =
   | PolystarData
   | ImageData;
 
+// A sub-rect of the source bitmap, in image pixels (CSS object-view-box
+// `xywh()`). Selects the region of `src` drawn into the node's dest box —
+// sprite-sheet frame cropping. Animatable/bindable component-wise (registry key
+// `object-view-box`); `null` = draw the whole bitmap.
+export interface ImageViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // Image node: draws `src` into the x/y/width/height box. width/height of 0 mean
-// "use the loaded image's natural size" (resolved in the renderer once decoded).
+// "use the loaded image's natural size" (resolved in the renderer once decoded);
+// with a `viewBox` crop, 0 means the crop's own pixel size instead. `viewBox`
+// (object-view-box) crops the source to a sub-rect before scaling into the box.
 export interface ImageData {
   type: "image";
   x: number;
@@ -470,6 +483,7 @@ export interface ImageData {
   width: number;
   height: number;
   src: string;
+  viewBox: ImageViewBox | null;
 }
 
 // Star (alternating outer/inner radius over 2·sides vertices) or regular
@@ -659,7 +673,8 @@ export type AnimatableValue =
   | Transform
   | GradientData
   | PathCommand[]
-  | FilterOp[];
+  | FilterOp[]
+  | ImageViewBox;
 
 // Default transform origin (0 0, matching CSS behavior)
 export function createDefaultTransformOrigin(): TransformOrigin {
@@ -711,7 +726,11 @@ export function copyTransform(src: Transform, dst: Transform): void {
 
 // Shallow clone of shape data (numeric geometry + type; path commands shared).
 export function cloneShapeData(sd: ShapeData): ShapeData {
-  return { ...sd };
+  const copy = { ...sd };
+  // Deep-copy the image crop so a per-frame object-view-box morph writes into a
+  // node-local rect, never the authored base (same discipline as gradients).
+  if (copy.type === "image" && copy.viewBox) copy.viewBox = { ...copy.viewBox };
+  return copy;
 }
 
 // Clone a clip-path for the base snapshot. The `path` variant's command list is

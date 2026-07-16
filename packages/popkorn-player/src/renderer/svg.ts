@@ -576,8 +576,61 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.applyPaint(el, { x: ax, y: y - fontSize, width, height: fontSize });
   }
 
-  drawImage(src: string, x: number, y: number, w: number, h: number): void {
+  drawImage(
+    src: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    sx?: number,
+    sy?: number,
+    sw?: number,
+    sh?: number,
+  ): void {
     if (!src) return;
+    this.flushGroupTransform();
+    const cropped =
+      sx !== undefined &&
+      sy !== undefined &&
+      sw !== undefined &&
+      sh !== undefined;
+
+    if (cropped) {
+      // Source-crop (object-view-box) via a nested <svg viewBox>: the inner
+      // viewBox maps source pixels [sx,sy,sw,sh] onto the box, and the nested
+      // viewport clips the overflow, so only the frame shows. The inner <image>
+      // carries no width/height and paints at its intrinsic pixel size (= the
+      // source coordinate space the viewBox is expressed in).
+      // NOTE: relies on SVG2 intrinsic <image> auto-sizing; an SVG 1.1 renderer
+      // would need the decoded natural size stamped on the inner <image>.
+      const outer = this.allocShape("svg");
+      this.setAttr(outer, "x", String(x));
+      this.setAttr(outer, "y", String(y));
+      this.setAttr(outer, "width", w > 0 ? String(w) : null);
+      this.setAttr(outer, "height", h > 0 ? String(h) : null);
+      this.setAttr(outer, "viewBox", `${sx} ${sy} ${sw} ${sh}`);
+      this.setAttr(outer, "preserveAspectRatio", "none");
+      let inner = outer.firstElementChild as SVGElement | null;
+      if (!inner || inner.tagName !== "image") {
+        while (outer.firstChild) outer.removeChild(outer.firstChild);
+        inner = document.createElementNS(SVGNS, "image") as SVGElement;
+        outer.appendChild(inner);
+      }
+      this.setAttr(inner, "preserveAspectRatio", "none");
+      if (this.imageHrefs.get(inner) !== src) {
+        inner.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", src);
+        this.setAttr(inner, "href", src);
+        this.imageHrefs.set(inner, src);
+        this.trackImageLoad(inner);
+      }
+      this.setAttr(
+        outer,
+        "opacity",
+        this.opacity === 1 ? null : String(this.opacity),
+      );
+      return;
+    }
+
     const el = this.allocShape("image");
     // Stretch to the box (match Canvas drawImage), not aspect-preserving.
     this.setAttr(el, "preserveAspectRatio", "none");
@@ -591,7 +644,6 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       this.imageHrefs.set(el, src);
       this.trackImageLoad(el);
     }
-    this.flushGroupTransform();
     this.setAttr(
       el,
       "opacity",

@@ -429,6 +429,40 @@ Images load asynchronously; the node is transparent until the bitmap decodes,
 then the running loop paints it in. A decode failure logs a warning and the node
 renders nothing.
 
+### Source cropping & sprite sheets
+
+`object-view-box: xywh(<x> <y> <w> <h>)` crops the source to a sub-rect (in image
+pixels) before it's scaled into the box — the CSS property for cropping a
+replaced element. The four numbers are the frame's top-left and size on the
+sheet, so paging a sprite sheet is just moving `x`:
+
+```css
+@keyframes walk {
+  from { object-view-box: xywh(0 0 64px 64px); }
+  to   { object-view-box: xywh(512px 0 64px 64px); }   /* 8 frames × 64px */
+}
+
+#hero {
+  type: image;
+  src: 'sheet.png';
+  width: 64px; height: 64px;                    /* dest box */
+  animation: walk 800ms steps(8) infinite;       /* one frame per step */
+}
+```
+
+`object-view-box: none` (the default) draws the whole bitmap. The crop is
+**animatable** (each `xywh` component interpolates, so `steps(N)` pages discrete
+frames) and **bindable** — a host can drive the frame with `var()`/`input()`:
+
+```css
+#hero { object-view-box: xywh(calc(var(--frame) * 64px) 0 64px 64px); }
+```
+
+then `player.setVariable('--frame', 3)` shows column 3. A zero/negative crop size
+draws nothing; an out-of-bounds crop draws only the overlapping region. Only the
+`xywh()` form is supported (its offsets map straight onto frames); `inset()` is
+not.
+
 ## Trim Paths
 
 Trim paths reveal only part of a node's **stroke** (the fill is always drawn in

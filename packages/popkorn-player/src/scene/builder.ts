@@ -53,6 +53,7 @@ import type {
   EllipseData,
   FilterOp,
   ImageData,
+  ImageViewBox,
   KeyframeData,
   LinearEasingPoint,
   MaskMode,
@@ -322,6 +323,46 @@ export function extractIndividualTransform(
     }
   }
   return false;
+}
+
+// Parse an `object-view-box` value into an image source-crop rect (in image
+// pixels), or null for `none` / anything unrecognized (draw the whole bitmap).
+// Only the `xywh(x y w h)` basic-shape form is supported — its four components
+// map straight onto sprite-frame offsets, and stay concrete numbers so they
+// animate/bind component-wise (unlike `inset()`, whose right/bottom edges depend
+// on the runtime intrinsic size). `resolve` maps each operand to a number;
+// defaults to the static build-time reader, the per-frame binding path passes a
+// var()/input()-resolving one (mirrors extractTransform).
+// NOTE: `inset()` cropping is the ceiling here — supporting it means resolving
+// its edge insets against the decoded intrinsic size in the shared walk.
+export function extractImageViewBox(
+  value: Value,
+  resolve: (v: Value) => number = getNumericValue,
+): ImageViewBox | null {
+  if (isKeywordValue(value) && value.value === "none") return null;
+  if (
+    isFunctionValue(value) &&
+    value.name === "xywh" &&
+    value.args.length >= 4
+  ) {
+    return {
+      x: resolve(value.args[0]),
+      y: resolve(value.args[1]),
+      width: resolve(value.args[2]),
+      height: resolve(value.args[3]),
+    };
+  }
+  return null;
+}
+
+// True when an object-view-box value has a reactive var()/input()/calc() operand
+// (so the whole value registers as a per-frame binding rather than baking).
+function objectViewBoxHasVariable(value: Value): boolean {
+  const argHasVar = (v: Value): boolean =>
+    isVariableRefValue(v) ||
+    (isFunctionValue(v) && v.name === "input") ||
+    (isCalcValue(v) && calcOperands(v.expr).some(argHasVar));
+  return isFunctionValue(value) && value.args.some(argHasVar);
 }
 
 // True when a transform value (`transform:` shorthand or a `translate`/`rotate`/
@@ -962,6 +1003,21 @@ export class SceneBuilder {
           (node.shapeData as ImageData).src = this.imageSrc(value);
         }
         break;
+
+      // Image source-crop (sprite-sheet frame). A reactive var()/input()/calc()
+      // operand registers a per-frame binding (loop re-extracts it, like a
+      // reactive transform); otherwise bake the static crop. Not caught by the
+      // early hasVariableReference branch — a bare `xywh(...)` function isn't
+      // recursed into there (same as `transform:`), so it always reaches here.
+      case "object-view-box":
+        if (node.shapeData.type === "image") {
+          if (objectViewBoxHasVariable(value)) {
+            node.bindings.push({ property, value });
+          } else {
+            (node.shapeData as ImageData).viewBox = extractImageViewBox(value);
+          }
+        }
+        break;
       case "font-size":
         if (node.shapeData.type === "text") {
           (node.shapeData as TextData).fontSize = getNumericValue(value);
@@ -1462,6 +1518,7 @@ export class SceneBuilder {
             width: 0,
             height: 0,
             src: "",
+            viewBox: null,
           };
           break;
       }
@@ -2119,6 +2176,11 @@ export class SceneBuilder {
         // Same object-endpoint contract as filter — a shadow list morphs when
         // the two endpoints share the same length/inset structure.
         return this.parseBoxShadow(value) ?? undefined;
+      case "object-view-box":
+        // Sprite crop rect. Endpoints are concrete {x,y,w,h}; the registry lerps
+        // each component (so steps() timing pages discrete source rects). `none`
+        // yields no usable endpoint (leave the base untouched).
+        return extractImageViewBox(value) ?? undefined;
       default:
         // Raw numeric/string value (geometry, dash offset, font-size, …).
         if (isNumberValue(value) || isLengthValue(value))

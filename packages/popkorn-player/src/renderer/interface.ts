@@ -65,8 +65,20 @@ export interface Renderer {
   ): void;
   // Draw a cached image (by src) into the x/y/w/h box. w/h <= 0 means natural
   // size. Loading/caching is the renderer's concern; nothing paints until the
-  // image decodes (the running loop repaints it in naturally).
-  drawImage(src: string, x: number, y: number, w: number, h: number): void;
+  // image decodes (the running loop repaints it in naturally). The optional
+  // sx/sy/sw/sh select a source sub-rect in image pixels (object-view-box crop,
+  // sprite-sheet frames); all four present => 9-arg sample, else the whole bitmap.
+  drawImage(
+    src: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    sx?: number,
+    sy?: number,
+    sw?: number,
+    sh?: number,
+  ): void;
   // Optional: resolves once no image decodes are in flight (immediately if
   // none). A seek-driven offline export awaits this between seek and re-render
   // so decoded images paint; the live loop needn't call it. Callers feature-detect.
