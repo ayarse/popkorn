@@ -337,10 +337,23 @@ export interface SceneNode {
   // AFTER the machine :state() merge. Null = fall back to the curve / offset+scale.
   timeRemapValue: number | null;
 
-  // Sibling paint order (static). Siblings paint in ascending z-index (document
-  // order breaks ties); the same order drives hit-testing. Default 0. Negative
-  // values are valid and are the main use — painting a node behind its siblings.
+  // Sibling paint order. Siblings paint in ascending z-index (document order
+  // breaks ties); the same order drives hit-testing. Default 0. Negative values
+  // are valid and are the main use — painting a node behind its siblings.
+  // Part of the immutable base (reset per frame) so it can be bound/animated.
   zIndex: number;
+
+  // Per-frame sibling paint order, cached by the resolve walk once z-index is
+  // resolved. The single source of truth both the render walk and hit-testing
+  // read (so they never sort twice or disagree). Null before the first resolve;
+  // childrenInPaintOrder falls back to computing it on demand.
+  sortedChildren: SceneNode[] | null;
+
+  // `display: none` removes this node and its subtree from BOTH the render walk
+  // and hit-testing, exactly like being outside a visibility window. Part of the
+  // base (reset per frame) so a var()/input()/@keyframes value can toggle it —
+  // 0 => none, non-zero => visible, through the numeric registry handler.
+  displayNone: boolean;
 
   // Visibility window in milliseconds, compared against the time this node
   // INHERITS (its containing/parent scope), before this node's own
@@ -404,6 +417,11 @@ export interface SceneNode {
 // Complete authored snapshot of a node's animatable render state.
 export interface NodeBase {
   transform: Transform;
+  // Sibling paint order and display flag live in the base so they reset each
+  // frame before a binding/@keyframes/state override, like every other
+  // animatable field (see the `z-index`/`display` registry handlers).
+  zIndex: number;
+  displayNone: boolean;
   fill: string | null;
   stroke: string | null;
   strokeWidth: number;
@@ -717,6 +735,8 @@ export function cloneFilter(filter: FilterOp[] | null): FilterOp[] | null {
 export function snapshotNode(node: SceneNode): NodeBase {
   return {
     transform: cloneTransform(node.transform),
+    zIndex: node.zIndex,
+    displayNone: node.displayNone,
     fill: node.fill,
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
@@ -740,6 +760,8 @@ export function snapshotNode(node: SceneNode): NodeBase {
 export function resetNodeToBase(node: SceneNode): void {
   const b = node.base;
   copyTransform(b.transform, node.transform);
+  node.zIndex = b.zIndex;
+  node.displayNone = b.displayNone;
   node.fill = b.fill;
   node.stroke = b.stroke;
   node.strokeWidth = b.strokeWidth;
@@ -810,6 +832,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     timeRemap: null,
     timeRemapValue: null,
     zIndex: 0,
+    sortedChildren: null,
+    displayNone: false,
     visibleFrom: -Infinity,
     visibleUntil: Infinity,
     hidden: false,
@@ -817,6 +841,8 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     animations: [],
     base: {
       transform: cloneTransform(transform),
+      zIndex: 0,
+      displayNone: false,
       fill: null,
       stroke: null,
       strokeWidth: 1,
@@ -849,13 +875,11 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
 }
 
 /**
- * Children in paint order: ascending z-index, document order breaking ties.
- * Both the render walk and hit-testing use this so painted stacking and hit
- * priority always agree. Returns the original array untouched (no allocation)
- * in the common case where every child sits at the default z-index 0.
+ * Sort siblings into paint order: ascending z-index, document order breaking
+ * ties. Returns the original array untouched (no allocation) in the common case
+ * where every child sits at the default z-index 0 — the static fast path.
  */
-export function childrenInPaintOrder(node: SceneNode): SceneNode[] {
-  const children = node.children;
+export function sortByZIndex(children: SceneNode[]): SceneNode[] {
   for (let i = 0; i < children.length; i++) {
     if (children[i].zIndex !== 0) {
       // Array.prototype.sort is stable, so equal z-indexes keep document order.
@@ -863,4 +887,24 @@ export function childrenInPaintOrder(node: SceneNode): SceneNode[] {
     }
   }
   return children;
+}
+
+/**
+ * Recompute a node's per-frame sibling paint order and cache it on the node.
+ * Called by the resolve walk after every child's z-index is resolved, so the
+ * cached order reflects this frame's (possibly bound/animated) z-indexes.
+ */
+export function refreshSortedChildren(node: SceneNode): void {
+  node.sortedChildren = sortByZIndex(node.children);
+}
+
+/**
+ * Children in paint order: ascending z-index, document order breaking ties.
+ * Both the render walk and hit-testing read this cached order (populated by the
+ * resolve walk) so painted stacking and hit priority always agree and neither
+ * re-sorts. Falls back to computing it for callers running outside a resolved
+ * frame (e.g. a hitTest before the first frame).
+ */
+export function childrenInPaintOrder(node: SceneNode): SceneNode[] {
+  return node.sortedChildren ?? sortByZIndex(node.children);
 }

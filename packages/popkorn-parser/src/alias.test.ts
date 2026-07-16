@@ -156,8 +156,15 @@ test("non-solid border style warns", () => {
 });
 
 test("box-model properties warn: no box model", () => {
-  for (const p of ["padding", "margin", "display", "position"]) {
+  for (const p of ["padding", "margin", "position"]) {
     expect(propNames(`#b { ${p}: 4px; }`)).toEqual([]);
     expect(diags(`#b { ${p}: 4px; }`)[0]).toContain("no box model");
   }
+});
+
+test("display is a real property (visibility), not a dropped box-model alias", () => {
+  // `display` carries a Popkorn meaning now: it flows through untouched (no
+  // box-model warning) so the scene builder can gate the node on it.
+  expect(propNames("#b { display: none; }")).toEqual(["display"]);
+  expect(diags("#b { display: none; }")).toEqual([]);
 });

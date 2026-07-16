@@ -59,7 +59,8 @@ format always uses the canonical name):
 Aliases work everywhere a declaration does — rule bodies, `@keyframes`,
 `&:hover`/`&:active`, and `@define` — so e.g. animating `border-radius` in
 `@keyframes` animates `rx`/`ry`. Box-model properties (`padding`, `margin`,
-`display`, `position`) are rejected with a warning: Popkorn has no box model.
+`position`) are rejected with a warning: Popkorn has no box model. (`display` is
+supported, with a visibility meaning — see Layering & Visibility.)
 
 ## Shapes
 
@@ -697,7 +698,22 @@ By default siblings paint in document order (first child behind, last in front).
 order breaking ties, and hit-testing uses the same order. Negative values are
 valid — and the main use — for painting a nested child *behind* its parent's
 other children. Groups have no geometry of their own, so parent-vs-child
-layering reduces to sibling ordering. Static, integer, default `0`.
+layering reduces to sibling ordering. An integer, default `0`. It is bindable
+(`z-index: var(--depth)`, calc) and animatable in `@keyframes`, re-evaluated per
+frame — driving one via a host `setVariable()` re-sorts the siblings live (a
+depth-sorted sprite field). CSS animates z-index as an `<integer>`, so a sampled
+value is rounded. A scene with no dynamic z-index pays no per-frame re-sort.
+
+`display: none` removes a node **and its subtree** from both the render walk and
+hit-testing — exactly like being outside a visibility window (nothing to paint,
+nothing to hover). Any other value (`block`, …) is visible; default is visible.
+It is bindable and animatable through the numeric vocabulary: `display:
+var(--alive)` (or a calc/`input()` expression) resolves per frame with `0` →
+`none` and any non-zero → visible, so a host toggles a pooled entity in and out
+each frame without an opacity hack. (This mirrors CSS's `display: if(style(…))`
+capability through Popkorn's existing bindings — there is no `if()` syntax.)
+Because display is discrete in CSS, a `@keyframes` value is a threshold, not a
+tween: only an exact `0` hides.
 
 `visible-from` / `visible-until` window a node (and its subtree) to a time range
 (`s` / `ms`), evaluated against the time the node *inherits* — i.e. the

@@ -35,7 +35,11 @@ import type {
   TextData,
   TimeRemapStop,
 } from "../scene/types";
-import { childrenInPaintOrder, resetNodeToBase } from "../scene/types";
+import {
+  childrenInPaintOrder,
+  refreshSortedChildren,
+  resetNodeToBase,
+} from "../scene/types";
 import { hitTest, hitTestClick } from "./hit-test";
 import { createInputTracker, type InputTracker } from "./inputs";
 import {
@@ -520,6 +524,12 @@ export class RenderLoop {
     for (const child of node.children) {
       this.resolveNode(child, local, now, machineTime);
     }
+
+    // Cache this frame's sibling paint order now every child's z-index is
+    // resolved — the single source of truth the render walk and hit-testing both
+    // read (never sorting twice or disagreeing). Cheap for the static all-zero
+    // case (childrenInPaintOrder's fast path returns the array untouched).
+    refreshSortedChildren(node);
   }
 
   /**
@@ -863,8 +873,10 @@ export class RenderLoop {
     const paintSource = opts.paintSource ?? false;
     const skipMask = opts.skipMask ?? false;
 
-    // Outside its visibility window the node (and subtree) paints nothing.
-    if (node.hidden) return;
+    // Outside its visibility window, or with `display: none` this frame, the
+    // node (and its subtree) paints nothing — both gate render and hit-testing
+    // identically (invariant 5).
+    if (node.hidden || node.displayNone) return;
 
     // A mask source is painted only via its dependent's composite; `paintSource`
     // is the composite pass telling it to paint the source (or the masked

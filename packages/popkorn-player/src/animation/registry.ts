@@ -142,6 +142,37 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   skewX: transformNumber("skewX"),
   skewY: transformNumber("skewY"),
 
+  // display: discrete visibility. 0 => none (node + subtree removed from the
+  // render walk AND hit-testing, like a visibility window), non-zero => visible.
+  // Drivable through the numeric binding/@keyframes path like any scalar.
+  // NOTE: display is discrete in CSS (it flips, never tweens); here interpolation
+  // is a threshold — any fractional sample is non-zero => visible, only an exact
+  // 0 hides — so a keyframe from block→none holds visible until it lands on 0.
+  // Good enough for host-var toggles; a true discrete-step registry kind is the
+  // upgrade path if keyframed display windows ever need per-segment hold.
+  display: {
+    kind: "number",
+    readBase: (base) => (base.displayNone ? 0 : 1),
+    readLive: (node) => (node.displayNone ? 0 : 1),
+    apply: (node, value) => {
+      node.displayNone = (value as number) === 0;
+    },
+  },
+
+  // z-index: sibling paint order, bound/animated as an integer. CSS interpolates
+  // <integer> by rounding the sampled real value, so apply rounds. The resolve
+  // walk resets it to base first, so a static scene keeps its authored order and
+  // pays no per-frame re-sort (childrenInPaintOrder's fast path); a dynamic one
+  // re-sorts only because the resolve walk refreshes the cached order each frame.
+  "z-index": {
+    kind: "number",
+    readBase: (base) => base.zIndex,
+    readLive: (node) => node.zIndex,
+    apply: (node, value) => {
+      node.zIndex = Math.round(value as number);
+    },
+  },
+
   // opacity
   opacity: {
     kind: "number",

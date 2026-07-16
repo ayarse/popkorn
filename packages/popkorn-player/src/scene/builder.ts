@@ -1354,9 +1354,17 @@ export class SceneBuilder {
         break;
       }
 
-      // Sibling paint order (static integer). See childrenInPaintOrder.
+      // Sibling paint order. See childrenInPaintOrder. A var()/@keyframes value
+      // rides the numeric registry `z-index` handler (bindable/animatable).
       case "z-index":
-        node.zIndex = getNumericValue(value);
+        node.zIndex = Math.round(getNumericValue(value));
+        break;
+
+      // display: `none` removes the node + subtree from render + hit-test; any
+      // other ident (block, …) is visible (CSS). A var()/input()/@keyframes value
+      // toggles it through the numeric registry `display` handler (0 => none).
+      case "display":
+        node.displayNone = isKeywordValue(value) && value.value === "none";
         break;
 
       // Visibility window (static). Stored in ms; the resolve walk compares it

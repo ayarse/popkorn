@@ -82,9 +82,10 @@ function hitTestNode(
   nearestInteractive: SceneNode | null,
   hits: Map<SceneNode, number>,
 ): void {
-  // A node hidden by its visibility window paints nothing, so it (and its
-  // subtree) can't be hit either. `hidden` is set by the per-frame resolve walk.
-  if (node.hidden) return;
+  // A node hidden by its visibility window or `display: none` paints nothing, so
+  // it (and its subtree) can't be hit either — the render walk gates on the same
+  // pair (invariant 5). Both are set by the per-frame resolve walk.
+  if (node.hidden || node.displayNone) return;
 
   // Mask sources are never painted on their own, so they can't be hit; skip
   // the whole subtree. (Maskd content is hit-tested normally on its shape.)
@@ -176,7 +177,7 @@ function clickTestNode(
   nearestInteractive: SceneNode | null,
   found: { depth: number; node: SceneNode | null; credited: SceneNode | null },
 ): void {
-  if (node.hidden) return;
+  if (node.hidden || node.displayNone) return;
   if (node.isMaskSource) return;
   if (node.pointerEvents === "none") return;
 

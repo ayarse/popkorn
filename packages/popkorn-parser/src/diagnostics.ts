@@ -101,6 +101,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "skew",
   // layout / visibility
   "z-index",
+  "display",
   "visible-from",
   "visible-until",
   "overflow",
@@ -153,7 +154,6 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "border-bottom-left-radius",
   "padding",
   "margin",
-  "display",
   "position",
 ]);
 

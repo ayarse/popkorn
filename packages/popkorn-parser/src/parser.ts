@@ -783,10 +783,11 @@ function expandAliases(
     case "border":
       return expandBorder(c, value, start, end);
 
-    // Box-model properties Popkorn has no concept of.
+    // Box-model properties Popkorn has no concept of. (`display` is NOT here: it
+    // carries a real visibility meaning — `none` removes the node + subtree,
+    // driven per-frame by a var()/@keyframes value; see the scene builder.)
     case "padding":
     case "margin":
-    case "display":
     case "position":
       c.report(
         "unsupported-property",
