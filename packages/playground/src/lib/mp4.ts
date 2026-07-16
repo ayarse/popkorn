@@ -3,6 +3,7 @@ import {
   AnimationScheduler,
   buildSceneGraph,
   Canvas2DRenderer,
+  computeSceneDuration,
   RenderLoop,
 } from "@popkorn/player";
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
@@ -50,24 +51,28 @@ export async function exportMp4(
   const width = evenDim(ast.canvas?.width ?? 400);
   const height = evenDim(ast.canvas?.height ?? 300);
 
+  const root = buildSceneGraph(ast);
   const canvas = makeCanvas(width, height);
   const renderer = new Canvas2DRenderer(canvas);
   const scheduler = new AnimationScheduler();
   const loop = new RenderLoop(renderer, scheduler);
-  loop.setScene(buildSceneGraph(ast));
+  loop.setScene(root);
   loop.setSceneSize(width, height);
   loop.getVariableResolver().setVariables(ast.variables);
 
-  // An unbounded scene (state machine, or all-infinite animations) free-runs
-  // forever — `loop.duration` is Infinity, and there's no honest frame range
-  // to export. Fail fast rather than feeding Infinity to the frame planner.
-  if (!isFinite(loop.duration)) {
+  // Export range, NOT `loop.duration`: an unbounded scene reports Infinity to
+  // hide the seeker, but a perpetual (all-infinite) scene still has an honest
+  // frame range — one cycle of the nominal period. Only a state machine with no
+  // timeline animations (nominal 0 yet unbounded) has nothing to export; a
+  // static scene is nominal 0 and bounded, and exports its single frame.
+  const duration = computeSceneDuration(root);
+  if (duration <= 0 && !Number.isFinite(loop.duration)) {
     throw new Error(
-      "This scene has no fixed duration (state machine or all-infinite animation) and can't be exported to MP4.",
+      "This scene is a state machine with no timeline animation, so it has no frame range to export to MP4.",
     );
   }
 
-  const plan = planMp4(loop.duration);
+  const plan = planMp4(duration);
 
   // Composite target: fill the (opaque) background, then draw the (transparent)
   // scene canvas on top, so the encoder never sees premultiplied-against-black.
@@ -79,7 +84,7 @@ export async function exportMp4(
   // then await them all (a seek-driven export has no "repaint later").
   if (renderer.whenImagesSettled) {
     for (let i = 0; i < plan.frameCount; i++) {
-      loop.seek(Math.min(i * plan.delayMs, loop.duration));
+      loop.seek(Math.min(i * plan.delayMs, duration));
     }
     await renderer.whenImagesSettled();
   }
@@ -111,7 +116,7 @@ export async function exportMp4(
     if (encodeError) throw encodeError;
 
     // Sample at real wall-clock time so playback speed matches the scene.
-    loop.seek(Math.min(i * plan.delayMs, loop.duration));
+    loop.seek(Math.min(i * plan.delayMs, duration));
 
     cctx.fillStyle = background;
     cctx.fillRect(0, 0, width, height);

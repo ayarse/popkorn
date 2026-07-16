@@ -3,6 +3,7 @@ import {
   AnimationScheduler,
   buildSceneGraph,
   Canvas2DRenderer,
+  computeSceneDuration,
   RenderLoop,
 } from "@popkorn/player";
 import { GIFEncoder, type Palette, quantize } from "gifenc";
@@ -219,32 +220,36 @@ export async function exportGif(
   canvas.width = width;
   canvas.height = height;
 
+  const root = buildSceneGraph(ast);
   const renderer = new Canvas2DRenderer(canvas);
   const scheduler = new AnimationScheduler();
   const loop = new RenderLoop(renderer, scheduler);
-  loop.setScene(buildSceneGraph(ast));
+  loop.setScene(root);
   loop.setSceneSize(width, height);
   loop.getVariableResolver().setVariables(ast.variables);
 
   const ctx = canvas.getContext("2d")!;
 
-  // An unbounded scene (state machine, or all-infinite animations) free-runs
-  // forever — `loop.duration` is Infinity, and there's no honest frame range
-  // to export. Fail fast rather than feeding Infinity to the frame planner.
-  if (!isFinite(loop.duration)) {
+  // Export range, NOT `loop.duration`: an unbounded scene reports Infinity to
+  // hide the seeker, but a perpetual (all-infinite) scene still has an honest
+  // frame range — one cycle of the nominal period. Only a state machine with no
+  // timeline animations (nominal 0 yet unbounded) has nothing to export; a
+  // static scene is nominal 0 and bounded, and exports its single frame.
+  const duration = computeSceneDuration(root);
+  if (duration <= 0 && !Number.isFinite(loop.duration)) {
     throw new Error(
-      "This scene has no fixed duration (state machine or all-infinite animation) and can't be exported to GIF.",
+      "This scene is a state machine with no timeline animation, so it has no frame range to export to GIF.",
     );
   }
 
-  const plan = planGif(loop.duration);
+  const plan = planGif(duration);
 
   // Prewarm image decodes: image loading is fire-and-forget (the live loop
   // repaints when a decode lands, but a seek-driven export has no "later").
   // Seek every frame time once to kick off every load, then await them all.
   if (renderer.whenImagesSettled) {
     for (let i = 0; i < plan.frameCount; i++) {
-      loop.seek(Math.min(i * plan.delayMs, loop.duration));
+      loop.seek(Math.min(i * plan.delayMs, duration));
     }
     await renderer.whenImagesSettled();
   }
@@ -253,7 +258,7 @@ export async function exportGif(
 
   for (let i = 0; i < plan.frameCount; i++) {
     // Sample at real wall-clock time so playback speed matches the scene.
-    const t = Math.min(i * plan.delayMs, loop.duration);
+    const t = Math.min(i * plan.delayMs, duration);
     loop.seek(t);
 
     const { data } = ctx.getImageData(0, 0, width, height);
