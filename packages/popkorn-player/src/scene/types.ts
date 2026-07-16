@@ -330,6 +330,13 @@ export interface SceneNode {
   // the domain the endpoints hold. Null = no remap.
   timeRemap: TimeRemapStop[] | null;
 
+  // Animatable scalar remap (ms): when set, it pins this subtree's local time to
+  // a fixed master-timeline instant, subsuming the static curve and offset/scale.
+  // Written by the `time-remap` registry handler — from a static bare `<time>`
+  // (base) or a @keyframes/`:state()` animation — and derived in the resolve walk
+  // AFTER the machine :state() merge. Null = fall back to the curve / offset+scale.
+  timeRemapValue: number | null;
+
   // Sibling paint order (static). Siblings paint in ascending z-index (document
   // order breaks ties); the same order drives hit-testing. Default 0. Negative
   // values are valid and are the main use — painting a node behind its siblings.
@@ -406,6 +413,9 @@ export interface NodeBase {
   trimOffset: number;
   strokeDashOffset: number;
   offsetDistance: number;
+  // Scalar time-remap (ms), or null for no constant remap. Part of the immutable
+  // base so the resolve walk resets to it before a :state()/@keyframes override.
+  timeRemapValue: number | null;
   shapeData: ShapeData;
   // Gradient paints are animatable in @keyframes; the base holds a deep copy so
   // per-frame interpolation never mutates authored stops (see reset/snapshot).
@@ -716,6 +726,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
     trimOffset: node.trimOffset,
     strokeDashOffset: node.strokeDashOffset,
     offsetDistance: node.offsetDistance,
+    timeRemapValue: node.timeRemapValue,
     shapeData: cloneShapeData(node.shapeData),
     fillGradient: cloneGradient(node.fillGradient),
     strokeGradient: cloneGradient(node.strokeGradient),
@@ -738,6 +749,7 @@ export function resetNodeToBase(node: SceneNode): void {
   node.trimOffset = b.trimOffset;
   node.strokeDashOffset = b.strokeDashOffset;
   node.offsetDistance = b.offsetDistance;
+  node.timeRemapValue = b.timeRemapValue;
   Object.assign(node.shapeData, b.shapeData);
   // Deep-copy gradients so a per-frame gradient interpolation writing into
   // node.fillGradient can never corrupt the authored base stops.
@@ -796,6 +808,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     timeOffset: 0,
     timeScale: 1,
     timeRemap: null,
+    timeRemapValue: null,
     zIndex: 0,
     visibleFrom: -Infinity,
     visibleUntil: Infinity,
@@ -813,6 +826,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
       trimOffset: 0,
       strokeDashOffset: 0,
       offsetDistance: 0,
+      timeRemapValue: null,
       shapeData: { type: "group" },
       fillGradient: null,
       strokeGradient: null,

@@ -1339,12 +1339,20 @@ export class SceneBuilder {
         break;
       }
 
-      // Keyframed time remap (static curve). A comma-separated list of
-      // `<input-time> <output-time> [easing]` stops maps the subtree's inherited
-      // time through a monotonic curve — the general form of time-offset/scale.
-      case "time-remap":
-        node.timeRemap = this.parseTimeRemap(value);
+      // Time remap. A comma-separated list of `<input-time> <output-time>
+      // [easing]` stops maps the subtree's inherited time through a monotonic
+      // curve (the general form of time-offset/scale). A lone bare `<time>` is a
+      // constant remap: the scalar path that pins local time and that
+      // @keyframes/`:state()` animate (see the `time-remap` registry entry).
+      case "time-remap": {
+        const curve = this.parseTimeRemap(value);
+        if (curve) node.timeRemap = curve;
+        else {
+          const ms = timeMs(value);
+          if (ms !== null) node.timeRemapValue = ms;
+        }
         break;
+      }
 
       // Sibling paint order (static integer). See childrenInPaintOrder.
       case "z-index":
@@ -2070,6 +2078,11 @@ export class SceneBuilder {
       case "offset-distance":
         // Store normalized 0..1 so interpolation stays in range.
         return normalizeFraction(value);
+      case "time-remap": {
+        // Scalar remap target in ms (s -> ms), feeding node.timeRemapValue.
+        const ms = timeMs(value);
+        return ms ?? (isNumberValue(value) ? value.value : undefined);
+      }
       case "fill":
       case "stroke": {
         // A gradient endpoint parses to structured GradientData (animated

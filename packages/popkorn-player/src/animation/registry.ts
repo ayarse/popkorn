@@ -243,6 +243,20 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   "trim-end": trimNumber("trimEnd"),
   "trim-offset": trimNumber("trimOffset"),
 
+  // time-remap scalar (ms): the local-timeline instant this subtree is pinned to.
+  // Animating it (@keyframes / :state()) scrubs a segment of the master timeline;
+  // the resolve walk reads node.timeRemapValue AFTER the state merge to drive the
+  // subtree's local time. No cache keys off it — descendants' own registry setters
+  // own their dirty flags — so no flag is marked here.
+  "time-remap": {
+    kind: "number",
+    readBase: (base) => base.timeRemapValue,
+    readLive: (node) => node.timeRemapValue ?? 0,
+    apply: (node, value) => {
+      node.timeRemapValue = value as number;
+    },
+  },
+
   // motion path: position along offset-path, 0..1 of arc length
   "offset-distance": {
     kind: "number",

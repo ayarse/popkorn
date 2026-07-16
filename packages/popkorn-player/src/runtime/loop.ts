@@ -484,21 +484,27 @@ export class RenderLoop {
     // while time-offset/time-scale only remap time for the node's own content.
     node.hidden = t < node.visibleFrom || t >= node.visibleUntil;
 
-    // Per-subtree time scoping: shift then scale the inherited time into this
-    // node's local timeline, which applies to the node and all descendants.
-    // Nested scopes compose because the scoped time is what recurses down.
-    // Defaults (0, 1) leave `t` unchanged. A time-remap curve, when present,
-    // fully defines the local time (it subsumes offset/scale) by mapping the
-    // inherited time through its monotonic stops — Lottie `tm` semantics.
-    const local = node.timeRemap
-      ? sampleTimeRemap(node.timeRemap, t)
-      : (t - node.timeOffset) * node.timeScale;
-
     resetNodeToBase(node);
     this.applyBindings(node);
     // Machine :state() sets merge in here (static decls + entry-anchored state
     // animations), between bindings and the node's own animation sampling.
     if (node.stateStyles.length > 0) this.applyMachineStates(node, machineTime);
+
+    // Per-subtree time scoping: shift then scale the inherited time into this
+    // node's local timeline, which applies to the node and all descendants.
+    // Nested scopes compose because the scoped time is what recurses down.
+    // Defaults (0, 1) leave `t` unchanged. Derived AFTER the :state() merge so a
+    // machine-animated `time-remap` scalar (set this frame) drives the subtree;
+    // reading it before the merge would pick up the previous frame's stale value
+    // and break seek() purity. Priority: post-merge scalar (a state playing a
+    // segment of the master timeline) > static curve (Lottie `tm`) > offset/scale.
+    const local =
+      node.timeRemapValue !== null
+        ? node.timeRemapValue
+        : node.timeRemap
+          ? sampleTimeRemap(node.timeRemap, t)
+          : (t - node.timeOffset) * node.timeScale;
+
     // Base (node-level) animations: scrub to a 0..1 timeline reference when the
     // node declares animation-timeline, else sample on the clock at local time.
     if (node.animationTimeline && node.animations.length > 0) {
@@ -1271,7 +1277,12 @@ function sceneHasDynamicContent(root: SceneNode): boolean {
  * the scene's end on the root clock. Scanned once at setScene.
  */
 function sceneHasTimeScoping(root: SceneNode): boolean {
-  if (root.timeRemap || root.timeOffset !== 0 || root.timeScale !== 1)
+  if (
+    root.timeRemap ||
+    root.timeRemapValue !== null ||
+    root.timeOffset !== 0 ||
+    root.timeScale !== 1
+  )
     return true;
   for (const child of root.children)
     if (sceneHasTimeScoping(child)) return true;

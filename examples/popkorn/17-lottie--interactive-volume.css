@@ -1550,6 +1550,54 @@
   100% { d: 'M -150.24 260.54 C -155.21 260.54 -159.24 264.57 -159.24 269.54 C -159.24 274.51 -155.21 278.54 -150.24 278.54 C -150.24 278.54 132.67 278.51 132.67 278.51 C 137.64 278.51 141.67 274.49 141.67 269.51 C 141.67 264.54 137.64 260.51 132.67 260.51 C 132.67 260.51 -150.24 260.54 -150.24 260.54 Z'; }
 }
 
+/* ----------------------------------------------------------------------------
+   Interactive volume — a hand-authored 4-level state machine on the converted
+   scene. The master "Main Scene" timeline (0–5.58s @ 60fps) holds four looping
+   "level" windows joined by short one-shot "transition" segments:
+
+     Level 1  0–1.0s (loop)   → Increase-to-2  1.017–1.483s
+     Level 2  1.517–2.533s    → Increase-to-3  2.55–2.983s
+     Level 3  3.0–4.117s      → Increase-to-4  4.133–4.65s
+     Level 4  4.667–5.583s
+
+   @machine vol steps between levels by driving `time-remap` on #master — an
+   animatable scalar that scrubs a segment of the master timeline for the whole
+   volume-responsive subtree (BG echoes, Character, notes, Volume, mask). Click
+   #Increase-button to play a transition segment forward once (`on complete`
+   settles into the next level's loop); click #Decrease-button to play the SAME
+   segment in `reverse` and settle into the previous level's loop. Each
+   transition state's animation duration equals its segment length, so
+   `on complete` fires exactly when the segment finishes.
+
+   Note: clicking Increase mid-loop hard-cuts to the transition segment's first
+   frame — that's the dotLottie PlaybackState behavior, not a bug. No `mix` here:
+   blending two *times* would time-blur hundreds of descendant tracks.
+   -------------------------------------------------------------------------- */
+
+@keyframes seg-l1  { from { time-remap: 0s;     } to { time-remap: 1s;     } }
+@keyframes seg-up2 { from { time-remap: 1.017s; } to { time-remap: 1.483s; } }
+@keyframes seg-l2  { from { time-remap: 1.517s; } to { time-remap: 2.533s; } }
+@keyframes seg-up3 { from { time-remap: 2.55s;  } to { time-remap: 2.983s; } }
+@keyframes seg-l3  { from { time-remap: 3s;     } to { time-remap: 4.117s; } }
+@keyframes seg-up4 { from { time-remap: 4.133s; } to { time-remap: 4.65s;  } }
+@keyframes seg-l4  { from { time-remap: 4.667s; } to { time-remap: 5.583s; } }
+
+@machine vol {
+  initial: l1;
+  state l1  { to: up2 on click(#Increase-button); }
+  state up2 { to: l2  on complete; }
+  state l2  { to: up3 on click(#Increase-button); to: dn1 on click(#Decrease-button); }
+  state dn1 { to: l1  on complete; }
+  state up3 { to: l3  on complete; }
+  state l3  { to: up4 on click(#Increase-button); to: dn2 on click(#Decrease-button); }
+  state dn2 { to: l2  on complete; }
+  state up4 { to: l4  on complete; }
+  state l4  { to: dn3 on click(#Decrease-button); }
+  state dn3 { to: l3  on complete; }
+}
+
+/* The two buttons stay OUTSIDE #master (static UI + click targets) so their
+   frame never moves and they stay clickable. */
 #Increase-button {
   type: group;
   transform: translate(751.38px, 860.79px);
@@ -1576,7 +1624,25 @@
   }
 }
 
-#Layer-4-Outlines-2 {
+/* Volume-responsive content, scrubbed as one by #master's time-remap. #master
+   itself carries NO base animation — only the machine's :state() sets it. */
+#master {
+  type: group;
+
+  /* Level loops play their window forever; transition states play once (forward
+     for Increase, `reverse` for Decrease) and settle via `on complete`. */
+  &:state(vol.l1)  { animation: seg-l1  1s     linear infinite; }
+  &:state(vol.up2) { animation: seg-up2 467ms  linear; }
+  &:state(vol.dn1) { animation: seg-up2 467ms  linear reverse; }
+  &:state(vol.l2)  { animation: seg-l2  1.017s linear infinite; }
+  &:state(vol.up3) { animation: seg-up3 433ms  linear; }
+  &:state(vol.dn2) { animation: seg-up3 433ms  linear reverse; }
+  &:state(vol.l3)  { animation: seg-l3  1.117s linear infinite; }
+  &:state(vol.up4) { animation: seg-up4 517ms  linear; }
+  &:state(vol.dn3) { animation: seg-up4 517ms  linear reverse; }
+  &:state(vol.l4)  { animation: seg-l4  0.916s linear infinite; }
+
+  > #Layer-4-Outlines-2 {
   type: group;
   transform-origin: 570px 591.64px;
   > #Layer-4-Outlines-2-Group-1 {
@@ -1590,7 +1656,7 @@
   }
 }
 
-#Layer-4-Outlines {
+  > #Layer-4-Outlines {
   type: group;
   transform-origin: 570px 591.64px;
   mask: #mask alpha;
@@ -1605,7 +1671,7 @@
   }
 }
 
-#BG {
+  > #BG {
   type: group;
   transform-origin: 570px 592px;
   transform: translate(0px, 26px);
@@ -4024,7 +4090,7 @@
   }
 }
 
-#Character {
+  > #Character {
   type: group;
   transform-origin: 570px 592px;
   clip-path: var(--p1);
@@ -4873,7 +4939,7 @@
   }
 }
 
-#mask {
+  > #mask {
   type: group;
   transform: translate(570px, 592px);
   > #mask-Rectangle-1 {
@@ -4892,7 +4958,7 @@
   }
 }
 
-#Volume {
+  > #Volume {
   type: group;
   transform-origin: 570px 592px;
   clip-path: var(--p1);
@@ -4969,4 +5035,5 @@
       }
     }
   }
+}
 }
