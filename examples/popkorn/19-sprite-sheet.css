@@ -6,6 +6,13 @@
  * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,
  * so a still image plays as a loop. The poser below toggles walk <-> run via
  * a click-driven @machine, each state pointing object-view-box at its row.
+ *
+ * NOTE: every row's top edge is inset 0.5px (y +0.5, height -0.5) — Canvas2D's
+ * bilinear filtering samples half a texel past the crop rect when it's scaled
+ * up, pulling in a sliver of the row above; the atlas XML confirms the grid
+ * itself is exact (uniform 96x128, no overhang), so this is filtering bleed,
+ * not a bad rect. Upgrade path if more edges ever need it: a half-texel inset
+ * on all four sides, or a smoothing control in the player's shared walk.
  */
 
 :root {
@@ -15,13 +22,13 @@
 }
 
 @keyframes walk {
-  from { object-view-box: xywh(0px 512px 96px 128px); }
-  to   { object-view-box: xywh(768px 512px 96px 128px); }   /* 8 frames past the last */
+  from { object-view-box: xywh(0px 512.5px 96px 127.5px); }
+  to   { object-view-box: xywh(768px 512.5px 96px 127.5px); }   /* 8 frames past the last */
 }
 
 @keyframes run {
-  from { object-view-box: xywh(576px 256px 96px 128px); }
-  to   { object-view-box: xywh(864px 256px 96px 128px); }   /* 3 frames past the last */
+  from { object-view-box: xywh(576px 256.5px 96px 127.5px); }
+  to   { object-view-box: xywh(864px 256.5px 96px 127.5px); }   /* 3 frames past the last */
 }
 
 #sheet-label {
@@ -55,7 +62,7 @@
   type: image;
   content: url('/examples/robot-walk.png');
   x: 340px; y: 48px; width: 192px; height: 256px;
-  object-view-box: xywh(0px 512px 96px 128px);
+  object-view-box: xywh(0px 512.5px 96px 127.5px);
   animation: walk 0.8s steps(8) infinite;
 }
 
@@ -80,7 +87,7 @@
   type: image;
   content: url('/examples/robot-walk.png');
   x: 580px; y: 48px; width: 144px; height: 192px;
-  object-view-box: xywh(0px 512px 96px 128px);
+  object-view-box: xywh(0px 512.5px 96px 127.5px);
   &:state(gait.walk) { animation: walk 0.8s steps(8) infinite; }
   &:state(gait.run)  { animation: run 0.45s steps(3) infinite; }
 }
