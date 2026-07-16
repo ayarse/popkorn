@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getNumericValue } from "./ast";
 import { parse } from "./parser";
+import { serialize } from "./serializer";
 
 // Strip position metadata (source-offset spans + diagnostics) so structural
 // assertions compare the AST *value*. Dedicated span round-trip tests below
@@ -384,6 +385,105 @@ test("clamp() requires exactly 3 args; min/max reject empties", () => {
   expect(() => parse("#s { cx: clamp(1px, 2px); }")).toThrow(/clamp/);
   expect(() => parse("#s { cx: clamp(1px, 2px, 3px, 4px); }")).toThrow(/clamp/);
   expect(() => parse("#s { cx: min(); }")).toThrow();
+});
+
+// --- CSS math functions (css-values-4) -------------------------------------
+
+// Fold a static math expression to its numeric value.
+const foldCalc = (src: string) =>
+  getNumericValue(parse(`#s { cx: ${src}; }`).rules[0].declarations[0].value);
+
+test("math functions parse as calc-typed values (top-level and nested)", () => {
+  expect(parse("#s { cx: sqrt(9); }").rules[0].declarations[0].value).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-function",
+      name: "sqrt",
+      args: [{ type: "calc-operand", value: { type: "number", value: 9 } }],
+    },
+  });
+  // Composes both directions across calc/min.
+  expect(foldCalc("calc(sqrt(16) * 2)")).toBe(8);
+  expect(foldCalc("min(sqrt(16), pow(2, 3))")).toBe(4);
+});
+
+test("e and pi constants fold in calc", () => {
+  expect(foldCalc("calc(pi)")).toBeCloseTo(Math.PI, 10);
+  expect(foldCalc("calc(e * 2)")).toBeCloseTo(Math.E * 2, 10);
+});
+
+test("trig: bare numbers are radians, angle units convert", () => {
+  expect(foldCalc("sin(0)")).toBeCloseTo(0, 10);
+  expect(foldCalc("cos(0)")).toBeCloseTo(1, 10);
+  expect(foldCalc("sin(90deg)")).toBeCloseTo(1, 10);
+  expect(foldCalc("cos(pi)")).toBeCloseTo(-1, 10);
+  expect(foldCalc("sin(0.5turn)")).toBeCloseTo(0, 10);
+  expect(foldCalc("tan(45deg)")).toBeCloseTo(1, 10);
+});
+
+test("inverse trig returns degrees", () => {
+  expect(foldCalc("asin(1)")).toBeCloseTo(90, 10);
+  expect(foldCalc("acos(0)")).toBeCloseTo(90, 10);
+  expect(foldCalc("atan(1)")).toBeCloseTo(45, 10);
+});
+
+test("atan2 resolves the correct quadrant (degrees)", () => {
+  expect(foldCalc("atan2(1, 1)")).toBeCloseTo(45, 10);
+  expect(foldCalc("atan2(1, -1)")).toBeCloseTo(135, 10);
+  expect(foldCalc("atan2(-1, -1)")).toBeCloseTo(-135, 10);
+  expect(foldCalc("atan2(-1, 1)")).toBeCloseTo(-45, 10);
+});
+
+test("exponential family: pow/sqrt/hypot/log/exp", () => {
+  expect(foldCalc("pow(2, 10)")).toBe(1024);
+  expect(foldCalc("hypot(3, 4)")).toBe(5);
+  expect(foldCalc("hypot(3px, 4px)")).toBe(5); // same-unit hypotenuse
+  expect(foldCalc("exp(0)")).toBe(1);
+  expect(foldCalc("log(e)")).toBeCloseTo(1, 10); // natural log by default
+  expect(foldCalc("log(8, 2)")).toBeCloseTo(3, 10); // explicit base
+});
+
+test("abs preserves unit, sign is unitless", () => {
+  expect(foldCalc("abs(-5px)")).toBe(5);
+  expect(foldCalc("sign(-42)")).toBe(-1);
+  expect(foldCalc("sign(42)")).toBe(1);
+  expect(foldCalc("sign(0)")).toBe(0);
+});
+
+test("mod follows the divisor sign, rem follows the dividend sign (CSS)", () => {
+  // mod(): sign of the divisor.
+  expect(foldCalc("mod(-3, 2)")).toBe(1);
+  expect(foldCalc("mod(3, -2)")).toBe(-1);
+  // rem(): sign of the dividend.
+  expect(foldCalc("rem(-3, 2)")).toBe(-1);
+  expect(foldCalc("rem(3, -2)")).toBe(1);
+});
+
+test("round strategies: nearest (default), up, down, to-zero", () => {
+  expect(foldCalc("round(2.4, 1)")).toBe(2);
+  expect(foldCalc("round(2.6, 1)")).toBe(3);
+  expect(foldCalc("round(nearest, 2.5, 1)")).toBe(3); // ties toward +∞
+  expect(foldCalc("round(up, 2.1, 1)")).toBe(3);
+  expect(foldCalc("round(down, 2.9, 1)")).toBe(2);
+  expect(foldCalc("round(to-zero, -2.9, 1)")).toBe(-2);
+  expect(foldCalc("round(2.7, 0.5)")).toBe(2.5); // arbitrary step
+});
+
+test("math functions enforce arg counts", () => {
+  expect(() => parse("#s { cx: sin(1, 2); }")).toThrow(/sin/);
+  expect(() => parse("#s { cx: pow(2); }")).toThrow(/pow/);
+  expect(() => parse("#s { cx: atan2(1); }")).toThrow(/atan2/);
+  expect(() => parse("#s { cx: round(1); }")).toThrow(/round/);
+  expect(() => parse("#s { cx: log(1, 2, 3); }")).toThrow(/log/);
+});
+
+test("round() strategy round-trips through the serializer", () => {
+  const rt = (src: string) =>
+    serialize(parse(`#s { cx: ${src}; }`)).match(/cx: ([^;]+);/)![1];
+  expect(rt("round(up, 2.5px, 1px)")).toBe("round(up, 2.5px, 1px)");
+  // "nearest" is the default and elides.
+  expect(rt("round(nearest, 2.5px, 1px)")).toBe("round(2.5px, 1px)");
+  expect(rt("sin(90deg)")).toBe("sin(90deg)");
 });
 
 test("animation shorthand → list", () => {

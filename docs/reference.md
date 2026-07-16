@@ -26,12 +26,18 @@ visible` to let content spill past the artboard (clipping is also skipped when
 
 Selectors are `#id`, `.class`, or `:root` — any other `:pseudo` selector at the
 top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
-units `s` / `ms`, plus `deg` for angles; many properties also take a bare number
-(fractions for `trim-*`/`offset-distance`, milliseconds for `time-*`/`visible-*`,
-counts for `sides`). Numeric values also accept `calc()` (`+`/`-`/`*`/`/`,
-parens, `var()`/`input()` operands) and the CSS math functions `min()`, `max()`,
-and `clamp(MIN, VAL, MAX)` (each argument a full `calc()` expression; they nest
-in and out of `calc()`, and re-evaluate per frame with reactive operands). Colors accept hex 3–8 digits (`#rgb` …
+units `s` / `ms`, plus the angle units `deg` / `grad` / `rad` / `turn`; many
+properties also take a bare number (fractions for `trim-*`/`offset-distance`,
+milliseconds for `time-*`/`visible-*`, counts for `sides`). Numeric values also
+accept `calc()` (`+`/`-`/`*`/`/`, parens, `var()`/`input()` operands) and the CSS
+math functions: comparison `min()`, `max()`, `clamp(MIN, VAL, MAX)`; stepped
+`round([nearest|up|down|to-zero,] value, step)`, `mod()` (sign of the divisor),
+`rem()` (sign of the dividend); trig `sin()`, `cos()`, `tan()` (bare operands are
+radians, angle units convert) and `asin()`, `acos()`, `atan()`, `atan2(y, x)`
+(returning degrees); exponential `pow(base, exp)`, `sqrt()`, `hypot(…)`,
+`log(x[, base])`, `exp()`; and `abs()`, `sign()`, plus the `e` and `pi`
+constants. Each argument is a full `calc()` expression; they nest in and out of
+`calc()`, and re-evaluate per frame with reactive operands. Colors accept hex 3–8 digits (`#rgb` …
 `#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, and CSS named colors — for
 both solid colors and gradient stops. Block comments (`/* … */`) and a trailing
 `;` before `}` are allowed.

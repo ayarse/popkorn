@@ -2,6 +2,7 @@ export type {
   CalcBinary,
   CalcExpr,
   CalcFunction,
+  CalcFunctionName,
   CalcNumeric,
   CalcOperand,
   CalcValue,
@@ -22,6 +23,7 @@ export type {
   MachineTrigger,
   NumberValue,
   PseudoState,
+  RoundStrategy,
   Rule,
   Selector,
   Span,
@@ -33,6 +35,7 @@ export type {
   VariableRefValue,
 } from "./ast";
 export {
+  calcConstant,
   calcNumericToValue,
   evalCalc,
   evalCalcStatic,

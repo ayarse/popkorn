@@ -10,6 +10,7 @@
 import type {
   CalcExpr,
   CalcFunction,
+  CalcFunctionName,
   CalcValue,
   CanvasConfig,
   Declaration,
@@ -22,6 +23,7 @@ import type {
   MachineTransition,
   MachineTrigger,
   PseudoState,
+  RoundStrategy,
   Rule,
   Selector,
   Span,
@@ -66,8 +68,19 @@ const NUMBER = /-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)/y;
 // a node-id reference (`mask: #Background-…`). A real hex color is never
 // followed by another identifier char, so require a non-[\w-] boundary after it.
 const COLOR = /#[0-9a-fA-F]{3,8}(?![\w-])/y;
-// Longest-first so 'ms' beats 's' and 'rem' beats 'em'.
-const UNITS = ["deg", "rem", "px", "em", "ms", "s"] as const;
+// Longest-first so 'ms' beats 's' and 'rem' beats 'em'. deg/grad/rad/turn are
+// the CSS angle units the trig math functions consume.
+const UNITS = [
+  "grad",
+  "turn",
+  "deg",
+  "rad",
+  "rem",
+  "px",
+  "em",
+  "ms",
+  "s",
+] as const;
 
 class Cursor {
   pos = 0;
@@ -864,10 +877,7 @@ function parseValue(c: Cursor): Value {
   if (name === "calc" && c.peek() === "(") {
     return parseCalc(c);
   }
-  if (
-    (name === "min" || name === "max" || name === "clamp") &&
-    c.peek() === "("
-  ) {
+  if (isCalcFunctionName(name) && c.peek() === "(") {
     // A top-level math function wraps its node in a calc() Value so every
     // downstream calc path (static fold, reactive resolve) picks it up for free.
     return { type: "calc", expr: parseCalcFunction(c, name) };
@@ -923,27 +933,106 @@ function parseCalc(c: Cursor): CalcValue {
   return { type: "calc", expr };
 }
 
-// min()/max()/clamp() — comma-separated calc sums. `(` already peeked. Each arg
-// is a full sum, so calc composes inside them and (via parseValue) they compose
-// inside calc. clamp needs exactly 3 args; min/max need at least 1.
-function parseCalcFunction(
-  c: Cursor,
-  name: "min" | "max" | "clamp",
-): CalcFunction {
+// The CSS math functions Popkorn understands. Each is comma-separated calc sums
+// (parseCalcFunction), so calc composes inside them and (via parseValue) they
+// compose inside calc.
+const CALC_FUNCTIONS = new Set<CalcFunctionName>([
+  "min",
+  "max",
+  "clamp",
+  "round",
+  "mod",
+  "rem",
+  "sin",
+  "cos",
+  "tan",
+  "asin",
+  "acos",
+  "atan",
+  "atan2",
+  "pow",
+  "sqrt",
+  "hypot",
+  "log",
+  "exp",
+  "abs",
+  "sign",
+]);
+
+// Expected argument count per function: a fixed count, or [min, max] with max
+// Infinity for variadic. round()'s optional strategy is consumed separately.
+const CALC_ARITY: Record<CalcFunctionName, number | [number, number]> = {
+  min: [1, Infinity],
+  max: [1, Infinity],
+  hypot: [1, Infinity],
+  clamp: 3,
+  round: 2,
+  mod: 2,
+  rem: 2,
+  atan2: 2,
+  pow: 2,
+  log: [1, 2],
+  sin: 1,
+  cos: 1,
+  tan: 1,
+  asin: 1,
+  acos: 1,
+  atan: 1,
+  sqrt: 1,
+  exp: 1,
+  abs: 1,
+  sign: 1,
+};
+
+const ROUND_STRATEGIES = new Set<RoundStrategy>([
+  "nearest",
+  "up",
+  "down",
+  "to-zero",
+]);
+
+function isCalcFunctionName(name: string): name is CalcFunctionName {
+  return CALC_FUNCTIONS.has(name as CalcFunctionName);
+}
+
+// Parse a math function's argument list. `(` already peeked. round() may lead
+// with a rounding strategy keyword (`round(up, x, y)`); everything else is a
+// plain comma-separated list of calc sums, validated against CALC_ARITY.
+function parseCalcFunction(c: Cursor, name: CalcFunctionName): CalcFunction {
   c.expect("(");
+  const strategy = name === "round" ? eatRoundStrategy(c) : undefined;
   const args: CalcExpr[] = [];
   if (c.peek() !== ")") {
     args.push(parseCalcSum(c));
     while (c.eat(",")) args.push(parseCalcSum(c));
   }
   c.expect(")");
-  if (name === "clamp" && args.length !== 3)
+  const arity = CALC_ARITY[name];
+  const [lo, hi] = typeof arity === "number" ? [arity, arity] : arity;
+  if (args.length < lo || args.length > hi) {
+    const want =
+      lo === hi
+        ? `exactly ${lo}`
+        : hi === Infinity
+          ? `at least ${lo}`
+          : `${lo}–${hi}`;
     throw new Error(
-      c.errorAt(`clamp() takes exactly 3 arguments, got ${args.length}`),
+      c.errorAt(`${name}() takes ${want} argument(s), got ${args.length}`),
     );
-  if (name !== "clamp" && args.length < 1)
-    throw new Error(c.errorAt(`${name}() needs at least 1 argument`));
-  return { type: "calc-function", name, args };
+  }
+  return { type: "calc-function", name, args, strategy };
+}
+
+// Consume a leading `<strategy> ,` from a round() argument list, if present.
+// Restores the cursor when the first token isn't a strategy keyword.
+function eatRoundStrategy(c: Cursor): RoundStrategy | undefined {
+  const save = c.pos;
+  const id = c.match(IDENT);
+  if (id && ROUND_STRATEGIES.has(id as RoundStrategy) && c.eat(",")) {
+    return id as RoundStrategy;
+  }
+  c.pos = save;
+  return undefined;
 }
 
 function parseCalcSum(c: Cursor): CalcExpr {

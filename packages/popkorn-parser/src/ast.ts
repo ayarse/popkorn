@@ -115,7 +115,17 @@ export interface VariableRefValue {
 export interface LengthValue {
   type: "length";
   value: number;
-  unit: "px" | "deg" | "%" | "em" | "rem" | "s" | "ms";
+  unit:
+    | "px"
+    | "deg"
+    | "grad"
+    | "rad"
+    | "turn"
+    | "%"
+    | "em"
+    | "rem"
+    | "s"
+    | "ms";
 }
 
 export interface ColorValue {
@@ -170,13 +180,41 @@ export interface CalcBinary {
   right: CalcExpr;
 }
 
-// CSS math comparison functions. clamp() is always 3 args (MIN, VAL, MAX);
-// min()/max() take one or more. Each argument is a full calc sum, so calc and
-// these compose in both directions.
+// CSS math functions. Comparison — clamp() is always 3 args (MIN, VAL, MAX),
+// min()/max() take one or more; stepped — round()/mod()/rem(); trig —
+// sin/cos/tan (angle→number) and asin/acos/atan/atan2 (number→angle in deg);
+// exponential — pow/sqrt/exp/log/hypot; sign — abs/sign. Each argument is a full
+// calc sum, so calc and these compose in both directions.
+export type CalcFunctionName =
+  | "min"
+  | "max"
+  | "clamp"
+  | "round"
+  | "mod"
+  | "rem"
+  | "sin"
+  | "cos"
+  | "tan"
+  | "asin"
+  | "acos"
+  | "atan"
+  | "atan2"
+  | "pow"
+  | "sqrt"
+  | "hypot"
+  | "log"
+  | "exp"
+  | "abs"
+  | "sign";
+
+// round()'s optional leading rounding strategy; defaults to "nearest".
+export type RoundStrategy = "nearest" | "up" | "down" | "to-zero";
+
 export interface CalcFunction {
   type: "calc-function";
-  name: "min" | "max" | "clamp";
+  name: CalcFunctionName;
   args: CalcExpr[];
+  strategy?: RoundStrategy; // round() only
 }
 
 // A leaf: any numeric Value (length/number/var()/input()/nested calc()).
@@ -315,27 +353,7 @@ export function evalCalc(
       if (!n) return null;
       args.push(n);
     }
-    // Compatible-unit rule mirrors +/-: all non-unitless operands must agree.
-    let unit = "";
-    for (const a of args) {
-      if (a.unit) {
-        if (unit && unit !== a.unit) return null;
-        unit = a.unit;
-      }
-    }
-    if (expr.name === "clamp") {
-      // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
-      const [min, val, max] = args;
-      return {
-        value: Math.max(min.value, Math.min(val.value, max.value)),
-        unit,
-      };
-    }
-    const values = args.map((a) => a.value);
-    return {
-      value: expr.name === "min" ? Math.min(...values) : Math.max(...values),
-      unit,
-    };
+    return evalCalcFunction(expr, args);
   }
   const l = evalCalc(expr.left, resolveLeaf);
   const r = evalCalc(expr.right, resolveLeaf);
@@ -358,6 +376,139 @@ export function evalCalc(
   }
 }
 
+// The `e` and `pi` constants, usable as bare calc operands. Returns null for
+// any other keyword so the leaf resolvers can fall through.
+export function calcConstant(name: string): CalcNumeric | null {
+  if (name === "pi") return { value: Math.PI, unit: "" };
+  if (name === "e") return { value: Math.E, unit: "" };
+  return null;
+}
+
+// The agreed unit of a set of operands, mirroring +/-'s rule: every non-unitless
+// operand must match. Returns "" when all are unitless, or null on a conflict.
+function agreedUnit(args: CalcNumeric[]): string | null {
+  let unit = "";
+  for (const a of args) {
+    if (a.unit) {
+      if (unit && unit !== a.unit) return null;
+      unit = a.unit;
+    }
+  }
+  return unit;
+}
+
+// A trig operand as radians: bare numbers are radians (CSS), angle units convert.
+function toRadians(n: CalcNumeric): number {
+  switch (n.unit) {
+    case "deg":
+      return (n.value * Math.PI) / 180;
+    case "grad":
+      return (n.value * Math.PI) / 200;
+    case "turn":
+      return n.value * 2 * Math.PI;
+    // NOTE: "" (unitless) and "rad" are already radians; unknown units are
+    // treated as radians rather than rejected — trig operands are numbers/angles.
+    default:
+      return n.value;
+  }
+}
+
+const radToDeg = (r: number): number => (r * 180) / Math.PI;
+
+// Evaluate a CSS math function against its already-resolved numeric args. Returns
+// null on an unresolvable unit combination (matching +/-'s conservatism).
+function evalCalcFunction(
+  expr: CalcFunction,
+  args: CalcNumeric[],
+): CalcNumeric | null {
+  const v = args.map((a) => a.value);
+  switch (expr.name) {
+    case "min":
+    case "max":
+    case "clamp": {
+      const unit = agreedUnit(args);
+      if (unit === null) return null;
+      if (expr.name === "clamp") {
+        // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
+        const [min, val, max] = v;
+        return { value: Math.max(min, Math.min(val, max)), unit };
+      }
+      return {
+        value: expr.name === "min" ? Math.min(...v) : Math.max(...v),
+        unit,
+      };
+    }
+    case "hypot": {
+      const unit = agreedUnit(args);
+      if (unit === null) return null;
+      return { value: Math.hypot(...v), unit };
+    }
+    // mod() follows the sign of the divisor; rem() follows the dividend (CSS).
+    case "mod": {
+      const unit = agreedUnit(args);
+      if (unit === null) return null;
+      return { value: v[0] - v[1] * Math.floor(v[0] / v[1]), unit };
+    }
+    case "rem": {
+      const unit = agreedUnit(args);
+      if (unit === null) return null;
+      return { value: v[0] % v[1], unit };
+    }
+    case "round": {
+      const unit = agreedUnit(args);
+      if (unit === null) return null;
+      return { value: roundTo(expr.strategy ?? "nearest", v[0], v[1]), unit };
+    }
+    case "abs":
+      return { value: Math.abs(v[0]), unit: args[0].unit };
+    case "sign":
+      return { value: Math.sign(v[0]), unit: "" };
+    case "sin":
+      return { value: Math.sin(toRadians(args[0])), unit: "" };
+    case "cos":
+      return { value: Math.cos(toRadians(args[0])), unit: "" };
+    case "tan":
+      return { value: Math.tan(toRadians(args[0])), unit: "" };
+    case "asin":
+      return { value: radToDeg(Math.asin(v[0])), unit: "deg" };
+    case "acos":
+      return { value: radToDeg(Math.acos(v[0])), unit: "deg" };
+    case "atan":
+      return { value: radToDeg(Math.atan(v[0])), unit: "deg" };
+    case "atan2":
+      return { value: radToDeg(Math.atan2(v[0], v[1])), unit: "deg" };
+    case "sqrt":
+      return { value: Math.sqrt(v[0]), unit: "" };
+    case "exp":
+      return { value: Math.exp(v[0]), unit: "" };
+    case "pow":
+      return { value: v[0] ** v[1], unit: "" };
+    case "log":
+      return {
+        value:
+          args.length > 1 ? Math.log(v[0]) / Math.log(v[1]) : Math.log(v[0]),
+        unit: "",
+      };
+  }
+}
+
+// round(strategy, value, step): quantize `value` to a multiple of `step`. A zero
+// step yields NaN (CSS). "nearest" ties toward +∞, matching Math.round.
+function roundTo(strategy: RoundStrategy, value: number, step: number): number {
+  if (step === 0) return NaN;
+  const q = value / step;
+  switch (strategy) {
+    case "up":
+      return Math.ceil(q) * step;
+    case "down":
+      return Math.floor(q) * step;
+    case "to-zero":
+      return Math.trunc(q) * step;
+    default:
+      return Math.round(q) * step;
+  }
+}
+
 /** A {@link CalcNumeric} as a concrete AST Value (unitless → number). */
 export function calcNumericToValue(n: CalcNumeric): Value {
   return n.unit
@@ -371,6 +522,7 @@ function staticLeaf(v: Value): CalcNumeric | null {
   if (v.type === "number") return { value: v.value, unit: "" };
   if (v.type === "length") return { value: v.value, unit: v.unit };
   if (v.type === "calc") return evalCalc(v.expr, staticLeaf);
+  if (v.type === "keyword") return calcConstant(v.value);
   return null;
 }
 

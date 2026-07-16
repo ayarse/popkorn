@@ -116,8 +116,12 @@ function fmtValue(v: Value, min: boolean): string {
 function fmtCalc(expr: CalcExpr, min: boolean): string {
   if (expr.type === "calc-operand") return fmtValue(expr.value, min);
   if (expr.type === "calc-function") {
-    const args = expr.args.map((a) => fmtCalc(a, min)).join(min ? "," : ", ");
-    return `${expr.name}(${args})`;
+    const sep = min ? "," : ", ";
+    const parts = expr.args.map((a) => fmtCalc(a, min));
+    // round()'s optional strategy leads the argument list ("nearest" is elided).
+    if (expr.strategy && expr.strategy !== "nearest")
+      parts.unshift(expr.strategy);
+    return `${expr.name}(${parts.join(sep)})`;
   }
   const l = fmtCalc(expr.left, min);
   const r = fmtCalc(expr.right, min);

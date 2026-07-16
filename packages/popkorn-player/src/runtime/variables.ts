@@ -6,6 +6,7 @@ import type {
   VariableDefinition,
 } from "@popkorn/parser";
 import {
+  calcConstant,
   calcNumericToValue,
   evalCalc,
   isCalcValue,
@@ -165,6 +166,7 @@ export class VariableResolver {
     if (isKeywordValue(resolved)) {
       if (resolved.value === "true") return { value: 1, unit: "" };
       if (resolved.value === "false") return { value: 0, unit: "" };
+      return calcConstant(resolved.value);
     }
     return null;
   }

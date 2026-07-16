@@ -1,0 +1,45 @@
+/*
+ * Reactive trig calc(): each dot's cy is a live sine of input(time), phase-shifted
+ * per column so the ring travels as a wave. No @keyframes — the motion is pure
+ * math re-evaluated every frame. cos() drives a companion orbiting dot.
+ */
+
+:root {
+  width: 760px;
+  height: 400px;
+  background: #0d1b2a;
+  --t: input(time);
+}
+
+#wave {
+  type: group;
+}
+
+@define dot {
+  type: circle;
+  r: 10px;
+  fill: #4cc9f0;
+}
+
+/* cy = sin(t/280 + phase) * 90 + 200; cx strides across; phase = column * 0.5. */
+#d0  { use: dot; cx: 40px;  cy: calc(sin(var(--t) / 280 + 0) * 90 + 200); }
+#d1  { use: dot; cx: 100px; cy: calc(sin(var(--t) / 280 + 0.5) * 90 + 200); }
+#d2  { use: dot; cx: 160px; cy: calc(sin(var(--t) / 280 + 1) * 90 + 200); }
+#d3  { use: dot; cx: 220px; cy: calc(sin(var(--t) / 280 + 1.5) * 90 + 200); }
+#d4  { use: dot; cx: 280px; cy: calc(sin(var(--t) / 280 + 2) * 90 + 200); }
+#d5  { use: dot; cx: 340px; cy: calc(sin(var(--t) / 280 + 2.5) * 90 + 200); }
+#d6  { use: dot; cx: 400px; cy: calc(sin(var(--t) / 280 + 3) * 90 + 200); }
+#d7  { use: dot; cx: 460px; cy: calc(sin(var(--t) / 280 + 3.5) * 90 + 200); }
+#d8  { use: dot; cx: 520px; cy: calc(sin(var(--t) / 280 + 4) * 90 + 200); }
+#d9  { use: dot; cx: 580px; cy: calc(sin(var(--t) / 280 + 4.5) * 90 + 200); }
+#d10 { use: dot; cx: 640px; cy: calc(sin(var(--t) / 280 + 5) * 90 + 200); }
+#d11 { use: dot; cx: 700px; cy: calc(sin(var(--t) / 280 + 5.5) * 90 + 200); }
+
+/* An orbit: cos()/sin() of the same clock trace a circle of radius 60 about (380, 200). */
+#orbit {
+  type: circle;
+  r: 14px;
+  fill: #f72585;
+  cx: calc(cos(var(--t) / 500) * 60 + 380);
+  cy: calc(sin(var(--t) / 500) * 60 + 200);
+}

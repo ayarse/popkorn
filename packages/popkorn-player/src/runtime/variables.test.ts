@@ -263,3 +263,22 @@ test("min()/max() with calc sums resolve reactively", () => {
   r.setVariable("--i", 12); // 125 vs 100 → 100
   expect(r.resolveNumeric(v)).toBe(100);
 });
+
+test("trig math re-evaluates over an input-driven value per frame", () => {
+  const r = createVariableResolver();
+  r.setVariables([]);
+  // cx: calc(sin(input(time) / 1000) * 100) — a live sine sweep.
+  const v = cxValue("calc(sin(input(time) / 1000) * 100)");
+  const setTime = (time: number) =>
+    r.updateInputState({
+      cursor: { x: 0, y: 0, isDown: false },
+      scroll: { x: 0, y: 0, progress: 0 },
+      time,
+    });
+  setTime(0);
+  expect(r.resolveNumeric(v)).toBeCloseTo(0, 6);
+  setTime((Math.PI / 2) * 1000); // sin(π/2) = 1 → 100
+  expect(r.resolveNumeric(v)).toBeCloseTo(100, 6);
+  setTime(Math.PI * 1000); // sin(π) = 0 → 0
+  expect(r.resolveNumeric(v)).toBeCloseTo(0, 6);
+});
