@@ -1,9 +1,11 @@
 /*
- * Sprite-sheet animation via object-view-box. One 256x64 bitmap holds four
- * 64px frames (a white ball bouncing over a cycling background). The crop pages
- * through them: steps(4) advances xywh's x by one 64px frame per step, so a
- * single still image plays as a loop. The whole sheet is shown up top for
- * reference; the big sprite below is the cropped, paged view.
+ * Sprite-sheet animation via object-view-box. hero-walk.png is a real CC0
+ * sprite sheet (see packages/playground/public/examples/CREDITS.md): 240x448,
+ * 6 columns x 7 rows of 40x64 frames, one row per facing direction. The walk
+ * crop pages through the 6 columns of a row: steps(6) advances xywh's x by
+ * one 40px frame per step, so a single still image plays as a loop. The
+ * facing sprite below picks its row via a click-driven @machine — each state
+ * swaps object-view-box's y offset to row-index * 64px.
  */
 
 :root {
@@ -12,42 +14,81 @@
   background: #12141c;
 }
 
-@keyframes play {
-  from { object-view-box: xywh(0 0 64px 64px); }
-  to   { object-view-box: xywh(256px 0 64px 64px); }   /* 4 frames past the last */
-}
-
-/* The full sheet, unclamped, so you can see all four frames at once. */
-#sheet {
-  type: image;
-  src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNTYnIGhlaWdodD0nNjQnPjxyZWN0IHg9JzAnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nI2ZmNmI2YicvPjxjaXJjbGUgY3g9JzMyJyBjeT0nNTAnIHI9JzExJyBmaWxsPScjZmZmZmZmJy8+PGNpcmNsZSBjeD0nMzInIGN5PSc1MCcgcj0nNCcgZmlsbD0nI2ZmNmI2YicvPjxyZWN0IHg9JzY0JyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyNmZmQ5M2QnLz48Y2lyY2xlIGN4PSc5NicgY3k9JzMwJyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9Jzk2JyBjeT0nMzAnIHI9JzQnIGZpbGw9JyNmZmQ5M2QnLz48cmVjdCB4PScxMjgnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nIzZiY2I3NycvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPSc0JyBmaWxsPScjNmJjYjc3Jy8+PHJlY3QgeD0nMTkyJyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyM0ZDk2ZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nMTEnIGZpbGw9JyNmZmZmZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nNCcgZmlsbD0nIzRkOTZmZicvPjwvc3ZnPg==';
-  x: 40px; y: 48px; width: 512px; height: 128px;
+@keyframes walk {
+  from { object-view-box: xywh(0 0 40px 64px); }
+  to   { object-view-box: xywh(240px 0 40px 64px); }   /* 6 frames past the last */
 }
 
 #sheet-label {
   type: text;
-  content: 'the sheet — 4 frames';
+  content: 'hero-walk.png — 6x7 frames';
   x: 40px; y: 40px;
   font-family: system-ui, sans-serif;
   font-size: 15px; font-weight: 600;
   fill: #9aa4b2;
 }
 
-/* The paged sprite: crop to one frame, advance a frame per step. */
-#sprite {
+/* The full sheet, unclamped, so you can see every row and column at once. */
+#sheet {
   type: image;
-  src: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScyNTYnIGhlaWdodD0nNjQnPjxyZWN0IHg9JzAnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nI2ZmNmI2YicvPjxjaXJjbGUgY3g9JzMyJyBjeT0nNTAnIHI9JzExJyBmaWxsPScjZmZmZmZmJy8+PGNpcmNsZSBjeD0nMzInIGN5PSc1MCcgcj0nNCcgZmlsbD0nI2ZmNmI2YicvPjxyZWN0IHg9JzY0JyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyNmZmQ5M2QnLz48Y2lyY2xlIGN4PSc5NicgY3k9JzMwJyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9Jzk2JyBjeT0nMzAnIHI9JzQnIGZpbGw9JyNmZmQ5M2QnLz48cmVjdCB4PScxMjgnIHk9JzAnIHdpZHRoPSc2NCcgaGVpZ2h0PSc2NCcgZmlsbD0nIzZiY2I3NycvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPScxMScgZmlsbD0nI2ZmZmZmZicvPjxjaXJjbGUgY3g9JzE2MCcgY3k9JzE0JyByPSc0JyBmaWxsPScjNmJjYjc3Jy8+PHJlY3QgeD0nMTkyJyB5PScwJyB3aWR0aD0nNjQnIGhlaWdodD0nNjQnIGZpbGw9JyM0ZDk2ZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nMTEnIGZpbGw9JyNmZmZmZmYnLz48Y2lyY2xlIGN4PScyMjQnIGN5PSczMCcgcj0nNCcgZmlsbD0nIzRkOTZmZicvPjwvc3ZnPg==';
-  x: 248px; y: 210px; width: 128px; height: 128px;
-  object-view-box: xywh(0 0 64px 64px);
-  animation: play 1s steps(4) infinite;
+  content: url('/examples/hero-walk.png');
+  x: 40px; y: 56px; width: 240px; height: 448px;
 }
 
-#sprite-label {
+/* The paged sprite: crop to row 0 (facing down), advance a column per step. */
+#walker {
+  type: image;
+  content: url('/examples/hero-walk.png');
+  x: 340px; y: 60px; width: 160px; height: 256px;
+  object-view-box: xywh(0 0 40px 64px);
+  animation: walk 0.9s steps(6) infinite;
+}
+
+#walker-label {
   type: text;
-  content: 'steps(4) pages the crop';
-  x: 312px; y: 200px;
+  content: 'steps(6) pages the walk cycle';
+  x: 420px; y: 48px;
   text-anchor: middle;
   font-family: system-ui, sans-serif;
   font-size: 15px; font-weight: 600;
   fill: #e8ecf1;
+}
+
+/* Facing selector: click cycles rows (directions) of the sheet. */
+@machine facing {
+  initial: row0;
+  state row0 { to: row1 on click(#facing-btn); }
+  state row1 { to: row2 on click(#facing-btn); }
+  state row2 { to: row3 on click(#facing-btn); }
+  state row3 { to: row0 on click(#facing-btn); }
+}
+
+#facing {
+  type: image;
+  content: url('/examples/hero-walk.png');
+  x: 340px; y: 344px; width: 100px; height: 160px;
+  object-view-box: xywh(0 0 40px 64px);
+  &:state(facing.row1) { object-view-box: xywh(0 64px 40px 64px); }
+  &:state(facing.row2) { object-view-box: xywh(0 128px 40px 64px); }
+  &:state(facing.row3) { object-view-box: xywh(0 192px 40px 64px); }
+}
+
+#facing-btn {
+  type: rect;
+  x: 460px; y: 344px; width: 140px; height: 40px;
+  rx: 8px;
+  fill: #2a2f3e;
+  stroke: #4d96ff;
+  stroke-width: 1px;
+  cursor: pointer;
+}
+
+#facing-btn-label {
+  type: text;
+  content: 'click to change facing';
+  x: 530px; y: 368px;
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  fill: #cdd6e3;
 }
