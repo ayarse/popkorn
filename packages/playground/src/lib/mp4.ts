@@ -58,6 +58,15 @@ export async function exportMp4(
   loop.setSceneSize(width, height);
   loop.getVariableResolver().setVariables(ast.variables);
 
+  // An unbounded scene (state machine, or all-infinite animations) free-runs
+  // forever — `loop.duration` is Infinity, and there's no honest frame range
+  // to export. Fail fast rather than feeding Infinity to the frame planner.
+  if (!isFinite(loop.duration)) {
+    throw new Error(
+      "This scene has no fixed duration (state machine or all-infinite animation) and can't be exported to MP4.",
+    );
+  }
+
   const plan = planMp4(loop.duration);
 
   // Composite target: fill the (opaque) background, then draw the (transparent)

@@ -246,8 +246,11 @@ export function TimelinePanel({
 
   // Display extent: past the scene duration when delayed/looping/state anims run
   // longer — and the sole extent for pure state-machine scenes (duration 0).
+  // An unbounded scene (state machine, or all-infinite animations) reports
+  // Infinity — seed at 0 instead and let finite animation ends alone establish
+  // the extent, same as the pure-state-machine case.
   const displayEnd = useMemo(() => {
-    let d = duration;
+    let d = Number.isFinite(duration) ? duration : 0;
     for (const t of tracks)
       for (const a of t.animations) {
         const { entry } = animAnchor(a, machineStates);

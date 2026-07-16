@@ -276,8 +276,12 @@ export class RenderLoop {
     this.completeCallback = cb;
   }
 
-  /** Scene duration in ms (max animation end time; infinite counts as one iteration). */
+  /** Scene duration in ms. `Infinity` for an unbounded (state-machine or
+   *  all-infinite) scene — it free-runs and has no honest end. Otherwise the
+   *  finite nominal value (max animation end time; infinite counts as one
+   *  iteration), used internally for the wrap/clamp logic below. */
   get duration(): number {
+    if (this.sceneUnbounded) return Infinity;
     return this.sceneDuration;
   }
 

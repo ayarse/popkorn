@@ -889,12 +889,17 @@ export class PopkornPlayer extends HTMLElementBase {
     if (!this.boolAttr("controls")) return;
     if (!this.scrubbing) {
       const d = this.duration;
+      const finite = isFinite(d);
       // The loop clamps the timeline to duration when not looping, but a scene
       // with no animations (d = 0) still free-runs; clamp the readout/scrubber
       // so they never exceed the total.
       const shown = d > 0 ? Math.min(t, d) : 0;
-      this.scrub.value = String(shown);
-      this.timeEl.textContent = `${formatTime(shown)} / ${formatTime(d)}`;
+      if (finite) {
+        this.scrub.value = String(shown);
+        this.timeEl.textContent = `${formatTime(shown)} / ${formatTime(d)}`;
+      }
+      // Unbounded scene: scrub input and time readout are both hidden (see
+      // refreshControls) — nothing to update per frame.
     }
   }
 
@@ -919,11 +924,19 @@ export class PopkornPlayer extends HTMLElementBase {
     this.syncSize();
     if (!show) return;
     const d = this.duration;
-    this.scrub.max = String(d);
-    this.scrub.disabled = d <= 0;
+    const finite = isFinite(d);
+    // An unbounded scene has no endpoint to scrub to or elapsed total to read
+    // against (Rive hides the seeker for state machines the same way; a
+    // livestream/video player does likewise) — reduce the bar to play/pause
+    // only, hiding both the range input and the time readout.
+    this.scrub.style.display = finite ? "" : "none";
+    this.timeEl.style.display = finite ? "" : "none";
+    this.scrub.max = String(finite ? d : 0);
+    this.scrub.disabled = !finite || d <= 0;
     this.scrub.value = String(this.currentTime);
     this.playBtn.textContent = this.paused ? "▶" : "❚❚";
-    this.timeEl.textContent = `${formatTime(this.currentTime)} / ${formatTime(d)}`;
+    if (finite)
+      this.timeEl.textContent = `${formatTime(this.currentTime)} / ${formatTime(d)}`;
   }
 }
 

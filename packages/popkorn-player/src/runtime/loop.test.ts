@@ -424,6 +424,31 @@ test("mixed finite+infinite scene keeps the wrap", () => {
   expect(loop.currentTime).toBeCloseTo(1000, 0); // folded 4000 % 3000
 });
 
+// `duration` reports Infinity for an unbounded (all-infinite) scene — the timeline
+// free-runs and has no honest end, so the UI can't scrub to a nominal endpoint.
+test("duration: Infinity for an all-infinite (perpetual) scene", () => {
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(perpetualDot());
+  expect(loop.duration).toBe(Infinity);
+});
+
+// A scene with any finite-iteration animation stays on the wrapping clock (see
+// the test above), so `duration` reports the finite nominal value.
+test("duration: finite for a mixed finite+infinite scene", () => {
+  const root = buildSceneGraph(
+    parse(`
+    :root { width: 100px; height: 100px; }
+    #spin { type: circle; r: 5; animation: turn 2000ms linear infinite; }
+    #once { type: circle; r: 5; animation: slide 3000ms linear; }
+    @keyframes turn { 0% { cx: 0 } 100% { cx: 10 } }
+    @keyframes slide { 0% { cx: 0 } 100% { cx: 10 } }
+  `),
+  );
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root);
+  expect(loop.duration).toBe(3000);
+});
+
 // Continuity across the old wrap boundary: two infinite animations of different
 // periods (2000, 3000) give sceneDuration 3000. Node #a returns to its start
 // each 2000ms cycle, so under the free-running clock its cx at t=duration-1 and
