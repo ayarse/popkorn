@@ -7,7 +7,6 @@
 :root {
   width: 760px;
   height: 400px;
-  background: #0d1b2a;
   --t: input(time);
 }
 

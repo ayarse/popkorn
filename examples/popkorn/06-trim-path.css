@@ -5,7 +5,6 @@
 :root {
   width: 800px;
   height: 600px;
-  background: #0b0f1e;
 }
 
 /* Pen writing: reveal with trim-end, hold the finished word, then wipe with trim-start. */
