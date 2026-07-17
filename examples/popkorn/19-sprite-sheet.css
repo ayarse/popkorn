@@ -31,12 +31,20 @@
   to   { object-view-box: xywh(864.5px 256.5px 95px 127px); }   /* 3 frames past the last */
 }
 
-#sheet-label {
+/* One label symbol; each use-site swaps content (and anything else). */
+@define label {
   type: text;
-  content: 'robot-walk.png — 9x5 frames';
-  x: 40px; y: 30px;
   font-family: system-ui, sans-serif;
   font-size: 15px; font-weight: 600;
+  text-anchor: middle;
+  fill: #e8ecf1;
+}
+
+#sheet-label {
+  use: label;
+  content: 'robot-walk.png — 9x5 frames';
+  x: 40px; y: 30px;
+  text-anchor: start;
   fill: #9aa4b2;
 }
 
@@ -48,13 +56,9 @@
 }
 
 #walker-label {
-  type: text;
+  use: label;
   content: 'steps(8) pages the walk cycle';
   x: 436px; y: 30px;
-  text-anchor: middle;
-  font-family: system-ui, sans-serif;
-  font-size: 15px; font-weight: 600;
-  fill: #e8ecf1;
 }
 
 /* The paged sprite: crop to the walk row, advance a column per step. */
@@ -67,13 +71,10 @@
 }
 
 #gait-label {
-  type: text;
+  use: label;
   content: 'click to toggle walk / run';
   x: 652px; y: 30px;
-  text-anchor: middle;
-  font-family: system-ui, sans-serif;
-  font-size: 14px; font-weight: 600;
-  fill: #e8ecf1;
+  font-size: 14px;
 }
 
 /* Gait selector: click toggles between the walk and run cycles. */
@@ -103,11 +104,9 @@
 }
 
 #toggle-btn-label {
-  type: text;
+  use: label;
   content: 'toggle';
   x: 652px; y: 275px;
-  text-anchor: middle;
-  font-family: system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 13px; font-weight: 400;
   fill: #cdd6e3;
 }
