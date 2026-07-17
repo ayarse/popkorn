@@ -563,6 +563,12 @@ export class SceneBuilder {
     }
 
     const node = createSceneNode(id, shapeType);
+    // Materialize the typed shapeData up front so declarations are applied in a
+    // CSS-order-independent way: shape props (font-size, content, width, …) guard
+    // on shapeData.type, so a declaration preceding this would otherwise be
+    // dropped against the default group shapeData (fill/opacity are node-level and
+    // stayed unaffected — the tell-tale asymmetry).
+    this.ensureShapeData(node);
 
     if (rule.selector.type === "class") {
       node.className = id;

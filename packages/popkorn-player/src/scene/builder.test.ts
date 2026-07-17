@@ -45,6 +45,19 @@ test("text: props mapped with defaults", () => {
   });
 });
 
+test("text: shape props apply regardless of declaration order (font-size before type)", () => {
+  // Regression: shapeData props guard on shapeData.type, which used to only be
+  // materialized after the first declaration — so a shape prop in the first slot
+  // was dropped while node-level fill still applied. Order must not matter.
+  const t = build(
+    '#t { font-size: 40px; content: "AB"; type: text; fill: #ff0000; }',
+  ).children[0];
+  const sd = t.shapeData as TextData;
+  expect(sd.fontSize).toBe(40);
+  expect(sd.content).toBe("AB");
+  expect(t.fill).toBe("#ff0000");
+});
+
 test("text: font-family / numeric font-weight", () => {
   const t = build(
     '#t { type: text; content: "x"; font-family: "Georgia"; font-weight: 700; }',
