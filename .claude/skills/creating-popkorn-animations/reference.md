@@ -108,8 +108,13 @@ keywords (`red`, `center`), strings (`"Hello"`), functions (`rgb(…)`,
 `cubic-bezier(…)`, `input(…)`), and `var(--x)` references. Space-separated
 values in one declaration form a **list** (e.g. `pulse 1.5s ease-in-out
 infinite`); a single value is used directly. Numeric values also take `calc()`
-and the math functions `min()`, `max()`, `clamp(MIN, VAL, MAX)` — each arg is a
-full `calc()` expr, they nest with `calc()`, and reactive operands
+and CSS math functions — comparison `min()`, `max()`, `clamp(MIN, VAL, MAX)`;
+stepped/sign `round([<strategy>,] VAL[, STEP])` (strategy is `nearest`
+(default), `up`, `down`, or `to-zero`; step defaults to `1`), `mod(A, B)`
+(sign of `B`), `rem(A, B)` (sign of `A`), `abs(X)`, `sign(X)`; trig `sin()`,
+`cos()`, `tan()`, `asin()`, `acos()`, `atan()`, `atan2(Y, X)`; exponential
+`pow(BASE, EXP)`, `sqrt()`, `hypot(...)`, `log(X[, BASE])`, `exp()` — each arg
+is a full `calc()` expr, they nest with `calc()`, and reactive operands
 (`var()`/`input()`) re-evaluate per frame.
 
 ### `var()` is typed; `input()` is numeric-only

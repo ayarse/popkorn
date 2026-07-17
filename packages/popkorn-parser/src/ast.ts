@@ -457,7 +457,9 @@ function evalCalcFunction(
     case "round": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: roundTo(expr.strategy ?? "nearest", v[0], v[1]), unit };
+      // Step defaults to 1 (in the value's own unit) when omitted.
+      const step = args.length > 1 ? v[1] : 1;
+      return { value: roundTo(expr.strategy ?? "nearest", v[0], step), unit };
     }
     case "abs":
       return { value: Math.abs(v[0]), unit: args[0].unit };

@@ -469,11 +469,44 @@ test("round strategies: nearest (default), up, down, to-zero", () => {
   expect(foldCalc("round(2.7, 0.5)")).toBe(2.5); // arbitrary step
 });
 
+test("round() step defaults to 1 when omitted (CSS)", () => {
+  expect(foldCalc("round(2.4)")).toBe(2);
+  expect(foldCalc("round(2.6)")).toBe(3);
+  expect(foldCalc("round(up, 2.1)")).toBe(3);
+});
+
+test("round/mod/rem compose both directions inside calc()", () => {
+  expect(foldCalc("calc(round(2.4, 1) * 2)")).toBe(4);
+  expect(foldCalc("calc(mod(-3, 2) + 10)")).toBe(11);
+  expect(foldCalc("min(round(7.5, 1), rem(-3, 2))")).toBe(-1);
+  expect(foldCalc("calc(abs(sign(-9) * 5))")).toBe(5);
+});
+
+test("round/mod/rem/abs/sign resolve a reactive var() operand", () => {
+  const v = parse("#s { cx: round(var(--x), 1); }").rules[0].declarations[0]
+    .value;
+  expect(v).toEqual({
+    type: "calc",
+    expr: {
+      type: "calc-function",
+      name: "round",
+      args: [
+        { type: "calc-operand", value: { type: "variable", name: "--x" } },
+        { type: "calc-operand", value: { type: "number", value: 1 } },
+      ],
+    },
+  });
+  // Static fold can't resolve the var(), so it falls back to 0 — the calc()
+  // itself stays unfolded for per-frame resolution against the runtime var.
+  expect(foldCalc("round(var(--x), 1)")).toBe(0);
+});
+
 test("math functions enforce arg counts", () => {
   expect(() => parse("#s { cx: sin(1, 2); }")).toThrow(/sin/);
   expect(() => parse("#s { cx: pow(2); }")).toThrow(/pow/);
   expect(() => parse("#s { cx: atan2(1); }")).toThrow(/atan2/);
-  expect(() => parse("#s { cx: round(1); }")).toThrow(/round/);
+  expect(() => parse("#s { cx: round(); }")).toThrow(/round/);
+  expect(() => parse("#s { cx: round(1, 2, 3); }")).toThrow(/round/);
   expect(() => parse("#s { cx: log(1, 2, 3); }")).toThrow(/log/);
 });
 

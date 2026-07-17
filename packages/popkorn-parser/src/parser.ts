@@ -1027,7 +1027,7 @@ const CALC_ARITY: Record<CalcFunctionName, number | [number, number]> = {
   max: [1, Infinity],
   hypot: [1, Infinity],
   clamp: 3,
-  round: 2,
+  round: [1, 2], // step defaults to 1 when omitted
   mod: 2,
   rem: 2,
   atan2: 2,
