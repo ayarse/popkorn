@@ -1031,7 +1031,13 @@ export class SceneBuilder {
         break;
       case "font-family":
         if (node.shapeData.type === "text") {
-          (node.shapeData as TextData).fontFamily = getStringValue(value);
+          // A comma fallback stack (`system-ui, sans-serif`) parses to a list;
+          // join it back so ctx.font gets a real family. An empty family makes
+          // the whole `${weight} ${size}px ${family}` string invalid, so the
+          // browser rejects it and text silently pins to the canvas default.
+          (node.shapeData as TextData).fontFamily = isListValue(value)
+            ? value.values.map(getStringValue).join(", ")
+            : getStringValue(value);
         }
         break;
       case "font-weight":

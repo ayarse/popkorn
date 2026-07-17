@@ -67,6 +67,17 @@ test("text: font-family / numeric font-weight", () => {
   expect(sd.fontWeight).toBe("700");
 });
 
+test("text: comma font-family stack is preserved (not dropped to empty)", () => {
+  // Regression: a comma list parsed to a ListValue, getStringValue returned "",
+  // so ctx.font became `${weight} ${size}px ` — invalid, silently rejected by
+  // the browser, pinning text to the default font AND making font-size edits
+  // (which rebuild the same broken string) have no visible effect.
+  const sd = build(
+    "#t { type: text; content: 'x'; font-family: system-ui, sans-serif; }",
+  ).children[0].shapeData as TextData;
+  expect(sd.fontFamily).toBe("system-ui, sans-serif");
+});
+
 test("text: headless bounds estimate is sane (0.6 * fontSize * len)", () => {
   const t = build(
     '#t { type: text; content: "AB"; x: 100px; y: 100px; font-size: 20px; }',
