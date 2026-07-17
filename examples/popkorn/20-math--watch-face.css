@@ -1,0 +1,267 @@
+/*
+ * Astronomical complication watch — an orrery / moon-phase face driven purely
+ * by reactive trig + modular math on input(time), no @keyframes. Scene time
+ * runs 8x real (virtualSeconds = t/125) so every gear visibly turns.
+ *
+ * Timekeeping (unchanged register): each hand is a group pinned to the dial
+ * center and rotated with calc(); rotating about the group's own untranslated
+ * origin pivots exactly at center. Hour/minute sweep continuously (mod() wraps
+ * the cycle) at geared ratios; the second hand is quantized with round(down, …)
+ * so it steps once per virtual second instead of sweeping.
+ *
+ * Complications layered behind the hands:
+ *  - Orrery: three planets riding concentric orbit tracks, placed by
+ *    cos()/sin() of the shared clock scaled to very different periods
+ *    (inner ~1.9s, mid ~4.4s, outer ~9.4s per revolution — inner fast,
+ *    outer slow, like real orbital gearing).
+ *  - Moon phase (6 o'clock sub-dial): a lit disc with a sky-coloured shadow
+ *    disc sliding across it; the offset is a slow sine of the clock (~16s
+ *    lunation). The shadow merges into the matching sub-dial sky, so the lit
+ *    remainder reads as waxing/waning crescents through full and new.
+ *    NOTE: this is a sliding-disc approximation, not a true spherical
+ *    terminator — a real terminator would need an arc/clip carve; upgrade path
+ *    is a clip-path against an offset ellipse if crisper phases are wanted.
+ *  - Starfield: dim scattered dots, a few twinkling via sin() opacity at
+ *    different phases.
+ *
+ * Layout at 480x480 keeps three visual classes distinct: hour marks are radial
+ * bars, planets are glowing dots on dashed tracks, stars are the faintest and
+ * smallest dots. A dashed r=190 ring is the minute track (60 dashes = 60
+ * marks). The sub-dial is clipped so nothing spills past its bezel.
+ */
+
+:root {
+  width: 480px;
+  height: 480px;
+  background: #08081a;
+  --t: input(time);
+}
+
+#dial {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  r: 200px;
+  fill: radial-gradient(circle 220px at 240px 210px, #1b1b3a 0%, #0c0c1f 100%);
+  stroke: #2c2c48;
+  stroke-width: 4px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+}
+
+/* Minute track: a dashed ring whose 60 dashes are the minute marks —
+   dash + gap = circumference(r 190) / 60. */
+#minute-track {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  r: 190px;
+  fill: none;
+  stroke: #33335a;
+  stroke-width: 3px;
+  stroke-dasharray: 1.5 18.4;
+}
+
+/* --- Starfield: dim dots behind everything; a few twinkle via sin() opacity. */
+@define star {
+  type: circle;
+  r: 1.1px;
+  fill: #45455f;
+}
+
+@define star-twinkle {
+  type: circle;
+  r: 1.3px;
+  fill: #7a7aad;
+}
+
+#star0  { use: star; cx: 118px; cy: 108px; }
+#star1  { use: star; cx: 182px; cy: 78px; }
+#star2  { use: star; cx: 300px; cy: 92px; }
+#star3  { use: star; cx: 362px; cy: 132px; }
+#star4  { use: star; cx: 92px;  cy: 178px; }
+#star5  { use: star; cx: 402px; cy: 202px; }
+#star6  { use: star; cx: 330px; cy: 172px; }
+#star7  { use: star; cx: 410px; cy: 262px; }
+#star8  { use: star; cx: 86px;  cy: 288px; }
+#star9  { use: star; cx: 128px; cy: 348px; }
+
+/* opacity = sin(t/period + phase) * 0.4 + 0.55 — slow, out-of-phase blinking. */
+#twinkle0 { use: star-twinkle; cx: 150px; cy: 140px; opacity: calc(sin(var(--t) / 620 + 0) * 0.4 + 0.55); }
+#twinkle1 { use: star-twinkle; cx: 356px; cy: 300px; opacity: calc(sin(var(--t) / 780 + 2) * 0.4 + 0.55); }
+#twinkle2 { use: star-twinkle; cx: 300px; cy: 118px; opacity: calc(sin(var(--t) / 540 + 4) * 0.4 + 0.55); }
+#twinkle3 { use: star-twinkle; cx: 96px;  cy: 236px; opacity: calc(sin(var(--t) / 700 + 1) * 0.4 + 0.55); }
+
+/* --- Orrery: faint concentric tracks, planets placed by cos/sin of scaled t.
+   Track radii 58/86/114; planet angle = t / period (radians), inner fastest. */
+@define orbit-track {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  fill: none;
+  stroke: #30305a;
+  stroke-width: 1px;
+  stroke-dasharray: 3 6;
+}
+
+#track-inner { use: orbit-track; r: 58px; }
+#track-mid   { use: orbit-track; r: 86px; }
+#track-outer { use: orbit-track; r: 114px; }
+
+#planet-inner {
+  type: circle;
+  r: 4px;
+  fill: #4cc9f0;
+  box-shadow: 0 0 12px #4cc9f0;
+  cx: calc(cos(var(--t) / 300) * 58 + 240);
+  cy: calc(sin(var(--t) / 300) * 58 + 240);
+}
+
+#planet-mid {
+  type: circle;
+  r: 3.4px;
+  fill: #f72585;
+  box-shadow: 0 0 12px #f72585;
+  cx: calc(cos(var(--t) / 700) * 86 + 240);
+  cy: calc(sin(var(--t) / 700) * 86 + 240);
+}
+
+#planet-outer {
+  type: circle;
+  r: 4.6px;
+  fill: #ffd166;
+  box-shadow: 0 0 14px #ffd166;
+  cx: calc(cos(var(--t) / 1500) * 114 + 240);
+  cy: calc(sin(var(--t) / 1500) * 114 + 240);
+}
+
+/* --- Moon phase sub-dial at 6 o'clock. Clipped to the bezel so the sliding
+   shadow disc never spills; shadow fill == sky fill so it reads as phase.
+   offset = sin(t / 2600) * 46 sweeps new → crescent → full and back. */
+#moon-phase {
+  type: group;
+  clip-path: circle(27 at 240 348);
+  > #moon-sky {
+    type: circle;
+    cx: 240px;
+    cy: 348px;
+    r: 27px;
+    fill: #0a0a1e;
+  }
+  > #moon-lit {
+    type: circle;
+    cx: 240px;
+    cy: 348px;
+    r: 22px;
+    fill: #e6e6f2;
+  }
+  > #moon-shadow {
+    type: circle;
+    cy: 348px;
+    r: 22px;
+    fill: #0a0a1e;
+    cx: calc(sin(var(--t) / 2600) * 46 + 240);
+  }
+}
+
+#moon-bezel {
+  type: circle;
+  cx: 240px;
+  cy: 348px;
+  r: 27px;
+  fill: none;
+  stroke: #5a5a8a;
+  stroke-width: 2px;
+}
+
+/* --- Twelve hour marks: radial bars authored pointing up from the pivot
+   (like the hands), each use-site rotated to its hour. rotate(0) = 12
+   o'clock; quarters get the longer accent bar. */
+@define tick {
+  type: rect;
+  x: -1.5px;
+  y: -182px;
+  width: 3px;
+  height: 14px;
+  rx: 1.5px;
+  fill: #4a4a6c;
+}
+
+@define tick-major {
+  type: rect;
+  x: -2.5px;
+  y: -184px;
+  width: 5px;
+  height: 18px;
+  rx: 2.5px;
+  fill: #4cc9f0;
+}
+
+#tick0  { use: tick-major; transform: translate(240px, 240px) rotate(0deg); }
+#tick1  { use: tick;       transform: translate(240px, 240px) rotate(30deg); }
+#tick2  { use: tick;       transform: translate(240px, 240px) rotate(60deg); }
+#tick3  { use: tick-major; transform: translate(240px, 240px) rotate(90deg); }
+#tick4  { use: tick;       transform: translate(240px, 240px) rotate(120deg); }
+#tick5  { use: tick;       transform: translate(240px, 240px) rotate(150deg); }
+#tick6  { use: tick-major; transform: translate(240px, 240px) rotate(180deg); }
+#tick7  { use: tick;       transform: translate(240px, 240px) rotate(210deg); }
+#tick8  { use: tick;       transform: translate(240px, 240px) rotate(240deg); }
+#tick9  { use: tick-major; transform: translate(240px, 240px) rotate(270deg); }
+#tick10 { use: tick;       transform: translate(240px, 240px) rotate(300deg); }
+#tick11 { use: tick;       transform: translate(240px, 240px) rotate(330deg); }
+
+/* --- Hands: each a group pinned to center, rotated live. The rect child points
+   straight up (negative y) from the group origin, so rotate: 0 reads as 12
+   o'clock and positive degrees sweep clockwise. */
+#hour-hand {
+  type: group;
+  transform: translate(240px, 240px) rotate(calc(mod(var(--t) / 125 / 3600, 12) * 30deg));
+  > #hour-shape {
+    type: rect;
+    x: -6px;
+    y: -96px;
+    width: 12px;
+    height: 96px;
+    rx: 6px;
+    fill: #d8d9e6;
+  }
+}
+
+#minute-hand {
+  type: group;
+  transform: translate(240px, 240px) rotate(calc(mod(var(--t) / 125 / 60, 60) * 6deg));
+  > #minute-shape {
+    type: rect;
+    x: -2.5px;
+    y: -152px;
+    width: 5px;
+    height: 152px;
+    rx: 2.5px;
+    fill: #d8d9e6;
+  }
+}
+
+/* round(down, seconds, 1) floors to the current whole virtual second, so the
+   hand jumps to the next mark instead of sweeping — a real tick, not a sweep. */
+#second-hand {
+  type: group;
+  transform: translate(240px, 240px) rotate(calc(round(down, mod(var(--t) / 125, 60), 1) * 6deg));
+  > #second-shape {
+    type: rect;
+    x: -1.5px;
+    y: -168px;
+    width: 3px;
+    height: 198px;
+    rx: 1.5px;
+    fill: #f72585;
+  }
+}
+
+#center-cap {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  r: 10px;
+  fill: #1a1a2e;
+  stroke: #f72585;
+  stroke-width: 3px;
+}
