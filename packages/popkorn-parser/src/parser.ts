@@ -642,6 +642,20 @@ function lintDeclaration(
     }
   }
 
+  // em/rem parse (and round-trip) but have no runtime effect — Popkorn lengths
+  // are unitless scene coordinates, not font-relative. Warn once per
+  // declaration even if several em/rem tokens appear in the value.
+  const fontRelativeUnit = findFontRelativeUnit(value);
+  if (fontRelativeUnit) {
+    c.report(
+      "unit-has-no-effect",
+      "warning",
+      `unit '${fontRelativeUnit}' has no effect — lengths are scene units.`,
+      valStart,
+      valEnd,
+    );
+  }
+
   // Cross-sheet references — resolved against the full sheet after parsing.
   if (property === "animation-name" || property === "animation") {
     const name = animationName(value, property);
@@ -655,6 +669,52 @@ function lintDeclaration(
       if (id.startsWith("#"))
         c.idRefs.push({ name: id.slice(1), start: valStart, end: valEnd });
     }
+  }
+}
+
+// The first `em`/`rem` unit found anywhere in a value — lists, function args,
+// calc() operands (including nested calc and var() fallbacks), all descended
+// into so `calc(1em + 2px)` and `translate(1rem, 0)` are caught too.
+function findFontRelativeUnit(v: Value): "em" | "rem" | undefined {
+  switch (v.type) {
+    case "length":
+      return v.unit === "em" || v.unit === "rem" ? v.unit : undefined;
+    case "list":
+      for (const item of v.values) {
+        const found = findFontRelativeUnit(item);
+        if (found) return found;
+      }
+      return undefined;
+    case "function":
+      for (const arg of v.args) {
+        const found = findFontRelativeUnit(arg);
+        if (found) return found;
+      }
+      return undefined;
+    case "variable":
+      return v.fallback ? findFontRelativeUnit(v.fallback) : undefined;
+    case "calc":
+      return findFontRelativeUnitInCalc(v.expr);
+    default:
+      return undefined;
+  }
+}
+
+function findFontRelativeUnitInCalc(expr: CalcExpr): "em" | "rem" | undefined {
+  switch (expr.type) {
+    case "calc-operand":
+      return findFontRelativeUnit(expr.value);
+    case "calc-binary":
+      return (
+        findFontRelativeUnitInCalc(expr.left) ??
+        findFontRelativeUnitInCalc(expr.right)
+      );
+    case "calc-function":
+      for (const arg of expr.args) {
+        const found = findFontRelativeUnitInCalc(arg);
+        if (found) return found;
+      }
+      return undefined;
   }
 }
 

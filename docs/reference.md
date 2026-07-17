@@ -28,7 +28,10 @@ Selectors are `#id`, `.class`, or `:root` — any other `:pseudo` selector at th
 top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
 units `s` / `ms`, plus the angle units `deg` / `grad` / `rad` / `turn`; many
 properties also take a bare number (fractions for `trim-*`/`offset-distance`,
-milliseconds for `time-*`/`visible-*`, counts for `sides`). Numeric values also
+milliseconds for `time-*`/`visible-*`, counts for `sides`). Popkorn lengths are
+unitless scene coordinates: `px` is accepted as cosmetic sugar (the number is
+used as-is), and `em`/`rem` parse and round-trip but have no font-relative
+effect — the parser warns (`unit-has-no-effect`) when they're used. Numeric values also
 accept `calc()` (`+`/`-`/`*`/`/`, parens, `var()`/`input()` operands) and the CSS
 math functions: comparison `min()`, `max()`, `clamp(MIN, VAL, MAX)`; stepped
 `round([nearest|up|down|to-zero,] value, step)`, `mod()` (sign of the divisor),

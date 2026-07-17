@@ -145,6 +145,30 @@ test("unterminated-string: error with a closing-quote hint", () => {
   expect(d.hint).toContain("closing");
 });
 
+test("unit-has-no-effect: em/rem lengths warn, value still parses numerically", () => {
+  const src = "#box { width: 15rem; }";
+  const d = must(src, "unit-has-no-effect");
+  expect(d.severity).toBe("warning");
+  expect(d.message).toBe("unit 'rem' has no effect — lengths are scene units.");
+  expect(span(src, "unit-has-no-effect")).toBe("15rem");
+  const decl = parse(src).rules[0].declarations[0];
+  expect(decl.value).toEqual({ type: "length", value: 15, unit: "rem" });
+});
+
+test("unit-has-no-effect: em also warns; px and bare numbers don't", () => {
+  expect(find("#box { width: 15em; }", "unit-has-no-effect")).toBeDefined();
+  expect(find("#box { width: 15px; }", "unit-has-no-effect")).toBeUndefined();
+  expect(find("#box { width: 15; }", "unit-has-no-effect")).toBeUndefined();
+});
+
+test("unit-has-no-effect: warns once per declaration even with several em/rem tokens", () => {
+  const src = "#box { transform: translate(1rem, 2em); }";
+  const diags = parse(src).diagnostics.filter(
+    (d) => d.code === "unit-has-no-effect",
+  );
+  expect(diags.length).toBe(1);
+});
+
 test("offsetToLineCol maps offsets to 1-based line/col", () => {
   const src = "a\nbc\nd";
   expect(offsetToLineCol(src, 0)).toEqual({ line: 1, column: 1 });
