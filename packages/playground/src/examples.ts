@@ -33,5 +33,10 @@ export const examples: Example[] = Object.keys(files)
         part.replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase()),
       )
       .join(": ");
-    return { key: name, label, source: files[path] };
+    // Root-absolute asset URLs in scenes resolve against the deploy base
+    // (GitHub Pages serves the app under /popkorn/, dev under /).
+    const source = files[path]
+      .split("url('/")
+      .join(`url('${import.meta.env.BASE_URL}`);
+    return { key: name, label, source };
   });
