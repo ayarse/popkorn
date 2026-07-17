@@ -147,6 +147,64 @@ wherever it's used, not just on numeric props:
   instead of staying a live binding — those props need real geometry to
   build the scene graph, not a per-frame swap.
 
+### `random()` — fixed random constants
+
+`random()` (CSS Values 5) draws a value once and **freezes it** — it is a random
+*constant*, not a live noise source. It is rolled at build time and baked into
+the node's base snapshot, so it never re-evaluates per frame and the timeline
+stays pure (`seek(t)` twice is identical). Use it to scatter particles, jitter
+start phases, or vary sizes without hand-writing every value.
+
+Grammar (adopt it verbatim — nothing else to learn):
+
+```
+random( [ per-element || <dashed-ident> ]? , <min> , <max> [ , by <step> ]? )
+```
+
+```css
+#a  { r: random(10px, 100px); }                      /* one roll, carries px       */
+#p  { cx: random(per-element, -1, 1); }              /* each element rolls its own  */
+#q  { rotate: random(--k, 0deg, 360deg); }           /* ident: correlate by key     */
+#g  { x: random(per-element, 0px, 100px, by 20px); } /* quantized: 0/20/…/100       */
+```
+
+- The result **carries the unit of `min`/`max`** (which must be compatible); a
+  unitless range gives a plain number. `by <step>` snaps the result to
+  `min + n·step`, clamped `≤ max`.
+- It works **anywhere a number or `calc()` operand is accepted** (it is
+  calc-compatible), but not as a color or string.
+
+**Sharing — who shares a roll:**
+
+- **Default** (no `per-element`, no ident): the SAME roll for every element the
+  declaration applies to — e.g. 150 `use:` instances of one `@define` all get
+  one value.
+- **`per-element`**: each element/instance rolls independently (the
+  particle-scatter knob). Keyed by the node `#id`, not tree position.
+- **`<dashed-ident>`** (e.g. `--k`): calls sharing the same ident + range share
+  the roll, so you can correlate two properties or share across selectors.
+  Combines with `per-element` (`random(per-element --k, …)`) → shared per element.
+
+**Deterministic, not wall-clock:** the roll is seeded from a hash of the source
+plus a call-site key (and the node id for `per-element`). Re-parsing the
+identical source yields the identical frame, so hot-reloading an unchanged file
+never reshuffles. Editing an unrelated part of the file *may* reshuffle every
+roll — that's expected; only same-source stability is guaranteed. (Crushing or
+minifying counts as an edit here: it renames ids and rewrites the text, so
+random rolls — `per-element` ones especially, since they key on the `#id` — can
+land differently than in the un-crushed source.)
+
+**Idiom — desynced motion with `sin()` + `random()`:** because the random is
+frozen, adding it as a per-element phase offset gives each element its own,
+stable phase while the animation still runs live:
+
+```css
+/* Each instance bobs on the same clock but out of phase with its neighbours. */
+#bubble {
+  translate: 0 calc(sin(var(--t) + random(per-element, 0, 6.3)) * 20px);
+}
+```
+
 ### Units
 
 `px`, `deg`, `em`, `rem`, `ms`, `s`, `%` (longest-match: `ms` before `s`, `rem` before `em`).

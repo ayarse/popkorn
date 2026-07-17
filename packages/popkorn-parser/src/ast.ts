@@ -103,7 +103,8 @@ export type Value =
   | FunctionValue
   | ListValue
   | VariableRefValue
-  | CalcValue;
+  | CalcValue
+  | RandomValue;
 
 // Reference to a CSS variable: var(--name)
 export interface VariableRefValue {
@@ -169,6 +170,25 @@ export interface ListValue {
 export interface CalcValue {
   type: "calc";
   expr: CalcExpr;
+}
+
+// CSS Values 5 random(): a FIXED random constant (not a live noise source),
+// rolled once at build time and frozen into the node's base snapshot. The AST is
+// semantics-free — the seeded roll + sharing rules live in the player
+// (scene/random.ts). Grammar:
+//   random( [ per-element || <dashed-ident> ]? , <min> , <max> [ , by <step> ]? )
+// `min`/`max`/`step` carry the (compatible) unit the result inherits.
+export interface RandomValue {
+  type: "random";
+  // Each element/instance rolls independently (mixes the node id into the seed);
+  // otherwise every element sharing the declaration gets the SAME roll.
+  perElement: boolean;
+  // Optional `<dashed-ident>` (e.g. `--k`): calls sharing the same ident + range
+  // share the roll, letting an author correlate properties or selectors.
+  ident?: string;
+  min: Value;
+  max: Value;
+  step?: Value; // `by <step>` — quantize the result to min + n·step, clamped ≤ max
 }
 
 export type CalcExpr = CalcBinary | CalcOperand | CalcFunction;
@@ -323,6 +343,10 @@ export function isVariableRefValue(value: Value): value is VariableRefValue {
 
 export function isCalcValue(value: Value): value is CalcValue {
   return value.type === "calc";
+}
+
+export function isRandomValue(value: Value): value is RandomValue {
+  return value.type === "random";
 }
 
 // --- calc() evaluation ----------------------------------------------------

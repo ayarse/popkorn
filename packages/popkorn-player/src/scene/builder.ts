@@ -25,6 +25,7 @@ import {
   isNumberValue,
   isStringValue,
   isVariableRefValue,
+  serialize,
 } from "@popkorn/parser";
 import type { PropValue } from "../animation/registry";
 import {
@@ -40,6 +41,7 @@ import type {
 import { isGradientData } from "../renderer/types";
 import { colorStringFromValue } from "./color";
 import { buildMotionPath, parsePath } from "./path-parser";
+import { freezeRandom, hashString, valueHasRandom } from "./random";
 import { clamp01 } from "./transform";
 import type {
   AnimatableValue,
@@ -398,8 +400,14 @@ export class SceneBuilder {
     sourceId: string;
     mode: MaskMode;
   }[] = [];
+  // The sheet being built + a memoized document seed for random(). The seed is a
+  // hash of the canonical serialization, so identical source rolls identically;
+  // computed lazily on the first random() so random-free scenes pay nothing.
+  private sheet: StyleSheet | null = null;
+  private docSeed: number | null = null;
 
   build(stylesheet: StyleSheet): SceneNode {
+    this.sheet = stylesheet;
     // Index keyframes and symbol definitions by name
     for (const kf of stylesheet.keyframes) {
       this.keyframesMap.set(kf.name, kf);
@@ -552,6 +560,10 @@ export class SceneBuilder {
     rule = this.expandUse(rule);
 
     const id = rule.selector.name;
+    // Freeze any random() in this node's declarations to fixed literals now, so
+    // everything downstream (structural fold, calc, state blocks) sees a
+    // constant. Keyframe random() is frozen per-node in buildKeyframes instead.
+    rule = this.freezeRandomInRule(rule, id);
     let shapeType: ShapeType = "group";
 
     // First pass: find shape type
@@ -608,7 +620,11 @@ export class SceneBuilder {
             machine: ms.machine,
             name: ms.name,
             styles: this.buildStateStyles(stateRule.declarations),
-            animations: this.buildAnimations(stateRule.declarations, true),
+            animations: this.buildAnimations(
+              stateRule.declarations,
+              true,
+              node.id,
+            ),
           });
           for (const childRule of stateRule.children) {
             machineChildRules.push({ rule: childRule, machineState: ms });
@@ -670,7 +686,7 @@ export class SceneBuilder {
         machine: machineState.machine,
         name: machineState.name,
         styles: this.buildStateStyles(childRule.declarations),
-        animations: this.buildAnimations(childRule.declarations, true),
+        animations: this.buildAnimations(childRule.declarations, true, node.id),
       });
     }
 
@@ -679,6 +695,52 @@ export class SceneBuilder {
     node.base = snapshotNode(node);
 
     return node;
+  }
+
+  /** The document seed for random(): hash of the sheet's canonical serialization. */
+  private documentSeed(): number {
+    this.docSeed ??= hashString(serialize(this.sheet as StyleSheet));
+    return this.docSeed;
+  }
+
+  /**
+   * Freeze every random() in a rule's OWN declarations (and its state blocks) to
+   * fixed literals keyed by this node's id — the sharing rules: default calls
+   * share a roll across all instances of a declaration, `per-element` rolls per
+   * node id, a `<dashed-ident>` correlates by ident. Returns the rule unchanged
+   * (no allocation) when it has no random(). Child rules are NOT descended here —
+   * each is frozen by its own buildNode against its own id.
+   * NOTE: a state-child block (`&:hover > #c`) is frozen against the PARENT id,
+   * not #c's — those overrides never pass through #c's buildNode. Rare enough to
+   * accept; the per-element knob still works on a node's own declarations.
+   */
+  private freezeRandomInRule(rule: Rule, nodeId: string): Rule {
+    const seed = this.documentSeed.bind(this);
+    let sawRandom = false;
+    const mapDecls = (decls: Declaration[]): Declaration[] =>
+      decls.map((d) => {
+        if (!valueHasRandom(d.value)) return d;
+        sawRandom = true;
+        return {
+          ...d,
+          value: freezeRandom(d.value, {
+            documentSeed: seed(),
+            nodeId,
+            property: d.property,
+          }),
+        };
+      });
+
+    const declarations = mapDecls(rule.declarations);
+    const states = rule.states.map((s) => ({
+      ...s,
+      declarations: mapDecls(s.declarations),
+      children: s.children.map((c) => ({
+        ...c,
+        declarations: mapDecls(c.declarations),
+      })),
+    }));
+    return sawRandom ? { ...rule, declarations, states } : rule;
   }
 
   /**
@@ -1665,7 +1727,8 @@ export class SceneBuilder {
     node: SceneNode,
     declarations: Declaration[],
   ): void {
-    for (const a of this.buildAnimations(declarations)) node.animations.push(a);
+    for (const a of this.buildAnimations(declarations, false, node.id))
+      node.animations.push(a);
   }
 
   /**
@@ -1684,6 +1747,7 @@ export class SceneBuilder {
   private buildAnimations(
     declarations: Declaration[],
     stateDefault = false,
+    nodeId = "",
   ): AnimationInstance[] {
     let slots: AnimSlot[] | null = null;
     // Grow (creating default slots) so a longhand seen before any shorthand can
@@ -1803,7 +1867,10 @@ export class SceneBuilder {
           delay: slot.delay,
           fillMode: stateDefault && !slot.fillModeSet ? "both" : slot.fillMode,
           composition: slot.composition,
-          keyframes: this.buildKeyframes(this.keyframesMap.get(slot.name)!),
+          keyframes: this.buildKeyframes(
+            this.keyframesMap.get(slot.name)!,
+            nodeId,
+          ),
         });
       }
     }
@@ -2065,9 +2132,9 @@ export class SceneBuilder {
     return "ease";
   }
 
-  private buildKeyframes(rule: KeyframeRule): KeyframeData[] {
+  private buildKeyframes(rule: KeyframeRule, nodeId = ""): KeyframeData[] {
     const frames = rule.blocks.flatMap((block) => {
-      const properties = this.buildKeyframeProperties(block);
+      const properties = this.buildKeyframeProperties(block, nodeId);
       // Per-keyframe easing, resolved through the one shared timing-function
       // path so keyframes accept the same easing syntax as the animation
       // shorthand/longhand.
@@ -2096,6 +2163,7 @@ export class SceneBuilder {
 
   private buildKeyframeProperties(
     block: KeyframeBlock,
+    nodeId = "",
   ): Record<string, AnimatableValue> {
     const props: Record<string, AnimatableValue> = {};
 
@@ -2104,7 +2172,17 @@ export class SceneBuilder {
       // Resolve static `:root` var() refs (dedup) before keyframe parsing, so a
       // hoisted `d:`/`clip-path:` morph target reaches parsePath, not an empty
       // command list. Keyframes are a separate code path from applyDeclaration.
-      const value = this.resolveStaticVars(decl.value);
+      // A random() endpoint is frozen here against the owning node (per-element
+      // rolls per instance sharing this @keyframes); default sharing keys to the
+      // call site, so all instances get the same endpoint.
+      const resolved = this.resolveStaticVars(decl.value);
+      const value = valueHasRandom(resolved)
+        ? freezeRandom(resolved, {
+            documentSeed: this.documentSeed(),
+            nodeId,
+            property,
+          })
+        : resolved;
 
       switch (property) {
         case "transform":

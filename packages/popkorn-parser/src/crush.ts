@@ -298,6 +298,15 @@ function renameValue(v: Value, maps: Maps): Value {
       return { ...v, values: v.values.map((a) => renameValue(a, maps)) };
     case "calc":
       return { ...v, expr: renameCalc(v.expr, maps) };
+    case "random":
+      // The `ident` is a random-caching key, not a declared --var, so it's left
+      // as-is; only the numeric operands can carry a renameable var().
+      return {
+        ...v,
+        min: renameValue(v.min, maps),
+        max: renameValue(v.max, maps),
+        step: v.step ? renameValue(v.step, maps) : undefined,
+      };
     default:
       return v;
   }

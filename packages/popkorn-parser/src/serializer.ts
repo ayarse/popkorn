@@ -107,6 +107,16 @@ function fmtValue(v: Value, min: boolean): string {
       const sep = v.separator === "comma" ? (min ? "," : ", ") : " ";
       return v.values.map((a) => fmtValue(a, min)).join(sep);
     }
+    case "random": {
+      const sep = min ? "," : ", ";
+      const prelude = [v.perElement ? "per-element" : "", v.ident ?? ""]
+        .filter(Boolean)
+        .join(" ");
+      const parts = [fmtValue(v.min, min), fmtValue(v.max, min)];
+      if (prelude) parts.unshift(prelude);
+      if (v.step) parts.push(`by ${fmtValue(v.step, min)}`);
+      return `random(${parts.join(sep)})`;
+    }
   }
 }
 

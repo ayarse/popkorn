@@ -23,6 +23,7 @@ import type {
   MachineTransition,
   MachineTrigger,
   PseudoState,
+  RandomValue,
   RoundStrategy,
   Rule,
   Selector,
@@ -962,6 +963,9 @@ function parseValue(c: Cursor): Value {
       c.varRefs.push({ name: varName, start: identStart, end: c.pos });
     return { type: "variable", name: varName, fallback };
   }
+  if (name === "random" && c.peek() === "(") {
+    return parseRandom(c, identStart);
+  }
   if (c.peek() === "(") {
     c.expect("(");
     const args: Value[] = [];
@@ -977,6 +981,127 @@ function parseValue(c: Cursor): Value {
     return { type: "keyword", value: `${name}.${c.ident()}` };
   }
   return { type: "keyword", value: name };
+}
+
+// random( [ per-element || <dashed-ident> ]? , <min> , <max> [ , by <step> ]? )
+// A fixed random constant (CSS Values 5) — the seeded roll + sharing rules live
+// in the player; the parser just captures the shape and flags malformed args.
+// `(` already peeked; `start` is the offset of the `random` token (for spans).
+function parseRandom(c: Cursor, start: number): RandomValue {
+  c.expect("(");
+  let perElement = false;
+  let ident: string | undefined;
+  // Prelude: `per-element` and/or a `--dashed-ident`, in either order, before
+  // the first comma. Anything else is either the leading `min` (a number) or an
+  // unknown keyword we flag and stop on.
+  for (let i = 0; i < 2; i++) {
+    const cu = c.match(CUSTOM);
+    if (cu !== null) {
+      ident = cu;
+      continue;
+    }
+    const save = c.pos;
+    const kw = c.match(IDENT);
+    if (kw === "per-element") {
+      perElement = true;
+      continue;
+    }
+    if (kw !== null) {
+      c.report(
+        "invalid-random",
+        "warning",
+        `random(): unexpected keyword '${kw}'; expected 'per-element' or a --dashed-ident.`,
+        save,
+        c.pos,
+      );
+      c.pos = save;
+    }
+    break;
+  }
+  if (perElement || ident !== undefined) c.expect(",");
+
+  const min = parseValue(c);
+  c.expect(",");
+  const max = parseValue(c);
+
+  let step: Value | undefined;
+  if (c.eat(",")) {
+    const kw = c.match(IDENT);
+    if (kw !== "by") {
+      c.report(
+        "invalid-random",
+        "warning",
+        `random(): a fourth argument must be 'by <step>'.`,
+        start,
+        c.pos,
+      );
+    }
+    step = parseValue(c);
+  }
+  c.expect(")");
+
+  checkRandomUnits(c, min, max, step, start, c.pos);
+  return { type: "random", perElement, ident, min, max, step };
+}
+
+// The unit a numeric operand contributes to random()'s type: a length's unit, ""
+// for a plain number, or null when it isn't a static literal (var()/calc() — the
+// unit can't be known at parse time, so unit/range checks are skipped for it).
+function randomUnit(v: Value): string | null {
+  if (isLengthValue(v)) return v.unit;
+  if (isNumberValue(v)) return "";
+  return null;
+}
+
+// The scalar of a length/number literal (both carry `.value`); callers guard
+// with randomUnit() !== null first.
+function numericLiteral(v: Value): number {
+  return (v as { value: number }).value;
+}
+
+// Flag incompatible units (min/max/step must agree) and an inverted range.
+function checkRandomUnits(
+  c: Cursor,
+  min: Value,
+  max: Value,
+  step: Value | undefined,
+  start: number,
+  end: number,
+): void {
+  const um = randomUnit(min);
+  const ux = randomUnit(max);
+  if (um !== null && ux !== null && um !== ux) {
+    c.report(
+      "invalid-random",
+      "warning",
+      `random(): min and max units disagree ('${um || "<number>"}' vs '${ux || "<number>"}').`,
+      start,
+      end,
+    );
+    return;
+  }
+  if (step !== undefined) {
+    const us = randomUnit(step);
+    if (us !== null && um !== null && us !== um) {
+      c.report(
+        "invalid-random",
+        "warning",
+        `random(): step unit '${us || "<number>"}' must match the range unit '${um || "<number>"}'.`,
+        start,
+        end,
+      );
+    }
+  }
+  // Units agree here (we returned above otherwise); both literals carry `.value`.
+  if (um !== null && ux !== null && numericLiteral(min) > numericLiteral(max)) {
+    c.report(
+      "invalid-random",
+      "warning",
+      `random(): min is greater than max — the range is empty.`,
+      start,
+      end,
+    );
+  }
 }
 
 // calc() — a standard CSS arithmetic expression. `(` already peeked; grammar:

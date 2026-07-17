@@ -23,6 +23,7 @@ export type {
   MachineTrigger,
   NumberValue,
   PseudoState,
+  RandomValue,
   RoundStrategy,
   Rule,
   Selector,
@@ -48,6 +49,7 @@ export {
   isLengthValue,
   isListValue,
   isNumberValue,
+  isRandomValue,
   isStringValue,
   isVariableRefValue,
 } from "./ast";

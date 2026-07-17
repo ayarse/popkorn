@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { getNumericValue } from "./ast";
+import { getNumericValue, isRandomValue } from "./ast";
 import { parse } from "./parser";
 import { serialize } from "./serializer";
 
@@ -1132,4 +1132,67 @@ test("keyframe selectorSpan/span and @keyframes span/preludeSpan round-trip", ()
   expect(src.slice(multi.span.start, multi.span.end)).toBe(
     "0%, 50% { opacity: 1; }",
   );
+});
+
+// --- random() (CSS Values 5) -------------------------------------------------
+
+test("random(): bare min/max carries the length unit", () => {
+  const v = parse("#b { r: random(10px, 100px); }").rules[0].declarations[0]
+    .value;
+  if (!isRandomValue(v)) throw new Error("expected a random value");
+  expect(v.perElement).toBe(false);
+  expect(v.ident).toBeUndefined();
+  expect(v.step).toBeUndefined();
+  expect(v.min).toEqual({ type: "length", value: 10, unit: "px" });
+  expect(v.max).toEqual({ type: "length", value: 100, unit: "px" });
+});
+
+test("random(): per-element + dashed-ident prelude, in either order", () => {
+  const a = parse("#b { cx: random(per-element --k, -1, 1); }").rules[0]
+    .declarations[0].value;
+  const b = parse("#b { cx: random(--k per-element, -1, 1); }").rules[0]
+    .declarations[0].value;
+  if (!isRandomValue(a) || !isRandomValue(b))
+    throw new Error("expected random values");
+  for (const v of [a, b]) {
+    expect(v.perElement).toBe(true);
+    expect(v.ident).toBe("--k");
+    expect(v.min).toEqual({ type: "number", value: -1 });
+  }
+});
+
+test("random(): by <step> quantizer parses as a fourth arg", () => {
+  const v = parse("#b { x: random(per-element, 0px, 100px, by 20px); }")
+    .rules[0].declarations[0].value;
+  if (!isRandomValue(v)) throw new Error("expected a random value");
+  expect(v.step).toEqual({ type: "length", value: 20, unit: "px" });
+});
+
+test("random(): composes as a calc operand", () => {
+  const v = parse("#b { r: calc(random(0, 10) + 5); }").rules[0].declarations[0]
+    .value;
+  expect(v.type).toBe("calc");
+});
+
+test("random(): round-trips through serialize (pretty + minify)", () => {
+  const src = "#b { x: random(per-element --k, 0px, 100px, by 20px); }";
+  expect(sansPos(parse(serialize(parse(src))))).toEqual(sansPos(parse(src)));
+  expect(sansPos(parse(serialize(parse(src), { minify: true })))).toEqual(
+    sansPos(parse(src)),
+  );
+});
+
+test("random(): diagnoses incompatible units, empty range, unknown keyword", () => {
+  const units = parse("#b { r: random(10px, 5deg); }").diagnostics;
+  expect(units.some((d) => d.code === "invalid-random")).toBe(true);
+
+  const range = parse("#b { r: random(100px, 10px); }").diagnostics;
+  expect(range.some((d) => d.code === "invalid-random")).toBe(true);
+
+  const keyword = parse("#b { r: random(bogus, 0, 10); }").diagnostics;
+  expect(keyword.some((d) => d.code === "invalid-random")).toBe(true);
+
+  // A clean call emits no random diagnostic.
+  const ok = parse("#b { r: random(0px, 10px); }").diagnostics;
+  expect(ok.some((d) => d.code === "invalid-random")).toBe(false);
 });
