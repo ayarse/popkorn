@@ -16,7 +16,7 @@
     },
     "packages/expo-demo": {
       "name": "@popkorn/expo-demo",
-      "version": "0.0.0",
+      "version": "0.0.3",
       "dependencies": {
         "@popkorn/player": "workspace:*",
         "@popkorn/react-native": "workspace:*",
@@ -39,7 +39,7 @@
     },
     "packages/playground": {
       "name": "@popkorn/playground",
-      "version": "0.1.0",
+      "version": "0.1.3",
       "dependencies": {
         "@fontsource/jetbrains-mono": "^5.2.8",
         "@popkorn/converters": "workspace:*",
@@ -79,7 +79,7 @@
     },
     "packages/popkorn-converters": {
       "name": "@popkorn/converters",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "bin": {
         "popkorn-convert": "./src/cli.ts",
       },
@@ -92,9 +92,19 @@
         "@types/node": "^22",
       },
     },
+    "packages/popkorn-figma-plugin": {
+      "name": "@popkorn/figma-plugin",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@figma/plugin-typings": "^1.131.0",
+        "@popkorn/converters": "workspace:*",
+        "@types/node": "^22",
+        "typescript": "^5",
+      },
+    },
     "packages/popkorn-parser": {
       "name": "@popkorn/parser",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "bin": {
         "popkorn-minify": "./src/minify-cli.ts",
       },
@@ -105,7 +115,7 @@
     },
     "packages/popkorn-player": {
       "name": "@popkorn/player",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@popkorn/parser": "workspace:*",
       },
@@ -115,7 +125,7 @@
     },
     "packages/popkorn-react-native": {
       "name": "@popkorn/react-native",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@popkorn/player": "workspace:*",
       },
@@ -480,6 +490,8 @@
 
     "@expo/xcpretty": ["@expo/xcpretty@4.4.4", "", { "dependencies": { "@babel/code-frame": "^7.20.0", "chalk": "^4.1.0", "js-yaml": "^4.1.0" }, "bin": { "excpretty": "build/cli.js" } }, "sha512-4aQzz9vgxcNXFfo/iyNgDDYfsU5XGKKxWxZopw0cVotHiW+U8IJbIxMaxsINs6bHhtkG3StKNPcOrn3eBuxKPw=="],
 
+    "@figma/plugin-typings": ["@figma/plugin-typings@1.131.0", "", {}, "sha512-XBTPNGc65myupitMaeemyiF/ir1jn/EXXTdoGUCEVCfVB6KPQUy+gbfHbnC+QQiHxdw/Naikdx+9v/u4d49gfA=="],
+
     "@floating-ui/core": ["@floating-ui/core@1.7.5", "", { "dependencies": { "@floating-ui/utils": "^0.2.11" } }, "sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ=="],
 
     "@floating-ui/dom": ["@floating-ui/dom@1.7.6", "", { "dependencies": { "@floating-ui/core": "^1.7.5", "@floating-ui/utils": "^0.2.11" } }, "sha512-9gZSAI5XM36880PPMm//9dfiEngYoC6Am2izES1FF406YFsjvyBMmeJ2g4SAju3xWwtuynNRFL2s9hgxpLI5SQ=="],
@@ -539,6 +551,8 @@
     "@popkorn/converters": ["@popkorn/converters@workspace:packages/popkorn-converters"],
 
     "@popkorn/expo-demo": ["@popkorn/expo-demo@workspace:packages/expo-demo"],
+
+    "@popkorn/figma-plugin": ["@popkorn/figma-plugin@workspace:packages/popkorn-figma-plugin"],
 
     "@popkorn/parser": ["@popkorn/parser@workspace:packages/popkorn-parser"],
 
@@ -1865,6 +1879,8 @@
     "@manypkg/get-packages/fs-extra": ["fs-extra@8.1.0", "", { "dependencies": { "graceful-fs": "^4.2.0", "jsonfile": "^4.0.0", "universalify": "^0.1.0" } }, "sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g=="],
 
     "@popkorn/expo-demo/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "@popkorn/figma-plugin/typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "@popkorn/playground/@types/node": ["@types/node@26.1.0", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-O0A1G3xPGy4w7AgQdAQYUlQ+BKk2Oovw8eRpofyp5KdBZULnbe+WqaOVNrm705SHphCiG4XHsACrSmPu1f+Kgw=="],
 
