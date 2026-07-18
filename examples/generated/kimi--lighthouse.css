@@ -1,6 +1,6 @@
-/* 
+/*
     Model: Kimi K3
-    Prompt: Create a creative animation from scratch. Use your imagination for the scene story. 
+    Prompt: Create a creative animation from scratch. Use your imagination for the scene story.
 */
 
 :root {
@@ -10,21 +10,22 @@
   --wave-back: #16386b;
   --wave-mid: #122f59;
   --wave-front: #0d2547;
-  --moon: #f6eed3;
   --moon-dim: #e0d5b4;
   --tower: #e8e4da;
   --stripe: #d64545;
   --roof: #b03a48;
   --dark: #232a44;
   --rock: #141c33;
-  --hull: #6b3f2a;
   --mast: #4a2f1f;
-  --sail: #f2ead8;
-  --sail-dim: #e0d2b4;
   --lantern: #ffd977;
+  /* One base wave (wavelength 50, amplitude 10, span x 0..900); the three sea
+     layers scale it 1x/1.4x/1.8x. --wave is the open foam polyline, --wave-fill
+     closes it down to y=200 for the water body. */
+  --wave: "M 0 0 Q 25 -10 50 0 T 100 0 T 150 0 T 200 0 T 250 0 T 300 0 T 350 0 T 400 0 T 450 0 T 500 0 T 550 0 T 600 0 T 650 0 T 700 0 T 750 0 T 800 0 T 850 0 T 900 0";
+  --wave-fill: "M 0 0 Q 25 -10 50 0 T 100 0 T 150 0 T 200 0 T 250 0 T 300 0 T 350 0 T 400 0 T 450 0 T 500 0 T 550 0 T 600 0 T 650 0 T 700 0 T 750 0 T 800 0 T 850 0 T 900 0 L 900 200 L 0 200 Z";
 }
 
-@define star {
+@define twinkle-star {
   type: group;
   transform-origin: 0px 0px;
   animation: twinkle 3s ease-in-out infinite;
@@ -64,6 +65,52 @@
   transform-origin: 0px 0px;
   animation: shimmer-run 3.2s ease-in-out infinite;
   animation-composition: add;
+}
+
+@define sparkle {
+  type: star;
+  sides: 4;
+  fill: #ffffff;
+  animation: sparkle 5s ease-in-out infinite;
+}
+
+@define cloud {
+  type: group;
+  animation: cloud-drift 22s ease-in-out infinite;
+  > #c-a {
+    type: ellipse;
+    cx: 0px;
+    cy: 0px;
+    rx: 100px;
+    ry: 13px;
+    fill: #8fa3d9;
+    opacity: 0.07;
+  }
+  > #c-b {
+    type: ellipse;
+    cx: -42px;
+    cy: -6px;
+    rx: 56px;
+    ry: 10px;
+    fill: #8fa3d9;
+    opacity: 0.055;
+  }
+  > #c-c {
+    type: ellipse;
+    cx: 50px;
+    cy: -5px;
+    rx: 62px;
+    ry: 9px;
+    fill: #8fa3d9;
+    opacity: 0.05;
+  }
+}
+
+@define crater {
+  type: circle;
+  fill: var(--moon-dim);
+  stroke: #f6eed35c;
+  stroke-width: 1px;
 }
 
 #sky {
@@ -118,7 +165,7 @@
 #stars {
   type: group;
   > #st {
-    use: star;
+    use: twinkle-star;
     repeat: 40;
     transform: translate(
         calc(mod(7 + sibling-index(), 8) * 97 + 26
@@ -131,146 +178,76 @@
   }
 }
 
-#sp1-pos {
-  type: group;
-  transform: translate(300px, 108px);
-  > #sp1 {
-    type: star;
-    sides: 4;
-    outer-radius: 9px;
-    inner-radius: 2.5px;
-    cx: 0px;
-    cy: 0px;
-    fill: #ffffff;
-    transform-origin: 0px 0px;
-    opacity: 0.9;
-    animation: sparkle 5s ease-in-out infinite;
-  }
+#sp1 {
+  use: sparkle;
+  cx: 300px;
+  cy: 108px;
+  outer-radius: 9px;
+  inner-radius: 2.5px;
+  opacity: 0.9;
+  transform-origin: 300px 108px;
 }
 
-#sp2-pos {
-  type: group;
-  transform: translate(470px, 232px);
-  > #sp2 {
-    type: star;
-    sides: 4;
-    outer-radius: 7px;
-    inner-radius: 2px;
-    cx: 0px;
-    cy: 0px;
-    fill: #ffffff;
-    transform-origin: 0px 0px;
-    opacity: 0.8;
-    animation: sparkle 6.5s ease-in-out infinite 1.6s;
-  }
+#sp2 {
+  use: sparkle;
+  cx: 470px;
+  cy: 232px;
+  outer-radius: 7px;
+  inner-radius: 2px;
+  opacity: 0.8;
+  transform-origin: 470px 232px;
+  animation-duration: 6.5s;
+  animation-delay: 1.6s;
 }
 
-#cloud1-pos {
+#cloud1 {
   type: group;
   transform: translate(240px, 148px);
-  > #cloud1 {
-    type: group;
-    animation: cloud-drift 22s ease-in-out infinite;
-    > #c1a {
-      type: ellipse;
-      cx: 0px;
-      cy: 0px;
-      rx: 100px;
-      ry: 13px;
-      fill: #8fa3d9;
-      opacity: 0.07;
-    }
-    > #c1b {
-      type: ellipse;
-      cx: -42px;
-      cy: -6px;
-      rx: 56px;
-      ry: 10px;
-      fill: #8fa3d9;
-      opacity: 0.055;
-    }
-    > #c1c {
-      type: ellipse;
-      cx: 50px;
-      cy: -5px;
-      rx: 62px;
-      ry: 9px;
-      fill: #8fa3d9;
-      opacity: 0.05;
-    }
+  > #c1 {
+    use: cloud;
   }
 }
 
-#cloud2-pos {
+#cloud2 {
   type: group;
-  transform: translate(560px, 210px);
-  > #cloud2 {
-    type: group;
-    animation: cloud-drift 28s ease-in-out infinite -9s;
-    > #c2a {
-      type: ellipse;
-      cx: 0px;
-      cy: 0px;
-      rx: 130px;
-      ry: 15px;
-      fill: #8fa3d9;
-      opacity: 0.05;
-    }
-    > #c2b {
-      type: ellipse;
-      cx: -56px;
-      cy: -7px;
-      rx: 72px;
-      ry: 11px;
-      fill: #8fa3d9;
-      opacity: 0.045;
-    }
-    > #c2c {
-      type: ellipse;
-      cx: 62px;
-      cy: -6px;
-      rx: 78px;
-      ry: 10px;
-      fill: #8fa3d9;
-      opacity: 0.04;
-    }
+  transform: translate(560px, 210px) scale(1.28);
+  > #c2 {
+    use: cloud;
+    opacity: 0.75;
+    animation-duration: 28s;
+    animation-delay: -9s;
   }
 }
 
-#meteor-pos {
+#meteor {
   type: group;
-  transform: translate(690px, 56px);
-  > #meteor {
-    type: group;
-    opacity: 0;
-    animation: meteor-streak 12s linear infinite;
-    > #meteor-angle {
-      type: group;
-      transform: rotate(152deg);
-      > #meteor-trail {
-        type: rect;
-        x: -95px;
-        y: -2px;
-        width: 95px;
-        height: 4px;
-        rx: 2px;
-        fill: linear-gradient(90deg, #ffffff00 0%, #ffffff 100%);
-      }
-      > #meteor-halo {
-        type: circle;
-        cx: 0px;
-        cy: 0px;
-        r: 8px;
-        fill: radial-gradient(#ffffffa6 0%, #ffffff00 70%);
-      }
-      > #meteor-head {
-        type: circle;
-        cx: 0px;
-        cy: 0px;
-        r: 3.5px;
-        fill: #ffffff;
-      }
-    }
+  opacity: 0;
+  offset-path: path('M 690 56 L 50 321');
+  offset-rotate: auto;
+  offset-distance: 0%;
+  animation: meteor-streak 12s linear infinite;
+  > #meteor-trail {
+    type: rect;
+    x: -95px;
+    y: -2px;
+    width: 95px;
+    height: 4px;
+    rx: 2px;
+    fill: linear-gradient(90deg, #ffffff00 0%, #ffffff 100%);
+  }
+  > #meteor-halo {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 8px;
+    fill: radial-gradient(#ffffffa6 0%, #ffffff00 70%);
+  }
+  > #meteor-head {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 3.5px;
+    fill: #ffffff;
   }
 }
 
@@ -329,40 +306,28 @@
     );
   }
   > #cr1 {
-    type: circle;
+    use: crater;
     cx: -14px;
     cy: -8px;
     r: 7px;
-    fill: var(--moon-dim);
-    stroke: #f6eed369;
-    stroke-width: 1px;
   }
   > #cr2 {
-    type: circle;
+    use: crater;
     cx: 11px;
     cy: 7px;
     r: 5px;
-    fill: var(--moon-dim);
-    stroke: #f6eed35c;
-    stroke-width: 1px;
   }
   > #cr3 {
-    type: circle;
+    use: crater;
     cx: -3px;
     cy: 17px;
     r: 4px;
-    fill: var(--moon-dim);
-    stroke: #f6eed354;
-    stroke-width: 1px;
   }
   > #cr4 {
-    type: circle;
+    use: crater;
     cx: 17px;
     cy: -17px;
     r: 3.5px;
-    fill: var(--moon-dim);
-    stroke: #f6eed34d;
-    stroke-width: 1px;
   }
 }
 
@@ -410,38 +375,38 @@
   transform: translate(0px, 414px);
   > #wave-back {
     type: path;
+    d: var(--wave-fill);
     fill: var(--wave-back);
-    animation: drift-back 9s linear infinite;
-    d: "M -400 0 Q -375 -10 -350 0 T -300 0 T -250 0 T -200 0 T -150 0 T -100 0 T -50 0 T 0 0 T 50 0 T 100 0 T 150 0 T 200 0 T 250 0 T 300 0 T 350 0 T 400 0 T 450 0 T 500 0 T 550 0 T 600 0 T 650 0 T 700 0 T 750 0 T 800 0 T 850 0 T 900 0 L 900 200 L -400 200 Z";
+    animation: drift 9s linear infinite;
   }
   > #foam-back {
     type: path;
+    d: var(--wave);
     fill: none;
     stroke: #b9d4f52e;
     stroke-width: 2px;
     stroke-linecap: round;
-    animation: drift-back 9s linear infinite;
-    d: "M -400 0 Q -375 -10 -350 0 T -300 0 T -250 0 T -200 0 T -150 0 T -100 0 T -50 0 T 0 0 T 50 0 T 100 0 T 150 0 T 200 0 T 250 0 T 300 0 T 350 0 T 400 0 T 450 0 T 500 0 T 550 0 T 600 0 T 650 0 T 700 0 T 750 0 T 800 0 T 850 0 T 900 0";
+    animation: drift 9s linear infinite;
   }
 }
 
 #wave-mid-pos {
   type: group;
-  transform: translate(0px, 434px);
+  transform: translate(0px, 434px) scale(1.4);
   > #wave-mid {
     type: path;
+    d: var(--wave-fill);
     fill: var(--wave-mid);
-    animation: drift-mid 7s linear infinite;
-    d: "M -420 0 Q -385 -14 -350 0 T -280 0 T -210 0 T -140 0 T -70 0 T 0 0 T 70 0 T 140 0 T 210 0 T 280 0 T 350 0 T 420 0 T 490 0 T 560 0 T 630 0 T 700 0 T 770 0 T 840 0 T 910 0 T 980 0 L 980 220 L -420 220 Z";
+    animation: drift 7s linear infinite;
   }
   > #foam-mid {
     type: path;
+    d: var(--wave);
     fill: none;
     stroke: #b9d4f545;
-    stroke-width: 2.5px;
+    stroke-width: 1.8px;
     stroke-linecap: round;
-    animation: drift-mid 7s linear infinite;
-    d: "M -420 0 Q -385 -14 -350 0 T -280 0 T -210 0 T -140 0 T -70 0 T 0 0 T 70 0 T 140 0 T 210 0 T 280 0 T 350 0 T 420 0 T 490 0 T 560 0 T 630 0 T 700 0 T 770 0 T 840 0 T 910 0 T 980 0";
+    animation: drift 7s linear infinite;
   }
 }
 
@@ -463,26 +428,29 @@
 
 #wave-front-pos {
   type: group;
-  transform: translate(0px, 458px);
+  transform: translate(0px, 458px) scale(1.8);
   > #wave-front {
     type: path;
+    d: var(--wave-fill);
     fill: var(--wave-front);
-    animation: drift-front 5.5s linear infinite;
-    d: "M -450 0 Q -405 -18 -360 0 T -270 0 T -180 0 T -90 0 T 0 0 T 90 0 T 180 0 T 270 0 T 360 0 T 450 0 T 540 0 T 630 0 T 720 0 T 810 0 T 900 0 T 990 0 L 990 260 L -450 260 Z";
+    animation: drift 5.5s linear infinite;
   }
   > #foam-front {
     type: path;
+    d: var(--wave);
     fill: none;
     stroke: #b9d4f55c;
-    stroke-width: 3px;
+    stroke-width: 1.65px;
     stroke-linecap: round;
-    animation: drift-front 5.5s linear infinite;
-    d: "M -450 0 Q -405 -18 -360 0 T -270 0 T -180 0 T -90 0 T 0 0 T 90 0 T 180 0 T 270 0 T 360 0 T 450 0 T 540 0 T 630 0 T 720 0 T 810 0 T 900 0 T 990 0";
+    animation: drift 5.5s linear infinite;
   }
   /* Glints on the near water — hashed scatter under the moon, own group so
-     sibling-index() ignores the wave/foam siblings. */
+     sibling-index() ignores the wave/foam siblings.
+     NOTE: scale(0.555556) = 1/1.8 cancels the wrapper's scale so the glints
+     keep their authored world coords and size (only the waves scale). */
   > #glints {
     type: group;
+    transform: scale(0.555556);
     > #g {
       use: glint;
       repeat: 14;
@@ -512,33 +480,17 @@
     d: "M 92 448 L 118 426 L 158 420 L 192 428 L 206 444 L 180 452 L 120 452 Z";
     fill: #182440;
   }
-  > #rock-rim1 {
+  > #rock-rim {
     type: path;
-    d: "M 24 440 L 60 428 L 104 426 L 140 436";
-    fill: none;
-    stroke: #2c3a5f;
-    stroke-width: 2px;
-    stroke-linecap: round;
-  }
-  > #rock-rim2 {
-    type: path;
-    d: "M 128 438 L 172 426 L 226 424 L 272 436";
+    d: "M 24 440 L 60 428 L 104 426 L 140 436 M 128 438 L 172 426 L 226 424 L 272 436";
     fill: none;
     stroke: #33436b;
     stroke-width: 2px;
     stroke-linecap: round;
   }
-  > #rock-crack1 {
+  > #rock-crack {
     type: path;
-    d: "M 96 432 L 104 446 L 98 460";
-    fill: none;
-    stroke: #0b1126;
-    stroke-width: 1.5px;
-    stroke-linecap: round;
-  }
-  > #rock-crack2 {
-    type: path;
-    d: "M 196 430 L 190 446 L 198 458";
+    d: "M 96 432 L 104 446 L 98 460 M 196 430 L 190 446 L 198 458";
     fill: none;
     stroke: #0b1126;
     stroke-width: 1.5px;
@@ -637,37 +589,19 @@
     rx: 2px;
     fill: var(--dark);
   }
-  > #rail1 {
-    type: rect;
-    x: 124px;
-    y: 226px;
-    width: 3px;
-    height: 10px;
-    fill: var(--dark);
-  }
-  > #rail2 {
-    type: rect;
-    x: 136px;
-    y: 226px;
-    width: 3px;
-    height: 10px;
-    fill: var(--dark);
-  }
-  > #rail3 {
-    type: rect;
-    x: 161px;
-    y: 226px;
-    width: 3px;
-    height: 10px;
-    fill: var(--dark);
-  }
-  > #rail4 {
-    type: rect;
-    x: 173px;
-    y: 226px;
-    width: 3px;
-    height: 10px;
-    fill: var(--dark);
+  > #rails {
+    type: group;
+    /* NOTE: `sibling-index() * 16px` at the tail of the additive chain keeps
+       the calc minifier-safe (no `) + `). 123/139/155/171. */
+    > #rail {
+      type: rect;
+      repeat: 4;
+      x: calc(107px + sibling-index() * 16px);
+      y: 226px;
+      width: 3px;
+      height: 10px;
+      fill: var(--dark);
+    }
   }
   > #glass-glow {
     type: rect;
@@ -764,7 +698,7 @@
     type: group;
     transform-origin: 0px 4px;
     animation:
-      boat-bob 3.4s ease-in-out infinite,
+      bob 3.4s ease-in-out infinite,
       boat-rock 4.6s ease-in-out infinite alternate;
     > #mast {
       type: rect;
@@ -777,7 +711,7 @@
     > #sail-jib {
       type: path;
       d: "M -5 -56 L -5 -12 L -32 -12 Z";
-      fill: linear-gradient(90deg, var(--sail-dim) 0%, #cfc0a0 100%);
+      fill: linear-gradient(90deg, #e0d2b4 0%, #cfc0a0 100%);
     }
     > #sail-jib-seam {
       type: path;
@@ -789,7 +723,7 @@
     > #sail-main {
       type: path;
       d: "M 3 -64 L 3 -12 L 42 -12 Z";
-      fill: linear-gradient(90deg, #fbf6ea 0%, var(--sail) 45%, #d8cbaa 100%);
+      fill: linear-gradient(90deg, #fbf6ea 0%, #f2ead8 45%, #d8cbaa 100%);
     }
     > #sail-main-seam {
       type: path;
@@ -808,7 +742,7 @@
     > #hull {
       type: path;
       d: "M -48 0 L 48 0 L 34 16 Q 0 26 -34 16 Z";
-      fill: linear-gradient(180deg, #7d4a30 0%, var(--hull) 45%, #3d2312 100%);
+      fill: linear-gradient(180deg, #7d4a30 0%, #6b3f2a 45%, #3d2312 100%);
     }
     > #hull-window {
       type: circle;
@@ -874,7 +808,7 @@
   }
   > #buoy-bob {
     type: group;
-    animation: buoy-bob 2.8s ease-in-out infinite;
+    animation: bob 2.8s ease-in-out infinite;
     > #buoy-base {
       type: path;
       d: "M -14 0 L 14 0 L 7 -20 L -7 -20 Z";
@@ -909,7 +843,7 @@
   }
 }
 
-@keyframes drift-back {
+@keyframes drift {
   0% {
     transform: translateX(0px);
   }
@@ -918,25 +852,7 @@
   }
 }
 
-@keyframes drift-mid {
-  0% {
-    transform: translateX(0px);
-  }
-  100% {
-    transform: translateX(-140px);
-  }
-}
-
-@keyframes drift-front {
-  0% {
-    transform: translateX(0px);
-  }
-  100% {
-    transform: translateX(-180px);
-  }
-}
-
-@keyframes boat-bob {
+@keyframes bob {
   0%,
   100% {
     transform: translateY(0px);
@@ -1058,16 +974,6 @@
   }
 }
 
-@keyframes buoy-bob {
-  0%,
-  100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-}
-
 @keyframes buoy-blink {
   0%,
   100% {
@@ -1082,22 +988,22 @@
 
 @keyframes meteor-streak {
   0% {
-    transform: translate(0px, 0px);
+    offset-distance: 0%;
     opacity: 0;
   }
   1.5% {
     opacity: 1;
   }
   5% {
-    transform: translate(-560px, 230px);
+    offset-distance: 87.5%;
     opacity: 1;
   }
   6.5% {
-    transform: translate(-640px, 265px);
+    offset-distance: 100%;
     opacity: 0;
   }
   100% {
-    transform: translate(-640px, 265px);
+    offset-distance: 100%;
     opacity: 0;
   }
 }
