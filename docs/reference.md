@@ -39,8 +39,11 @@ math functions: comparison `min()`, `max()`, `clamp(MIN, VAL, MAX)`; stepped
 radians, angle units convert) and `asin()`, `acos()`, `atan()`, `atan2(y, x)`
 (returning degrees); exponential `pow(base, exp)`, `sqrt()`, `hypot(…)`,
 `log(x[, base])`, `exp()`; and `abs()`, `sign()`, plus the `e` and `pi`
-constants. Each argument is a full `calc()` expression; they nest in and out of
-`calc()`, and re-evaluate per frame with reactive operands. Colors accept hex 3–8 digits (`#rgb` …
+constants. Two zero-arg **structural** functions round it out: `sibling-index()`
+and `sibling-count()` (a node's 1-based position among all its siblings, and the
+total), resolved to a constant at build time per node — see [Repeat & sibling
+math](#repeat--sibling-math). Each argument is a full `calc()` expression; they
+nest in and out of `calc()`, and re-evaluate per frame with reactive operands. Colors accept hex 3–8 digits (`#rgb` …
 `#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, and CSS named colors — for
 both solid colors and gradient stops. Block comments (`/* … */`) and a trailing
 `;` before `}` are allowed.
@@ -203,6 +206,50 @@ with `use: <name>`; use-site declarations override the definition's.
 Symbols are expanded at build time by deep-cloning; each instance gets its own
 animation state, and cloned children get namespaced ids (`spark1.tail`) so
 instances never collide.
+
+## Repeat & sibling math
+
+`repeat: <positive-integer>` on any node rule stamps it N times as consecutive
+siblings in document order. It is authoring-only sugar (not a Lottie import
+target) and composes with `use:`.
+
+```css
+#tick { type: rect; width: 2px; height: 8px; repeat: 60; }   /* any node */
+#field { use: dot; repeat: 150; }                            /* or a symbol */
+```
+
+Expansion happens at build time, right after `use:` merge — the copies are
+ordinary scene nodes, so the render loop, transforms, animation, and
+hit-testing are untouched. The count is **structural**: a static
+`var()`/`calc()` folds to a literal, but a reactive `input()`/`var()` is a build
+error (node count is fixed over the timeline). `repeat: 1` ≡ absent; `0`,
+negative, non-integer, or a count over the cap of `10000` are build errors (hide
+a node with `display: none` rather than repeating it zero times).
+
+**Identity.** Copies derive ids from the declared id, 1-based: `#field` →
+`field-1` … `field-N`. Descendants re-suffix the same way, so `#field-2`'s child
+`#arm` becomes `#arm-2` — keeping every id unique and per-copy targetable, and
+`popkorn:click` reports the derived id. A later pure-property rule on a derived
+id overrides just that copy (`#field-3 { fill: red }`); a rule that *re-declares*
+the node (its own `type:`/`use:`/children) whose id collides with a copy is a
+build error. Nested repeats multiply naturally (a `repeat:`ed node inside a
+`repeat:`ed subtree).
+
+**Variation.** `repeat:` stamps *identical* copies — differentiate them with
+`sibling-index()` / `sibling-count()` (and `random(per-element)`) in ordinary
+property formulas. Both count **all** siblings, so give a repeated family its own
+parent group. They resolve at build time into constants, valid anywhere a length
+or number is (including `@keyframes` bound to the copies).
+
+```css
+/* row */     cx: calc(100px + sibling-index() * 50px);
+/* ring */    cx: calc(400px + cos(sibling-index() / sibling-count() * 6.2832) * 180px);
+/* grid */    cx: calc(mod(sibling-index() - 1, 10) * 40px);
+              cy: calc(round(down, (sibling-index() - 1) / 10) * 40px);
+/* stagger */ animation-delay: calc(sibling-index() * -0.15s);
+/* jitter */  translate: random(per-element, -8px, 8px) random(per-element, -8px, 8px);
+/* re-stack */ z-index: calc(0 - sibling-index());
+```
 
 ## Transforms
 

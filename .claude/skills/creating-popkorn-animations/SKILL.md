@@ -62,6 +62,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Easings | `linear ease ease-in ease-out ease-in-out step-start step-end cubic-bezier(…) steps(<n>, <pos>) linear(<stops>)` |
 | Spring/bounce | `linear(0, 1 33%, 0.55 46%, 1 62%, 0.78 74%, 1)` — overshoot control points fake physics with 2 keyframes |
 | Symbols | `@define name {…}` then `#x { use: name; cx: …; fill: … }` (use-site overrides) |
+| Repeat / instancing | `repeat: <int>` on any node stamps N sibling copies with derived ids `#field` → `field-1`…`field-N` (descendants re-suffix too); composes with `use:`, nests multiplicatively. Static count only (no `input()`); `repeat: 1` ≡ absent. Differentiate copies with `sibling-index()` / `sibling-count()` (1-based position / total among **all** siblings, so give a repeated family its own group) or `random(per-element)` — e.g. `cx: calc(sibling-index() * 40px)`, `animation-delay: calc(sibling-index() * -0.1s)`. See reference.md §Repeat & sibling math |
 | Nesting | `> #child { … }` inside a rule body |
 | Interactivity | `:root { --cx: input(cursor.x) }` + `cx: var(--cx)`; `&:hover {…}` `&:active {…}`; `cursor: pointer` (pointer cursor on hover); clicks emit a `popkorn:click` DOM event (`detail.{id,path,x,y}`, no opt-in) |
 | Typed `var()` | `--brand: #e94560` / `--label: "Score"` / `--n: 30px` then `fill: var(--brand)` / `content: var(--label)` / `r: var(--n)` — numeric interpolates, color/string snap (discrete); `input()` stays numeric-only |
