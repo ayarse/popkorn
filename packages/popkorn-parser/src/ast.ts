@@ -204,7 +204,10 @@ export interface CalcBinary {
 // min()/max() take one or more; stepped — round()/mod()/rem(); trig —
 // sin/cos/tan (angle→number) and asin/acos/atan/atan2 (number→angle in deg);
 // exponential — pow/sqrt/exp/log/hypot; sign — abs/sign. Each argument is a full
-// calc sum, so calc and these compose in both directions.
+// calc sum, so calc and these compose in both directions. sibling-index()/
+// sibling-count() (CSS Values 5 §10) are structural: they carry no args and can't
+// fold statically (they need the node's position, resolved by the scene builder),
+// so evalCalcFunction returns null for them and the player substitutes the count.
 export type CalcFunctionName =
   | "min"
   | "max"
@@ -225,7 +228,9 @@ export type CalcFunctionName =
   | "log"
   | "exp"
   | "abs"
-  | "sign";
+  | "sign"
+  | "sibling-index"
+  | "sibling-count";
 
 // round()'s optional leading rounding strategy; defaults to "nearest".
 export type RoundStrategy = "nearest" | "up" | "down" | "to-zero";
@@ -447,6 +452,11 @@ function evalCalcFunction(
 ): CalcNumeric | null {
   const v = args.map((a) => a.value);
   switch (expr.name) {
+    // Structural — resolved against the node's sibling position at build time
+    // (scene/sibling.ts), never here. Unresolvable statically, like a var().
+    case "sibling-index":
+    case "sibling-count":
+      return null;
     case "min":
     case "max":
     case "clamp": {

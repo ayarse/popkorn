@@ -510,6 +510,32 @@ test("math functions enforce arg counts", () => {
   expect(() => parse("#s { cx: log(1, 2, 3); }")).toThrow(/log/);
 });
 
+test("sibling-index()/sibling-count() parse as zero-arg calc functions", () => {
+  expect(
+    parse("#s { cx: sibling-index(); }").rules[0].declarations[0].value,
+  ).toEqual({
+    type: "calc",
+    expr: { type: "calc-function", name: "sibling-index", args: [] },
+  });
+  // Compose inside calc like any math function.
+  expect(
+    parse("#s { cx: calc(sibling-count() * 10px); }").rules[0].declarations[0]
+      .value.type,
+  ).toBe("calc");
+  // Zero-arg: passing an argument is an arity error.
+  expect(() => parse("#s { cx: sibling-index(1); }")).toThrow(/sibling-index/);
+});
+
+test("sibling-index()/sibling-count() round-trip through the serializer", () => {
+  const rt = (src: string) =>
+    serialize(parse(`#s { cx: ${src}; }`)).match(/cx: ([^;]+);/)![1];
+  expect(rt("sibling-index()")).toBe("sibling-index()");
+  // Every binary node is parenthesized by the serializer (precedence-exact).
+  expect(rt("calc(sibling-index() / sibling-count())")).toBe(
+    "calc((sibling-index() / sibling-count()))",
+  );
+});
+
 test("round() strategy round-trips through the serializer", () => {
   const rt = (src: string) =>
     serialize(parse(`#s { cx: ${src}; }`)).match(/cx: ([^;]+);/)![1];

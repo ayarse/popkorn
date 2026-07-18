@@ -52,6 +52,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   // shape geometry
   "type",
   "use",
+  "repeat",
   "content",
   "object-view-box",
   "d",

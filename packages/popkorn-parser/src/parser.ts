@@ -1143,6 +1143,8 @@ const CALC_FUNCTIONS = new Set<CalcFunctionName>([
   "exp",
   "abs",
   "sign",
+  "sibling-index",
+  "sibling-count",
 ]);
 
 // Expected argument count per function: a fixed count, or [min, max] with max
@@ -1168,6 +1170,10 @@ const CALC_ARITY: Record<CalcFunctionName, number | [number, number]> = {
   exp: 1,
   abs: 1,
   sign: 1,
+  // Structural, zero-arg: their value is the node's 1-based position / total
+  // sibling count, substituted by the scene builder (never folded statically).
+  "sibling-index": 0,
+  "sibling-count": 0,
 };
 
 const ROUND_STRATEGIES = new Set<RoundStrategy>([
