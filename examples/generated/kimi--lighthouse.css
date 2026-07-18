@@ -105,105 +105,30 @@
   }
 }
 
-#st1 {
-  use: star;
-  transform: translate(92px, 88px);
-  time-offset: 0.3s;
-}
-#st2 {
-  use: star;
-  transform: translate(176px, 158px) scale(1.3);
-  time-offset: 1.1s;
-}
-#st3 {
-  use: star;
-  transform: translate(262px, 72px);
-  time-offset: 1.8s;
-}
-#st4 {
-  use: star;
-  transform: translate(332px, 142px) scale(0.8);
-  time-offset: 0.7s;
-}
-#st5 {
-  use: star;
-  transform: translate(430px, 58px) scale(1.2);
-  time-offset: 2.2s;
-}
-#st6 {
-  use: star;
-  transform: translate(502px, 152px);
-  time-offset: 1.5s;
-}
-#st7 {
-  use: star;
-  transform: translate(742px, 198px) scale(1.1);
-  time-offset: 0.9s;
-}
-#st8 {
-  use: star;
-  transform: translate(738px, 66px);
-  time-offset: 2.6s;
-}
-#st9 {
-  use: star;
-  transform: translate(58px, 232px) scale(1.2);
-  time-offset: 2s;
-}
-#st10 {
-  use: star;
-  transform: translate(222px, 262px);
-  time-offset: 1.3s;
-}
-#st11 {
-  use: star;
-  transform: translate(382px, 208px) scale(0.9);
-  time-offset: 2.9s;
-}
-#st12 {
-  use: star;
-  transform: translate(562px, 252px) scale(1.15);
-  time-offset: 0.5s;
-}
-#st13 {
-  use: star;
-  transform: translate(36px, 150px) scale(0.55);
-  time-offset: 1.7s;
-}
-#st14 {
-  use: star;
-  transform: translate(148px, 46px) scale(0.6);
-  time-offset: 2.4s;
-}
-#st15 {
-  use: star;
-  transform: translate(292px, 196px) scale(0.5);
-  time-offset: 0.2s;
-}
-#st16 {
-  use: star;
-  transform: translate(452px, 122px) scale(0.65);
-  time-offset: 2.8s;
-}
-#st17 {
-  use: star;
-  transform: translate(548px, 86px) scale(0.55);
-  time-offset: 1.9s;
-}
-#st18 {
-  use: star;
-  transform: translate(700px, 152px) scale(0.6);
-  time-offset: 0.8s;
-}
-#st19 {
-  use: star;
-  transform: translate(790px, 120px) scale(0.5);
-  time-offset: 2.1s;
-}
-#st20 {
-  use: star;
-  transform: translate(104px, 208px) scale(0.55);
-  time-offset: 1.4s;
+/* Star field: one recipe, `repeat:` stamps it. Placement is a *jittered grid*,
+   not pure hash — the index folds into an 8-wide cell grid (col = mod(i-1,8),
+   row = the rest), then a sin-hash jitters each star within its cell. Uniform
+   random clumps and leaves holes at this count; stratifying keeps the sky
+   evenly covered while still looking unplanned. Size and phase are independent
+   hashes. Own group so sibling-index() counts only stars.
+   NOTE: never write `) + ` or `) - ` in a calc — CSS requires whitespace both
+   sides of additive operators and minification drops the space after `)`, so
+   the minified scene stops parsing. Keep function calls at the tail of an
+   additive chain (hence round(down, …) for the row rather than a subtraction). */
+#stars {
+  type: group;
+  > #st {
+    use: star;
+    repeat: 40;
+    transform: translate(
+        calc(mod(7 + sibling-index(), 8) * 97 + 26
+             + mod(sin(sibling-index() * 12.9898) * 43758.5453, 1) * 88),
+        calc(round(down, (7 + sibling-index()) / 8, 1) * 55 - 21
+             + mod(sin(sibling-index() * 78.233) * 43758.5453, 1) * 50)
+      )
+      scale(calc(0.45 + mod(sin(sibling-index() * 39.771) * 43758.5453, 1) * 0.85));
+    animation-delay: calc(mod(sibling-index() * 7, 30) * -0.1s);
+  }
 }
 
 #sp1-pos {
@@ -522,53 +447,17 @@
 
 #moon-path {
   type: group;
-  > #m1 {
+  /* Moon glitter path: rungs march down the water on a fixed stride, each
+     wider than the last (perspective) with a sine wobble off the centre line
+     so the column isn't a ruler. */
+  > #m {
     use: shimmer;
-    cx: 620px;
-    cy: 442px;
-    rx: 26px;
-    ry: 3px;
-    time-offset: 0.2s;
-  }
-  > #m2 {
-    use: shimmer;
-    cx: 613px;
-    cy: 462px;
-    rx: 34px;
-    ry: 3.5px;
-    time-offset: 0.8s;
-  }
-  > #m3 {
-    use: shimmer;
-    cx: 627px;
-    cy: 486px;
-    rx: 30px;
-    ry: 4px;
-    time-offset: 1.7s;
-  }
-  > #m4 {
-    use: shimmer;
-    cx: 612px;
-    cy: 514px;
-    rx: 42px;
-    ry: 4px;
-    time-offset: 0.5s;
-  }
-  > #m5 {
-    use: shimmer;
-    cx: 623px;
-    cy: 546px;
-    rx: 50px;
-    ry: 5px;
-    time-offset: 1.2s;
-  }
-  > #m6 {
-    use: shimmer;
-    cx: 616px;
-    cy: 578px;
-    rx: 60px;
-    ry: 5px;
-    time-offset: 2.1s;
+    repeat: 11;
+    cx: calc(618px + sin(sibling-index() * 2.4) * 9px);
+    cy: calc(430px + sibling-index() * 14px);
+    rx: calc(22px + sibling-index() * 3.6px);
+    ry: calc(2.6px + sibling-index() * 0.25px);
+    animation-delay: calc(mod(sibling-index() * 5, 16) * -0.2s);
   }
 }
 
@@ -590,35 +479,19 @@
     animation: drift-front 5.5s linear infinite;
     d: "M -450 0 Q -405 -18 -360 0 T -270 0 T -180 0 T -90 0 T 0 0 T 90 0 T 180 0 T 270 0 T 360 0 T 450 0 T 540 0 T 630 0 T 720 0 T 810 0 T 900 0 T 990 0";
   }
-  > #g1 {
-    use: glint;
-    transform: translate(560px, 56px);
-    time-offset: 0.4s;
-  }
-  > #g2 {
-    use: glint;
-    transform: translate(648px, 88px);
-    time-offset: 1.6s;
-  }
-  > #g3 {
-    use: glint;
-    transform: translate(724px, 44px);
-    time-offset: 0.9s;
-  }
-  > #g4 {
-    use: glint;
-    transform: translate(774px, 106px);
-    time-offset: 2.1s;
-  }
-  > #g5 {
-    use: glint;
-    transform: translate(684px, 128px);
-    time-offset: 1.1s;
-  }
-  > #g6 {
-    use: glint;
-    transform: translate(602px, 116px);
-    time-offset: 0.1s;
+  /* Glints on the near water — hashed scatter under the moon, own group so
+     sibling-index() ignores the wave/foam siblings. */
+  > #glints {
+    type: group;
+    > #g {
+      use: glint;
+      repeat: 14;
+      transform: translate(
+        calc(mod(sibling-index() * 97, 25) * 10 + 545),
+        calc(mod(sibling-index() * 53, 10) * 10 + 40)
+      );
+      animation-delay: calc(mod(sibling-index() * 11, 24) * -0.1s);
+    }
   }
 }
 
