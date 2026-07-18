@@ -338,6 +338,41 @@ test("negative delay: backwards fill never shows (animation already active at t=
 
 // --- (6) offset-path parses end-to-end ---------------------------------------
 
+// --- (5b) multi-subpath motion paths: M jumps are zero-length ----------------
+
+test("multi-subpath length excludes the gap between subpaths (getTotalLength)", () => {
+  // Two 100-long spans with a 100-wide gap; total travel is 200, not 300.
+  const mp = buildMotionPath(parsePath("M 0 0 L 100 0 M 200 0 L 300 0"));
+  expect(mp.length).toBeCloseTo(200, 6);
+});
+
+test("sampling past a subpath's end jumps to the next subpath's start", () => {
+  const mp = buildMotionPath(parsePath("M 0 0 L 100 0 M 200 0 L 300 0"));
+  // distance 0.5 sits exactly on the boundary: the first span ends at (100,0)
+  // but a getPointAtLength jump lands us at the SECOND span's start (200,0).
+  const at = samplePathAt(mp, 0.5);
+  expect(at.x).toBeCloseTo(200, 6);
+  expect(at.y).toBeCloseTo(0, 6);
+  // Just past the boundary continues along the second span.
+  const past = samplePathAt(mp, 0.5 + 1 / 200);
+  expect(past.x).toBeCloseTo(201, 6);
+});
+
+test("an even sweep over two subpaths never lands inside the gap", () => {
+  const mp = buildMotionPath(parsePath("M 0 0 L 100 0 M 200 0 L 300 0"));
+  const N = 40;
+  for (let i = 0; i < N; i++) {
+    const { x } = samplePathAt(mp, i / (N - 1));
+    // Every sample must be ON a drawn span: x in [0,100] or [200,300], never
+    // interpolated across the (100,200) gap.
+    const onSpan =
+      (x >= -1e-6 && x <= 100 + 1e-6) || (x >= 200 - 1e-6 && x <= 300 + 1e-6);
+    expect(onSpan).toBe(true);
+  }
+});
+
+// --- (6) offset-path parses end-to-end ---------------------------------------
+
 test("builder: offset-path / offset-distance / offset-rotate parse onto the node", () => {
   const root = build(`
     #plane {
@@ -355,4 +390,26 @@ test("builder: offset-path / offset-distance / offset-rotate parse onto the node
   // Base captured the authored distance so per-frame reset restores it.
   expect(node.base.offsetDistance).toBeCloseTo(0.25, 6);
   void cx;
+});
+
+test("builder: offset-distance folds sibling-index() to a distinct value per copy", () => {
+  const root = build(`
+    @define dot {
+      type: circle; r: 2px;
+      offset-path: path('M 0 0 L 100 0');
+      offset-distance: calc(sibling-index() / sibling-count() * 100%);
+    }
+    #swarm { use: dot; repeat: 4; }
+  `);
+  const copies = root.children;
+  expect(copies.length).toBe(4);
+  // 1/4, 2/4, 3/4, 4/4 — the `* 100%` folds to a percent (→ 0..1 fraction),
+  // NOT the bare numeric 25/50/75/100 that would clamp to 1.
+  const got = copies.map((n) => n.offsetDistance);
+  expect(got[0]).toBeCloseTo(0.25, 6);
+  expect(got[1]).toBeCloseTo(0.5, 6);
+  expect(got[2]).toBeCloseTo(0.75, 6);
+  expect(got[3]).toBeCloseTo(1, 6);
+  // Distinct per copy, so the sampler places each at its own spot on the path.
+  expect(new Set(got).size).toBe(4);
 });

@@ -809,15 +809,18 @@ export interface MotionPath {
 
 /**
  * Flatten parsed path commands into an arc-length table for CSS Motion Path.
- * M jumps between subpaths count as travel here (the node glides across the
- * gap), unlike computePathLength which skips them.
+ * M jumps between subpaths contribute zero length (getPointAtLength semantics):
+ * distance is measured only along drawn segments. A boundary point carries the
+ * same cumulative as the subpath end before it, so samplePathAt's last-index
+ * search skips the gap and snaps to the next subpath's start instead of
+ * interpolating across it.
  */
 export function buildMotionPath(commands: PathCommand[]): MotionPath {
   const points: { x: number; y: number }[] = [];
   const cumulative: number[] = [];
   let total = 0;
-  flattenPath(commands, (x, y) => {
-    if (points.length > 0) {
+  flattenPath(commands, (x, y, isMove) => {
+    if (points.length > 0 && !isMove) {
       const last = points[points.length - 1];
       total += Math.hypot(x - last.x, y - last.y);
     }

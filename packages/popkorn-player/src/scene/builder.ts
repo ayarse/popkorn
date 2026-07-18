@@ -3186,8 +3186,11 @@ function normalizeLinearPoints(
 // A percentage (50%) becomes 0.5; a bare number (0.5) is taken as-is. Used for
 // trim-* props, which are fractions of the outline length.
 function normalizeFraction(value: Value): number {
-  if (isLengthValue(value) && value.unit === "%") return value.value / 100;
-  return getNumericValue(value);
+  // Fold a static calc() first so a `calc(… * 100%)` form keeps its percent
+  // unit — otherwise the bare numeric (50) would slip past the % divide (→0.5).
+  const v = isCalcValue(value) ? (evalCalcStatic(value) ?? value) : value;
+  if (isLengthValue(v) && v.unit === "%") return v.value / 100;
+  return getNumericValue(v);
 }
 
 // Accumulated state for one animation while composing the `animation` shorthand
