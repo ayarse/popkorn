@@ -83,10 +83,11 @@ contours sharing a group fill are ONE nonzero compound path (holes), not
 separate fills; layer `ip`/`op` → `visible-from`/`until`.
 
 **Regression gate:** the LottieFiles conformance corpus (clone of
-`LottieFiles/test-files`, 80 files). Run `--batch <corpus>/data` before and
-after converter/player changes — the clean/warn/blocked counts are the
-scoreboard (baseline: 69/4/7/0 for the .json files as of 2026-07; only rare shape modifiers pb/op/zz/rd remain
-blocked, deliberately — shipping players skip them too). Real-file smoke
+`LottieFiles/test-files`, 160 .json files upstream as of 2026-07-17). Run
+`--batch <corpus>/data` before and after converter/player changes — the
+clean/warn/blocked counts are the scoreboard (baseline: 142/11/7/0 as of
+2026-07-17; only rare shape modifiers pb/op/zz/rd remain blocked,
+deliberately — shipping players skip them too). Real-file smoke
 checks live in the sticker/demo files under `examples/lottie/`.
 
 ## SVG converter
