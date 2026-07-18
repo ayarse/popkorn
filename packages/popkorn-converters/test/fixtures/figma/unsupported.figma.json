@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "name": "Unsupported Features",
+  "document": { "width": 300, "height": 300 },
+  "nodes": [
+    {
+      "id": "5:1",
+      "name": "Slice",
+      "type": "SLICE",
+      "relativeTransform": [[1, 0, 0], [0, 1, 0]],
+      "width": 100,
+      "height": 100
+    },
+    {
+      "id": "5:2",
+      "name": "Photo",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 0], [0, 1, 0]],
+      "width": 100,
+      "height": 100,
+      "fills": [{ "type": "IMAGE", "scaleMode": "FILL" }]
+    },
+    {
+      "id": "5:3",
+      "name": "Sweep",
+      "type": "ELLIPSE",
+      "relativeTransform": [[1, 0, 120], [0, 1, 120]],
+      "width": 80,
+      "height": 80,
+      "fills": [
+        {
+          "type": "GRADIENT_ANGULAR",
+          "gradientStops": [
+            { "position": 0, "color": { "r": 1, "g": 0, "b": 0 } },
+            { "position": 1, "color": { "r": 0, "g": 0, "b": 1 } }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "5:4",
+      "name": "Sheared",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0.5, 40], [0, 1, 200]],
+      "width": 80,
+      "height": 40,
+      "fills": [{ "type": "SOLID", "color": { "r": 0.5, "g": 0.5, "b": 0.5 } }]
+    }
+  ]
+}

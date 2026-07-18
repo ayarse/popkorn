@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "name": "Image fill",
+  "document": { "width": 300, "height": 200 },
+  "nodes": [
+    {
+      "id": "6:1",
+      "name": "Photo",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 10], [0, 1, 10]],
+      "width": 120,
+      "height": 120,
+      "fills": [
+        {
+          "type": "IMAGE",
+          "scaleMode": "FILL",
+          "imageHash": "abc123",
+          "dataUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        }
+      ]
+    },
+    {
+      "id": "6:2",
+      "name": "Photo Copy",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 160], [0, 1, 10]],
+      "width": 120,
+      "height": 120,
+      "fills": [
+        {
+          "type": "IMAGE",
+          "scaleMode": "FILL",
+          "imageHash": "abc123",
+          "dataUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+        }
+      ]
+    }
+  ]
+}

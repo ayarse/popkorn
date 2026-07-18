@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "name": "Mask group",
+  "document": { "width": 200, "height": 200 },
+  "nodes": [
+    {
+      "id": "7:1",
+      "name": "Masked",
+      "type": "GROUP",
+      "relativeTransform": [[1, 0, 0], [0, 1, 0]],
+      "width": 200,
+      "height": 200,
+      "children": [
+        {
+          "id": "7:2",
+          "name": "Mask",
+          "type": "RECTANGLE",
+          "isMask": true,
+          "maskType": "ALPHA",
+          "relativeTransform": [[1, 0, 20], [0, 1, 20]],
+          "width": 100,
+          "height": 100,
+          "cornerRadius": 12,
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1 } }]
+        },
+        {
+          "id": "7:3",
+          "name": "Blue",
+          "type": "RECTANGLE",
+          "relativeTransform": [[1, 0, 0], [0, 1, 0]],
+          "width": 120,
+          "height": 120,
+          "fills": [{ "type": "SOLID", "color": { "r": 0.2, "g": 0.4, "b": 1 } }]
+        },
+        {
+          "id": "7:4",
+          "name": "Red",
+          "type": "ELLIPSE",
+          "relativeTransform": [[1, 0, 60], [0, 1, 60]],
+          "width": 100,
+          "height": 100,
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 0.2, "b": 0.2 } }]
+        }
+      ]
+    }
+  ]
+}

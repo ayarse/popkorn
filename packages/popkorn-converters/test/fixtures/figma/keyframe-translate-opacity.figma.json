@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "name": "Translate + Opacity",
+  "document": { "width": 400, "height": 200 },
+  "nodes": [
+    {
+      "id": "2:1",
+      "name": "Mover",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 0], [0, 1, 70]],
+      "width": 60,
+      "height": 60,
+      "fills": [{ "type": "SOLID", "color": { "r": 0.2, "g": 0.6, "b": 0.9 } }],
+      "timelineDuration": 2,
+      "tracks": [
+        {
+          "property": "TRANSLATION_X",
+          "baseValue": { "type": "FLOAT", "value": 0 },
+          "keyframes": [
+            { "t": 0, "value": { "type": "FLOAT", "value": 0 }, "easing": { "type": "LINEAR" } },
+            { "t": 2, "value": { "type": "FLOAT", "value": 300 }, "easing": { "type": "EASE_OUT" } }
+          ]
+        },
+        {
+          "property": "OPACITY",
+          "baseValue": { "type": "FLOAT", "value": 1 },
+          "keyframes": [
+            { "t": 0, "value": { "type": "FLOAT", "value": 1 }, "easing": { "type": "LINEAR" } },
+            { "t": 2, "value": { "type": "FLOAT", "value": 0 }, "easing": { "type": "LINEAR" } }
+          ]
+        }
+      ]
+    }
+  ]
+}

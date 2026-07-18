@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "name": "Per-corner radius",
+  "document": { "width": 200, "height": 200 },
+  "nodes": [
+    {
+      "id": "5:1",
+      "name": "Card",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 20], [0, 1, 20]],
+      "width": 120,
+      "height": 120,
+      "cornerRadius": 0,
+      "fills": [{ "type": "SOLID", "color": { "r": 0.2, "g": 0.6, "b": 1 } }],
+      "timelineDuration": 1,
+      "tracks": [
+        {
+          "property": "RECTANGLE_TOP_LEFT_CORNER_RADIUS",
+          "baseValue": { "type": "FLOAT", "value": 0 },
+          "keyframes": [
+            { "t": 0, "value": { "type": "FLOAT", "value": 0 } },
+            {
+              "t": 1,
+              "value": { "type": "FLOAT", "value": 40 },
+              "easing": { "type": "EASE_OUT" }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

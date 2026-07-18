@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "name": "Static Shapes",
+  "document": { "width": 400, "height": 300, "background": { "r": 0.05, "g": 0.05, "b": 0.12 } },
+  "nodes": [
+    {
+      "id": "1:1",
+      "name": "Frame",
+      "type": "FRAME",
+      "relativeTransform": [[1, 0, 0], [0, 1, 0]],
+      "width": 400,
+      "height": 300,
+      "fills": [],
+      "children": [
+        {
+          "id": "1:2",
+          "name": "Box",
+          "type": "RECTANGLE",
+          "relativeTransform": [[1, 0, 20], [0, 1, 30]],
+          "width": 100,
+          "height": 80,
+          "cornerRadius": 8,
+          "fills": [{ "type": "SOLID", "color": { "r": 0.9, "g": 0.2, "b": 0.3 } }]
+        },
+        {
+          "id": "1:3",
+          "name": "Dot",
+          "type": "ELLIPSE",
+          "relativeTransform": [[1, 0, 200], [0, 1, 50]],
+          "width": 60,
+          "height": 60,
+          "fills": [{ "type": "SOLID", "color": { "r": 0.3, "g": 0.8, "b": 0.7 } }]
+        },
+        {
+          "id": "1:4",
+          "name": "Blob",
+          "type": "VECTOR",
+          "relativeTransform": [[1, 0, 150], [0, 1, 150]],
+          "width": 100,
+          "height": 100,
+          "vectorPaths": [{ "windingRule": "NONZERO", "data": "M0 0 L100 0 L50 100 Z" }],
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 0.9, "b": 0.4 } }],
+          "strokes": [{ "type": "SOLID", "color": { "r": 0, "g": 0, "b": 0 } }],
+          "strokeWeight": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "name": "Gradient + Corners",
+  "document": { "width": 400, "height": 200 },
+  "nodes": [
+    {
+      "id": "4:1",
+      "name": "Card",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 40], [0, 1, 40]],
+      "width": 160,
+      "height": 120,
+      "rectangleCornerRadii": [4, 8, 12, 16],
+      "fills": [
+        {
+          "type": "GRADIENT_LINEAR",
+          "gradientStops": [
+            { "position": 0, "color": { "r": 1, "g": 0.42, "b": 0.42 } },
+            { "position": 1, "color": { "r": 0.3, "g": 0.8, "b": 0.77 } }
+          ],
+          "gradientHandlePositions": [
+            { "x": 0, "y": 0 },
+            { "x": 160, "y": 120 },
+            { "x": 0, "y": 120 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "4:2",
+      "name": "Orb",
+      "type": "ELLIPSE",
+      "relativeTransform": [[1, 0, 240], [0, 1, 40]],
+      "width": 120,
+      "height": 120,
+      "fills": [
+        {
+          "type": "GRADIENT_RADIAL",
+          "gradientStops": [
+            { "position": 0, "color": { "r": 1, "g": 1, "b": 1 } },
+            { "position": 1, "color": { "r": 0.2, "g": 0.2, "b": 0.2 } }
+          ],
+          "gradientHandlePositions": [
+            { "x": 60, "y": 60 },
+            { "x": 120, "y": 60 },
+            { "x": 60, "y": 120 }
+          ]
+        }
+      ]
+    }
+  ]
+}

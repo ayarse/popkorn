@@ -1,0 +1,16 @@
+{
+  "name": "@popkorn/figma-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Figma plugin shell that captures a node tree + Motion keyframes and exports Popkorn CSS.",
+  "scripts": {
+    "build": "bun run build.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.131.0",
+    "@popkorn/converters": "workspace:*",
+    "@types/node": "^22",
+    "typescript": "^5"
+  }
+}

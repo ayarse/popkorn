@@ -11,37 +11,49 @@
  * stay importable from browser code (the demo's Lottie/SVG import).
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { extname, join } from "node:path";
+import { join } from "node:path";
+import * as figma from "./figma2popkorn";
 import * as lottie from "./lottie2popkorn";
 import * as svg from "./svg2popkorn";
 
-// Registry keyed by extension. Both cores share the Converter/validate contract
-// shape, so a format is just: which module, how to parse input, which files to
-// pick up in --batch.
-const FORMATS: Record<
-  string,
+type Format = {
+  mod: { Converter: new () => any; validate: (css: string) => string[] };
+  parse: (raw: string) => unknown;
+  take: (name: string) => boolean;
+};
+
+// Both `.figma.json` and `.json` share the `.json` extension, so format is
+// picked by filename (most specific first), not by extname alone. Every core
+// shares the Converter/validate contract shape, so a format is just: which
+// module, how to parse input, which files to pick up in --batch.
+const FORMATS: Format[] = [
   {
-    mod: { Converter: new () => any; validate: (css: string) => string[] };
-    parse: (raw: string) => unknown;
-    take: (name: string) => boolean;
-  }
-> = {
-  ".json": {
+    mod: figma,
+    parse: (raw) => JSON.parse(raw),
+    take: (name) => name.endsWith(".figma.json"),
+  },
+  {
     mod: lottie,
     parse: (raw) => JSON.parse(raw),
-    take: (name) => name.endsWith(".json") && !name.endsWith("-meta.json"),
+    take: (name) =>
+      name.endsWith(".json") &&
+      !name.endsWith(".figma.json") &&
+      !name.endsWith("-meta.json"),
   },
-  ".svg": {
+  {
     mod: svg,
     parse: (raw) => raw,
     take: (name) => name.endsWith(".svg"),
   },
-};
+];
 
 function formatFor(path: string) {
-  const fmt = FORMATS[extname(path).toLowerCase()];
+  const name = path.toLowerCase();
+  const fmt = FORMATS.find((f) => f.take(name));
   if (!fmt) {
-    console.error(`unsupported input: ${path} (expected .json or .svg)`);
+    console.error(
+      `unsupported input: ${path} (expected .figma.json, .json or .svg)`,
+    );
     process.exit(1);
   }
   return fmt;
@@ -62,7 +74,7 @@ function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, out);
-    else if (FORMATS[extname(name).toLowerCase()]?.take(name)) out.push(p);
+    else if (FORMATS.some((f) => f.take(name.toLowerCase()))) out.push(p);
   }
   return out;
 }

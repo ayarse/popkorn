@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "Clips content",
+  "document": { "width": 300, "height": 300 },
+  "nodes": [
+    {
+      "id": "8:1",
+      "name": "Card",
+      "type": "FRAME",
+      "relativeTransform": [[1, 0, 20], [0, 1, 20]],
+      "width": 160,
+      "height": 120,
+      "cornerRadius": 16,
+      "clipsContent": true,
+      "fills": [{ "type": "SOLID", "color": { "r": 0.1, "g": 0.1, "b": 0.15 } }],
+      "children": [
+        {
+          "id": "8:2",
+          "name": "Overflow",
+          "type": "RECTANGLE",
+          "relativeTransform": [[1, 0, 100], [0, 1, 80]],
+          "width": 200,
+          "height": 200,
+          "fills": [{ "type": "SOLID", "color": { "r": 1, "g": 0.8, "b": 0 } }]
+        }
+      ]
+    }
+  ]
+}

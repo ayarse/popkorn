@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "name": "Spring Rotation",
+  "document": { "width": 300, "height": 300 },
+  "nodes": [
+    {
+      "id": "3:1",
+      "name": "Spinner",
+      "type": "RECTANGLE",
+      "relativeTransform": [[1, 0, 120], [0, 1, 120]],
+      "width": 60,
+      "height": 60,
+      "fills": [{ "type": "SOLID", "color": { "r": 0.95, "g": 0.4, "b": 0.2 } }],
+      "timelineDuration": 1.5,
+      "tracks": [
+        {
+          "property": "ROTATION",
+          "baseValue": { "type": "FLOAT", "value": 0 },
+          "keyframes": [
+            { "t": 0, "value": { "type": "FLOAT", "value": 0 } },
+            { "t": 1.5, "value": { "type": "FLOAT", "value": 90 }, "easing": { "type": "CUSTOM_SPRING", "bounce": 0.5 } }
+          ]
+        }
+      ]
+    }
+  ]
+}
