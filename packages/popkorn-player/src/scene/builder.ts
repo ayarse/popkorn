@@ -42,6 +42,8 @@ import { isGradientData } from "../renderer/types";
 import { colorStringFromValue } from "./color";
 import { buildMotionPath, parsePath } from "./path-parser";
 import { freezeRandom, hashString, valueHasRandom } from "./random";
+import type { SiblingContext } from "./sibling";
+import { foldSiblingFns, valueHasSiblingFn } from "./sibling";
 import { clamp01 } from "./transform";
 import type {
   AnimatableValue,
@@ -101,6 +103,13 @@ const STATE_BLOCK_IGNORED = new Set([
   "animation-fill-mode",
   "animation-composition",
 ]);
+
+// `repeat:` copy cap — a typo'd count must not OOM. Above this is a diagnostic.
+const REPEAT_CAP = 10000;
+
+// A lone/un-repeated node is sibling 1-of-its-actual-count; the real index/count
+// are filled in by buildSiblings before buildNode runs.
+const ROOT_SIBLING: SiblingContext = { index: 1, count: 1 };
 
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
   sd.type === "star" || sd.type === "polygon";
@@ -405,6 +414,9 @@ export class SceneBuilder {
   // computed lazily on the first random() so random-free scenes pay nothing.
   private sheet: StyleSheet | null = null;
   private docSeed: number | null = null;
+  // Set once any `repeat:` stamps >1 copy, so the post-build id-uniqueness check
+  // (derived-id collisions) runs only for scenes that actually instanced.
+  private usedRepeat = false;
 
   build(stylesheet: StyleSheet): SceneNode {
     this.sheet = stylesheet;
@@ -418,16 +430,22 @@ export class SceneBuilder {
     for (const v of stylesheet.variables) {
       this.variablesMap.set(v.name, v.value);
     }
+    // `repeat:` is instance context, not template — a @define body may never
+    // carry it (its count would be ambiguous at every use site).
+    for (const def of stylesheet.definitions) {
+      assertNoRepeatInDefinition(def);
+    }
 
     // Create root node
     const root = createSceneNode("root", "group");
 
-    // Process rules
-    for (const rule of stylesheet.rules) {
-      const node = this.buildNode(rule);
-      node.parent = root;
-      root.children.push(node);
-    }
+    // Process rules (expanding `repeat:` into consecutive real sibling nodes).
+    this.buildSiblings(stylesheet.rules, root);
+
+    // Derived-id collisions (a copy's id equal to an explicitly-declared node's,
+    // or to another copy's) surface as duplicate scene ids; only worth walking
+    // when the scene actually instanced.
+    if (this.usedRepeat) assertUniqueIds(root);
 
     this.resolveMasks(root);
     this.unTrapMaskedContent(root);
@@ -555,7 +573,7 @@ export class SceneBuilder {
     });
   }
 
-  private buildNode(rule: Rule): SceneNode {
+  private buildNode(rule: Rule, sib: SiblingContext = ROOT_SIBLING): SceneNode {
     // Expand a `use: <symbol>` reference into a merged rule before building.
     rule = this.expandUse(rule);
 
@@ -564,6 +582,10 @@ export class SceneBuilder {
     // everything downstream (structural fold, calc, state blocks) sees a
     // constant. Keyframe random() is frozen per-node in buildKeyframes instead.
     rule = this.freezeRandomInRule(rule, id);
+    // Substitute sibling-index()/sibling-count() in this node's own declarations
+    // with its position among siblings — structural, so it folds to a constant
+    // the same way. Keyframe sibling fns are folded per-node in buildKeyframes.
+    rule = this.foldSiblingInRule(rule, sib);
     let shapeType: ShapeType = "group";
 
     // First pass: find shape type
@@ -596,7 +618,7 @@ export class SceneBuilder {
 
     // Resolve the `animation` shorthand together with the `animation-*`
     // longhands (CSS composition: later declarations win per sub-property).
-    this.resolveAnimations(node, rule.declarations);
+    this.resolveAnimations(node, rule.declarations, sib);
 
     // Node-level transitions (apply to interaction state changes).
     node.transitions = this.resolveTransitions(rule.declarations);
@@ -624,6 +646,7 @@ export class SceneBuilder {
               stateRule.declarations,
               true,
               node.id,
+              sib,
             ),
           });
           for (const childRule of stateRule.children) {
@@ -646,12 +669,8 @@ export class SceneBuilder {
       }
     }
 
-    // Process children
-    for (const childRule of rule.children) {
-      const childNode = this.buildNode(childRule);
-      childNode.parent = node;
-      node.children.push(childNode);
-    }
+    // Process children (`repeat:` expands here too, so nesting multiplies).
+    this.buildSiblings(rule.children, node);
 
     // Resolve deferred state-child rules: attach each state block's overrides to
     // the targeted direct child, and record the child so this node's state flip
@@ -686,7 +705,12 @@ export class SceneBuilder {
         machine: machineState.machine,
         name: machineState.name,
         styles: this.buildStateStyles(childRule.declarations),
-        animations: this.buildAnimations(childRule.declarations, true, node.id),
+        animations: this.buildAnimations(
+          childRule.declarations,
+          true,
+          node.id,
+          sib,
+        ),
       });
     }
 
@@ -741,6 +765,142 @@ export class SceneBuilder {
       })),
     }));
     return sawRandom ? { ...rule, declarations, states } : rule;
+  }
+
+  /**
+   * Substitute sibling-index()/sibling-count() in a rule's OWN declarations (and
+   * its state blocks) with this node's structural position, mirroring
+   * freezeRandomInRule. Child rules are NOT descended — each resolves against its
+   * own sibling position in its own buildNode. Returns the rule unchanged (no
+   * allocation) when it uses neither function.
+   * NOTE: a state-child block (`&:hover > #c`) folds against the PARENT's
+   * position, not #c's — same accepted edge as freezeRandomInRule.
+   */
+  private foldSiblingInRule(rule: Rule, sib: SiblingContext): Rule {
+    let sawFn = false;
+    const mapDecls = (decls: Declaration[]): Declaration[] =>
+      decls.map((d) => {
+        if (!valueHasSiblingFn(d.value)) return d;
+        sawFn = true;
+        return { ...d, value: foldSiblingFns(d.value, sib) };
+      });
+
+    const declarations = mapDecls(rule.declarations);
+    const states = rule.states.map((s) => ({
+      ...s,
+      declarations: mapDecls(s.declarations),
+      children: s.children.map((c) => ({
+        ...c,
+        declarations: mapDecls(c.declarations),
+      })),
+    }));
+    return sawFn ? { ...rule, declarations, states } : rule;
+  }
+
+  /**
+   * Build a list of sibling rules into `parent`, expanding any `repeat:` into
+   * consecutive real nodes first, then resolving sibling-index()/-count() against
+   * the fully-expanded list (spec: both count ALL siblings, in document order).
+   */
+  private buildSiblings(rules: Rule[], parent: SceneNode): void {
+    const expanded: Rule[] = [];
+    const derived = new Set<string>();
+    for (const rule of rules) this.expandRepeat(rule, expanded, derived);
+
+    // Per-copy override: a later pure-property rule (`#field-3 { fill: red }` —
+    // no type/use/children of its own) whose id names an already-emitted repeat
+    // copy folds its declarations onto that copy (last wins), rather than adding
+    // a fourth node. A rule that re-establishes the node (type/use/children) is
+    // NOT an override — it stays a separate node and trips the id-collision
+    // check. Reuses mergeStates + the normal buildNode declaration pass.
+    const slot = new Map<string, Rule>();
+    const finalRules: Rule[] = [];
+    for (const rule of expanded) {
+      const id = rule.selector.type === "id" ? rule.selector.name : "";
+      const base = id ? slot.get(id) : undefined;
+      if (base && derived.has(id) && isPureOverride(rule)) {
+        const merged: Rule = {
+          ...base,
+          declarations: [...base.declarations, ...rule.declarations],
+          states: mergeStates(base.states, rule.states),
+        };
+        finalRules[finalRules.indexOf(base)] = merged;
+        slot.set(id, merged);
+        continue;
+      }
+      finalRules.push(rule);
+      if (id) slot.set(id, rule);
+    }
+
+    const count = finalRules.length;
+    finalRules.forEach((rule, i) => {
+      const node = this.buildNode(rule, { index: i + 1, count });
+      node.parent = parent;
+      parent.children.push(node);
+    });
+  }
+
+  /**
+   * Expand one authored rule into 1..N real sibling rules, appending them to
+   * `out`. `repeat: <n>` stamps N copies whose ids derive `#field` -> `field-1`
+   * … `field-N` (descendant ids re-suffixed too, keeping the subtree unique and
+   * per-copy targetable); `repeat: 1` and no `repeat:` pass through untouched.
+   * The count is structural — folded now, like `use:` — so nested repeats
+   * multiply naturally when each copy's children are expanded in turn.
+   */
+  private expandRepeat(rule: Rule, out: Rule[], derived: Set<string>): void {
+    const n = this.repeatCount(rule);
+    if (n === null) {
+      out.push(rule);
+      return;
+    }
+    const base = stripRepeatDecl(rule);
+    if (n === 1) {
+      out.push(base); // `repeat: 1` ≡ absent
+      return;
+    }
+    this.usedRepeat = true;
+    for (let i = 1; i <= n; i++) {
+      const copy = suffixRuleIds(base, `-${i}`);
+      if (copy.selector.type === "id") derived.add(copy.selector.name);
+      out.push(copy);
+    }
+  }
+
+  /**
+   * The `repeat:` count for a rule, or null when it has none. The count is
+   * structural: static `var()`/`calc()` fold to a literal, but a reactive
+   * `input()`/`var()` is rejected — node count can't vary per frame (the render
+   * walk is a pure function of time over a fixed tree). 0/negative/non-integer
+   * and over-cap counts are diagnostics.
+   */
+  private repeatCount(rule: Rule): number | null {
+    const decl = rule.declarations.find((d) => d.property === "repeat");
+    if (!decl) return null;
+    const id = rule.selector.name;
+    const resolved = this.resolveStaticVars(decl.value);
+    if (this.hasVariableReference(resolved)) {
+      throw new Error(
+        `repeat on '#${id}' must be a static count, not a reactive input()/var() (node count is fixed over the timeline)`,
+      );
+    }
+    if (!isNumberValue(resolved) || !Number.isInteger(resolved.value)) {
+      throw new Error(
+        `repeat on '#${id}' must be a positive integer (use display:none to hide a node)`,
+      );
+    }
+    const value = resolved.value;
+    if (value < 1) {
+      throw new Error(
+        `repeat on '#${id}' must be >= 1 (use display:none to hide a node), got ${value}`,
+      );
+    }
+    if (value > REPEAT_CAP) {
+      throw new Error(
+        `repeat on '#${id}' is ${value}, over the cap of ${REPEAT_CAP}`,
+      );
+    }
+    return value;
   }
 
   /**
@@ -1726,8 +1886,9 @@ export class SceneBuilder {
   private resolveAnimations(
     node: SceneNode,
     declarations: Declaration[],
+    sib: SiblingContext = ROOT_SIBLING,
   ): void {
-    for (const a of this.buildAnimations(declarations, false, node.id))
+    for (const a of this.buildAnimations(declarations, false, node.id, sib))
       node.animations.push(a);
   }
 
@@ -1748,6 +1909,7 @@ export class SceneBuilder {
     declarations: Declaration[],
     stateDefault = false,
     nodeId = "",
+    sib: SiblingContext = ROOT_SIBLING,
   ): AnimationInstance[] {
     let slots: AnimSlot[] | null = null;
     // Grow (creating default slots) so a longhand seen before any shorthand can
@@ -1870,6 +2032,7 @@ export class SceneBuilder {
           keyframes: this.buildKeyframes(
             this.keyframesMap.get(slot.name)!,
             nodeId,
+            sib,
           ),
         });
       }
@@ -2132,9 +2295,13 @@ export class SceneBuilder {
     return "ease";
   }
 
-  private buildKeyframes(rule: KeyframeRule, nodeId = ""): KeyframeData[] {
+  private buildKeyframes(
+    rule: KeyframeRule,
+    nodeId = "",
+    sib: SiblingContext = ROOT_SIBLING,
+  ): KeyframeData[] {
     const frames = rule.blocks.flatMap((block) => {
-      const properties = this.buildKeyframeProperties(block, nodeId);
+      const properties = this.buildKeyframeProperties(block, nodeId, sib);
       // Per-keyframe easing, resolved through the one shared timing-function
       // path so keyframes accept the same easing syntax as the animation
       // shorthand/longhand.
@@ -2164,6 +2331,7 @@ export class SceneBuilder {
   private buildKeyframeProperties(
     block: KeyframeBlock,
     nodeId = "",
+    sib: SiblingContext = ROOT_SIBLING,
   ): Record<string, AnimatableValue> {
     const props: Record<string, AnimatableValue> = {};
 
@@ -2175,7 +2343,13 @@ export class SceneBuilder {
       // A random() endpoint is frozen here against the owning node (per-element
       // rolls per instance sharing this @keyframes); default sharing keys to the
       // call site, so all instances get the same endpoint.
-      const resolved = this.resolveStaticVars(decl.value);
+      // sibling-index()/sibling-count() resolve per instance sharing this
+      // @keyframes, before resolveStaticVars folds the now-static calc() to a
+      // literal endpoint (mirrors how per-element random freezes below).
+      const withSibling = valueHasSiblingFn(decl.value)
+        ? foldSiblingFns(decl.value, sib)
+        : decl.value;
+      const resolved = this.resolveStaticVars(withSibling);
       const value = valueHasRandom(resolved)
         ? freezeRandom(resolved, {
             documentSeed: this.documentSeed(),
@@ -2852,6 +3026,83 @@ export class SceneBuilder {
 export function buildSceneGraph(stylesheet: StyleSheet): SceneNode {
   const builder = new SceneBuilder();
   return builder.build(stylesheet);
+}
+
+// A rule minus its `repeat:` declaration (values are read-only during build, so
+// the array is filtered in place of a deep copy).
+function stripRepeatDecl(rule: Rule): Rule {
+  return {
+    ...rule,
+    declarations: rule.declarations.filter((d) => d.property !== "repeat"),
+  };
+}
+
+// Clone a rule tree, appending `suffix` to every id selector in it — the top id
+// and every descendant id (nested children AND state-block children), so a
+// `repeat:` copy's whole subtree stays unique and per-copy targetable
+// (`#field-2`'s child `#arm` -> `#arm-2`). Class selectors are left alone; this
+// runs before `use:` expansion, so symbol internals get namespaced under the
+// already-suffixed instance id in the copy's own buildNode.
+function suffixRuleIds(rule: Rule, suffix: string): Rule {
+  const selector =
+    rule.selector.type === "id"
+      ? { ...rule.selector, name: rule.selector.name + suffix }
+      : rule.selector;
+  return {
+    ...rule,
+    selector,
+    children: rule.children.map((c) => suffixRuleIds(c, suffix)),
+    states: rule.states.map((s) => ({
+      ...s,
+      children: s.children.map((c) => suffixRuleIds(c, suffix)),
+    })),
+  };
+}
+
+// A rule that only sets properties on an existing node — no `type:`/`use:` and no
+// children of its own. Such a rule targeting a repeat copy's id is a per-copy
+// override; one that establishes a node (type/use/children) is a distinct node
+// and thus an id collision.
+function isPureOverride(rule: Rule): boolean {
+  return (
+    rule.children.length === 0 &&
+    !rule.declarations.some(
+      (d) => d.property === "type" || d.property === "use",
+    )
+  );
+}
+
+// `repeat:` is instance context; a @define template may not carry it anywhere in
+// its body (declarations or any descendant rule).
+function assertNoRepeatInDefinition(def: DefinitionRule): void {
+  const scan = (decls: Declaration[], children: Rule[]): void => {
+    if (decls.some((d) => d.property === "repeat")) {
+      throw new Error(
+        `repeat: is not allowed inside @define '${def.name}' — put it on the node that use:s the symbol`,
+      );
+    }
+    for (const c of children) scan(c.declarations, c.children);
+  };
+  scan(def.declarations, def.children);
+}
+
+// After `repeat:` expansion, two nodes sharing an id means a derived id collided
+// with an explicitly-declared node (or another copy) — reject it, matching the
+// per-copy-targetable identity contract.
+function assertUniqueIds(root: SceneNode): void {
+  const seen = new Set<string>();
+  const visit = (n: SceneNode): void => {
+    if (n.id) {
+      if (seen.has(n.id)) {
+        throw new Error(
+          `duplicate node id '#${n.id}' — a repeat-derived id collides with another node`,
+        );
+      }
+      seen.add(n.id);
+    }
+    n.children.forEach(visit);
+  };
+  root.children.forEach(visit);
 }
 
 // Deep-clone a definition child rule, namespacing every id in the subtree under
