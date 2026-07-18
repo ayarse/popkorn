@@ -116,7 +116,6 @@ export const examples: Example[] = [
 :root {
   width: 800px;
   height: 600px;
-  background: #1a1a2e;
 }
 
 /*
@@ -460,7 +459,6 @@ export const examples: Example[] = [
 :root {
   width: 800px;
   height: 600px;
-  background: #0b1021;
 }
 
 @keyframes fly {
@@ -501,7 +499,6 @@ export const examples: Example[] = [
 :root {
   width: 800px;
   height: 600px;
-  background: #0b0f1e;
 }
 
 /* Pen writing: reveal with trim-end, hold the finished word, then wipe with trim-start. */
@@ -539,7 +536,6 @@ export const examples: Example[] = [
 :root {
   width: 800px;
   height: 600px;
-  background: #0f0f1e;
 }
 
 @keyframes blob {
@@ -655,7 +651,6 @@ export const examples: Example[] = [
 :root {
   width: 800px;
   height: 600px;
-  background: #0b1021;
 }
 
 /* The mask source is a white bar that sweeps across. Driving a luminance mask,
@@ -833,7 +828,6 @@ export const examples: Example[] = [
 :root {
   width: 418px;
   height: 94px;
-  background: #eef0f3;
 }
 
 @keyframes bob {
@@ -1201,7 +1195,6 @@ export const examples: Example[] = [
 :root {
   width: 800px;
   height: 600px;
-  background: #171d2a;
 }
 
 @machine lamp {
@@ -5621,6 +5614,54 @@ export const examples: Example[] = [
   100% { d: 'M -150.24 260.54 C -155.21 260.54 -159.24 264.57 -159.24 269.54 C -159.24 274.51 -155.21 278.54 -150.24 278.54 C -150.24 278.54 132.67 278.51 132.67 278.51 C 137.64 278.51 141.67 274.49 141.67 269.51 C 141.67 264.54 137.64 260.51 132.67 260.51 C 132.67 260.51 -150.24 260.54 -150.24 260.54 Z'; }
 }
 
+/* ----------------------------------------------------------------------------
+   Interactive volume — a hand-authored 4-level state machine on the converted
+   scene. The master "Main Scene" timeline (0–5.58s @ 60fps) holds four looping
+   "level" windows joined by short one-shot "transition" segments:
+
+     Level 1  0–1.0s (loop)   → Increase-to-2  1.017–1.483s
+     Level 2  1.517–2.533s    → Increase-to-3  2.55–2.983s
+     Level 3  3.0–4.117s      → Increase-to-4  4.133–4.65s
+     Level 4  4.667–5.583s
+
+   @machine vol steps between levels by driving \`time-remap\` on #master — an
+   animatable scalar that scrubs a segment of the master timeline for the whole
+   volume-responsive subtree (BG echoes, Character, notes, Volume, mask). Click
+   #Increase-button to play a transition segment forward once (\`on complete\`
+   settles into the next level's loop); click #Decrease-button to play the SAME
+   segment in \`reverse\` and settle into the previous level's loop. Each
+   transition state's animation duration equals its segment length, so
+   \`on complete\` fires exactly when the segment finishes.
+
+   Note: clicking Increase mid-loop hard-cuts to the transition segment's first
+   frame — that's the dotLottie PlaybackState behavior, not a bug. No \`mix\` here:
+   blending two *times* would time-blur hundreds of descendant tracks.
+   -------------------------------------------------------------------------- */
+
+@keyframes seg-l1  { from { time-remap: 0s;     } to { time-remap: 1s;     } }
+@keyframes seg-up2 { from { time-remap: 1.017s; } to { time-remap: 1.483s; } }
+@keyframes seg-l2  { from { time-remap: 1.517s; } to { time-remap: 2.533s; } }
+@keyframes seg-up3 { from { time-remap: 2.55s;  } to { time-remap: 2.983s; } }
+@keyframes seg-l3  { from { time-remap: 3s;     } to { time-remap: 4.117s; } }
+@keyframes seg-up4 { from { time-remap: 4.133s; } to { time-remap: 4.65s;  } }
+@keyframes seg-l4  { from { time-remap: 4.667s; } to { time-remap: 5.583s; } }
+
+@machine vol {
+  initial: l1;
+  state l1  { to: up2 on click(#Increase-button); }
+  state up2 { to: l2  on complete; }
+  state l2  { to: up3 on click(#Increase-button); to: dn1 on click(#Decrease-button); }
+  state dn1 { to: l1  on complete; }
+  state up3 { to: l3  on complete; }
+  state l3  { to: up4 on click(#Increase-button); to: dn2 on click(#Decrease-button); }
+  state dn2 { to: l2  on complete; }
+  state up4 { to: l4  on complete; }
+  state l4  { to: dn3 on click(#Decrease-button); }
+  state dn3 { to: l3  on complete; }
+}
+
+/* The two buttons stay OUTSIDE #master (static UI + click targets) so their
+   frame never moves and they stay clickable. */
 #Increase-button {
   type: group;
   transform: translate(751.38px, 860.79px);
@@ -5647,7 +5688,25 @@ export const examples: Example[] = [
   }
 }
 
-#Layer-4-Outlines-2 {
+/* Volume-responsive content, scrubbed as one by #master's time-remap. #master
+   itself carries NO base animation — only the machine's :state() sets it. */
+#master {
+  type: group;
+
+  /* Level loops play their window forever; transition states play once (forward
+     for Increase, \`reverse\` for Decrease) and settle via \`on complete\`. */
+  &:state(vol.l1)  { animation: seg-l1  1s     linear infinite; }
+  &:state(vol.up2) { animation: seg-up2 467ms  linear; }
+  &:state(vol.dn1) { animation: seg-up2 467ms  linear reverse; }
+  &:state(vol.l2)  { animation: seg-l2  1.017s linear infinite; }
+  &:state(vol.up3) { animation: seg-up3 433ms  linear; }
+  &:state(vol.dn2) { animation: seg-up3 433ms  linear reverse; }
+  &:state(vol.l3)  { animation: seg-l3  1.117s linear infinite; }
+  &:state(vol.up4) { animation: seg-up4 517ms  linear; }
+  &:state(vol.dn3) { animation: seg-up4 517ms  linear reverse; }
+  &:state(vol.l4)  { animation: seg-l4  0.916s linear infinite; }
+
+  > #Layer-4-Outlines-2 {
   type: group;
   transform-origin: 570px 591.64px;
   > #Layer-4-Outlines-2-Group-1 {
@@ -5661,7 +5720,7 @@ export const examples: Example[] = [
   }
 }
 
-#Layer-4-Outlines {
+  > #Layer-4-Outlines {
   type: group;
   transform-origin: 570px 591.64px;
   mask: #mask alpha;
@@ -5676,7 +5735,7 @@ export const examples: Example[] = [
   }
 }
 
-#BG {
+  > #BG {
   type: group;
   transform-origin: 570px 592px;
   transform: translate(0px, 26px);
@@ -8095,7 +8154,7 @@ export const examples: Example[] = [
   }
 }
 
-#Character {
+  > #Character {
   type: group;
   transform-origin: 570px 592px;
   clip-path: var(--p1);
@@ -8944,7 +9003,7 @@ export const examples: Example[] = [
   }
 }
 
-#mask {
+  > #mask {
   type: group;
   transform: translate(570px, 592px);
   > #mask-Rectangle-1 {
@@ -8963,7 +9022,7 @@ export const examples: Example[] = [
   }
 }
 
-#Volume {
+  > #Volume {
   type: group;
   transform-origin: 570px 592px;
   clip-path: var(--p1);
@@ -9039,6 +9098,514 @@ export const examples: Example[] = [
         animation-fill-mode: both;
       }
     }
+  }
+}
+}
+` },
+  { key: "18-math--sine-wave.css", label: "Math: Sine wave", source: `/*
+ * Reactive trig calc(): each dot's cy is a live sine of input(time), phase-shifted
+ * per column so the ring travels as a wave. No @keyframes — the motion is pure
+ * math re-evaluated every frame. cos() drives a companion orbiting dot.
+ */
+
+:root {
+  width: 760px;
+  height: 400px;
+  --t: input(time);
+}
+
+#wave {
+  type: group;
+}
+
+@define dot {
+  type: circle;
+  r: 10px;
+  fill: #4cc9f0;
+}
+
+/* cy = sin(t/280 + phase) * 90 + 200; cx strides across; phase = column * 0.5. */
+#d0  { use: dot; cx: 40px;  cy: calc(sin(var(--t) / 280 + 0) * 90 + 200); }
+#d1  { use: dot; cx: 100px; cy: calc(sin(var(--t) / 280 + 0.5) * 90 + 200); }
+#d2  { use: dot; cx: 160px; cy: calc(sin(var(--t) / 280 + 1) * 90 + 200); }
+#d3  { use: dot; cx: 220px; cy: calc(sin(var(--t) / 280 + 1.5) * 90 + 200); }
+#d4  { use: dot; cx: 280px; cy: calc(sin(var(--t) / 280 + 2) * 90 + 200); }
+#d5  { use: dot; cx: 340px; cy: calc(sin(var(--t) / 280 + 2.5) * 90 + 200); }
+#d6  { use: dot; cx: 400px; cy: calc(sin(var(--t) / 280 + 3) * 90 + 200); }
+#d7  { use: dot; cx: 460px; cy: calc(sin(var(--t) / 280 + 3.5) * 90 + 200); }
+#d8  { use: dot; cx: 520px; cy: calc(sin(var(--t) / 280 + 4) * 90 + 200); }
+#d9  { use: dot; cx: 580px; cy: calc(sin(var(--t) / 280 + 4.5) * 90 + 200); }
+#d10 { use: dot; cx: 640px; cy: calc(sin(var(--t) / 280 + 5) * 90 + 200); }
+#d11 { use: dot; cx: 700px; cy: calc(sin(var(--t) / 280 + 5.5) * 90 + 200); }
+
+/* An orbit: cos()/sin() of the same clock trace a circle of radius 60 about (380, 200). */
+#orbit {
+  type: circle;
+  r: 14px;
+  fill: #f72585;
+  cx: calc(cos(var(--t) / 500) * 60 + 380);
+  cy: calc(sin(var(--t) / 500) * 60 + 200);
+}
+` },
+  { key: "19-sprite-sheet.css", label: "Sprite sheet", source: `/*
+ * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
+ * sprite sheet (see packages/playground/public/examples/CREDITS.md): 864x640,
+ * a 9x5 grid of 96x128 frames. The walk cycle is 8 frames on the row at
+ * y=512 (x = 0, 96, 192 ... 672); the run cycle is 3 frames on the row at
+ * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,
+ * so a still image plays as a loop. The poser below toggles walk <-> run via
+ * a click-driven @machine, each state pointing object-view-box at its row.
+ *
+ * NOTE: every crop rect is inset 0.5px on all four edges — Canvas2D's bilinear
+ * filtering samples half a texel past the crop rect when it's scaled up,
+ * pulling in a sliver of the neighboring frame; the atlas XML confirms the
+ * grid itself is exact (uniform 96x128, no overhang), so this is filtering
+ * bleed, not a bad rect. Upgrade path: a half-texel source inset or a
+ * smoothing control in the player's shared walk.
+ */
+
+:root {
+  width: 800px;
+  height: 340px;
+}
+
+@keyframes walk {
+  from { object-view-box: xywh(0.5px 512.5px 95px 127px); }
+  to   { object-view-box: xywh(768.5px 512.5px 95px 127px); }   /* 8 frames past the last */
+}
+
+@keyframes run {
+  from { object-view-box: xywh(576.5px 256.5px 95px 127px); }
+  to   { object-view-box: xywh(864.5px 256.5px 95px 127px); }   /* 3 frames past the last */
+}
+
+/* One label symbol; each use-site swaps content (and anything else). */
+@define label {
+  type: text;
+  font-family: system-ui, sans-serif;
+  font-size: 15px; font-weight: 600;
+  text-anchor: middle;
+  fill: #e8ecf1;
+}
+
+#sheet-label {
+  use: label;
+  content: 'robot-walk.png — 9x5 frames';
+  x: 40px; y: 30px;
+  text-anchor: start;
+  fill: #9aa4b2;
+}
+
+/* The full sheet, unclamped, so you can see every pose row at once. */
+#sheet {
+  type: image;
+  content: url('/examples/robot-walk.png');
+  x: 40px; y: 48px; width: 270px; height: 200px;
+}
+
+#walker-label {
+  use: label;
+  content: 'steps(8) pages the walk cycle';
+  x: 436px; y: 30px;
+}
+
+/* The paged sprite: crop to the walk row, advance a column per step. */
+#walker {
+  type: image;
+  content: url('/examples/robot-walk.png');
+  x: 340px; y: 48px; width: 192px; height: 256px;
+  object-view-box: xywh(0.5px 512.5px 95px 127px);
+  animation: walk 0.8s steps(8) infinite;
+}
+
+#gait-label {
+  use: label;
+  content: 'click to toggle walk / run';
+  x: 652px; y: 30px;
+  font-size: 14px;
+}
+
+/* Gait selector: click toggles between the walk and run cycles. */
+@machine gait {
+  initial: walk;
+  state walk { to: run  on click(#toggle-btn); }
+  state run  { to: walk on click(#toggle-btn); }
+}
+
+#poser {
+  type: image;
+  content: url('/examples/robot-walk.png');
+  x: 580px; y: 48px; width: 144px; height: 192px;
+  object-view-box: xywh(0.5px 512.5px 95px 127px);
+  &:state(gait.walk) { animation: walk 0.8s steps(8) infinite; }
+  &:state(gait.run)  { animation: run 0.45s steps(3) infinite; }
+}
+
+#toggle-btn {
+  type: rect;
+  x: 580px; y: 250px; width: 144px; height: 40px;
+  rx: 8px;
+  fill: #2a2f3e;
+  stroke: #4d96ff;
+  stroke-width: 1px;
+  cursor: pointer;
+}
+
+#toggle-btn-label {
+  use: label;
+  content: 'toggle';
+  x: 652px; y: 275px;
+  font-size: 13px; font-weight: 400;
+  fill: #cdd6e3;
+}
+` },
+  { key: "20-math--watch-face.css", label: "Math: Watch face", source: `/*
+ * Astronomical complication watch — an orrery / moon-phase face driven purely
+ * by reactive trig + modular math on input(time), no @keyframes. Scene time
+ * runs 8x real (virtualSeconds = t/125) so every gear visibly turns.
+ *
+ * Timekeeping (unchanged register): each hand is a group pinned to the dial
+ * center and rotated with calc(); rotating about the group's own untranslated
+ * origin pivots exactly at center. Hour/minute sweep continuously (mod() wraps
+ * the cycle) at geared ratios; the second hand is quantized with round(down, …)
+ * so it steps once per virtual second instead of sweeping.
+ *
+ * Complications layered behind the hands:
+ *  - Orrery: three planets riding concentric orbit tracks, placed by
+ *    cos()/sin() of the shared clock scaled to very different periods
+ *    (inner ~1.9s, mid ~4.4s, outer ~9.4s per revolution — inner fast,
+ *    outer slow, like real orbital gearing).
+ *  - Moon phase (6 o'clock sub-dial): a lit disc with a sky-coloured shadow
+ *    disc sliding across it; the offset is a slow sine of the clock (~16s
+ *    lunation). The shadow merges into the matching sub-dial sky, so the lit
+ *    remainder reads as waxing/waning crescents through full and new.
+ *    NOTE: this is a sliding-disc approximation, not a true spherical
+ *    terminator — a real terminator would need an arc/clip carve; upgrade path
+ *    is a clip-path against an offset ellipse if crisper phases are wanted.
+ *  - Starfield: dim scattered dots, a few twinkling via sin() opacity at
+ *    different phases.
+ *
+ * Layout at 480x480 keeps three visual classes distinct: hour marks are radial
+ * bars, planets are glowing dots on dashed tracks, stars are the faintest and
+ * smallest dots. A dashed r=190 ring is the minute track (60 dashes = 60
+ * marks). The sub-dial is clipped so nothing spills past its bezel.
+ */
+
+:root {
+  width: 480px;
+  height: 480px;
+  background: #08081a;
+  --t: input(time);
+}
+
+#dial {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  r: 200px;
+  fill: radial-gradient(circle 220px at 240px 210px, #1b1b3a 0%, #0c0c1f 100%);
+  stroke: #2c2c48;
+  stroke-width: 4px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+}
+
+/* Minute track: a dashed ring whose 60 dashes are the minute marks —
+   dash + gap = circumference(r 190) / 60. */
+#minute-track {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  r: 190px;
+  fill: none;
+  stroke: #33335a;
+  stroke-width: 3px;
+  stroke-dasharray: 1.5 18.4;
+}
+
+/* --- Starfield: dim dots behind everything; a few twinkle via sin() opacity. */
+@define star {
+  type: circle;
+  r: 1.1px;
+  fill: #45455f;
+}
+
+@define star-twinkle {
+  type: circle;
+  r: 1.3px;
+  fill: #7a7aad;
+}
+
+#star0  { use: star; cx: 118px; cy: 108px; }
+#star1  { use: star; cx: 182px; cy: 78px; }
+#star2  { use: star; cx: 300px; cy: 92px; }
+#star3  { use: star; cx: 362px; cy: 132px; }
+#star4  { use: star; cx: 92px;  cy: 178px; }
+#star5  { use: star; cx: 402px; cy: 202px; }
+#star6  { use: star; cx: 330px; cy: 172px; }
+#star7  { use: star; cx: 410px; cy: 262px; }
+#star8  { use: star; cx: 86px;  cy: 288px; }
+#star9  { use: star; cx: 128px; cy: 348px; }
+
+/* opacity = sin(t/period + phase) * 0.4 + 0.55 — slow, out-of-phase blinking. */
+#twinkle0 { use: star-twinkle; cx: 150px; cy: 140px; opacity: calc(sin(var(--t) / 620 + 0) * 0.4 + 0.55); }
+#twinkle1 { use: star-twinkle; cx: 356px; cy: 300px; opacity: calc(sin(var(--t) / 780 + 2) * 0.4 + 0.55); }
+#twinkle2 { use: star-twinkle; cx: 300px; cy: 118px; opacity: calc(sin(var(--t) / 540 + 4) * 0.4 + 0.55); }
+#twinkle3 { use: star-twinkle; cx: 96px;  cy: 236px; opacity: calc(sin(var(--t) / 700 + 1) * 0.4 + 0.55); }
+
+/* --- Orrery: faint concentric tracks, planets placed by cos/sin of scaled t.
+   Track radii 58/86/114; planet angle = t / period (radians), inner fastest. */
+@define orbit-track {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  fill: none;
+  stroke: #30305a;
+  stroke-width: 1px;
+  stroke-dasharray: 3 6;
+}
+
+#track-inner { use: orbit-track; r: 58px; }
+#track-mid   { use: orbit-track; r: 86px; }
+#track-outer { use: orbit-track; r: 114px; }
+
+#planet-inner {
+  type: circle;
+  r: 4px;
+  fill: #4cc9f0;
+  box-shadow: 0 0 12px #4cc9f0;
+  cx: calc(cos(var(--t) / 300) * 58 + 240);
+  cy: calc(sin(var(--t) / 300) * 58 + 240);
+}
+
+#planet-mid {
+  type: circle;
+  r: 3.4px;
+  fill: #f72585;
+  box-shadow: 0 0 12px #f72585;
+  cx: calc(cos(var(--t) / 700) * 86 + 240);
+  cy: calc(sin(var(--t) / 700) * 86 + 240);
+}
+
+#planet-outer {
+  type: circle;
+  r: 4.6px;
+  fill: #ffd166;
+  box-shadow: 0 0 14px #ffd166;
+  cx: calc(cos(var(--t) / 1500) * 114 + 240);
+  cy: calc(sin(var(--t) / 1500) * 114 + 240);
+}
+
+/* --- Moon phase sub-dial at 6 o'clock. Clipped to the bezel so the sliding
+   shadow disc never spills; shadow fill == sky fill so it reads as phase.
+   offset = sin(t / 2600) * 46 sweeps new → crescent → full and back. */
+#moon-phase {
+  type: group;
+  clip-path: circle(27 at 240 348);
+  > #moon-sky {
+    type: circle;
+    cx: 240px;
+    cy: 348px;
+    r: 27px;
+    fill: #0a0a1e;
+  }
+  > #moon-lit {
+    type: circle;
+    cx: 240px;
+    cy: 348px;
+    r: 22px;
+    fill: #e6e6f2;
+  }
+  > #moon-shadow {
+    type: circle;
+    cy: 348px;
+    r: 22px;
+    fill: #0a0a1e;
+    cx: calc(sin(var(--t) / 2600) * 46 + 240);
+  }
+}
+
+#moon-bezel {
+  type: circle;
+  cx: 240px;
+  cy: 348px;
+  r: 27px;
+  fill: none;
+  stroke: #5a5a8a;
+  stroke-width: 2px;
+}
+
+/* --- Twelve hour marks: radial bars authored pointing up from the pivot
+   (like the hands), each use-site rotated to its hour. rotate(0) = 12
+   o'clock; quarters get the longer accent bar. */
+@define tick {
+  type: rect;
+  x: -1.5px;
+  y: -182px;
+  width: 3px;
+  height: 14px;
+  rx: 1.5px;
+  fill: #4a4a6c;
+}
+
+@define tick-major {
+  type: rect;
+  x: -2.5px;
+  y: -184px;
+  width: 5px;
+  height: 18px;
+  rx: 2.5px;
+  fill: #4cc9f0;
+}
+
+#tick0  { use: tick-major; transform: translate(240px, 240px) rotate(0deg); }
+#tick1  { use: tick;       transform: translate(240px, 240px) rotate(30deg); }
+#tick2  { use: tick;       transform: translate(240px, 240px) rotate(60deg); }
+#tick3  { use: tick-major; transform: translate(240px, 240px) rotate(90deg); }
+#tick4  { use: tick;       transform: translate(240px, 240px) rotate(120deg); }
+#tick5  { use: tick;       transform: translate(240px, 240px) rotate(150deg); }
+#tick6  { use: tick-major; transform: translate(240px, 240px) rotate(180deg); }
+#tick7  { use: tick;       transform: translate(240px, 240px) rotate(210deg); }
+#tick8  { use: tick;       transform: translate(240px, 240px) rotate(240deg); }
+#tick9  { use: tick-major; transform: translate(240px, 240px) rotate(270deg); }
+#tick10 { use: tick;       transform: translate(240px, 240px) rotate(300deg); }
+#tick11 { use: tick;       transform: translate(240px, 240px) rotate(330deg); }
+
+/* --- Hands: each a group pinned to center, rotated live. The rect child points
+   straight up (negative y) from the group origin, so rotate: 0 reads as 12
+   o'clock and positive degrees sweep clockwise. */
+#hour-hand {
+  type: group;
+  transform: translate(240px, 240px) rotate(calc(mod(var(--t) / 125 / 3600, 12) * 30deg));
+  > #hour-shape {
+    type: rect;
+    x: -6px;
+    y: -96px;
+    width: 12px;
+    height: 96px;
+    rx: 6px;
+    fill: #d8d9e6;
+  }
+}
+
+#minute-hand {
+  type: group;
+  transform: translate(240px, 240px) rotate(calc(mod(var(--t) / 125 / 60, 60) * 6deg));
+  > #minute-shape {
+    type: rect;
+    x: -2.5px;
+    y: -152px;
+    width: 5px;
+    height: 152px;
+    rx: 2.5px;
+    fill: #d8d9e6;
+  }
+}
+
+/* round(down, seconds, 1) floors to the current whole virtual second, so the
+   hand jumps to the next mark instead of sweeping — a real tick, not a sweep. */
+#second-hand {
+  type: group;
+  transform: translate(240px, 240px) rotate(calc(round(down, mod(var(--t) / 125, 60), 1) * 6deg));
+  > #second-shape {
+    type: rect;
+    x: -1.5px;
+    y: -168px;
+    width: 3px;
+    height: 198px;
+    rx: 1.5px;
+    fill: #f72585;
+  }
+}
+
+#center-cap {
+  type: circle;
+  cx: 240px;
+  cy: 240px;
+  r: 10px;
+  fill: #1a1a2e;
+  stroke: #f72585;
+  stroke-width: 3px;
+}
+` },
+  { key: "21-particles--x-logo.css", label: "Particles: X logo", source: `/* Particle X — the X (formerly Twitter) logo assembled from a swarm of dots.
+   The generative trio in one scene: \`repeat:\` stamps 389 copies of one
+   @define'd dot, ONE shared @keyframes flies them all — each copy's inbound
+   arc, hold shimmer, burst vector and stagger derive from sibling-index()
+   (golden-angle hashing: i * 2.39996 rad scatters directions uniformly, and
+   mod() of coprime multiples decorrelates the other channels; deterministic,
+   so crush-safe where random(per-element) would reseed). The silhouette is no
+   table: it's ONE multi-subpath scanline path (horizontal in-glyph spans), and
+   each copy rides it via CSS Motion Path — offset-distance spaces copies by
+   equal arc length, which is even area fill because the ink is the fill. No
+   per-copy rows remain at all: size, jitter and stagger are formulas, so the
+   whole swarm is ONE @define + ONE path (and it crush-minifies cleanly).
+   Glow is a radial-gradient fill, deliberately NOT filter/drop-shadow: a
+   per-node blur pass at this count is the Canvas2D perf cliff. */
+:root {
+  width: 800px;
+  height: 600px;
+  background: #000000;
+}
+
+/* One recipe; repeat: stamps the swarm as #swarm-1 .. #swarm-389. offset-path
+   is the X silhouette; offset-distance = index/count spaces the copies evenly
+   along it. cx/cy are a per-copy hash jitter (cy just over half the 8.2px line
+   spacing, so adjacent scanlines interleave and the grid dissolves); r is
+   mostly a tight small-dot spread (3.6..5.1) plus a rare pow-skewed
+   spike (~8 bright big dots up to ~8px). The stagger folds per copy: mod() of a
+   coprime multiple spreads phases evenly. */
+@define dot {
+  type: circle;
+  r: calc(3.6 + mod(sibling-index() * 37, 16) * 0.1 + pow(mod(sibling-index() * 53, 101) / 101, 26) * 4.5);
+  cx: calc(sin(sibling-index() * 12.9898) * 3.6);
+  cy: calc(cos(sibling-index() * 78.233) * 4.2);
+  fill: radial-gradient(#ffffff 0%, #ffffff 24%, rgba(255, 255, 255, 0.28) 55%, rgba(255, 255, 255, 0) 78%);
+  transform-origin: center;
+  offset-path: path('M 241.4 157.9 H 343.4 M 489.8 157.9 H 539 M 247.8 166 H 349.8 M 482.6 166 H 531.8 M 254.2 174.2 H 355.8 M 475.4 174.2 H 524.6 M 260.2 182.4 H 296.2 M 326.2 182.4 H 362.2 M 468.2 182.4 H 517.4 M 266.6 190.6 H 302.6 M 332.6 190.6 H 368.2 M 461 190.6 H 510.2 M 273 198.8 H 309 M 338.6 198.8 H 374.6 M 453.8 198.8 H 503 M 279 207 H 315 M 345 207 H 380.6 M 446.6 207 H 495.8 M 285.4 215.2 H 321.4 M 351 215.2 H 387 M 439.4 215.2 H 488.6 M 291.8 223.4 H 327.8 M 357.4 223.4 H 393 M 432.2 223.4 H 481.4 M 297.8 231.6 H 334.2 M 363.4 231.6 H 399.4 M 425 231.6 H 474.2 M 304.2 239.8 H 340.2 M 369.8 239.8 H 405.4 M 417.8 239.8 H 467 M 310.6 248 H 346.6 M 375.8 248 H 459.8 M 316.6 256.2 H 353 M 382.2 256.2 H 452.6 M 323 264.4 H 359 M 388.2 264.4 H 445.8 M 329.4 272.6 H 365.4 M 394.6 272.6 H 438.6 M 335.4 280.8 H 371.8 M 400.6 280.8 H 436.6 M 341.8 289 H 377.8 M 407 289 H 442.6 M 348.2 297.2 H 384.2 M 413 297.2 H 449 M 354.6 305.4 H 390.6 M 419.4 305.4 H 455 M 360.6 313.6 H 396.6 M 425.4 313.6 H 461.4 M 353.8 321.8 H 403 M 431.8 321.8 H 467.4 M 346.6 330 H 409.4 M 437.8 330 H 473.8 M 339.4 338.2 H 415.4 M 444.2 338.2 H 479.8 M 332.2 346.4 H 381.4 M 385.8 346.4 H 421.8 M 450.2 346.4 H 486.2 M 325 354.6 H 374.2 M 392.2 354.6 H 428.2 M 456.6 354.6 H 492.2 M 317.8 362.8 H 367 M 398.2 362.8 H 434.2 M 462.6 362.8 H 498.6 M 310.6 371 H 359.8 M 404.6 371 H 440.6 M 469 371 H 504.6 M 303.4 379.2 H 352.6 M 411 379.2 H 447 M 475 379.2 H 511 M 296.2 387.4 H 345.4 M 417 387.4 H 453 M 481.4 387.4 H 517 M 289 395.6 H 338.2 M 423.4 395.6 H 459.4 M 487.4 395.6 H 523.4 M 281.8 403.8 H 331 M 429.8 403.8 H 465.8 M 493.8 403.8 H 529.4 M 274.6 412 H 323.8 M 435.8 412 H 471.8 M 499.8 412 H 535.8 M 267.4 420.2 H 316.6 M 442.2 420.2 H 541.8 M 260.2 428.4 H 309.8 M 448.6 428.4 H 548.2 M 253 436.6 H 302.6 M 454.6 436.6 H 554.2 M 246.2 444.8 H 295.4 M 461 444.8 H 560.6');
+  offset-distance: calc(sibling-index() / sibling-count() * 100%);
+  offset-rotate: 0deg;
+  animation: fly 6s linear infinite;
+  animation-delay: calc(mod(sibling-index() * 7, 29) * -0.031s);
+}
+
+#swarm { use: dot; repeat: 389; }
+
+/* One flight plan, 389 distinct flights: every vector is a formula of
+   sibling-index(). in-angle a = i*2.39996; the curve apex sits at a nudged
+   angle (bow = cos(i*3.7)*0.55 rad) so approaches arc instead of beelining;
+   the burst heads out on an unrelated hashed angle with its own reach. */
+@keyframes fly {
+  0% {
+    transform: translate(
+      calc(cos(sibling-index() * 2.39996) * (340 + mod(sibling-index() * 97, 220))),
+      calc(sin(sibling-index() * 2.39996) * (340 + mod(sibling-index() * 97, 220))));
+    opacity: 0;
+    animation-timing-function: ease-in;
+  }
+  19% {
+    transform: translate(
+      calc(cos(sibling-index() * 2.39996 + cos(sibling-index() * 3.7) * 0.55) * (150 + mod(sibling-index() * 41, 90))),
+      calc(sin(sibling-index() * 2.39996 + cos(sibling-index() * 3.7) * 0.55) * (150 + mod(sibling-index() * 41, 90))));
+    opacity: 0.6;
+    animation-timing-function: ease-out;
+  }
+  38% { transform: translate(0px, 0px); opacity: 1; animation-timing-function: ease-in-out; }
+  47% {
+    transform: translate(calc(sin(sibling-index() * 11.3) * 1.5), calc(cos(sibling-index() * 17.9) * 1.5));
+    opacity: calc(0.8 + mod(sibling-index() * 13, 20) * 0.01);
+    animation-timing-function: ease-in-out;
+  }
+  56% {
+    transform: translate(calc(sin(sibling-index() * 23.1) * 1.5), calc(cos(sibling-index() * 29.7) * 1.5));
+    opacity: 1;
+    animation-timing-function: ease-in-out;
+  }
+  63% { transform: translate(0px, 0px); opacity: 1; animation-timing-function: ease-in; }
+  93%, 100% {
+    transform: translate(
+      calc(cos(sibling-index() * 4.123) * (360 + mod(sibling-index() * 53, 280))),
+      calc(sin(sibling-index() * 4.123) * (360 + mod(sibling-index() * 53, 280))));
+    opacity: 0;
   }
 }
 ` },
