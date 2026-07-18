@@ -13,11 +13,13 @@ agent *can't* infer from the code.
 - **`@` alias is declared twice** — `vite.config.ts` *and* `tsconfig.json`
   `paths`. Keep in sync; the tsconfig copy is what resolves `@` in bun tests.
 - **Router needs the 404 copy** — `build` runs `cp dist/index.html dist/404.html`
-  as the SPA fallback for `@tanstack/react-router` (`/` + lazy `/docs`). Don't
-  drop it.
-- **Scene state lives in `useScene` (`src/use-scene.ts`)**, not `app.tsx`.
-  `app.tsx` holds only `showImport`/`chatOpen`; `PlayerPanel` owns player-only
-  state internally.
+  as the SPA fallback for `@tanstack/react-router` (`/`, lazy `/docs`, and lazy
+  `/docs/$section`). Don't drop it. The router's `basepath` is
+  `import.meta.env.BASE_URL`, which `vite.config.ts` sets to `/popkorn/` under
+  `GITHUB_PAGES` (else `/`) — the 404-copy step and the basepath must agree.
+- **Scene state lives in `useScene` (`src/hooks/use-scene.ts`)**. `app.tsx`
+  also lifts `player` (the `PopkornPlayer` instance, out of `PlayerPanel`) and
+  `sourceCollapsed` alongside `showImport`/`chatOpen`.
 - **Import sniffs SVG vs Lottie JSON** (`useScene.importText/importFile` →
   `convertSvg`/`convertLottie`). It's not Lottie-only.
 - **MotionCanvas sets attributes, not properties** — React under-reflects
@@ -34,6 +36,23 @@ agent *can't* infer from the code.
 - **Tailwind v4, no config file**; theme tokens are in `globals.css`
   `@theme inline`. UI is hand-built Radix + CVA in `components/ui/*` (no shadcn
   CLI) — copy `button.tsx`/`tooltip.tsx`.
+- **Copilot agent loop** — `lib/agent.ts` + `lib/agent-tools.ts` drive the
+  chat loop, wired up in `hooks/use-agent-chat.ts` and rendered by
+  `components/agent/*`. Tested by `lib/agent-loop.test.ts` and
+  `lib/agent-tools.test.ts` (plus `lib/edits.test.ts` for the shared edit
+  helpers).
+- **Export pipeline** — GIF (`lib/gif.ts` + `lib/gif.worker.ts` +
+  `lib/gif-plan.ts`) and MP4 (`lib/mp4.ts` + `lib/mp4.worker.ts` +
+  `lib/mp4-plan.ts`) each split into a plan (pure, testable frame/timing math)
+  and a worker executor. `gifenc.d.ts` shims the untyped `gifenc` package.
+- **Timeline** — `components/timeline-panel.tsx` + `components/timeline/scale.ts`
+  (time↔pixel mapping) + `lib/timeline-edits.ts`; edits write back into the
+  source text, not just runtime state.
+- **Diagnostics** — `components/source-diagnostics.tsx` renders parse
+  errors/warnings computed in `lib/edits.ts`.
+- **Misc** — `lib/tour.ts` (driver.js first-run onboarding), `lib/analytics.ts`,
+  `hooks/use-is-mobile.ts`, `components/resize-handle.tsx` (the split-pane
+  drag handle).
 
 ## Verify
 

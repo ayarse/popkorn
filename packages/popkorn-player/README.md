@@ -47,6 +47,10 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 | `height` | number | Canvas height in pixels (default: 300) |
 | `background` | string | Background color (CSS color value) |
 | `src` | string | URL to fetch scene source from (http(s), relative, `data:`, `blob:`). For inline scene *text*, use the `.source` property instead. |
+| `loop` | boolean | Whether the timeline loops |
+| `controls` | boolean | Show the built-in play/pause/scrub bar |
+| `autoplay` | boolean | Whether playback auto-starts (default true; set `autoplay="false"` to opt out) |
+| `fit` | string | How the scene fits the host: `contain` (default), `cover`, `fill`, or `none` |
 
 ### Web Component Properties
 
@@ -57,6 +61,13 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 | `width` | number | Get/set canvas width |
 | `height` | number | Get/set canvas height |
 | `background` | string \| null | Get/set background color |
+| `loop` | boolean | Get/set whether the timeline loops |
+| `controls` | boolean | Get/set whether the controls bar is shown |
+| `autoplay` | boolean | Get/set whether playback auto-starts |
+| `fit` | string | Get/set the fit mode |
+| `currentTime` | number (read-only) | Current timeline position in milliseconds |
+| `duration` | number (read-only) | Scene duration in milliseconds; `Infinity` for an unbounded scene |
+| `paused` | boolean (read-only) | Whether the timeline is currently frozen |
 
 ### Web Component Methods
 
@@ -65,6 +76,13 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 | `play()` | Start or resume playback |
 | `stop()` | Stop playback |
 | `reset()` | Reset animations to initial state |
+| `pause()` | Freeze the timeline (interaction stays live) |
+| `resume()` | Resume the timeline from where it was paused |
+| `seek(ms)` | Jump to a timeline position in milliseconds and render it, even while paused |
+| `setVariable(name, value)` | Set an author-declared `--variable` from the host |
+| `getVariable(name)` | Read an author-declared `--variable`'s current value |
+| `fire(name)` | Fire a trigger variable or a machine event into the scene |
+| `getTimelineTracks()` | A serializable snapshot of every animated node's timing and keyframes, for an external timeline UI |
 
 ### Web Component Events
 
@@ -149,32 +167,41 @@ loop.stop();
 
 ## Module Exports
 
+### Parser (re-exported)
+- `parse` and its AST types (`StyleSheet`, `Rule`, `Declaration`, `Value`, `KeyframeRule`, `StateRule`, `PseudoState`, `CanvasConfig`, `VariableDefinition`)
+
 ### Web Component
-- `PopkornPlayer` - The custom element class
-- `registerPopkornPlayer()` - Manual registration function
+- `PopkornPlayer`, `registerPopkornPlayer()` - The custom element and its manual registration function
+- `TimelineTrack`, `TimelineAnimation`, `TimelineAnimationProperty` (types) - the shape `getTimelineTracks()` returns, for building an external timeline UI
 
 ### Renderer
 - `Canvas2DRenderer` - Canvas 2D implementation
-- `Renderer` (type) - Abstract renderer interface
-- Matrix utilities: `multiplyMatrices`, `translationMatrix`, `rotationMatrix`, `scaleMatrix`
-- Color utilities: `colorToCSS`, `parseColor`
+- `Renderer` (type) - the primitive renderer interface every backend implements
+- `PaintStateRenderer`, `resolveGradient`, `resolveStrokeDash`, `paintOrderSequence` - paint semantics shared across backends
+- `CONFORMANCE_CASES`, `registerConformance`, `MASK_MODES` (+ trace/observation types) - the cross-backend conformance suite
+- Matrix utilities: `multiplyMatrices`, `translationMatrix`, `rotationMatrix`, `scaleMatrix`, `invertMatrix`, `transformPoint`, `IDENTITY_MATRIX`
+- Color utilities: `colorToCSS`, `parseColor`, `LUMA_COEFFICIENTS`
 
 ### Scene
 - `SceneBuilder`, `buildSceneGraph` - Build scene from AST
 - `SceneNode`, `Transform`, `ShapeData` (types) - Scene graph types
-- `createSceneNode`, `createDefaultTransform`, `cloneTransform` - Factory functions
-- `parsePath` - SVG path parser
-- Transform utilities: `computeLocalMatrix`, `computeWorldMatrix`
+- `createSceneNode`, `createDefaultTransform`, `cloneTransform`, `resetNodeToBase`, `snapshotNode` - Factory and snapshot functions
+- `parsePath`, `applyCommandsToPath`, `computePathBounds`, `computePathLength`, `roundedRectPath` - Path parsing and measurement
+- `polystarToCommands` - Star/polygon shape geometry
+- Transform utilities: `computeLocalMatrix`, `computeWorldMatrix`, `lerp`, `setTextMeasurer`
 
 ### Animation
-- `AnimationScheduler` - Animation timing controller
+- `AnimationScheduler`, `computeSceneDuration` - Animation timing controller and scene duration calculation
 - `applyEasing` - Apply easing functions
 - `interpolateKeyframes` - Keyframe interpolation
 
 ### Runtime
-- `RenderLoop` - Main render loop orchestrator
-- `InputTracker` - Mouse/scroll input tracking
-- `VariableResolver` - CSS variable resolution
+- `RenderLoop`, `wrapTime` - Main render loop orchestrator
+- `hitTest` - Hit-testing against the scene graph
+- `createInputTracker`, `InputTracker` - Mouse/pointer input tracking
+- `createInteractionManager`, `InteractionManager` - Hover/active/click state
+- `createVariableResolver`, `VariableResolver` - CSS variable resolution
+- `computeViewport`, `viewportMatrix`, `deviceToScene`, `IDENTITY_VIEWPORT` - Fit/DPR viewport mapping
 
 ## Scene syntax
 

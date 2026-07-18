@@ -5,6 +5,12 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
 ## Pipeline
 
 ```
+┌─────────────────────────┐  ┌─────────────────────────┐
+│  Lottie JSON / SVG      │  │  @popkorn/converters     │  Lottie + SVG import
+└───────────┬─────────────┘  │  (browser-safe core, CLI)│
+            │                └───────────┬─────────────┘
+            └──────────────┬─────────────┘
+                            ▼
 ┌─────────────────────────┐
 │  @popkorn/parser        │  parse(source) → AST
 │  (zero deps, sync)      │
@@ -19,19 +25,22 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
 │  RenderLoop             │
 └───────────┬─────────────┘
             │
-            ▼
-┌─────────────────────────┐
-│  @popkorn/playground    │  Playground app
-│  React wrapper          │
-└─────────────────────────┘
+     ┌──────┴──────┐
+     ▼             ▼
+┌───────────┐  ┌──────────────────────┐
+│ playground│  │ @popkorn/react-native│  Skia backend
+│ React app │  │                      │
+└───────────┘  └──────────────────────┘
 ```
 
 ### Parser
 
 **@popkorn/parser** is a small tokenizing recursive-descent parser (`src/parser.ts`).
 The format is a CSS subset, so `parse(source)` turns the source directly into a typed
-AST, synchronously, with no dependencies or build step. Tests live alongside it in
-`src/parser.test.ts` (`bun run test`).
+AST, synchronously, with no dependencies or build step. Parse errors surface through
+a structured diagnostics channel (`src/diagnostics.ts`) rather than bare throws, so a
+host can point at the offending line. A separate crush mode (`src/crush.ts`) minifies
+a scene for shipping. Tests live alongside it in `src/parser.test.ts` (`bun run test`).
 
 ### Parser → Player
 
@@ -39,10 +48,14 @@ AST, synchronously, with no dependencies or build step. Tests live alongside it 
 
 - Builds a scene graph from the AST rules
 - Renders shapes through a primitive renderer interface (Canvas2D and SVG on the
-  web, Skia on native)
+  web, Skia on native via `@popkorn/react-native`)
 - Animates properties via keyframe interpolation
 - Tracks input for interactive variables
 - Exposes a `<popkorn-player>` web component
+
+Artboard clipping is on by default: the scene is cropped to the `:root` stage box,
+the way an After Effects comp crops to its bounds. `:root { overflow: visible }` opts
+out (`runtime/loop.ts`, `clipToScene`).
 
 ### Player → Playground
 
@@ -67,6 +80,15 @@ The player's correctness rests on a few structural rules:
   renders the identical frame.
 - Properties become animatable by adding an entry to the property registry
   (`animation/registry.ts`), never by special-casing the interpolator.
+- Paint order follows document order among siblings, changed only by
+  `z-index` (a stable sort); hit-testing walks the same order in reverse, so
+  the topmost thing drawn is the first thing hit.
+- Rendering decisions live once, in the shared walk (`runtime/loop.ts`'s
+  `renderNode`) and shared helpers (`renderer/gradient-geometry.ts`,
+  `paint-state.ts`, `stroke.ts`), never duplicated per backend. Canvas2D, SVG,
+  and Skia each only realize those decisions on their own platform. A single
+  spec table, `renderer/conformance.ts`, runs the same cases against all
+  three backends to keep them from drifting apart.
 
 ### Lottie converter
 
@@ -76,9 +98,18 @@ output through parse + buildSceneGraph; `--batch <dir>` converts a tree and
 prints a clean/warn/blocked table). A normalization layer canonicalizes
 real-world bodymovin output (legacy v4 keyframes, split positions, 0-255
 colors, missing names) before mapping, so minified production exports convert
-as reliably as pristine ones. Against the 80-file LottieFiles conformance
-corpus, 73 files convert (65 clean); the remainder use rare shape modifiers
-that mainstream Lottie players also skip.
+as reliably as pristine ones. Against the 160-file LottieFiles conformance
+corpus, 142 files convert clean, 11 convert with warnings, and 7 stay blocked
+on rare shape modifiers that mainstream Lottie players skip too.
+
+### SVG converter
+
+`packages/popkorn-converters/src/svg2popkorn.ts` converts SVG the same way, sharing the
+Lottie converter's `Converter`/`convertSvg`/`validate` contract (its own
+dependency-free XML reader lives beside it in `svg-xml.ts`). It maps CSS
+`@keyframes` and basic SMIL `<animate>`/`<animateTransform>` into Popkorn
+`@keyframes` and `animation-*`, and shares the same CLI (`--validate`,
+`--batch`) against the fixtures in `examples/svg/`.
 
 ### Comparison harness
 

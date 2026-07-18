@@ -24,6 +24,9 @@ New here? The fastest way to get a feel for it is the
 
 - [State machines](state-machines.md): named states and transitions for
   toggles, taps, and app-driven behavior.
+- [CSS art → Popkorn](css-art-in-popkorn.md): a hack-by-hack translation table
+  for single-div CSS art tricks, from `::before`/`::after` layering to
+  `box-shadow` copies, into a real scene graph.
 
 ## Putting a scene in your project
 

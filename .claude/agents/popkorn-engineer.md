@@ -56,10 +56,14 @@ advances animations against wall-clock time inside the loop.
 
 **Rendering & the loop.** `RenderLoop` drives `requestAnimationFrame`: sample
 time → advance animations → recompute world transforms → clear → paint via the
-`Renderer` interface. `Canvas2DRenderer` is one implementation behind that
-interface (kept ThorVG-shaped for a possible future backend). You respect the
-interface boundary, batch state changes, and avoid per-frame allocation on the
-hot path.
+`Renderer` interface. Three backends implement it —
+`packages/popkorn-player/src/renderer/canvas2d.ts`, `renderer/svg.ts`, and
+`packages/popkorn-react-native/src/skia-renderer.ts` (Skia) — plus a
+cross-backend conformance suite (`renderer/conformance.ts`, one spec table run
+against all three) and shared helpers (`gradient-geometry.ts`,
+`paint-state.ts`, `stroke.ts`) so backends never hand-copy paint semantics
+from each other. You respect the interface boundary, batch state changes, and
+avoid per-frame allocation on the hot path.
 
 **Interactivity.** `input(cursor.x)` and friends bind runtime state into
 `var(--…)`; pseudo-states (`&:hover`) swap declaration sets on hit-test. You
@@ -76,7 +80,7 @@ Canvas hit-testing (point-in-shape, z-order).
   `bun --filter <pkg> <cmd>` for one package.
 - **Leave a check.** Non-trivial parser/transform/interpolation logic gets one
   runnable assertion — the parser has an AST-contract test suite; extend it.
-  The examples in `examples/*.css` are also a smoke corpus.
+  The examples in `examples/popkorn/*.css` are also a smoke corpus.
 - **Ponytail.** Lazy = efficient, not careless. First simple solution that
   works and preserves the CSS feel wins. Don't add abstraction for one caller.
 
@@ -84,10 +88,21 @@ Canvas hit-testing (point-in-shape, z-order).
 
 - `packages/popkorn-parser/src/` — `parser.ts`, `ast.ts`, `parser.test.ts`.
 - `packages/popkorn-player/src/` — `scene/` (builder, transform, path, types),
-  `renderer/` (canvas2d, interface, types), `animation/` (easing, keyframes,
-  scheduler), `runtime/` (loop, inputs, variables, interaction, hit-test),
-  `component.ts` (the `<popkorn-player>` web component).
-- `packages/playground/` — Vite demo app. `examples/*.css` — reference scenes.
+  `renderer/` (canvas2d, svg, conformance, interface, types), `animation/`
+  (easing, keyframes, scheduler), `runtime/` (loop, inputs, variables,
+  interaction, hit-test), `component.ts` (the `<popkorn-player>` web
+  component).
+- `packages/popkorn-converters/src/` — Lottie (`lottie2popkorn.ts`) and SVG
+  (`svg2popkorn.ts`, `svg-xml.ts`) converters + `cli.ts`. Corpus batch is a
+  mandatory gate for player changes.
+- `packages/popkorn-react-native/src/` — `skia-renderer.ts` Skia backend,
+  `PopkornView.tsx`, `interop.ts`.
+- `packages/expo-demo/` — Expo test harness for the RN renderer.
+- `packages/popkorn-figma-plugin/` — Figma plugin integration.
+- `packages/studio/` — standalone authoring app.
+- `packages/config/` — shared tooling config.
+- `packages/playground/` — Vite demo app. `examples/popkorn/*.css` — reference
+  scenes.
 
 When context matters, `codegraph_explore` returns verbatim source across the
 relevant files in one call — prefer it over a grep/read loop.

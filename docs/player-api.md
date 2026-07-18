@@ -29,30 +29,48 @@ point the `src` attribute at a file to fetch.
 
 ### Attributes
 
-| Attribute    | Type   | Description                                          |
-| ------------ | ------ | --------------------------------------------------- |
-| `width`      | number | Canvas width in pixels (default 400).               |
-| `height`     | number | Canvas height in pixels (default 300).              |
-| `background` | string | Background color (any CSS color value).             |
-| `src`        | string | URL to fetch scene source from. For inline scene text, use the `.source` property instead. |
+| Attribute    | Type    | Description                                          |
+| ------------ | ------- | --------------------------------------------------- |
+| `width`      | number  | Canvas width in pixels (default 400).               |
+| `height`     | number  | Canvas height in pixels (default 300).              |
+| `background` | string  | Background color (any CSS color value).             |
+| `src`        | string  | URL to fetch scene source from. For inline scene text, use the `.source` property instead. |
+| `loop`       | boolean | Whether the timeline loops.                          |
+| `controls`   | boolean | Show the built-in play/pause/scrub bar.              |
+| `autoplay`   | boolean | Whether playback auto-starts (default true; set `autoplay="false"` to opt out). |
+| `fit`        | string  | How the scene fits the host: `contain` (default), `cover`, `fill`, or `none`. |
 
 ### Properties
 
-| Property     | Type            | Description                                             |
-| ------------ | --------------- | ------------------------------------------------------ |
-| `source`     | string          | Get/set the scene source text directly (the inline channel, not a URL). |
-| `src`        | string \| null  | Get/set the `src` URL (fetched into `source`).         |
-| `width`      | number          | Get/set canvas width.                                  |
-| `height`     | number          | Get/set canvas height.                                 |
-| `background` | string \| null  | Get/set background color.                              |
+| Property      | Type            | Description                                             |
+| ------------- | --------------- | ------------------------------------------------------ |
+| `source`      | string          | Get/set the scene source text directly (the inline channel, not a URL). |
+| `src`         | string \| null  | Get/set the `src` URL (fetched into `source`).         |
+| `width`       | number          | Get/set canvas width.                                  |
+| `height`      | number          | Get/set canvas height.                                 |
+| `background`  | string \| null  | Get/set background color.                              |
+| `loop`        | boolean         | Get/set whether the timeline loops.                     |
+| `controls`    | boolean         | Get/set whether the controls bar is shown.              |
+| `autoplay`    | boolean         | Get/set whether playback auto-starts.                   |
+| `fit`         | string          | Get/set the fit mode.                                   |
+| `currentTime` | number (read-only) | Current timeline position in milliseconds.          |
+| `duration`    | number (read-only) | Scene duration in milliseconds; `Infinity` for an unbounded scene (one driven by a `@machine` or built entirely from infinite loops). |
+| `paused`      | boolean (read-only) | Whether the timeline is currently frozen.           |
 
 ### Methods
 
-| Method    | Description                       |
-| --------- | -------------------------------- |
-| `play()`  | Start or resume playback.        |
-| `stop()`  | Stop playback.                   |
-| `reset()` | Reset animations to their start. |
+| Method                       | Description                                                   |
+| ---------------------------- | -------------------------------------------------------------- |
+| `play()`                     | Start or resume playback.                                       |
+| `stop()`                     | Stop playback.                                                  |
+| `reset()`                    | Reset animations to their start.                                |
+| `pause()`                    | Freeze the timeline (interaction stays live).                   |
+| `resume()`                   | Resume the timeline from where it was paused.                   |
+| `seek(ms)`                   | Jump to a timeline position in milliseconds and render it, even while paused. |
+| `setVariable(name, value)`   | Set an author-declared `--variable` from the host.              |
+| `getVariable(name)`          | Read an author-declared `--variable`'s current value.           |
+| `fire(name)`                 | Fire a trigger variable or a machine event into the scene.      |
+| `getTimelineTracks()`        | A serializable snapshot of every animated node's timing and keyframes, for building an external timeline UI. |
 
 ### Events
 

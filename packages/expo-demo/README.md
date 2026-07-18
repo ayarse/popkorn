@@ -15,8 +15,9 @@ screen: a full-screen `PopkornView` with
 
 The default scene is the Thanksgiving turkey
 (`examples/lottie/thanksgiving-turkey.json`, converted to Popkorn CSS and
-inlined in `turkey.ts`) — pure shapes and paths, so it renders fully on the
-Skia PoC (which defers text/images).
+inlined in `turkey.ts`) — pure shapes and paths. The Skia PoC also renders
+text (system fonts), images (decode-cached), and track mattes; custom fonts
+are the remaining gap (see `@popkorn/react-native`'s README).
 
 The gallery is inlined into `examples.gen.ts` because Metro can't glob or import
 raw `.css` (same reason `turkey.ts` is a string). After editing
@@ -69,3 +70,7 @@ the resulting build, then `bunx expo start --dev-client`.
   `@rivascva/react-native-code-editor`, which is pure JS (a `TextInput`
   overlaid on `react-syntax-highlighter`) — no native module, no rebuild
   needed for that one.
+- `react-syntax-highlighter` re-parses the whole source synchronously on every
+  render, so the editor falls back to a plain (unhighlighted) `TextInput`
+  above `HIGHLIGHT_LINE_CAP` (300 lines, `App.tsx`) — the turkey scene alone
+  is 2300+ lines.

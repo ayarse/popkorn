@@ -131,6 +131,27 @@ supported, with a visibility meaning — see Layering & Visibility.)
 (absolute and relative), including smooth-curve reflection (`S`/`T`) and true
 elliptical arcs (`A`); a degenerate arc collapses to a straight line.
 
+A rect's corners also take the four CSS longhands, `border-top-left-radius`,
+`border-top-right-radius`, `border-bottom-right-radius`, and
+`border-bottom-left-radius`, when the corners aren't uniform:
+
+```css
+#tab {
+  type: rect;
+  x: 0; y: 0; width: 160px; height: 48px;
+  rx: 8px;                         /* uniform fallback */
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;   /* square bottom, rounded top */
+  fill: #4ecdc4;
+}
+```
+
+Each longhand is independently animatable and bindable. A corner left unset
+seeds from the uniform `rx`, so animating a single corner in `@keyframes`
+ramps it up from that shared radius rather than from zero.
+
 ## Text
 
 ```css
@@ -143,12 +164,25 @@ elliptical arcs (`A`); a degenerate arc collapses to a straight line.
   font-family: sans-serif; /* keyword or "Quoted Family"; default sans-serif */
   font-weight: bold;       /* keyword or number (700); default normal */
   text-anchor: middle;     /* start | middle | end; default start */
+  text-align: center;      /* CSS spelling of the same thing, see below */
+  letter-spacing: 1px;     /* extra space between characters; default 0 */
+  line-height: 1.4;        /* unitless multiplier, px, or %; default 1.2em */
   fill: #ffffff;
 }
 ```
 
+`text-align` is the CSS spelling of `text-anchor`: `left`/`start` maps to
+`start`, `center` to `middle`, and `right`/`end` to `end`.
+
+`content` may contain `\n`-separated lines; a multi-line text node measures
+each line, takes the widest as its width, and stacks the lines by
+`line-height`. `line-height` accepts a unitless number (a multiplier on
+`font-size`), a `px` length, or a `%` of `font-size`; left at its default `0`
+it falls back to `font-size * 1.2`, matching CSS's normal line-height.
+
 Text nodes carry `fill`/`stroke`/gradients/opacity/transforms/clipping like any
-other shape. `x`, `y`, and `font-size` are animatable and bindable.
+other shape. `x`, `y`, `font-size`, `letter-spacing`, and `line-height` are
+animatable and bindable.
 
 ## Star & Polygon
 
@@ -460,6 +494,37 @@ sequence each parameter interpolates (blur radius, drop-shadow offset/blur/color
 color-adjust amounts); a mismatched sequence holds (steps) instead. Renderers
 without filter support (e.g. old Safari canvas, the React Native/Skia backend)
 skip filters and draw unfiltered (warned once).
+
+### box-shadow
+
+`box-shadow` is CSS's own shorthand for a shape's drop shadow, and it composes
+with `filter` rather than replacing it:
+
+```css
+#card {
+  type: rect;
+  x: 40px; y: 40px; width: 200px; height: 120px;
+  rx: 12px;
+  fill: #1a1a2e;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+#well {
+  type: circle;
+  cx: 100px; cy: 100px; r: 40px;
+  fill: #16213e;
+  box-shadow: inset 0 2px 6px 2px rgba(0, 0, 0, 0.6);
+}
+```
+
+The syntax is `<dx> <dy> <blur>? <spread>? <color>? inset?`, comma-separated
+for multiple shadows. `dx`/`dy` are required; `blur` and `spread` default to
+`0`, `color` to black. Unlike `filter: drop-shadow()`, `box-shadow` has a
+`spread` that grows or shrinks the shadow's silhouette independent of blur,
+and an `inset` keyword that casts the shadow inward from the shape's own
+outline instead of outward behind it. `spread` interpolates smoothly in
+`@keyframes`; `inset` is discrete, it holds the departing keyframe's value
+rather than crossing gradually from an outer to an inset shadow.
 
 ## Images
 
@@ -818,6 +883,16 @@ without an opacity hack. Static; defaults are "always visible".
 }
 ```
 
+`mix-blend-mode` composites a node against whatever is already painted behind
+it, with the full CSS keyword set: `normal`, `multiply`, `screen`, `overlay`,
+`darken`, `lighten`, `color-dodge`, `color-burn`, `hard-light`, `soft-light`,
+`difference`, `exclusion`, `hue`, `saturation`, `color`, and `luminosity`.
+Every keyword maps across all three backends (Canvas2D `globalCompositeOperation`,
+SVG's own `mix-blend-mode`, Skia `BlendMode`), so nothing is dropped. The blend
+is bracketed tight around the node's own shape, not its subtree: a group's
+`mix-blend-mode` doesn't isolate and composite its children as one unit, it
+sets the blend for each descendant's own paint individually. Default `normal`.
+
 ## Variables & Interactivity
 
 ```css
@@ -1091,13 +1166,17 @@ authoring mistakes (parsing always continues; existing callers can ignore it). A
 start, end }` where `start`/`end` are character offsets into the source;
 `offsetToLineCol(source, offset)` maps an offset to a 1-based line/column.
 
-Codes emitted today: `unknown-property` (with a "did you mean" against the known
+The codes: `unknown-property` (with a "did you mean" against the known
 property list), `unsupported-property`/`unsupported-value` (box-model and other
 rejected CSS aliases), `unknown-color` (a bare keyword in a `fill`/`stroke` slot
 that names no color, suggested against the named-color subset),
 `unknown-keyframes`/`unknown-define`/`unknown-id` (an `animation`, `use:`, or
 `mask:`/`clip-path`/pointer reference to something never declared),
-`undefined-var` (info: a `var(--x)` never declared in the sheet — may be host-
-provided; add a fallback to silence), and `unterminated-string` (a string with
-no closing quote before a newline/EOF). The list is deliberately small; the
-structure makes adding cases trivial.
+`undefined-var` (info: a `var(--x)` never declared in the sheet, may be host-
+provided; add a fallback to silence), `unterminated-string` (a string with no
+closing quote before a newline/EOF), `unit-has-no-effect` (a font-relative unit
+like `em`/`rem` on a length, since Popkorn lengths are scene units with no font
+context), and `invalid-random` (a malformed `random()` call: an unrecognized
+keyword argument, a `by <step>` clause missing its keyword, mismatched units
+between `min`/`max`/`step`, or a `min` greater than `max`). The list is
+deliberately small; the structure makes adding cases trivial.

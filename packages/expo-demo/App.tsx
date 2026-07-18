@@ -31,7 +31,7 @@ const GALLERY = [{ key: 'turkey', label: 'Turkey', source: TURKEY_SCENE }, ...ex
 
 // Background swatches (matches the playground's stage-background control). The
 // scene paints its own canvas background if it declares one; these fill behind
-// transparent scenes. ponytail: presets over a color-picker dependency.
+// transparent scenes. NOTE: presets over a color-picker dependency.
 const BACKGROUNDS = ['#aaf0d1', '#ffffff', '#000000', '#1e1e2e', '#f5f5dc', '#0a4d68', '#ff6b6b'];
 
 // @rivascva/react-native-code-editor drives react-syntax-highlighter, which

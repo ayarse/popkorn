@@ -26,6 +26,11 @@ const DOCS = [
     label: "State Machines",
     file: "state-machines.md",
   },
+  {
+    key: "css-art-in-popkorn",
+    label: "CSS art → Popkorn",
+    file: "css-art-in-popkorn.md",
+  },
   { key: "player-api", label: "Player API", file: "player-api.md" },
   { key: "reference", label: "Reference", file: "reference.md" },
   { key: "architecture", label: "Architecture", file: "architecture.md" },

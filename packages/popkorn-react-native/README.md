@@ -37,7 +37,10 @@ export default function App() {
 ```
 
 Props: `source` (scene string), `width`, `height`, `autoplay` (default `true`),
-`loop` (default `false`).
+`loop` (default `false`), `paused` (freeze the timeline without tearing down
+the loop), `onStateChange` (`(e: {machine, from, to}) => void`, fires per
+`@machine` transition), `onMachineEvent` (`(e: {machine, name}) => void`,
+fires on `emit: name`).
 
 ## Web usage
 
@@ -51,6 +54,21 @@ LoadSkiaWeb().then(async () => {
   // ...render App (react-native-web resolves `react-native` to the web shim)
 });
 ```
+
+## Imperative ref
+
+`PopkornView` forwards a `PopkornViewRef` (exported from `interop.ts`) for
+host-driven state:
+
+```ts
+setVariable(name: string, value: number | boolean): void;
+getVariable(name: string): number | boolean | string | undefined;
+fire(name: string): void;
+```
+
+`setVariable`/`getVariable` read and write a declared `--variable`; `fire`
+triggers a declared `trigger` var for one frame, or enqueues a machine
+`on event(name)` if `name` isn't a declared variable.
 
 ## Direct renderer use
 

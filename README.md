@@ -166,7 +166,9 @@ Popkorn covers most of what people reach for in real motion graphics:
   ([docs/state-machines.md](docs/state-machines.md)).
 - **Shapes & paint.** Circles, rects, ellipses, polygons, polystars, and full
   SVG paths. Solid fills, linear and radial gradients, strokes with dashes and
-  caps.
+  caps. CSS `filter` functions (blur, drop-shadow, color adjustments),
+  `box-shadow`, and `mix-blend-mode` for compositing, all covered by the
+  cross-backend conformance suite so they render the same on every renderer.
 - **Text & images.** Laid out and transformed as first-class scene nodes.
 - **Animation.** `@keyframes` with per-keyframe easing, spring-style beziers,
   holds (`step-end`), staggering (negative `animation-delay`), and additive
@@ -215,6 +217,8 @@ under **/docs**:
 - [State machines](docs/state-machines.md),
   [Importing Lottie and SVG](docs/importing.md), and the
   [Player API](docs/player-api.md)
+- [CSS art → Popkorn](docs/css-art-in-popkorn.md): single-div CSS art tricks,
+  translated to a real scene graph
 - [Format reference](docs/reference.md) and
   [Architecture](docs/architecture.md)
 

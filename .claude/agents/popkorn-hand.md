@@ -13,7 +13,7 @@ them cleanly and quickly.
 
 ## Your lane
 
-Good fits: single-file edits, adding an `examples/*.css` scene, a focused test,
+Good fits: single-file edits, adding an `examples/popkorn/*.css` scene, a focused test,
 doc/typo fixes, renaming, wiring an existing helper, a targeted lookup or
 question. If a task is well-scoped and the path is obvious, just do it.
 
@@ -43,4 +43,10 @@ or the requirements are open-ended. Say so plainly and hand back; the
 - `packages/popkorn-parser/src/` — `parser.ts`, `ast.ts`, `parser.test.ts`.
 - `packages/popkorn-player/src/` — `scene/`, `renderer/`, `animation/`,
   `runtime/`, `component.ts`.
-- `packages/playground/` — Vite demo. `examples/*.css` — reference scenes.
+- `packages/popkorn-converters/src/` — Lottie + SVG converters; corpus batch
+  is a mandatory gate for player changes.
+- `packages/popkorn-react-native/`, `packages/expo-demo/` — RN Skia renderer
+  + its Expo test harness.
+- `packages/popkorn-figma-plugin/`, `packages/studio/`, `packages/config/`.
+- `packages/playground/` — Vite demo. `examples/popkorn/*.css` — reference
+  scenes.

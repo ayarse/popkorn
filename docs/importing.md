@@ -38,7 +38,10 @@ checked continuously against a corpus of real Lottie files.
 **From SVG:** all the standard shapes and paths, fills, gradients, and strokes,
 plus animation. CSS `@keyframes` from `<style>` blocks and basic SMIL
 (`<animate>` / `<animateTransform>`) map into Popkorn keyframes and `animation-*`
-properties.
+properties. Simple filters map to CSS: a blur becomes `filter: blur()`, and a
+drop shadow — including the multi-primitive chains Illustrator and Figma export
+— becomes `filter: drop-shadow()`. Optimizer output is handled too: svgo and
+Illustrator compact path notation, CSS units, and `!important` all parse.
 
 ## What doesn't, and what happens then
 
@@ -51,9 +54,11 @@ scene.
   partly supported: static layers convert, but animated text documents, text
   animators, tracking, line-height, and multi-line text are dropped with a
   warning (the first line/document is kept).
-- **SVG:** `<pattern>`, `<marker>`, `<foreignObject>`, `<textPath>`, and
-  animation channels that don't map (such as gradient keyframes, `<set>`, and
-  `<animateMotion>`).
+- **SVG:** `<marker>`, `<foreignObject>`, `<textPath>`, tiling or multi-child
+  `<pattern>` fills (a pattern that is just one image stretched over the shape
+  does convert, as a clipped image), richer filter graphs than a single blur or
+  drop shadow, and animation channels that don't map (such as gradient
+  keyframes, `<set>`, and `<animateMotion>`).
 
 These match what shipping players skip too. Run `--validate` first if you want to
 see the warnings for a file before converting it — it writes no CSS and exits
