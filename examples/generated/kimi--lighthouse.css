@@ -1,0 +1,1232 @@
+/* 
+    Model: Kimi K3
+    Prompt: Create a creative animation from scratch. Use your imagination for the scene story. 
+*/
+
+:root {
+  width: 800px;
+  height: 600px;
+  background: #060a24;
+  --wave-back: #16386b;
+  --wave-mid: #122f59;
+  --wave-front: #0d2547;
+  --moon: #f6eed3;
+  --moon-dim: #e0d5b4;
+  --tower: #e8e4da;
+  --stripe: #d64545;
+  --roof: #b03a48;
+  --dark: #232a44;
+  --rock: #141c33;
+  --hull: #6b3f2a;
+  --mast: #4a2f1f;
+  --sail: #f2ead8;
+  --sail-dim: #e0d2b4;
+  --lantern: #ffd977;
+}
+
+@define star {
+  type: group;
+  transform-origin: 0px 0px;
+  animation: twinkle 3s ease-in-out infinite;
+  > #star-halo {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 4.5px;
+    fill: #ffffff1f;
+  }
+  > #dot {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 2px;
+    fill: #ffffff;
+  }
+}
+
+@define glint {
+  type: group;
+  transform-origin: 0px 0px;
+  animation: glint-twinkle 2.4s ease-in-out infinite;
+  > #gd {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 1.6px;
+    fill: #cfe0ff;
+  }
+}
+
+@define shimmer {
+  type: ellipse;
+  fill: radial-gradient(#f6eed3 0%, #f6eed300 75%);
+  opacity: 0.14;
+  transform-origin: 0px 0px;
+  animation: shimmer-run 3.2s ease-in-out infinite;
+  animation-composition: add;
+}
+
+#sky {
+  type: rect;
+  x: 0px;
+  y: 0px;
+  width: 800px;
+  height: 600px;
+  fill: linear-gradient(
+    180deg,
+    #060a24 0%,
+    #101c48 52%,
+    #1d2a5c 70%,
+    #0b2545 100%
+  );
+}
+
+#milkyway {
+  type: group;
+  > #mw1 {
+    type: ellipse;
+    cx: 330px;
+    cy: 200px;
+    rx: 380px;
+    ry: 55px;
+    fill: radial-gradient(#aebdf021 0%, #aebdf000 70%);
+    transform: rotate(-16deg);
+    transform-origin: 330px 200px;
+  }
+  > #mw2 {
+    type: ellipse;
+    cx: 390px;
+    cy: 145px;
+    rx: 250px;
+    ry: 32px;
+    fill: radial-gradient(#c7d2f514 0%, #c7d2f500 70%);
+    transform: rotate(-16deg);
+    transform-origin: 390px 145px;
+  }
+}
+
+#st1 {
+  use: star;
+  transform: translate(92px, 88px);
+  time-offset: 0.3s;
+}
+#st2 {
+  use: star;
+  transform: translate(176px, 158px) scale(1.3);
+  time-offset: 1.1s;
+}
+#st3 {
+  use: star;
+  transform: translate(262px, 72px);
+  time-offset: 1.8s;
+}
+#st4 {
+  use: star;
+  transform: translate(332px, 142px) scale(0.8);
+  time-offset: 0.7s;
+}
+#st5 {
+  use: star;
+  transform: translate(430px, 58px) scale(1.2);
+  time-offset: 2.2s;
+}
+#st6 {
+  use: star;
+  transform: translate(502px, 152px);
+  time-offset: 1.5s;
+}
+#st7 {
+  use: star;
+  transform: translate(742px, 198px) scale(1.1);
+  time-offset: 0.9s;
+}
+#st8 {
+  use: star;
+  transform: translate(738px, 66px);
+  time-offset: 2.6s;
+}
+#st9 {
+  use: star;
+  transform: translate(58px, 232px) scale(1.2);
+  time-offset: 2s;
+}
+#st10 {
+  use: star;
+  transform: translate(222px, 262px);
+  time-offset: 1.3s;
+}
+#st11 {
+  use: star;
+  transform: translate(382px, 208px) scale(0.9);
+  time-offset: 2.9s;
+}
+#st12 {
+  use: star;
+  transform: translate(562px, 252px) scale(1.15);
+  time-offset: 0.5s;
+}
+#st13 {
+  use: star;
+  transform: translate(36px, 150px) scale(0.55);
+  time-offset: 1.7s;
+}
+#st14 {
+  use: star;
+  transform: translate(148px, 46px) scale(0.6);
+  time-offset: 2.4s;
+}
+#st15 {
+  use: star;
+  transform: translate(292px, 196px) scale(0.5);
+  time-offset: 0.2s;
+}
+#st16 {
+  use: star;
+  transform: translate(452px, 122px) scale(0.65);
+  time-offset: 2.8s;
+}
+#st17 {
+  use: star;
+  transform: translate(548px, 86px) scale(0.55);
+  time-offset: 1.9s;
+}
+#st18 {
+  use: star;
+  transform: translate(700px, 152px) scale(0.6);
+  time-offset: 0.8s;
+}
+#st19 {
+  use: star;
+  transform: translate(790px, 120px) scale(0.5);
+  time-offset: 2.1s;
+}
+#st20 {
+  use: star;
+  transform: translate(104px, 208px) scale(0.55);
+  time-offset: 1.4s;
+}
+
+#sp1-pos {
+  type: group;
+  transform: translate(300px, 108px);
+  > #sp1 {
+    type: star;
+    sides: 4;
+    outer-radius: 9px;
+    inner-radius: 2.5px;
+    cx: 0px;
+    cy: 0px;
+    fill: #ffffff;
+    transform-origin: 0px 0px;
+    opacity: 0.9;
+    animation: sparkle 5s ease-in-out infinite;
+  }
+}
+
+#sp2-pos {
+  type: group;
+  transform: translate(470px, 232px);
+  > #sp2 {
+    type: star;
+    sides: 4;
+    outer-radius: 7px;
+    inner-radius: 2px;
+    cx: 0px;
+    cy: 0px;
+    fill: #ffffff;
+    transform-origin: 0px 0px;
+    opacity: 0.8;
+    animation: sparkle 6.5s ease-in-out infinite 1.6s;
+  }
+}
+
+#cloud1-pos {
+  type: group;
+  transform: translate(240px, 148px);
+  > #cloud1 {
+    type: group;
+    animation: cloud-drift 22s ease-in-out infinite;
+    > #c1a {
+      type: ellipse;
+      cx: 0px;
+      cy: 0px;
+      rx: 100px;
+      ry: 13px;
+      fill: #8fa3d9;
+      opacity: 0.07;
+    }
+    > #c1b {
+      type: ellipse;
+      cx: -42px;
+      cy: -6px;
+      rx: 56px;
+      ry: 10px;
+      fill: #8fa3d9;
+      opacity: 0.055;
+    }
+    > #c1c {
+      type: ellipse;
+      cx: 50px;
+      cy: -5px;
+      rx: 62px;
+      ry: 9px;
+      fill: #8fa3d9;
+      opacity: 0.05;
+    }
+  }
+}
+
+#cloud2-pos {
+  type: group;
+  transform: translate(560px, 210px);
+  > #cloud2 {
+    type: group;
+    animation: cloud-drift 28s ease-in-out infinite -9s;
+    > #c2a {
+      type: ellipse;
+      cx: 0px;
+      cy: 0px;
+      rx: 130px;
+      ry: 15px;
+      fill: #8fa3d9;
+      opacity: 0.05;
+    }
+    > #c2b {
+      type: ellipse;
+      cx: -56px;
+      cy: -7px;
+      rx: 72px;
+      ry: 11px;
+      fill: #8fa3d9;
+      opacity: 0.045;
+    }
+    > #c2c {
+      type: ellipse;
+      cx: 62px;
+      cy: -6px;
+      rx: 78px;
+      ry: 10px;
+      fill: #8fa3d9;
+      opacity: 0.04;
+    }
+  }
+}
+
+#meteor-pos {
+  type: group;
+  transform: translate(690px, 56px);
+  > #meteor {
+    type: group;
+    opacity: 0;
+    animation: meteor-streak 12s linear infinite;
+    > #meteor-angle {
+      type: group;
+      transform: rotate(152deg);
+      > #meteor-trail {
+        type: rect;
+        x: -95px;
+        y: -2px;
+        width: 95px;
+        height: 4px;
+        rx: 2px;
+        fill: linear-gradient(90deg, #ffffff00 0%, #ffffff 100%);
+      }
+      > #meteor-halo {
+        type: circle;
+        cx: 0px;
+        cy: 0px;
+        r: 8px;
+        fill: radial-gradient(#ffffffa6 0%, #ffffff00 70%);
+      }
+      > #meteor-head {
+        type: circle;
+        cx: 0px;
+        cy: 0px;
+        r: 3.5px;
+        fill: #ffffff;
+      }
+    }
+  }
+}
+
+#beam-pos {
+  type: group;
+  transform: translate(150px, 220px);
+  > #beam-rot {
+    type: group;
+    transform-origin: 0px 0px;
+    animation: beam-sweep 7s ease-in-out infinite;
+    > #beam-r-wide {
+      type: path;
+      d: "M 0 0 L 380 -92 L 380 92 Z";
+      fill: linear-gradient(90deg, #ffe9a34d 0%, #ffe9a300 100%);
+    }
+    > #beam-l-wide {
+      type: path;
+      d: "M 0 0 L -380 -76 L -380 76 Z";
+      fill: linear-gradient(270deg, #ffe9a333 0%, #ffe9a300 100%);
+    }
+    > #beam-r {
+      type: path;
+      d: "M 0 0 L 360 -42 L 360 42 Z";
+      fill: linear-gradient(90deg, #ffe9a3b3 0%, #ffe9a300 100%);
+    }
+    > #beam-l {
+      type: path;
+      d: "M 0 0 L -360 -42 L -360 42 Z";
+      fill: linear-gradient(270deg, #ffe9a380 0%, #ffe9a300 100%);
+    }
+  }
+}
+
+#moon-pos {
+  type: group;
+  transform: translate(620px, 110px);
+  > #halo {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 88px;
+    fill: radial-gradient(#f6eed340 0%, #f6eed300 70%);
+    transform-origin: 0px 0px;
+    animation: halo-breathe 6s ease-in-out infinite;
+  }
+  > #moon {
+    type: circle;
+    cx: 0px;
+    cy: 0px;
+    r: 42px;
+    fill: radial-gradient(
+      circle 58px at -10px -12px,
+      #fbf7e7 0%,
+      #f6eed3 55%,
+      #e6dcbc 100%
+    );
+  }
+  > #cr1 {
+    type: circle;
+    cx: -14px;
+    cy: -8px;
+    r: 7px;
+    fill: var(--moon-dim);
+    stroke: #f6eed369;
+    stroke-width: 1px;
+  }
+  > #cr2 {
+    type: circle;
+    cx: 11px;
+    cy: 7px;
+    r: 5px;
+    fill: var(--moon-dim);
+    stroke: #f6eed35c;
+    stroke-width: 1px;
+  }
+  > #cr3 {
+    type: circle;
+    cx: -3px;
+    cy: 17px;
+    r: 4px;
+    fill: var(--moon-dim);
+    stroke: #f6eed354;
+    stroke-width: 1px;
+  }
+  > #cr4 {
+    type: circle;
+    cx: 17px;
+    cy: -17px;
+    r: 3.5px;
+    fill: var(--moon-dim);
+    stroke: #f6eed34d;
+    stroke-width: 1px;
+  }
+}
+
+#sea {
+  type: rect;
+  x: 0px;
+  y: 408px;
+  width: 800px;
+  height: 192px;
+  fill: linear-gradient(180deg, #0b2545 0%, #071a33 100%);
+}
+
+#shore {
+  type: path;
+  d: "M 500 420 L 548 400 L 596 410 L 648 396 L 706 412 L 760 402 L 800 408 L 800 432 L 500 432 Z";
+  fill: #0a1a33;
+}
+
+#horizon-glow {
+  type: ellipse;
+  cx: 620px;
+  cy: 414px;
+  rx: 280px;
+  ry: 60px;
+  fill: radial-gradient(#f6eed326 0%, #f6eed300 70%);
+}
+
+#horizon-line {
+  type: rect;
+  x: 0px;
+  y: 405px;
+  width: 800px;
+  height: 2px;
+  fill: linear-gradient(
+    90deg,
+    #8fb3e800 0%,
+    #8fb3e82e 40%,
+    #8fb3e83d 55%,
+    #8fb3e800 100%
+  );
+}
+
+#wave-back-pos {
+  type: group;
+  transform: translate(0px, 414px);
+  > #wave-back {
+    type: path;
+    fill: var(--wave-back);
+    animation: drift-back 9s linear infinite;
+    d: "M -400 0 Q -375 -10 -350 0 T -300 0 T -250 0 T -200 0 T -150 0 T -100 0 T -50 0 T 0 0 T 50 0 T 100 0 T 150 0 T 200 0 T 250 0 T 300 0 T 350 0 T 400 0 T 450 0 T 500 0 T 550 0 T 600 0 T 650 0 T 700 0 T 750 0 T 800 0 T 850 0 T 900 0 L 900 200 L -400 200 Z";
+  }
+  > #foam-back {
+    type: path;
+    fill: none;
+    stroke: #b9d4f52e;
+    stroke-width: 2px;
+    stroke-linecap: round;
+    animation: drift-back 9s linear infinite;
+    d: "M -400 0 Q -375 -10 -350 0 T -300 0 T -250 0 T -200 0 T -150 0 T -100 0 T -50 0 T 0 0 T 50 0 T 100 0 T 150 0 T 200 0 T 250 0 T 300 0 T 350 0 T 400 0 T 450 0 T 500 0 T 550 0 T 600 0 T 650 0 T 700 0 T 750 0 T 800 0 T 850 0 T 900 0";
+  }
+}
+
+#wave-mid-pos {
+  type: group;
+  transform: translate(0px, 434px);
+  > #wave-mid {
+    type: path;
+    fill: var(--wave-mid);
+    animation: drift-mid 7s linear infinite;
+    d: "M -420 0 Q -385 -14 -350 0 T -280 0 T -210 0 T -140 0 T -70 0 T 0 0 T 70 0 T 140 0 T 210 0 T 280 0 T 350 0 T 420 0 T 490 0 T 560 0 T 630 0 T 700 0 T 770 0 T 840 0 T 910 0 T 980 0 L 980 220 L -420 220 Z";
+  }
+  > #foam-mid {
+    type: path;
+    fill: none;
+    stroke: #b9d4f545;
+    stroke-width: 2.5px;
+    stroke-linecap: round;
+    animation: drift-mid 7s linear infinite;
+    d: "M -420 0 Q -385 -14 -350 0 T -280 0 T -210 0 T -140 0 T -70 0 T 0 0 T 70 0 T 140 0 T 210 0 T 280 0 T 350 0 T 420 0 T 490 0 T 560 0 T 630 0 T 700 0 T 770 0 T 840 0 T 910 0 T 980 0";
+  }
+}
+
+#moon-path {
+  type: group;
+  > #m1 {
+    use: shimmer;
+    cx: 620px;
+    cy: 442px;
+    rx: 26px;
+    ry: 3px;
+    time-offset: 0.2s;
+  }
+  > #m2 {
+    use: shimmer;
+    cx: 613px;
+    cy: 462px;
+    rx: 34px;
+    ry: 3.5px;
+    time-offset: 0.8s;
+  }
+  > #m3 {
+    use: shimmer;
+    cx: 627px;
+    cy: 486px;
+    rx: 30px;
+    ry: 4px;
+    time-offset: 1.7s;
+  }
+  > #m4 {
+    use: shimmer;
+    cx: 612px;
+    cy: 514px;
+    rx: 42px;
+    ry: 4px;
+    time-offset: 0.5s;
+  }
+  > #m5 {
+    use: shimmer;
+    cx: 623px;
+    cy: 546px;
+    rx: 50px;
+    ry: 5px;
+    time-offset: 1.2s;
+  }
+  > #m6 {
+    use: shimmer;
+    cx: 616px;
+    cy: 578px;
+    rx: 60px;
+    ry: 5px;
+    time-offset: 2.1s;
+  }
+}
+
+#wave-front-pos {
+  type: group;
+  transform: translate(0px, 458px);
+  > #wave-front {
+    type: path;
+    fill: var(--wave-front);
+    animation: drift-front 5.5s linear infinite;
+    d: "M -450 0 Q -405 -18 -360 0 T -270 0 T -180 0 T -90 0 T 0 0 T 90 0 T 180 0 T 270 0 T 360 0 T 450 0 T 540 0 T 630 0 T 720 0 T 810 0 T 900 0 T 990 0 L 990 260 L -450 260 Z";
+  }
+  > #foam-front {
+    type: path;
+    fill: none;
+    stroke: #b9d4f55c;
+    stroke-width: 3px;
+    stroke-linecap: round;
+    animation: drift-front 5.5s linear infinite;
+    d: "M -450 0 Q -405 -18 -360 0 T -270 0 T -180 0 T -90 0 T 0 0 T 90 0 T 180 0 T 270 0 T 360 0 T 450 0 T 540 0 T 630 0 T 720 0 T 810 0 T 900 0 T 990 0";
+  }
+  > #g1 {
+    use: glint;
+    transform: translate(560px, 56px);
+    time-offset: 0.4s;
+  }
+  > #g2 {
+    use: glint;
+    transform: translate(648px, 88px);
+    time-offset: 1.6s;
+  }
+  > #g3 {
+    use: glint;
+    transform: translate(724px, 44px);
+    time-offset: 0.9s;
+  }
+  > #g4 {
+    use: glint;
+    transform: translate(774px, 106px);
+    time-offset: 2.1s;
+  }
+  > #g5 {
+    use: glint;
+    transform: translate(684px, 128px);
+    time-offset: 1.1s;
+  }
+  > #g6 {
+    use: glint;
+    transform: translate(602px, 116px);
+    time-offset: 0.1s;
+  }
+}
+
+#rocks {
+  type: group;
+  > #rock1 {
+    type: path;
+    d: "M 10 470 L 24 440 L 60 428 L 104 426 L 140 436 L 162 452 L 168 470 Z";
+    fill: var(--rock);
+  }
+  > #rock2 {
+    type: path;
+    d: "M 108 472 L 128 438 L 172 426 L 226 424 L 272 436 L 300 452 L 308 472 Z";
+    fill: var(--rock);
+  }
+  > #rock3 {
+    type: path;
+    d: "M 92 448 L 118 426 L 158 420 L 192 428 L 206 444 L 180 452 L 120 452 Z";
+    fill: #182440;
+  }
+  > #rock-rim1 {
+    type: path;
+    d: "M 24 440 L 60 428 L 104 426 L 140 436";
+    fill: none;
+    stroke: #2c3a5f;
+    stroke-width: 2px;
+    stroke-linecap: round;
+  }
+  > #rock-rim2 {
+    type: path;
+    d: "M 128 438 L 172 426 L 226 424 L 272 436";
+    fill: none;
+    stroke: #33436b;
+    stroke-width: 2px;
+    stroke-linecap: round;
+  }
+  > #rock-crack1 {
+    type: path;
+    d: "M 96 432 L 104 446 L 98 460";
+    fill: none;
+    stroke: #0b1126;
+    stroke-width: 1.5px;
+    stroke-linecap: round;
+  }
+  > #rock-crack2 {
+    type: path;
+    d: "M 196 430 L 190 446 L 198 458";
+    fill: none;
+    stroke: #0b1126;
+    stroke-width: 1.5px;
+    stroke-linecap: round;
+  }
+  > #rock-hi {
+    type: ellipse;
+    cx: 150px;
+    cy: 430px;
+    rx: 38px;
+    ry: 9px;
+    fill: #1e2a4a;
+  }
+  > #rock-base-shade {
+    type: ellipse;
+    cx: 150px;
+    cy: 460px;
+    rx: 130px;
+    ry: 14px;
+    fill: #00000040;
+  }
+}
+
+#lighthouse {
+  type: group;
+  > #tower-clip {
+    type: group;
+    clip-path: path("M 118 430 L 130 250 L 170 250 L 182 430 Z");
+    > #tower-base {
+      type: rect;
+      x: 108px;
+      y: 240px;
+      width: 84px;
+      height: 200px;
+      fill: linear-gradient(90deg, #f2eee4 0%, var(--tower) 45%, #b9b4a4 100%);
+    }
+    > #stripe1 {
+      type: rect;
+      x: 108px;
+      y: 292px;
+      width: 84px;
+      height: 36px;
+      fill: linear-gradient(90deg, #e05252 0%, var(--stripe) 45%, #a83232 100%);
+    }
+    > #stripe2 {
+      type: rect;
+      x: 108px;
+      y: 370px;
+      width: 84px;
+      height: 34px;
+      fill: linear-gradient(90deg, #e05252 0%, var(--stripe) 45%, #a83232 100%);
+    }
+  }
+  > #tower-foot {
+    type: path;
+    d: "M 112 432 L 118 416 L 182 416 L 188 432 Z";
+    fill: var(--dark);
+  }
+  > #door {
+    type: rect;
+    x: 142px;
+    y: 406px;
+    width: 16px;
+    height: 24px;
+    rx: 7px;
+    fill: var(--dark);
+  }
+  > #door-arch {
+    type: rect;
+    x: 139px;
+    y: 403px;
+    width: 22px;
+    height: 30px;
+    rx: 10px;
+    fill: none;
+    stroke: #f2eee4;
+    stroke-width: 2px;
+  }
+  > #window {
+    type: rect;
+    x: 144px;
+    y: 338px;
+    width: 12px;
+    height: 18px;
+    rx: 6px;
+    fill: var(--dark);
+    stroke: #f2eee4;
+    stroke-width: 1.5px;
+  }
+  > #gallery {
+    type: rect;
+    x: 118px;
+    y: 236px;
+    width: 64px;
+    height: 10px;
+    rx: 2px;
+    fill: var(--dark);
+  }
+  > #rail1 {
+    type: rect;
+    x: 124px;
+    y: 226px;
+    width: 3px;
+    height: 10px;
+    fill: var(--dark);
+  }
+  > #rail2 {
+    type: rect;
+    x: 136px;
+    y: 226px;
+    width: 3px;
+    height: 10px;
+    fill: var(--dark);
+  }
+  > #rail3 {
+    type: rect;
+    x: 161px;
+    y: 226px;
+    width: 3px;
+    height: 10px;
+    fill: var(--dark);
+  }
+  > #rail4 {
+    type: rect;
+    x: 173px;
+    y: 226px;
+    width: 3px;
+    height: 10px;
+    fill: var(--dark);
+  }
+  > #glass-glow {
+    type: rect;
+    x: 126px;
+    y: 198px;
+    width: 48px;
+    height: 44px;
+    rx: 6px;
+    fill: radial-gradient(#ffe9a359 0%, #ffe9a300 70%);
+  }
+  > #glass {
+    type: rect;
+    x: 132px;
+    y: 204px;
+    width: 36px;
+    height: 32px;
+    rx: 2px;
+    fill: radial-gradient(
+      circle 26px at 18px 16px,
+      #fff3c4 0%,
+      #ffdf8a 60%,
+      #f0c268 100%
+    );
+  }
+  > #mull-v {
+    type: rect;
+    x: 146px;
+    y: 204px;
+    width: 3px;
+    height: 32px;
+    fill: var(--dark);
+  }
+  > #mull-h {
+    type: rect;
+    x: 132px;
+    y: 218px;
+    width: 36px;
+    height: 3px;
+    fill: var(--dark);
+  }
+  > #lamp-glow {
+    type: circle;
+    cx: 150px;
+    cy: 220px;
+    r: 38px;
+    fill: radial-gradient(#ffe9a3e0 0%, #ffe9a300 70%);
+    transform-origin: 150px 220px;
+    animation: glow-pulse 2.2s ease-in-out infinite;
+  }
+  > #cap {
+    type: rect;
+    x: 128px;
+    y: 198px;
+    width: 44px;
+    height: 6px;
+    rx: 2px;
+    fill: var(--dark);
+  }
+  > #roof {
+    type: path;
+    d: "M 128 198 Q 150 174 172 198 Z";
+    fill: linear-gradient(90deg, #c24855 0%, var(--roof) 45%, #8a2c38 100%);
+  }
+  > #finial {
+    type: circle;
+    cx: 150px;
+    cy: 174px;
+    r: 3px;
+    fill: var(--dark);
+  }
+}
+
+#boat-pos {
+  type: group;
+  transform: translate(522px, 470px);
+  > #boat-shadow {
+    type: ellipse;
+    cx: 0px;
+    cy: 20px;
+    rx: 52px;
+    ry: 6px;
+    fill: #00000045;
+  }
+  > #boat-reflect {
+    type: ellipse;
+    cx: 0px;
+    cy: 30px;
+    rx: 44px;
+    ry: 3px;
+    fill: radial-gradient(#ffd97733 0%, #ffd97700 75%);
+    animation: shimmer-run 3.2s ease-in-out infinite 0.9s;
+  }
+  > #boat-bob {
+    type: group;
+    transform-origin: 0px 4px;
+    animation:
+      boat-bob 3.4s ease-in-out infinite,
+      boat-rock 4.6s ease-in-out infinite alternate;
+    > #mast {
+      type: rect;
+      x: -2px;
+      y: -66px;
+      width: 4px;
+      height: 66px;
+      fill: var(--mast);
+    }
+    > #sail-jib {
+      type: path;
+      d: "M -5 -56 L -5 -12 L -32 -12 Z";
+      fill: linear-gradient(90deg, var(--sail-dim) 0%, #cfc0a0 100%);
+    }
+    > #sail-jib-seam {
+      type: path;
+      d: "M -5 -38 L -22 -16";
+      fill: none;
+      stroke: #b7a888;
+      stroke-width: 1px;
+    }
+    > #sail-main {
+      type: path;
+      d: "M 3 -64 L 3 -12 L 42 -12 Z";
+      fill: linear-gradient(90deg, #fbf6ea 0%, var(--sail) 45%, #d8cbaa 100%);
+    }
+    > #sail-main-seam {
+      type: path;
+      d: "M 3 -36 L 28 -16";
+      fill: none;
+      stroke: #c9bc9c;
+      stroke-width: 1px;
+    }
+    > #sail-edge {
+      type: path;
+      d: "M 3 -64 L 3 -12";
+      fill: none;
+      stroke: #b7a888;
+      stroke-width: 1px;
+    }
+    > #hull {
+      type: path;
+      d: "M -48 0 L 48 0 L 34 16 Q 0 26 -34 16 Z";
+      fill: linear-gradient(180deg, #7d4a30 0%, var(--hull) 45%, #3d2312 100%);
+    }
+    > #hull-window {
+      type: circle;
+      cx: 14px;
+      cy: 8px;
+      r: 3px;
+      fill: var(--lantern);
+      opacity: 0.9;
+    }
+    > #gunwale {
+      type: rect;
+      x: -48px;
+      y: -3px;
+      width: 96px;
+      height: 5px;
+      rx: 2px;
+      fill: var(--mast);
+    }
+    > #pennant {
+      type: path;
+      d: "M 2 -66 L 20 -62 L 2 -58 Z";
+      fill: var(--stripe);
+      transform-origin: 2px -62px;
+      animation: pennant-flutter 1.1s ease-in-out infinite alternate;
+    }
+    > #lantern-glow {
+      type: circle;
+      cx: -40px;
+      cy: -6px;
+      r: 12px;
+      fill: radial-gradient(#ffd977b3 0%, #ffd97700 70%);
+      opacity: 0.8;
+    }
+    > #lantern {
+      type: circle;
+      cx: -40px;
+      cy: -6px;
+      r: 3px;
+      fill: var(--lantern);
+    }
+  }
+}
+
+#buoy-pos {
+  type: group;
+  transform: translate(706px, 506px);
+  > #buoy-shadow {
+    type: ellipse;
+    cx: 0px;
+    cy: 5px;
+    rx: 18px;
+    ry: 3.5px;
+    fill: #00000040;
+  }
+  > #buoy-reflect {
+    type: ellipse;
+    cx: 0px;
+    cy: 12px;
+    rx: 12px;
+    ry: 2px;
+    fill: #ff5a5a33;
+    animation: buoy-blink 1.4s ease-in-out infinite;
+  }
+  > #buoy-bob {
+    type: group;
+    animation: buoy-bob 2.8s ease-in-out infinite;
+    > #buoy-base {
+      type: path;
+      d: "M -14 0 L 14 0 L 7 -20 L -7 -20 Z";
+      fill: linear-gradient(180deg, #c94b58 0%, var(--roof) 55%, #7e2a35 100%);
+    }
+    > #buoy-tip {
+      type: rect;
+      x: -2px;
+      y: -26px;
+      width: 4px;
+      height: 6px;
+      fill: var(--dark);
+    }
+    > #buoy-glow {
+      type: circle;
+      cx: 0px;
+      cy: -30px;
+      r: 12px;
+      fill: radial-gradient(#ff5a5ab3 0%, #ff5a5a00 70%);
+      transform-origin: 0px -30px;
+      animation: buoy-blink 1.4s ease-in-out infinite;
+    }
+    > #buoy-light {
+      type: circle;
+      cx: 0px;
+      cy: -30px;
+      r: 4.5px;
+      fill: #ff5a5a;
+      transform-origin: 0px -30px;
+      animation: buoy-blink 1.4s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes drift-back {
+  0% {
+    transform: translateX(0px);
+  }
+  100% {
+    transform: translateX(-100px);
+  }
+}
+
+@keyframes drift-mid {
+  0% {
+    transform: translateX(0px);
+  }
+  100% {
+    transform: translateX(-140px);
+  }
+}
+
+@keyframes drift-front {
+  0% {
+    transform: translateX(0px);
+  }
+  100% {
+    transform: translateX(-180px);
+  }
+}
+
+@keyframes boat-bob {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes boat-rock {
+  0% {
+    transform: rotate(-2.5deg);
+  }
+  100% {
+    transform: rotate(2.5deg);
+  }
+}
+
+@keyframes pennant-flutter {
+  0% {
+    transform: rotate(0deg) scaleY(1);
+  }
+  100% {
+    transform: rotate(9deg) scaleY(0.85);
+  }
+}
+
+@keyframes beam-sweep {
+  0% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(8deg);
+  }
+  100% {
+    transform: rotate(-4deg);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes halo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer-run {
+  0%,
+  100% {
+    transform: translateX(-0.15px) scaleX(1);
+    opacity: 0.1;
+  }
+  50% {
+    transform: translateX(0px) scaleX(1.15);
+    opacity: 0.3;
+  }
+}
+
+@keyframes glint-twinkle {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: scale(0.75);
+  }
+}
+
+@keyframes sparkle {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(0.8);
+    opacity: 0.4;
+  }
+  50% {
+    transform: rotate(90deg) scale(1.15);
+    opacity: 0.95;
+  }
+}
+
+@keyframes cloud-drift {
+  0%,
+  100% {
+    transform: translateX(-40px);
+  }
+  50% {
+    transform: translateX(40px);
+  }
+}
+
+@keyframes buoy-bob {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes buoy-blink {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.1;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes meteor-streak {
+  0% {
+    transform: translate(0px, 0px);
+    opacity: 0;
+  }
+  1.5% {
+    opacity: 1;
+  }
+  5% {
+    transform: translate(-560px, 230px);
+    opacity: 1;
+  }
+  6.5% {
+    transform: translate(-640px, 265px);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-640px, 265px);
+    opacity: 0;
+  }
+}
+
+/* motion */
