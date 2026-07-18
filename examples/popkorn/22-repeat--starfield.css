@@ -1,0 +1,70 @@
+/* Repeat & sibling math — a starfield laid out entirely by formula. Two families
+   are each stamped from a SINGLE declared node with `repeat:`, then differentiated
+   by sibling-index()/sibling-count() (CSS Values 5 §10): a 100-cell background grid
+   placed with mod()/round(), and a 24-star ring placed with cos()/sin(). Nothing
+   is hand-positioned and nothing is random — the layout is a pure function of each
+   copy's structural index, so it stays byte-identical across reloads and crushes.
+   Each family lives in its own group so sibling-index() counts only its peers. */
+:root {
+  width: 800px;
+  height: 600px;
+  background: #05060f;
+}
+
+/* Twinkle: a staggered opacity pulse. The stagger is a NEGATIVE per-copy delay
+   (`sibling-index() * -0.14s`) — the CSS idiom for phase-shifting a family off one
+   shared, seam-free period. */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+/* Ring stars breathe in scale on the same clock. */
+@keyframes breathe {
+  0%, 100% { transform: scale(0.6); }
+  50% { transform: scale(1.15); }
+}
+
+/* Background grid: 100 dots on a 10x10 lattice. Column = (i+9) mod 10, row =
+   floor((i+9)/10); both are the 0-based index laid out row-major (the +9 keeps
+   the additive operands off the parens so the scene survives whitespace-minify).
+   The group's own sibling-count() is 100. */
+#grid {
+  type: group;
+  > #cell {
+    type: rect;
+    width: 4px;
+    height: 4px;
+    rx: 2px;
+    fill: #2b3160;
+    repeat: 100;
+    x: calc(70px + mod(9 + sibling-index(), 10) * 68px);
+    y: calc(8px + round(down, (9 + sibling-index()) / 10) * 52px);
+    animation: twinkle 4s ease-in-out infinite;
+    animation-delay: calc(sibling-index() * -0.06s);
+  }
+}
+
+/* A star, `use:`d by the ring so repeat: composes with a symbol. */
+@define star {
+  type: circle;
+  r: 5px;
+  fill: #ffe9a8;
+  transform-origin: center;
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* Ring: 24 stars evenly spaced around the stage centre. The angle is the copy's
+   fraction of the way around the circle — sibling-index()/sibling-count() * 2π —
+   fed to cos()/sin() for x/y. sibling-count() is 24 (the ring group's only kids),
+   so the spacing self-adjusts if you change the repeat count. */
+#ring {
+  type: group;
+  > #star {
+    use: star;
+    repeat: 24;
+    cx: calc(400px + cos(sibling-index() / sibling-count() * 6.2832) * 210px);
+    cy: calc(300px + sin(sibling-index() / sibling-count() * 6.2832) * 150px);
+    animation-delay: calc(sibling-index() * -0.14s);
+  }
+}
