@@ -21,8 +21,8 @@
  *    NOTE: this is a sliding-disc approximation, not a true spherical
  *    terminator — a real terminator would need an arc/clip carve; upgrade path
  *    is a clip-path against an offset ellipse if crisper phases are wanted.
- *  - Starfield: dim scattered dots, a few twinkling via sin() opacity at
- *    different phases.
+ *  - Starfield: one `repeat:`ed dot whose position, size and twinkle are all
+ *    sibling-index() hashes — no per-star rows.
  *
  * Layout at 480x480 keeps three visual classes distinct: hour marks are radial
  * bars, planets are glowing dots on dashed tracks, stars are the faintest and
@@ -61,35 +61,27 @@
   stroke-dasharray: 1.5 18.4;
 }
 
-/* --- Starfield: dim dots behind everything; a few twinkle via sin() opacity. */
+/* --- Starfield: one recipe, `repeat:` stamps the whole sky. Placement is a
+   golden-angle spiral (i * 2.39996 rad) at a hashed radius in the 86..194 band,
+   which scatters evenly while staying clear of the hands and inside the bezel.
+   Every star twinkles, but the amplitude is itself a hash — most land near 0
+   (steady dim dots), a few pulse hard, so the old star/twinkle split falls out
+   of the math instead of two @defines and 14 rows. */
 @define star {
   type: circle;
-  r: 1.1px;
-  fill: #45455f;
-}
-
-@define star-twinkle {
-  type: circle;
-  r: 1.3px;
+  r: calc(0.9 + mod(sibling-index() * 29, 7) * 0.09);
+  cx: calc(240 + cos(sibling-index() * 2.39996) * (86 + mod(sibling-index() * 61, 108)));
+  cy: calc(240 + sin(sibling-index() * 2.39996) * (86 + mod(sibling-index() * 61, 108)));
   fill: #7a7aad;
+  opacity: calc(0.4 + sin(var(--t) / (520 + mod(sibling-index() * 47, 300))) * mod(sibling-index() * 13, 5) * 0.08);
 }
 
-#star0  { use: star; cx: 118px; cy: 108px; }
-#star1  { use: star; cx: 182px; cy: 78px; }
-#star2  { use: star; cx: 300px; cy: 92px; }
-#star3  { use: star; cx: 362px; cy: 132px; }
-#star4  { use: star; cx: 92px;  cy: 178px; }
-#star5  { use: star; cx: 402px; cy: 202px; }
-#star6  { use: star; cx: 330px; cy: 172px; }
-#star7  { use: star; cx: 410px; cy: 262px; }
-#star8  { use: star; cx: 86px;  cy: 288px; }
-#star9  { use: star; cx: 128px; cy: 348px; }
-
-/* opacity = sin(t/period + phase) * 0.4 + 0.55 — slow, out-of-phase blinking. */
-#twinkle0 { use: star-twinkle; cx: 150px; cy: 140px; opacity: calc(sin(var(--t) / 620 + 0) * 0.4 + 0.55); }
-#twinkle1 { use: star-twinkle; cx: 356px; cy: 300px; opacity: calc(sin(var(--t) / 780 + 2) * 0.4 + 0.55); }
-#twinkle2 { use: star-twinkle; cx: 300px; cy: 118px; opacity: calc(sin(var(--t) / 540 + 4) * 0.4 + 0.55); }
-#twinkle3 { use: star-twinkle; cx: 96px;  cy: 236px; opacity: calc(sin(var(--t) / 700 + 1) * 0.4 + 0.55); }
+/* Wrapped in a group so sibling-index() counts 1..26 within the starfield
+   rather than continuing the scene's top-level ordering. */
+#starfield {
+  type: group;
+  > #stars { use: star; repeat: 26; }
+}
 
 /* --- Orrery: faint concentric tracks, planets placed by cos/sin of scaled t.
    Track radii 58/86/114; planet angle = t / period (radians), inner fastest. */
@@ -196,18 +188,27 @@
   fill: #4cc9f0;
 }
 
-#tick0  { use: tick-major; transform: translate(240px, 240px) rotate(0deg); }
-#tick1  { use: tick;       transform: translate(240px, 240px) rotate(30deg); }
-#tick2  { use: tick;       transform: translate(240px, 240px) rotate(60deg); }
-#tick3  { use: tick-major; transform: translate(240px, 240px) rotate(90deg); }
-#tick4  { use: tick;       transform: translate(240px, 240px) rotate(120deg); }
-#tick5  { use: tick;       transform: translate(240px, 240px) rotate(150deg); }
-#tick6  { use: tick-major; transform: translate(240px, 240px) rotate(180deg); }
-#tick7  { use: tick;       transform: translate(240px, 240px) rotate(210deg); }
-#tick8  { use: tick;       transform: translate(240px, 240px) rotate(240deg); }
-#tick9  { use: tick-major; transform: translate(240px, 240px) rotate(270deg); }
-#tick10 { use: tick;       transform: translate(240px, 240px) rotate(300deg); }
-#tick11 { use: tick;       transform: translate(240px, 240px) rotate(330deg); }
+/* Two repeats instead of twelve rows: quarters are just i*90deg. The eight
+   in-between hours are 1,2,4,5,7,8,10,11 — that's h = i + floor(i/2 - 0.5), so
+   one round(down, …) skips every quarter without a table or a conditional. */
+#ticks {
+  type: group;
+  > #ticks-major {
+    use: tick-major;
+    repeat: 4;
+    transform: translate(240px, 240px) rotate(calc(sibling-index() * 90deg - 90deg));
+  }
+}
+
+#ticks-hours {
+  type: group;
+  > #ticks-hour {
+    use: tick;
+    repeat: 8;
+    transform: translate(240px, 240px)
+      rotate(calc(sibling-index() * 30deg + round(down, sibling-index() / 2 - 0.5, 1) * 30deg));
+  }
+}
 
 /* --- Hands: each a group pinned to center, rotated live. The rect child points
    straight up (negative y) from the group origin, so rotate: 0 reads as 12
