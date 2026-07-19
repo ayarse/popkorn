@@ -2,7 +2,7 @@
  * Lottie JSON -> Popkorn DSL converter core.
  *
  * Pure conversion logic — no Node builtins (fs/path/process), so this module
- * is importable from both the `convert-cli.ts` CLI wrapper and browser
+ * is importable from both the `cli.ts` CLI wrapper and browser
  * code (e.g. the demo's "Import Lottie" tool). The mapping is documented
  * inline where it earns comment; the high-level model: a Lottie comp becomes
  * a :root stage block plus one top-level rule per layer (emitted in REVERSE layer order

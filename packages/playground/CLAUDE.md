@@ -17,6 +17,8 @@ agent *can't* infer from the code.
   `/docs/$section`). Don't drop it. The router's `basepath` is
   `import.meta.env.BASE_URL`, which `vite.config.ts` sets to `/popkorn/` under
   `GITHUB_PAGES` (else `/`) — the 404-copy step and the basepath must agree.
+  Example deep links are a plain `#<example-key>` hash read by `useScene`, not
+  a route: the hash survives the dev/Pages basepath difference.
 - **Scene state lives in `useScene` (`src/hooks/use-scene.ts`)**. `app.tsx`
   also lifts `player` (the `PopkornPlayer` instance, out of `PlayerPanel`) and
   `sourceCollapsed` alongside `showImport`/`chatOpen`.

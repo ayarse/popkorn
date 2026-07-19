@@ -59,7 +59,7 @@ format always uses the canonical name):
 | `left` / `top` | `x` / `y` | `right` / `bottom` are rejected — no containing box; position with `x`/`y`. On `circle`/`ellipse`, `x`/`y` set the bounding-box top-left and are converted to `cx`/`cy` (static only; explicit `cx`/`cy` wins). |
 | `color` | `fill` | Handy for text. |
 | `background` | `fill` | On `:root` this still sets the stage color. |
-| `border-radius: <r>` | `rx` + `ry` | Single value only; multi-value/elliptical → use `type: path`. |
+| `border-radius: <r>` | `rx` + `ry` | A single value stays uniform. 2–4 values expand to the per-corner longhands (`border-top-left-radius` etc., CSS shorthand fill order). The elliptical slash form (`10px / 20px`) is rejected — corners are circular; use `type: path`. |
 | `border: <w> solid <c>` | `stroke-width` + `stroke` | Only `solid` (and `none`); other styles are rejected. |
 
 Aliases work everywhere a declaration does — rule bodies, `@keyframes`,

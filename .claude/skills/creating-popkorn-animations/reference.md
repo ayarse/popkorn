@@ -115,7 +115,9 @@ stepped/sign `round([<strategy>,] VAL[, STEP])` (strategy is `nearest`
 `cos()`, `tan()`, `asin()`, `acos()`, `atan()`, `atan2(Y, X)`; exponential
 `pow(BASE, EXP)`, `sqrt()`, `hypot(...)`, `log(X[, BASE])`, `exp()` — each arg
 is a full `calc()` expr, they nest with `calc()`, and reactive operands
-(`var()`/`input()`) re-evaluate per frame.
+(`var()`/`input()`) re-evaluate per frame. Two zero-arg **structural**
+functions round the set out: `sibling-index()` and `sibling-count()` (see §8
+Repeat & sibling math).
 
 ### `var()` is typed; `input()` is numeric-only
 
@@ -440,6 +442,35 @@ Source property is **`content: url(...)`** (the CSS spelling — not `href`/`src
 - **Children:** definition children (deep-cloned, ids namespaced `<instance>.<child>`) first, then use-site children.
 - A use-site `&:hover`/`&:active` block replaces the definition's for that pseudo.
 - Definitions may `use:` other definitions (recursive). Cycles throw `cyclic symbol definition`. Unknown name throws `unknown symbol '…' referenced by use:`.
+
+### Repeat & sibling math
+
+`repeat: <positive-integer>` on any node rule stamps it N times as consecutive
+siblings, before the scene graph is built.
+
+```css
+#tick { type: rect; width: 2px; height: 8px; repeat: 60; }  /* any node */
+#field { use: dot; repeat: 150; }                           /* or a symbol */
+```
+
+- Ids derive as `#field` → `field-1` … `field-N`; descendants re-suffix under
+  the copy id. `repeat: 1` ≡ absent (no suffix). `0`/negative/non-integer is a
+  build error.
+- Count is **static** — a plain integer or a foldable `calc()`, never `input()`
+  (node count is fixed over the timeline). Nested repeats multiply.
+- Copies are identical; differentiate them with `sibling-index()` /
+  `sibling-count()` (zero-arg, 1-based position / total among **all** siblings,
+  so give a repeated family its own group) and `random(per-element, …)`:
+
+```css
+/* row */      cx: calc(100px + sibling-index() * 50px);
+/* ring */     cx: calc(400px + cos(sibling-index() / sibling-count() * 6.2832) * 180px);
+/* grid */     cx: calc(mod(sibling-index() - 1, 10) * 40px);
+               cy: calc(round(down, (sibling-index() - 1) / 10) * 40px);
+/* stagger */  animation-delay: calc(sibling-index() * -0.15s);
+/* jitter */   translate: random(per-element, -8px, 8px) random(per-element, -8px, 8px);
+/* re-stack */ z-index: calc(0 - sibling-index());
+```
 
 ---
 

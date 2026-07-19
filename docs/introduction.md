@@ -51,10 +51,13 @@ audiences already read.
 Popkorn covers most of what people reach for in real motion graphics: vector
 shapes, gradients, strokes, and full SVG paths; text and images; `@keyframes`
 animation with per-keyframe easing; motion along a path, trim paths, and path
-morphing; a real scene graph with parent/child transforms, symbols, `z-index`
-layering, clipping, and masks. And it isn't only playback: `:hover` and
-`:active` just work, and state machines drive multi-state behavior with no
-scripting. See the
+morphing; typography, drop shadows, and blend modes; a real scene graph with
+parent/child transforms, symbols, `z-index` layering, clipping, and masks.
+Scenes compute, too: `calc()` and the CSS math functions run per frame, and
+`repeat:` stamps a rule into a field of copies you vary by index. And it isn't
+only playback: `:hover` and `:active` just work, state machines drive
+multi-state behavior with no scripting, and the player reports clicks and
+state changes back to your app as DOM events. See the
 [format reference](reference.md) for the full surface.
 
 ## Where it's at

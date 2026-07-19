@@ -63,8 +63,9 @@ digraph triage {
 ```
 
 Deliberate skips (CLAUDE.md is authoritative): JS expressions, text
-animators, merge-path subtract/intersect, offset/zig-zag/pucker/round-corner
-modifiers, 3D/camera, most layer effects. **Overturning a skip** requires
+animators, merge-path subtract/intersect (union IS supported),
+offset/zig-zag/pucker/round-corner modifiers, 3D/camera, most layer effects.
+Not a skip: precomp time remap (layer `tm`) converts to `time-remap`. **Overturning a skip** requires
 showing it's *nearly free*: implementable by reusing existing machinery (the
 offscreen compositor, the channel plumbing, a native `ctx` capability) with
 no new subsystem and no new dependency (blur qualified: `ctx.filter` + the
@@ -196,7 +197,8 @@ shipped bug; the serializer was forgotten once and broke round-trip):
   fallbacks are marked `ponytail:`; renderer tests mock resources by index
   (see `canvas2d-*.test.ts`); a few Path2D tests skip under bun — expected.
 - Corpus gate: `--batch <corpus>/data` against a clone of
-  `LottieFiles/test-files`, baseline 65/8/7/0 clean/warn/blocked. Assume it
+  `LottieFiles/test-files` (160 .json upstream as of 2026-07-17), baseline
+  142/11/7/0 clean/warn/blocked/failed as of 2026-07-17. Assume it
   is absent until found (`find ~ -maxdepth 4 -name test-files -type d`); when
   absent, skip it but SAY SO in your report; never imply it ran.
 - Browser eyeball of an affected scene (several real bugs were only visible

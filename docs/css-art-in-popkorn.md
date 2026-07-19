@@ -16,7 +16,8 @@ snippet below was checked against [`reference.md`](./reference.md); see the
 The examples here teach Popkorn's native property names (`x`/`y`, `fill`,
 `rx`/`ry`, `stroke`), but a few CSS spellings are accepted as write-in-only
 sugar and rewritten on the way in: `left`/`top` → `x`/`y`, `color`/`background`
-→ `fill`, single-value `border-radius` → `rx`+`ry`, and `border: <w> solid <c>`
+→ `fill`, `border-radius` → `rx`+`ry` (or the per-corner longhands for 2–4
+values), and `border: <w> solid <c>`
 → `stroke-width`+`stroke`. See [CSS aliases](./reference.md#css-aliases). They
 only ease the first keystrokes — the saved format is always the canonical name,
 so lean on the native names once you're fluent.
@@ -87,9 +88,11 @@ section below) — no swapping background layers to fake a transition.
 Comma-separated `box-shadow` values are the classic way to stamp out dozens
 of copies of a shape (starfields, confetti, polka-dot patterns) from one
 element, because CSS has no "repeat this element N times" primitive.
-Popkorn's analog is `@define` + repeated `use:` — a real symbol, actually
-instantiated, each copy independently positionable, colorable, and
-animatable (not just an offset/color/blur tuple).
+Popkorn has one: `repeat: <n>` stamps a rule into N real sibling nodes, each
+independently positionable, colorable, and animatable (not just an
+offset/color/blur tuple). Differentiate the copies with `sibling-index()` /
+`sibling-count()` — or `@define` + repeated `use:` when each copy is
+hand-placed.
 
 ```css
 /* before: "50 stars" as 50 box-shadow entries on one 1px div */
@@ -99,22 +102,24 @@ animatable (not just an offset/color/blur tuple).
 ```
 
 ```css
-/* after: define the star once, stamp instances, animate them individually */
-@define spark {
+/* after: one rule, 50 real nodes, scattered and staggered by index */
+#star {
   type: circle;
   r: 2px;
   fill: #ffffff;
+  repeat: 50;
+  cx: random(per-element, 0px, 400px);
+  cy: random(per-element, 0px, 300px);
+  animation: twinkle 2s ease-in-out infinite;
+  animation-delay: calc(sibling-index() * -0.04s);
 }
-
-#s1 { use: spark; cx: 20px;  cy: 30px; }
-#s2 { use: spark; cx: 80px;  cy: 10px; }
-#s3 { use: spark; cx: 140px; cy: 60px; fill: #a5b4fc; } /* per-instance override */
 ```
 
-Each `use:` clone gets its own animation state (and namespaced ids for any
-children), so a twinkle animation staggered with negative `animation-delay`
-(see below) reads as independent stars, not one shadow list moving in
-lockstep.
+Each copy is a real node with its own animation state (and namespaced ids for
+any children), so the stagger reads as independent stars, not one shadow list
+moving in lockstep. When the copies aren't a formula — a handful of
+hand-placed, individually overridden shapes — `@define` + `use:` is the better
+fit.
 
 ## Border-triangle hack
 
@@ -384,12 +389,16 @@ inventing new syntax:
 - **`offset-path`/`offset-distance`/`offset-rotate`** — CSS Motion Path, verbatim, for moving a node along an arbitrary curve.
 - **`:hover`/`:active`** — pseudo-class-style interactive overrides (`&:hover { ... }` nested in a rule).
 - **`var()`/`input()`** — custom properties and input bindings (`input(cursor.x)`, `input(scroll.progress)`) for numeric props, same substitution model as CSS custom properties.
+- **`calc()` and the CSS math functions** — `min()`/`max()`/`clamp()`, `round()`/`mod()`/`rem()`, trig and exponentials, over `var()`/`input()` values, live per frame.
+- **`mix-blend-mode`** — the full CSS keyword set, mapped across all three renderer backends.
+- **`box-shadow`** — as a real drop shadow (including `inset`) on a node, not as a stamping trick.
 
 ## Current absences (honest list)
 
 Popkorn is not yet full CSS-parity, and won't fake it:
 
-- **No blend modes** — no `mix-blend-mode`/`background-blend-mode` equivalent.
+- **No `background-blend-mode`** — a node blends against the scene (`mix-blend-mode`), but a paint can't blend against its own backdrop.
+- **No elliptical `border-radius`** — corners are circular; the `10px / 20px` slash form is rejected. Use `type: path` for a true elliptical outline.
 - **No text animators / per-glyph effects** — text draws as a whole, not per-character.
 
 None of these are permanent design decisions the way "no box model" is —

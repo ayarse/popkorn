@@ -171,6 +171,13 @@ player.addEventListener("popkorn:machine-event", (e) =>
 ); // 'overheat'
 ```
 
+Clicks are also reported on their own, machine or not: `popkorn:click` carries
+the node that was hit, so a host can react without routing through a machine.
+A node with `cursor: pointer` shows the pointer cursor on the player surface.
+The rest of the component's event surface (`popkorn:ready`, `popkorn:timeupdate`,
+`popkorn:complete`, `popkorn:error`) is in the
+[player API](player-api.md).
+
 ## A few more things
 
 - **Any-state transitions.** A `state *` block is checked before the current
@@ -178,8 +185,14 @@ player.addEventListener("popkorn:machine-event", (e) =>
 - **Concurrent machines.** Multiple `@machine` blocks run independently, so a
   blink loop and your button logic never tangle.
 - **No duration.** A scene with a machine never ends or loops as a clip; the clock
-  runs forward and the state lives off the timeline. (The player's `loop`
-  attribute is inert for these scenes.)
+  runs forward and the state lives off the timeline. `player.duration` reports
+  `Infinity` and the `loop` attribute is inert. The same is true of any scene
+  with `:state()` rules (a machine isn't required) and of a scene whose
+  animations are all `infinite` — neither has an honest end either.
+- **Scrubbing a segment with `time-remap`.** `time-remap` pins a subtree to an
+  instant of its local timeline, and it's animatable — so a state can drive a
+  segment of a converted Lottie by animating it, instead of starting and
+  stopping separate tracks. See `examples/popkorn/17-lottie--interactive-volume.css`.
 
 ## Smooth state transitions: `mix`
 
