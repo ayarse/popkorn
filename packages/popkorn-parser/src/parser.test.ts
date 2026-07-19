@@ -1033,7 +1033,11 @@ for (const file of collectCss(examplesDir)) {
 // remove whitespace adjacent to `{ } ; : , > ( )`, collapse the rest to a
 // single space (the space that separates list values is syntactically
 // required, so it must survive) — while leaving string literals untouched.
+// Whitespace bracketing a calc() `+`/`-` is also required by CSS (it is what
+// distinguishes subtraction from a signed operand), so `sin(1) + 2` must not
+// collapse to `sin(1)+2` even though `)` is punctuation.
 const PUNCT = "{};:,>()";
+const ADDITIVE = "+-";
 function stripWs(src: string): string {
   let out = "";
   for (let i = 0; i < src.length; ) {
@@ -1079,8 +1083,9 @@ function stripWs(src: string): string {
       if (
         prev === undefined ||
         next === undefined ||
-        PUNCT.includes(prev) ||
-        PUNCT.includes(next)
+        ((PUNCT.includes(prev) || PUNCT.includes(next)) &&
+          !ADDITIVE.includes(prev) &&
+          !ADDITIVE.includes(next))
       ) {
         i++;
         continue;
