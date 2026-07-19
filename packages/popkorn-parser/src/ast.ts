@@ -387,11 +387,22 @@ export function evalCalc(
   const l = evalCalc(expr.left, resolveLeaf);
   const r = evalCalc(expr.right, resolveLeaf);
   if (!l || !r) return null;
-  switch (expr.op) {
+  return evalCalcBinary(expr.op, l, r);
+}
+
+// Apply one calc binary operator to two already-resolved operands. Extracted so
+// the runtime's compiled-calc path shares the interpreter's exact unit rules
+// (mismatched add/subtract, unit·unit multiply, divide-by-unit all → null).
+export function evalCalcBinary(
+  op: CalcBinary["op"],
+  l: CalcNumeric,
+  r: CalcNumeric,
+): CalcNumeric | null {
+  switch (op) {
     case "+":
     case "-": {
       if (l.unit && r.unit && l.unit !== r.unit) return null;
-      const value = expr.op === "+" ? l.value + r.value : l.value - r.value;
+      const value = op === "+" ? l.value + r.value : l.value - r.value;
       return { value, unit: l.unit || r.unit };
     }
     case "*": {
@@ -446,7 +457,7 @@ const radToDeg = (r: number): number => (r * 180) / Math.PI;
 
 // Evaluate a CSS math function against its already-resolved numeric args. Returns
 // null on an unresolvable unit combination (matching +/-'s conservatism).
-function evalCalcFunction(
+export function evalCalcFunction(
   expr: CalcFunction,
   args: CalcNumeric[],
 ): CalcNumeric | null {

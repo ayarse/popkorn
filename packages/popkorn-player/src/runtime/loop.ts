@@ -400,6 +400,10 @@ export class RenderLoop {
 
   /** Resolve every node's live values at the current timeline time and render. */
   private drawFrame(now: number, live: boolean = false): void {
+    // Open a fresh variable-resolution frame: invalidates the per-frame var()
+    // memo before machines evaluate or nodes resolve, so each draw (live tick,
+    // seek, or redraw) recomputes from current input/host state.
+    this.variableResolver.beginFrame();
     if (this.sceneRoot) {
       let t = this.scheduler.time(now);
       // Clear the completion latch whenever the clock sits inside the clip, so a

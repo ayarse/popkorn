@@ -39,6 +39,8 @@ export {
   calcConstant,
   calcNumericToValue,
   evalCalc,
+  evalCalcBinary,
+  evalCalcFunction,
   evalCalcStatic,
   getNumericValue,
   getStringValue,

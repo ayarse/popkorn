@@ -1,14 +1,11 @@
 import type {
   CalcExpr,
-  CalcNumeric,
   CalcValue,
   Value,
   VariableDefinition,
 } from "@popkorn/parser";
 import {
-  calcConstant,
   calcNumericToValue,
-  evalCalc,
   isCalcValue,
   isColorValue,
   isFunctionValue,
@@ -18,7 +15,17 @@ import {
   isStringValue,
   isVariableRefValue,
 } from "@popkorn/parser";
+import { type CompiledCalc, compileCalc } from "./calc-compile";
 import type { InputState } from "./inputs";
+
+// Reactive calc() expressions compile to a closure once and are cached by AST
+// identity; the 5000 repeat copies each carry a distinct expr (sibling-index()
+// is folded per node), so this dedups only genuinely shared source — cheap.
+const compiledCalcCache = new WeakMap<CalcExpr, CompiledCalc>();
+
+// Sentinel: a variable name resolved to "not defined" this frame (distinct from
+// a legitimately-cached Value, and from Map's undefined miss).
+const VAR_UNDEFINED = Symbol("var-undefined");
 
 /** Primitive a host reads/writes through the variable API. */
 export type VariableValue = number | boolean | string;
@@ -36,9 +43,35 @@ export class VariableResolver {
   private triggers: Set<string> = new Set();
   private firedTriggers: Set<string> = new Set();
 
+  // Per-frame variable resolution memo: a reactive calc() may mention the same
+  // var() (e.g. `--t`) at many leaves, and the same var() recurs across the whole
+  // node walk. Resolution is a pure function of (frameEpoch); bumping the epoch
+  // on any state change (frame boundary, setVariable, fire, input update)
+  // invalidates the memo, so `seek(t)` stays a pure function of time.
+  private frameEpoch = 0;
+  private varMemo: Map<string, Value | typeof VAR_UNDEFINED> = new Map();
+  private varMemoEpoch = -1;
+
+  // Reused per-call so compiled calc() closures allocate nothing to reach the
+  // resolver. (Bound methods, not arrows over `this`, to keep it a stable object.)
+  private readonly calcCtx = {
+    resolveCalcVar: (name: string, fallback?: Value): Value =>
+      this.resolveVariable(name, fallback),
+    resolveCalcInput: (path: string): number => this.resolveInputPath(path),
+  };
+
   constructor() {
     // Set up built-in input bindings
     this.setupBuiltinInputs();
+  }
+
+  /**
+   * Open a new resolution frame: invalidates the per-frame var() memo. The render
+   * loop calls this once at the top of every draw (live tick, seek, or redraw),
+   * before machines evaluate or nodes resolve, so each frame recomputes fresh.
+   */
+  beginFrame(): void {
+    this.frameEpoch++;
   }
 
   /**
@@ -79,6 +112,7 @@ export class VariableResolver {
    */
   setVariable(name: string, value: VariableValue): void {
     this.hostOverrides.set(normalizeVarName(name), value);
+    this.frameEpoch++; // invalidate the memo so a mid-frame host write is seen
   }
 
   /**
@@ -104,6 +138,7 @@ export class VariableResolver {
    */
   fire(name: string): void {
     this.firedTriggers.add(normalizeVarName(name));
+    this.frameEpoch++; // a trigger fired mid-frame must invalidate the memo
   }
 
   /**
@@ -111,7 +146,10 @@ export class VariableResolver {
    * frame, after resolving the node walk, so triggers are momentary.
    */
   endFrame(): void {
-    if (this.firedTriggers.size > 0) this.firedTriggers.clear();
+    if (this.firedTriggers.size > 0) {
+      this.firedTriggers.clear();
+      this.frameEpoch++; // fired triggers read `false` again → invalidate the memo
+    }
   }
 
   /**
@@ -125,6 +163,7 @@ export class VariableResolver {
 
   updateInputState(state: InputState): void {
     this.inputState = state;
+    this.frameEpoch++; // input-bound vars (`input(time)`, cursor.*) changed
   }
 
   /**
@@ -148,38 +187,45 @@ export class VariableResolver {
    * for the reactive case.
    */
   private resolveCalc(value: CalcValue): Value {
-    const n = evalCalc(value.expr, (v) => this.calcLeaf(v));
+    let compiled = compiledCalcCache.get(value.expr);
+    if (!compiled) {
+      compiled = compileCalc(value.expr);
+      compiledCalcCache.set(value.expr, compiled);
+    }
+    const n = compiled(this.calcCtx);
     return n ? calcNumericToValue(n) : { type: "number", value: 0 };
   }
 
-  private calcLeaf(v: Value): CalcNumeric | null {
-    if (isCalcValue(v)) return evalCalc(v.expr, (x) => this.calcLeaf(x));
-    // input(path) resolves straight to a unitless number.
-    if (isFunctionValue(v) && v.name === "input") {
-      const path = this.getInputPath(v.args);
-      return { value: path ? this.resolveInputPath(path) : 0, unit: "" };
-    }
-    const resolved = this.resolveValue(v); // handles var()
-    if (isNumberValue(resolved)) return { value: resolved.value, unit: "" };
-    if (isLengthValue(resolved))
-      return { value: resolved.value, unit: resolved.unit };
-    if (isKeywordValue(resolved)) {
-      if (resolved.value === "true") return { value: 1, unit: "" };
-      if (resolved.value === "false") return { value: 0, unit: "" };
-      return calcConstant(resolved.value);
-    }
-    return null;
-  }
-
   /**
-   * Resolve a variable by name
+   * Resolve a variable by name. The defined-variable lookup (host override >
+   * trigger > input binding > static) is memoized per frame — a reactive calc()
+   * may reference the same var() dozens of times across the node walk — while the
+   * per-call `fallback` (used only when the name is undefined) is applied fresh.
    */
   resolveVariable(name: string, fallback?: Value): Value {
+    const defined = this.lookupDefinedVar(name);
+    if (defined !== VAR_UNDEFINED) return defined;
+    if (fallback) return this.resolveValue(fallback);
+    return { type: "number", value: 0 };
+  }
+
+  private lookupDefinedVar(name: string): Value | typeof VAR_UNDEFINED {
+    if (this.varMemoEpoch !== this.frameEpoch) {
+      this.varMemo.clear();
+      this.varMemoEpoch = this.frameEpoch;
+    }
+    const hit = this.varMemo.get(name);
+    if (hit !== undefined) return hit;
+    const v = this.computeDefinedVar(name);
+    this.varMemo.set(name, v);
+    return v;
+  }
+
+  private computeDefinedVar(name: string): Value | typeof VAR_UNDEFINED {
     // Host override wins over the authored value (setVariable).
     if (this.hostOverrides.has(name)) {
       return primitiveToValue(this.hostOverrides.get(name)!);
     }
-
     // Trigger vars read `true` only on the frame they were fired.
     if (this.triggers.has(name)) {
       return {
@@ -187,26 +233,15 @@ export class VariableResolver {
         value: this.firedTriggers.has(name) ? "true" : "false",
       };
     }
-
-    // Check dynamic variables first (input bindings)
+    // Dynamic variables (input bindings) resolve to a live number.
     if (this.dynamicVariables.has(name)) {
-      const resolver = this.dynamicVariables.get(name)!;
-      return { type: "number", value: resolver() };
+      return { type: "number", value: this.dynamicVariables.get(name)!() };
     }
-
-    // Check static variables
+    // Static variables — recursively resolve if the value is itself a var()/calc().
     if (this.staticVariables.has(name)) {
-      const value = this.staticVariables.get(name)!;
-      // Recursively resolve if it's also a variable reference
-      return this.resolveValue(value);
+      return this.resolveValue(this.staticVariables.get(name)!);
     }
-
-    // Use fallback or return 0
-    if (fallback) {
-      return this.resolveValue(fallback);
-    }
-
-    return { type: "number", value: 0 };
+    return VAR_UNDEFINED;
   }
 
   /**
