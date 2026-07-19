@@ -19,8 +19,13 @@ const SVG_RE =
 // import/minify logic that loads and transforms it. App keeps only view state
 // (which modal/sidebar is open) and wires these into the panels.
 export function useScene() {
+  // ponytail: deep links are a plain `#key` hash, no router involvement — the
+  // router's basepath differs between dev and Pages, the hash doesn't.
+  const hashKey = decodeURIComponent(window.location.hash.slice(1));
   const defaultExample =
-    examples.find((e) => e.key === "lottie--magic-eye") ?? examples[0];
+    examples.find((e) => e.key === hashKey) ??
+    examples.find((e) => e.key === "lottie--magic-eye") ??
+    examples[0];
   const [currentExample, setCurrentExample] = useState<string | null>(
     defaultExample.key,
   );
@@ -50,6 +55,7 @@ export function useScene() {
     const ex = examples.find((e) => e.key === key);
     if (!ex) return;
     track("example_view", { example: key });
+    history.replaceState(null, "", `#${encodeURIComponent(key)}`);
     setCurrentExample(key);
     setSource(ex.source);
     setMinified(false);
