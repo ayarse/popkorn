@@ -1,6 +1,8 @@
+/* Author: AI Generated, sprite sheet by Kenney (CC0)
+   Author URL: https://kenney.nl/assets/toon-characters */
 /*
  * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
- * sprite sheet (see packages/playground/public/examples/CREDITS.md): 864x640,
+ * sprite sheet (Kenney, see the Author header): 864x640,
  * a 9x5 grid of 96x128 frames. The walk cycle is 8 frames on the row at
  * y=512 (x = 0, 96, 192 ... 672); the run cycle is 3 frames on the row at
  * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,

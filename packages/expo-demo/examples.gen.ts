@@ -3,7 +3,8 @@
 export interface Example { key: string; label: string; source: string; }
 
 export const examples: Example[] = [
-  { key: "01-shapes.css", label: "Shapes", source: `/* Shapes — gradients, polystar, rounded rects, text, clip-path */
+  { key: "01-shapes.css", label: "Shapes", source: `/* Author: AI Generated */
+/* Shapes — gradients, polystar, rounded rects, text, clip-path */
 :root {
   width: 800px;
   height: 600px;
@@ -112,7 +113,8 @@ export const examples: Example[] = [
     #22d3ee 0%, #22d3ee 8%, #0e1016 8%, #0e1016 16%);
 }
 ` },
-  { key: "02-basics--bouncy-ball.css", label: "Basics: Bouncy ball", source: `/* Bounce — per-keyframe easing with squash & stretch */
+  { key: "02-basics--bouncy-ball.css", label: "Basics: Bouncy ball", source: `/* Author: AI Generated */
+/* Bounce — per-keyframe easing with squash & stretch */
 :root {
   width: 800px;
   height: 600px;
@@ -162,7 +164,8 @@ export const examples: Example[] = [
   animation: ballBounce 1.2s linear infinite;
 }
 ` },
-  { key: "03-basics--dominoes.css", label: "Basics: Dominoes", source: `/* Motion — a domino run. A ball rolls in at constant speed and topples a colour
+  { key: "03-basics--dominoes.css", label: "Basics: Dominoes", source: `/* Author: AI Generated */
+/* Motion — a domino run. A ball rolls in at constant speed and topples a colour
    cascade; each tile falls under gravity (accelerating ease-in), rebounds, holds
    flat for a beat, then rises to reset. One composed phrase, staggered by delay
    so the wave reads as choreography — not a chart. */
@@ -225,7 +228,8 @@ export const examples: Example[] = [
   > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
 }
 ` },
-  { key: "04-hierarchy.css", label: "Hierarchy", source: `/* ============================================================
+  { key: "04-hierarchy.css", label: "Hierarchy", source: `/* Author: AI Generated */
+/* ============================================================
    HIERARCHY — a solar system, nested groups 3–5 deep.
 
    The lesson: every group contributes exactly ONE motion, and a
@@ -454,7 +458,8 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "05-motion-path.css", label: "Motion path", source: `/* Motion path — travel a route by arc length; offset-rotate faces the tangent.
+  { key: "05-motion-path.css", label: "Motion path", source: `/* Author: AI Generated */
+/* Motion path — travel a route by arc length; offset-rotate faces the tangent.
    The stadium circuit is centred on the 800×600 stage with generous margins. */
 :root {
   width: 800px;
@@ -492,7 +497,8 @@ export const examples: Example[] = [
 #plane2 { use: plane; fill: #4ecdc4; animation: fly 6s linear infinite -2s;  }
 #plane3 { use: plane; fill: #f472b6; animation: fly 6s linear infinite -4s;  }
 ` },
-  { key: "06-trim-path.css", label: "Trim path", source: `/* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
+  { key: "06-trim-path.css", label: "Trim path", source: `/* Author: AI Generated */
+/* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
    The word is one open path; trim-end sweeps 0→100% to reveal the stroke (the draw-on),
    then trim-start sweeps up to retract it — both ends finish at 100% (empty), matching
    the 0% state, so the loop closes on a blank canvas with no pop. */
@@ -530,7 +536,8 @@ export const examples: Example[] = [
   animation: write 5s infinite, ink 5s ease-in-out infinite;
 }
 ` },
-  { key: "07-morph.css", label: "Morph", source: `/* Morph — path 'd' interpolation with animated gradient stops.
+  { key: "07-morph.css", label: "Morph", source: `/* Author: AI Generated */
+/* Morph — path 'd' interpolation with animated gradient stops.
    Both keyframes share the same command sequence (M C C C C Z) and stop count,
    so 'd' and 'fill' interpolate. Break either and it holds instead. */
 :root {
@@ -556,7 +563,8 @@ export const examples: Example[] = [
   animation: blob 3s ease-in-out infinite alternate;
 }
 ` },
-  { key: "08-symbols.css", label: "Symbols", source: `/* Symbols — a starry night built from one reusable star.
+  { key: "08-symbols.css", label: "Symbols", source: `/* Author: AI Generated */
+/* Symbols — a starry night built from one reusable star.
    The pedagogical payload: @define a shape once, \`use:\` it many times, and
    override only what differs per instance (position, colour, size, twinkle
    timing) right at the use-site. The moon and hills are plain nodes framing it. */
@@ -647,7 +655,8 @@ export const examples: Example[] = [
   fill: #e2e8f0;
 }
 ` },
-  { key: "09-mask.css", label: "Mask", source: `/* Mask — big text revealed through a sweeping bar (luminance mask) */
+  { key: "09-mask.css", label: "Mask", source: `/* Author: AI Generated */
+/* Mask — big text revealed through a sweeping bar (luminance mask) */
 :root {
   width: 800px;
   height: 600px;
@@ -682,7 +691,8 @@ export const examples: Example[] = [
   animation: sweep 3s ease-in-out infinite alternate;
 }
 ` },
-  { key: "10-interactive--cursor.css", label: "Interactive: Cursor", source: `/* Interactive — Sprout, a mochi creature, and the firefly that chases your
+  { key: "10-interactive--cursor.css", label: "Interactive: Cursor", source: `/* Author: AI Generated */
+/* Interactive — Sprout, a mochi creature, and the firefly that chases your
    cursor. The firefly rides input(cursor.x/y) and flares when you hold the
    mouse down (input(cursor.isDown)); Sprout idles with layered keyframes
    (breathing + an added flutter), watches the light with clamped eye tracking,
@@ -820,7 +830,8 @@ export const examples: Example[] = [
   fill: radial-gradient(#ffffff 0%, #ffd166 55%, #ffab00 100%);
 }
 ` },
-  { key: "11-interactive--reaction-bar.css", label: "Interactive: Reaction bar", source: `/* Reaction bar: six emoji buttons on a white pill. Each one idles with a
+  { key: "11-interactive--reaction-bar.css", label: "Interactive: Reaction bar", source: `/* Author: AI Generated */
+/* Reaction bar: six emoji buttons on a white pill. Each one idles with a
    gentle staggered float, pops from its own center on hover, and credits a
    click to its group id (#like, #love, #lol, #wow, #sad, #angry). A few
    icons carry their own small micro-animation on top: a heartbeat pulse, a
@@ -1030,7 +1041,8 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "12-state-machine--pip.css", label: "State machine: Pip", source: `/* State machine — Pip, a mascot with a mind of its own. Two @machines run
+  { key: "12-state-machine--pip.css", label: "State machine: Pip", source: `/* Author: AI Generated */
+/* State machine — Pip, a mascot with a mind of its own. Two @machines run
    concurrently and independently:
 
      @machine mood   pops in once (intro -> idle on complete), idles with a
@@ -1178,7 +1190,8 @@ export const examples: Example[] = [
   fill: #6b6296;
 }
 ` },
-  { key: "13-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Toggle — an incandescent bulb wired to a two-state @machine. Click the glass
+  { key: "13-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Author: AI Generated */
+/* Toggle — an incandescent bulb wired to a two-state @machine. Click the glass
    to flip it; each state has its own look AND its own motion:
 
      off  cold frosted glass, a grey filament, a metal screw base
@@ -1348,7 +1361,8 @@ export const examples: Example[] = [
   font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
 }
 ` },
-  { key: "14-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Jellyfish morph — the bell, veil, and tentacles all animate path \`d\` values.
+  { key: "14-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated */
+/* Jellyfish morph — the bell, veil, and tentacles all animate path \`d\` values.
    Each pair of keyframes keeps an identical command sequence, so Popkorn
    interpolates the shapes instead of holding them. */
 :root {
@@ -1541,7 +1555,8 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "15-app-shell--tab-navigation.css", label: "App shell: Tab navigation", source: `/* App shell — a real mobile UI, navigable, built entirely in Popkorn. Popkorn
+  { key: "15-app-shell--tab-navigation.css", label: "App shell: Tab navigation", source: `/* Author: AI Generated */
+/* App shell — a real mobile UI, navigable, built entirely in Popkorn. Popkorn
    isn't just for motion graphics: this is a wireframe app running inside a phone
    frame, with a working bottom tab bar you can actually click through.
 
@@ -2013,7 +2028,9 @@ export const examples: Example[] = [
     stroke-linejoin: round;
   }
 }` },
-  { key: "16-lottie--magic-eye.css", label: "Lottie: Magic eye", source: `/* Converted Lottie — "Free Magic eye Animation", downloaded from LottieFiles.com,
+  { key: "16-lottie--magic-eye.css", label: "Lottie: Magic eye", source: `/* Author: LanaNguyen @LottieFiles
+   Author URL: http://lottiefiles.com/gtzfxljyba */
+/* Converted Lottie — "Free Magic eye Animation", downloaded from LottieFiles.com,
    generated by @popkorn/converters */
 /* comp 1080x1080 @ 60fps, duration 6s */
 
@@ -4062,7 +4079,9 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "17-lottie--interactive-volume.css", label: "Lottie: Interactive volume", source: `/* Converted Lottie — "Interactive volume", downloaded from LottieFiles.com,
+  { key: "17-lottie--interactive-volume.css", label: "Lottie: Interactive volume", source: `/* Author: LanaNguyen @ LottieFiles
+   Author URL: http://lottiefiles.com/gtzfxljyba */
+/* Converted Lottie — "Interactive volume", downloaded from LottieFiles.com,
    generated by @popkorn/converters */
 /* comp 1140x1184 @ 60fps, duration 5.58s */
 
@@ -9102,7 +9121,8 @@ export const examples: Example[] = [
 }
 }
 ` },
-  { key: "18-math--sine-wave.css", label: "Math: Sine wave", source: `/*
+  { key: "18-math--sine-wave.css", label: "Math: Sine wave", source: `/* Author: AI Generated */
+/*
  * Reactive trig calc(): each dot's cy is a live sine of input(time), phase-shifted
  * per column so the ring travels as a wave. No @keyframes — the motion is pure
  * math re-evaluated every frame. cos() drives a companion orbiting dot.
@@ -9147,9 +9167,11 @@ export const examples: Example[] = [
   cy: calc(sin(var(--t) / 500) * 60 + 200);
 }
 ` },
-  { key: "19-sprite-sheet.css", label: "Sprite sheet", source: `/*
+  { key: "19-sprite-sheet.css", label: "Sprite sheet", source: `/* Author: AI Generated, sprite sheet by Kenney (CC0)
+   Author URL: https://kenney.nl/assets/toon-characters */
+/*
  * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
- * sprite sheet (see packages/playground/public/examples/CREDITS.md): 864x640,
+ * sprite sheet (Kenney, see the Author header): 864x640,
  * a 9x5 grid of 96x128 frames. The walk cycle is 8 frames on the row at
  * y=512 (x = 0, 96, 192 ... 672); the run cycle is 3 frames on the row at
  * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,
@@ -9259,7 +9281,8 @@ export const examples: Example[] = [
   fill: #cdd6e3;
 }
 ` },
-  { key: "20-math--watch-face.css", label: "Math: Watch face", source: `/*
+  { key: "20-math--watch-face.css", label: "Math: Watch face", source: `/* Author: AI Generated */
+/*
  * Astronomical complication watch — an orrery / moon-phase face driven purely
  * by reactive trig + modular math on input(time), no @keyframes. Scene time
  * runs 8x real (virtualSeconds = t/125) so every gear visibly turns.
@@ -9282,8 +9305,8 @@ export const examples: Example[] = [
  *    NOTE: this is a sliding-disc approximation, not a true spherical
  *    terminator — a real terminator would need an arc/clip carve; upgrade path
  *    is a clip-path against an offset ellipse if crisper phases are wanted.
- *  - Starfield: dim scattered dots, a few twinkling via sin() opacity at
- *    different phases.
+ *  - Starfield: one \`repeat:\`ed dot whose position, size and twinkle are all
+ *    sibling-index() hashes — no per-star rows.
  *
  * Layout at 480x480 keeps three visual classes distinct: hour marks are radial
  * bars, planets are glowing dots on dashed tracks, stars are the faintest and
@@ -9322,35 +9345,27 @@ export const examples: Example[] = [
   stroke-dasharray: 1.5 18.4;
 }
 
-/* --- Starfield: dim dots behind everything; a few twinkle via sin() opacity. */
+/* --- Starfield: one recipe, \`repeat:\` stamps the whole sky. Placement is a
+   golden-angle spiral (i * 2.39996 rad) at a hashed radius in the 86..194 band,
+   which scatters evenly while staying clear of the hands and inside the bezel.
+   Every star twinkles, but the amplitude is itself a hash — most land near 0
+   (steady dim dots), a few pulse hard, so the old star/twinkle split falls out
+   of the math instead of two @defines and 14 rows. */
 @define star {
   type: circle;
-  r: 1.1px;
-  fill: #45455f;
-}
-
-@define star-twinkle {
-  type: circle;
-  r: 1.3px;
+  r: calc(0.9 + mod(sibling-index() * 29, 7) * 0.09);
+  cx: calc(240 + cos(sibling-index() * 2.39996) * (86 + mod(sibling-index() * 61, 108)));
+  cy: calc(240 + sin(sibling-index() * 2.39996) * (86 + mod(sibling-index() * 61, 108)));
   fill: #7a7aad;
+  opacity: calc(0.4 + sin(var(--t) / (520 + mod(sibling-index() * 47, 300))) * mod(sibling-index() * 13, 5) * 0.08);
 }
 
-#star0  { use: star; cx: 118px; cy: 108px; }
-#star1  { use: star; cx: 182px; cy: 78px; }
-#star2  { use: star; cx: 300px; cy: 92px; }
-#star3  { use: star; cx: 362px; cy: 132px; }
-#star4  { use: star; cx: 92px;  cy: 178px; }
-#star5  { use: star; cx: 402px; cy: 202px; }
-#star6  { use: star; cx: 330px; cy: 172px; }
-#star7  { use: star; cx: 410px; cy: 262px; }
-#star8  { use: star; cx: 86px;  cy: 288px; }
-#star9  { use: star; cx: 128px; cy: 348px; }
-
-/* opacity = sin(t/period + phase) * 0.4 + 0.55 — slow, out-of-phase blinking. */
-#twinkle0 { use: star-twinkle; cx: 150px; cy: 140px; opacity: calc(sin(var(--t) / 620 + 0) * 0.4 + 0.55); }
-#twinkle1 { use: star-twinkle; cx: 356px; cy: 300px; opacity: calc(sin(var(--t) / 780 + 2) * 0.4 + 0.55); }
-#twinkle2 { use: star-twinkle; cx: 300px; cy: 118px; opacity: calc(sin(var(--t) / 540 + 4) * 0.4 + 0.55); }
-#twinkle3 { use: star-twinkle; cx: 96px;  cy: 236px; opacity: calc(sin(var(--t) / 700 + 1) * 0.4 + 0.55); }
+/* Wrapped in a group so sibling-index() counts 1..26 within the starfield
+   rather than continuing the scene's top-level ordering. */
+#starfield {
+  type: group;
+  > #stars { use: star; repeat: 26; }
+}
 
 /* --- Orrery: faint concentric tracks, planets placed by cos/sin of scaled t.
    Track radii 58/86/114; planet angle = t / period (radians), inner fastest. */
@@ -9457,18 +9472,27 @@ export const examples: Example[] = [
   fill: #4cc9f0;
 }
 
-#tick0  { use: tick-major; transform: translate(240px, 240px) rotate(0deg); }
-#tick1  { use: tick;       transform: translate(240px, 240px) rotate(30deg); }
-#tick2  { use: tick;       transform: translate(240px, 240px) rotate(60deg); }
-#tick3  { use: tick-major; transform: translate(240px, 240px) rotate(90deg); }
-#tick4  { use: tick;       transform: translate(240px, 240px) rotate(120deg); }
-#tick5  { use: tick;       transform: translate(240px, 240px) rotate(150deg); }
-#tick6  { use: tick-major; transform: translate(240px, 240px) rotate(180deg); }
-#tick7  { use: tick;       transform: translate(240px, 240px) rotate(210deg); }
-#tick8  { use: tick;       transform: translate(240px, 240px) rotate(240deg); }
-#tick9  { use: tick-major; transform: translate(240px, 240px) rotate(270deg); }
-#tick10 { use: tick;       transform: translate(240px, 240px) rotate(300deg); }
-#tick11 { use: tick;       transform: translate(240px, 240px) rotate(330deg); }
+/* Two repeats instead of twelve rows: quarters are just i*90deg. The eight
+   in-between hours are 1,2,4,5,7,8,10,11 — that's h = i + floor(i/2 - 0.5), so
+   one round(down, …) skips every quarter without a table or a conditional. */
+#ticks {
+  type: group;
+  > #ticks-major {
+    use: tick-major;
+    repeat: 4;
+    transform: translate(240px, 240px) rotate(calc(sibling-index() * 90deg - 90deg));
+  }
+}
+
+#ticks-hours {
+  type: group;
+  > #ticks-hour {
+    use: tick;
+    repeat: 8;
+    transform: translate(240px, 240px)
+      rotate(calc(sibling-index() * 30deg + round(down, sibling-index() / 2 - 0.5, 1) * 30deg));
+  }
+}
 
 /* --- Hands: each a group pinned to center, rotated live. The rect child points
    straight up (negative y) from the group origin, so rotate: 0 reads as 12
@@ -9527,7 +9551,8 @@ export const examples: Example[] = [
   stroke-width: 3px;
 }
 ` },
-  { key: "21-particles--x-logo.css", label: "Particles: X logo", source: `/* Particle X — the X (formerly Twitter) logo assembled from a swarm of dots.
+  { key: "21-particles--x-logo.css", label: "Particles: X logo", source: `/* Author: AI Generated */
+/* Particle X — the X (formerly Twitter) logo assembled from a swarm of dots.
    The generative trio in one scene: \`repeat:\` stamps 389 copies of one
    @define'd dot, ONE shared @keyframes flies them all — each copy's inbound
    arc, hold shimmer, burst vector and stagger derive from sibling-index()
@@ -9607,6 +9632,31 @@ export const examples: Example[] = [
       calc(sin(sibling-index() * 4.123) * (360 + mod(sibling-index() * 53, 280))));
     opacity: 0;
   }
+}
+` },
+  { key: "22-p5-particle-field.css", label: "P5 particle field", source: `/* Author: AI Generated, after @yuruyurau
+   Author URL: https://x.com/yuruyurau */
+/* Port of a p5.js one-liner particle field.
+   Original by @yuruyurau on X (https://x.com/yuruyurau).
+   p5:  a=(x,y,d=mag(k=4*cos(x/21),e=y/8-20))=>circle(
+          (q=3*sin(k*2)+.3/k+sin(y/19)*k*(9+2*sin(e*14-d*3+t*2)))+50*cos(c=d-t)+200,
+          q*sin(c)+d*39-475, k*k>15?2:1)
+   x = 2 * sibling-index(); y = x/235; t = PI/4 rad per second. */
+:root {
+  width: 400px;
+  height: 400px;
+  background: #090909;
+  --t: calc(input(time) * 0.000785398);
+}
+
+#field {
+  type: circle;
+  repeat: 5000;
+  fill: #ffffff;
+  opacity: 0.455;
+  cx: calc(((3 * sin((4 * cos(sibling-index() / 10.5)) * 2) + 0.3 / (4 * cos(sibling-index() / 10.5)) + sin(sibling-index() / 2232.5) * (4 * cos(sibling-index() / 10.5)) * (9 + 2 * sin((sibling-index() / 940 - 20) * 14 - hypot((4 * cos(sibling-index() / 10.5)), (sibling-index() / 940 - 20)) * 3 + var(--t) * 2))) + 50 * cos((hypot((4 * cos(sibling-index() / 10.5)), (sibling-index() / 940 - 20)) - var(--t))) + 200) * 1px);
+  cy: calc(((3 * sin((4 * cos(sibling-index() / 10.5)) * 2) + 0.3 / (4 * cos(sibling-index() / 10.5)) + sin(sibling-index() / 2232.5) * (4 * cos(sibling-index() / 10.5)) * (9 + 2 * sin((sibling-index() / 940 - 20) * 14 - hypot((4 * cos(sibling-index() / 10.5)), (sibling-index() / 940 - 20)) * 3 + var(--t) * 2))) * sin((hypot((4 * cos(sibling-index() / 10.5)), (sibling-index() / 940 - 20)) - var(--t))) + hypot((4 * cos(sibling-index() / 10.5)), (sibling-index() / 940 - 20)) * 39 - 475) * 1px);
+  r: calc((1 + max(0, sign(pow((4 * cos(sibling-index() / 10.5)), 2) - 15))) * 0.5px); /* p5 circle() takes a diameter */
 }
 ` },
 ];

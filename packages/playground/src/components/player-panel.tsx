@@ -2,6 +2,7 @@ import {
   AlertCircle,
   ChevronDown,
   Film,
+  Info,
   Layers,
   Maximize,
   PanelBottom,
@@ -35,7 +36,36 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { parseSceneMeta } from "@/lib/scene-meta";
 import { cn } from "@/lib/utils";
+
+/** Icon-sized credit pill that expands to the author name on hover/focus. */
+function Attribution({
+  author,
+  url,
+  className,
+}: {
+  author: string;
+  url?: string;
+  className?: string;
+}) {
+  const Tag: any = url ? "a" : "div";
+  return (
+    <Tag
+      {...(url ? { href: url, target: "_blank", rel: "noreferrer" } : {})}
+      title={author}
+      className={cn(
+        "group flex items-center rounded-full border border-border/40 bg-background/50 px-1.5 py-1 text-[10px] text-muted-foreground backdrop-blur-md transition-colors hover:bg-background/85 hover:text-foreground",
+        className,
+      )}
+    >
+      <Info className="size-3 shrink-0" />
+      <span className="max-w-0 overflow-hidden whitespace-nowrap transition-all duration-200 group-hover:max-w-[220px] group-hover:pl-1.5">
+        {author}
+      </span>
+    </Tag>
+  );
+}
 
 type FitMode = "contain" | "cover" | "fill" | "none";
 
@@ -154,6 +184,8 @@ export function PlayerPanel({
   const canExportMp4 = typeof VideoEncoder !== "undefined";
 
   const activeBg = PLAYER_BACKGROUNDS[bgIndex];
+  const meta = parseSceneMeta(source);
+  const author = meta.Author;
 
   return (
     <div className="flex flex-1 flex-col bg-background overflow-hidden">
@@ -387,10 +419,20 @@ export function PlayerPanel({
           />
         </div>
 
+        {/* Attribution badge — icon-only until hovered, so it stays out of the
+            way of the scene. Fed by the example file's `Author:` header. */}
+        {author && (
+          <Attribution
+            className="absolute top-9 right-9 z-20"
+            author={author}
+            url={meta["Author URL"]}
+          />
+        )}
+
         {/* Event badge — flashes the latest player DOM event (click / machine).
             Non-interactive so it never intercepts the pointer. */}
         {eventBadge && (
-          <div className="pointer-events-none absolute top-4 right-4 z-30 rounded-md border border-border/60 bg-background/80 px-2.5 py-1.5 font-mono text-xs text-foreground backdrop-blur-md">
+          <div className="pointer-events-none absolute top-4 left-4 z-30 rounded-md border border-border/60 bg-background/80 px-2.5 py-1.5 font-mono text-xs text-foreground backdrop-blur-md">
             {eventBadge}
           </div>
         )}
