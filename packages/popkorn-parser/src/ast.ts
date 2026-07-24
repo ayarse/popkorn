@@ -461,7 +461,13 @@ export function evalCalcFunction(
   expr: CalcFunction,
   args: CalcNumeric[],
 ): CalcNumeric | null {
-  const v = args.map((a) => a.value);
+  // Hot path: this runs per compiled-calc OP_FUNC, i.e. millions of times a
+  // second in repeat-heavy reactive scenes. Args are read positionally rather
+  // than mapped into an array so the common 1-2 arg cases allocate nothing;
+  // only the variadic branches (min/max/hypot) materialize one.
+  const n = args.length;
+  const v0 = n > 0 ? args[0].value : 0;
+  const v1 = n > 1 ? args[1].value : 0;
   switch (expr.name) {
     // Structural — resolved against the node's sibling position at build time
     // (scene/sibling.ts), never here. Unresolvable statically, like a var().
@@ -475,41 +481,46 @@ export function evalCalcFunction(
       if (unit === null) return null;
       if (expr.name === "clamp") {
         // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
-        const [min, val, max] = v;
-        return { value: Math.max(min, Math.min(val, max)), unit };
+        return {
+          value: Math.max(v0, Math.min(v1, args[2].value)),
+          unit,
+        };
       }
       return {
-        value: expr.name === "min" ? Math.min(...v) : Math.max(...v),
+        value:
+          expr.name === "min"
+            ? Math.min(...args.map((a) => a.value))
+            : Math.max(...args.map((a) => a.value)),
         unit,
       };
     }
     case "hypot": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: Math.hypot(...v), unit };
+      return { value: Math.hypot(...args.map((a) => a.value)), unit };
     }
     // mod() follows the sign of the divisor; rem() follows the dividend (CSS).
     case "mod": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: v[0] - v[1] * Math.floor(v[0] / v[1]), unit };
+      return { value: v0 - v1 * Math.floor(v0 / v1), unit };
     }
     case "rem": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: v[0] % v[1], unit };
+      return { value: v0 % v1, unit };
     }
     case "round": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
       // Step defaults to 1 (in the value's own unit) when omitted.
-      const step = args.length > 1 ? v[1] : 1;
-      return { value: roundTo(expr.strategy ?? "nearest", v[0], step), unit };
+      const step = n > 1 ? v1 : 1;
+      return { value: roundTo(expr.strategy ?? "nearest", v0, step), unit };
     }
     case "abs":
-      return { value: Math.abs(v[0]), unit: args[0].unit };
+      return { value: Math.abs(v0), unit: args[0].unit };
     case "sign":
-      return { value: Math.sign(v[0]), unit: "" };
+      return { value: Math.sign(v0), unit: "" };
     case "sin":
       return { value: Math.sin(toRadians(args[0])), unit: "" };
     case "cos":
@@ -517,23 +528,22 @@ export function evalCalcFunction(
     case "tan":
       return { value: Math.tan(toRadians(args[0])), unit: "" };
     case "asin":
-      return { value: radToDeg(Math.asin(v[0])), unit: "deg" };
+      return { value: radToDeg(Math.asin(v0)), unit: "deg" };
     case "acos":
-      return { value: radToDeg(Math.acos(v[0])), unit: "deg" };
+      return { value: radToDeg(Math.acos(v0)), unit: "deg" };
     case "atan":
-      return { value: radToDeg(Math.atan(v[0])), unit: "deg" };
+      return { value: radToDeg(Math.atan(v0)), unit: "deg" };
     case "atan2":
-      return { value: radToDeg(Math.atan2(v[0], v[1])), unit: "deg" };
+      return { value: radToDeg(Math.atan2(v0, v1)), unit: "deg" };
     case "sqrt":
-      return { value: Math.sqrt(v[0]), unit: "" };
+      return { value: Math.sqrt(v0), unit: "" };
     case "exp":
-      return { value: Math.exp(v[0]), unit: "" };
+      return { value: Math.exp(v0), unit: "" };
     case "pow":
-      return { value: v[0] ** v[1], unit: "" };
+      return { value: v0 ** v1, unit: "" };
     case "log":
       return {
-        value:
-          args.length > 1 ? Math.log(v[0]) / Math.log(v[1]) : Math.log(v[0]),
+        value: n > 1 ? Math.log(v0) / Math.log(v1) : Math.log(v0),
         unit: "",
       };
   }
