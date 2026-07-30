@@ -15,6 +15,7 @@ import {
   isNumberValue,
   isVariableRefValue,
 } from "@popkorn/parser";
+import type { CalcLane } from "./calc-batch";
 
 /**
  * Compiles a reactive calc() AST into a flat postfix program run per frame with
@@ -77,6 +78,12 @@ export interface CompiledCalc {
   /** Scratch results: the program's own, so a run allocates nothing. */
   out: CalcNumeric;
   funcOut: CalcNumeric;
+  /**
+   * Set when this program joined a multi-lane batch (see calc-batch.ts): the
+   * expression runs once per frame for every clone at once and this program's
+   * result is read out of the batch's lane. Absent → the scalar path above.
+   */
+  lane: CalcLane | null;
 }
 
 // One set of operand stacks for every program: the loop never calls back into
@@ -99,7 +106,11 @@ function growShared(depth: number): void {
 // so `us[sp]` is truthy exactly when the operand carries a unit.
 const UNIT_NAMES: string[] = [""];
 const UNIT_IDS = new Map<string, number>([["", 0]]);
-function unitId(unit: string): number {
+/** The interned unit for an id (0 → unitless). Ids are stable process-wide. */
+export function unitName(id: number): string {
+  return UNIT_NAMES[id];
+}
+export function unitId(unit: string): number {
   const hit = UNIT_IDS.get(unit);
   if (hit !== undefined) return hit;
   const id = UNIT_NAMES.length;
@@ -108,10 +119,10 @@ function unitId(unit: string): number {
   return id;
 }
 
-const OP_CONST = 0; // push const pool[arg]
-const OP_LEAF = 1; // push leaf pool[arg] (var()/input(), resolved in the prologue)
-const OP_BIN = 3; // pop 2, apply binop arg (0:+ 1:- 2:* 3:/)
-const OP_FUNC = 4; // pop argc, apply function pool[arg]
+export const OP_CONST = 0; // push const pool[arg]
+export const OP_LEAF = 1; // push leaf pool[arg] (var()/input(), resolved in the prologue)
+export const OP_BIN = 3; // pop 2, apply binop arg (0:+ 1:- 2:* 3:/)
+export const OP_FUNC = 4; // pop argc, apply function pool[arg]
 
 const BIN_CODE: Record<string, number> = { "+": 0, "-": 1, "*": 2, "/": 3 };
 
@@ -139,46 +150,8 @@ export function runCalc(
   ctx: CalcEvalContext,
 ): CalcNumeric | null {
   if (p.constant !== undefined) return p.constant;
-
-  // Prologue: resolve each distinct live leaf exactly once.
-  const { leafName, leafPath, leafValue, leafUnit, leafValid } = p;
-  for (let i = 0; i < leafName.length; i++) {
-    const name = leafName[i];
-    if (name === null) {
-      const path = leafPath[i];
-      leafValue[i] = path ? ctx.resolveCalcInput(path) : 0;
-      leafUnit[i] = 0;
-      leafValid[i] = 1;
-      continue;
-    }
-    // Inline of mapResolved, writing straight into the pool: allocating a
-    // CalcNumeric here costs more than the whole arithmetic loop.
-    const v = ctx.resolveCalcVar(name, p.leafFallback[i]);
-    leafValid[i] = 1;
-    if (isNumberValue(v)) {
-      leafValue[i] = v.value;
-      leafUnit[i] = 0;
-    } else if (isLengthValue(v)) {
-      leafValue[i] = v.value;
-      leafUnit[i] = unitId(v.unit);
-    } else if (isKeywordValue(v)) {
-      if (v.value === "true" || v.value === "false") {
-        leafValue[i] = v.value === "true" ? 1 : 0;
-        leafUnit[i] = 0;
-      } else {
-        const k = calcConstant(v.value);
-        if (k) {
-          leafValue[i] = k.value;
-          leafUnit[i] = unitId(k.unit);
-        } else {
-          leafValid[i] = 0;
-        }
-      }
-    } else {
-      leafValid[i] = 0;
-    }
-  }
-
+  resolveLeaves(p, ctx);
+  const { leafValue, leafUnit, leafValid } = p;
   const { code, constValue, constUnit, constValid, func, funcArgBuf } = p;
   if (p.depth > SHARED_DEPTH) growShared(p.depth);
   const vs = SHARED_VS;
@@ -278,6 +251,53 @@ export function runCalc(
   return out;
 }
 
+/**
+ * Resolve each distinct live leaf of a program exactly once into its pool. The
+ * whole live-resolver surface a run touches, hoisted ahead of the op loop — both
+ * `runCalc` and the batched executor (calc-batch.ts) rely on that: no op may
+ * call back into the resolver mid-loop, which is what makes the operand stacks
+ * shareable across programs.
+ */
+export function resolveLeaves(p: CompiledCalc, ctx: CalcEvalContext): void {
+  const { leafName, leafPath, leafValue, leafUnit, leafValid } = p;
+  for (let i = 0; i < leafName.length; i++) {
+    const name = leafName[i];
+    if (name === null) {
+      const path = leafPath[i];
+      leafValue[i] = path ? ctx.resolveCalcInput(path) : 0;
+      leafUnit[i] = 0;
+      leafValid[i] = 1;
+      continue;
+    }
+    // Inline of mapResolved, writing straight into the pool: allocating a
+    // CalcNumeric here costs more than the whole arithmetic loop.
+    const v = ctx.resolveCalcVar(name, p.leafFallback[i]);
+    leafValid[i] = 1;
+    if (isNumberValue(v)) {
+      leafValue[i] = v.value;
+      leafUnit[i] = 0;
+    } else if (isLengthValue(v)) {
+      leafValue[i] = v.value;
+      leafUnit[i] = unitId(v.unit);
+    } else if (isKeywordValue(v)) {
+      if (v.value === "true" || v.value === "false") {
+        leafValue[i] = v.value === "true" ? 1 : 0;
+        leafUnit[i] = 0;
+      } else {
+        const k = calcConstant(v.value);
+        if (k) {
+          leafValue[i] = k.value;
+          leafUnit[i] = unitId(k.unit);
+        } else {
+          leafValid[i] = 0;
+        }
+      }
+    } else {
+      leafValid[i] = 0;
+    }
+  }
+}
+
 class Compiler {
   private code: number[] = [];
   private constValue: number[] = [];
@@ -312,6 +332,7 @@ class Compiler {
       depth,
       out: { value: 0, unit: "" },
       funcOut: { value: 0, unit: "" },
+      lane: null,
     };
   }
 

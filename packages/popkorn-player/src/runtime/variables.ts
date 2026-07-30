@@ -1,5 +1,6 @@
 import type {
   CalcExpr,
+  CalcNumeric,
   CalcValue,
   Value,
   VariableDefinition,
@@ -15,6 +16,7 @@ import {
   isStringValue,
   isVariableRefValue,
 } from "@popkorn/parser";
+import { planCalcBatches, runCalcLane } from "./calc-batch";
 import { type CompiledCalc, compileCalc, runCalc } from "./calc-compile";
 import type { InputState } from "./inputs";
 
@@ -187,8 +189,36 @@ export class VariableResolver {
    * for the reactive case.
    */
   private resolveCalc(value: CalcValue): Value {
-    const n = runCalc(this.compiledFor(value), this.calcCtx);
+    const n = this.runCalcValue(value);
     return n ? calcNumericToValue(n) : { type: "number", value: 0 };
+  }
+
+  /**
+   * Evaluate one reactive calc(). A program that joined a multi-lane batch (the
+   * `repeat:` clone case — see calc-batch.ts) reads its lane out of the batch,
+   * running the batch first if this epoch hasn't been computed; everything else
+   * runs the scalar VM. Both paths are the same values, evaluated at the same
+   * point in the walk.
+   */
+  private runCalcValue(value: CalcValue): CalcNumeric | null {
+    const p = this.compiledFor(value);
+    if (p.lane) return runCalcLane(p.lane, this.calcCtx, this.frameEpoch);
+    return runCalc(p, this.calcCtx);
+  }
+
+  /**
+   * Group the scene's reactive calc() expressions into multi-lane batches. Call
+   * once per scene (the render loop does, at setScene): batching is keyed on
+   * compiled program structure, so it is a pure optimization — an expression
+   * with no structural peers keeps running on the scalar path. Returns how many
+   * of the values joined a batch.
+   */
+  planCalcBatches(values: Value[]): number {
+    const programs: CompiledCalc[] = [];
+    for (const v of values) {
+      if (isCalcValue(v)) programs.push(this.compiledFor(v));
+    }
+    return planCalcBatches(programs);
   }
 
   private compiledFor(value: CalcValue): CompiledCalc {
@@ -255,7 +285,7 @@ export class VariableResolver {
     // Reactive calc() is the hot numeric binding: take the number straight off
     // the compiled program instead of boxing it into a Value to unwrap again.
     if (isCalcValue(value)) {
-      const n = runCalc(this.compiledFor(value), this.calcCtx);
+      const n = this.runCalcValue(value);
       return n ? n.value : 0;
     }
     const resolved = this.resolveValue(value);

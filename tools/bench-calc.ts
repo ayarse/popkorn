@@ -26,6 +26,9 @@ resolver.setVariables(ast.variables ?? []);
 
 const values = nodes.flatMap((n) => n.bindings.map((b) => b.value));
 if (values.length === 0) throw new Error(`${file}: no reactive bindings`);
+// Same batching the render loop plans at setScene, so the bench times the
+// shipping path (structurally-identical clone expressions run multi-lane).
+resolver.planCalcBatches(values);
 
 const pass = () => {
   resolver.beginFrame();

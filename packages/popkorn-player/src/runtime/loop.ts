@@ -210,6 +210,10 @@ export class RenderLoop {
     this.prevHit = null;
     this.downHit = null;
     this.downClick = null;
+    // Batch the reactive calc() bindings that share a structure (repeat clones):
+    // a pure optimization of the bindings step, resolved at the same point in
+    // the walk as the scalar path.
+    this.variableResolver.planCalcBatches(collectBindingValues(root));
     this.sceneDuration = computeSceneDuration(root);
     this.hasCompleted = false;
     this.sceneDynamic = sceneHasDynamicContent(root);
@@ -1301,6 +1305,26 @@ function filterToCSS(ops: FilterOp[], scale: number): string {
     }
   }
   return parts.join(" ");
+}
+
+/**
+ * Every value the bindings step resolves each frame, flattened over the tree —
+ * including the operands of the composite bindings (transform, object-view-box),
+ * which resolve their own nested calc()s. The batch planner picks the reactive
+ * calc()s out of it.
+ */
+function collectBindingValues(root: SceneNode): Value[] {
+  const out: Value[] = [];
+  const push = (v: Value): void => {
+    out.push(v);
+    if (isFunctionValue(v)) for (const a of v.args) push(a);
+    else if (v.type === "list") for (const a of v.values) push(a);
+  };
+  (function walk(node: SceneNode) {
+    for (const b of node.bindings) push(b.value);
+    for (const child of node.children) walk(child);
+  })(root);
+  return out;
 }
 
 /**
