@@ -2,9 +2,9 @@
 
 TanStack Start (SSR) + React shell around `<popkorn-player>`, deployed as a
 Cloudflare Worker at **usepopkorn.dev** — showcases the player/parser, dogfoods
-the Lottie/SVG converters, and hosts anonymous scene submissions. Linear-style
+the Lottie/SVG converters, and hosts Clerk-authenticated scene submissions. Linear-style
 dark IDE (editor left, canvas right), server-rendered `/docs`, a `/community`
-page (published scenes + built-in examples), and `/s/$id` share pages.
+page (published scenes + built-in examples), and `/s/$id` scene links.
 
 Repo-root `CLAUDE.md` owns the cross-cutting rules (bun, commits,
 `examples/popkorn/*.css` as scene source, corpus gate). Below is only what an
@@ -28,11 +28,13 @@ agent *can't* infer from the code.
   the `docs/*.md` raw glob; `src/routes/-docs-head.ts` derives each page's
   title/description (leading `-` = not a route). Prism highlighting still runs
   client-side in an effect.
-- **Example deep links are the `/examples/$key` route**, sharing `-playground.tsx`
-  with `/`. `useScene` reads the param and syncs on it, so picking an example
-  is a `navigate()` and the back button replays it; the route's only server
-  render is the per-example head. `?scene=<id>` is separate: it forks a
-  *submitted* scene out of D1 into the editor.
+- **`/`, `/examples/$key` and `/s/$id` are all the same playground**, sharing
+  `-playground.tsx`; each route server-renders only its head. `useScene` reads
+  the params and syncs on them, so picking an example is a `navigate()` and the
+  back button replays it. There is deliberately **no separate viewer page** for
+  a community scene — a scene is always shown with its source, `/s/$id` just
+  starts with the editor pane collapsed. The header carries that scene's byline
+  and its report button.
 - **`worker-configuration.d.ts` is deliberately absent.** `wrangler types`
   emits workerd's global lib, which collides with the DOM lib this package
   compiles against (it breaks `Prism.highlightAllUnder`, `addEventListener`,
@@ -43,11 +45,18 @@ agent *can't* infer from the code.
   even when only the `createServerFn` stubs are reachable. Server functions go
   in ordinary modules (`lib/scenes.ts`); the plugin splits them.
 - **Submissions**: D1 table in `migrations/0001_scenes.sql`, bound as `DB`.
-  Four gates on submit — Turnstile, per-IP-hash rate limit (5/hr), 100KB cap,
-  and `parse()` (only playable scenes land). Three reports auto-hide a scene;
-  there is no admin UI on purpose. Turnstile degrades open when
-  `TURNSTILE_SECRET` / `VITE_TURNSTILE_SITE_KEY` are unset, which is how local
-  dev works.
+  Four gates on submit — a signed-in Clerk user, per-user rate limit (10/hr),
+  100KB cap, and `parse()` (only playable scenes land). Three reports auto-hide
+  a scene; there is no admin UI on purpose. There is deliberately **no
+  captcha**: Clerk's own bot protection guards sign-up, so a Turnstile check on
+  submit only re-gated a door that already needs an account. A dormant
+  Turnstile widget still exists in the Cloudflare dashboard — nothing reads it.
+- **Auth is Clerk** (`@clerk/tanstack-react-start`): `src/start.ts` registers
+  `clerkMiddleware()` as request middleware — without it `auth()` throws rather
+  than returning a signed-out object. `<ClerkProvider>` wraps the whole document
+  in `__root.tsx`. `author` is snapshotted onto the row at publish time (one
+  Clerk lookup per submission) rather than joined per page view; rows predating
+  auth have `user_id`/`author` NULL and render without a byline.
 - **Old URL**: `ayarse.github.io/popkorn` still serves, now as the two-file
   redirect stub in `.github/pages-stub/`. Pages must stay enabled — disabling
   it 404s every old link.
@@ -106,16 +115,16 @@ Non-obvious operational facts:
 - **Three different places hold config, and they don't overlap.** `.env` is
   build-time and client-side (`VITE_*` only); `.dev.vars` is the local server's
   env; `wrangler secret put` writes the deployed Worker's. A value in one is
-  invisible to the others — `TURNSTILE_SECRET` in `.env` does nothing.
-- **Rotating `IP_SALT` resets rate limiting**, since every stored `ip_hash` was
-  computed under the old salt. Harmless, but submissions get a fresh 5/hr
-  budget.
+  invisible to the others — `CLERK_SECRET_KEY` in `.env` does nothing for the
+  server. Server secrets today: `IP_SALT`, `CLERK_SECRET_KEY`. Build-time public
+  key: `VITE_CLERK_PUBLISHABLE_KEY` — mirrored as a repo *variable* in
+  `deploy.yml`, since CI builds from a clean checkout with no `.env`.
+- **`ip_hash` is written but no longer read** — rate limiting moved to the Clerk
+  user id. It stays as the only trace linking accounts farmed from one host;
+  rotating `IP_SALT` breaks that link for existing rows.
 - **The custom domain owns the apex record.** Any pre-existing A/CNAME on
   `usepopkorn.dev` makes the deploy fail with a DNS conflict rather than
   overwrite it.
-- Turnstile degrades open: no `TURNSTILE_SECRET` bound means submissions are
-  accepted unchallenged, which is how local dev works and how a botched secret
-  would silently look in production.
 
 Locally: `bunx wrangler d1 migrations apply popkorn --local` once, then
 `bun run dev`.
