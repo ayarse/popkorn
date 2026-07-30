@@ -8,6 +8,9 @@
     "build": "vite build && tsc -b",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply popkorn --remote",
+    "db:migrate:local": "wrangler d1 migrations apply popkorn --local",
+    "db:console": "wrangler d1 execute popkorn --remote --command",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {

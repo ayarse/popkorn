@@ -100,9 +100,9 @@ enumerate it.
 Non-obvious operational facts:
 
 - **Migrations don't run themselves.** Neither the workflow nor `deploy` applies
-  them. A new file in `migrations/` needs
-  `bunx wrangler d1 migrations apply popkorn --remote` *before* the deploy that
-  depends on it, or every scene query 500s.
+  them. A new file in `migrations/` needs `bun run db:migrate` *before* the
+  deploy that depends on it, or every scene query 500s. (`db:migrate:local` for
+  the local D1, `db:console "<sql>"` for a one-off query against remote.)
 - **Three different places hold config, and they don't overlap.** `.env` is
   build-time and client-side (`VITE_*` only); `.dev.vars` is the local server's
   env; `wrangler secret put` writes the deployed Worker's. A value in one is
