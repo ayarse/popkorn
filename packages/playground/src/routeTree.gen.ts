@@ -8,144 +8,139 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root";
-import { Route as CommunityRouteImport } from "./routes/community";
-import { Route as DocsSectionRouteImport } from "./routes/docs.$section";
-import { Route as DocsIndexRouteImport } from "./routes/docs.index";
-import { Route as GalleryRouteImport } from "./routes/gallery";
-import { Route as IndexRouteImport } from "./routes/index";
-import { Route as SIdRouteImport } from "./routes/s.$id";
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as CommunityRouteImport } from './routes/community'
+import { Route as GalleryRouteImport } from './routes/gallery'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsSectionRouteImport } from './routes/docs.$section'
+import { Route as SIdRouteImport } from './routes/s.$id'
 
 const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const CommunityRoute = CommunityRouteImport.update({
-  id: "/community",
-  path: "/community",
+  id: '/community',
+  path: '/community',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const GalleryRoute = GalleryRouteImport.update({
-  id: "/gallery",
-  path: "/gallery",
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: "/docs/",
-  path: "/docs/",
+  id: '/docs/',
+  path: '/docs/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DocsSectionRoute = DocsSectionRouteImport.update({
-  id: "/docs/$section",
-  path: "/docs/$section",
+  id: '/docs/$section',
+  path: '/docs/$section',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SIdRoute = SIdRouteImport.update({
-  id: "/s/$id",
-  path: "/s/$id",
+  id: '/s/$id',
+  path: '/s/$id',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute;
-  "/community": typeof CommunityRoute;
-  "/gallery": typeof GalleryRoute;
-  "/docs/$section": typeof DocsSectionRoute;
-  "/s/$id": typeof SIdRoute;
-  "/docs/": typeof DocsIndexRoute;
+  '/': typeof IndexRoute
+  '/community': typeof CommunityRoute
+  '/gallery': typeof GalleryRoute
+  '/docs/$section': typeof DocsSectionRoute
+  '/s/$id': typeof SIdRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute;
-  "/community": typeof CommunityRoute;
-  "/gallery": typeof GalleryRoute;
-  "/docs/$section": typeof DocsSectionRoute;
-  "/s/$id": typeof SIdRoute;
-  "/docs": typeof DocsIndexRoute;
+  '/': typeof IndexRoute
+  '/community': typeof CommunityRoute
+  '/gallery': typeof GalleryRoute
+  '/docs/$section': typeof DocsSectionRoute
+  '/s/$id': typeof SIdRoute
+  '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  "/": typeof IndexRoute;
-  "/community": typeof CommunityRoute;
-  "/gallery": typeof GalleryRoute;
-  "/docs/$section": typeof DocsSectionRoute;
-  "/s/$id": typeof SIdRoute;
-  "/docs/": typeof DocsIndexRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/community': typeof CommunityRoute
+  '/gallery': typeof GalleryRoute
+  '/docs/$section': typeof DocsSectionRoute
+  '/s/$id': typeof SIdRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | "/"
-    | "/community"
-    | "/gallery"
-    | "/docs/$section"
-    | "/s/$id"
-    | "/docs/";
-  fileRoutesByTo: FileRoutesByTo;
-  to: "/" | "/community" | "/gallery" | "/docs/$section" | "/s/$id" | "/docs";
+    '/' | '/community' | '/gallery' | '/docs/$section' | '/s/$id' | '/docs/'
+  fileRoutesByTo: FileRoutesByTo
+  to: '/' | '/community' | '/gallery' | '/docs/$section' | '/s/$id' | '/docs'
   id:
-    | "__root__"
-    | "/"
-    | "/community"
-    | "/gallery"
-    | "/docs/$section"
-    | "/s/$id"
-    | "/docs/";
-  fileRoutesById: FileRoutesById;
+    | '__root__'
+    | '/'
+    | '/community'
+    | '/gallery'
+    | '/docs/$section'
+    | '/s/$id'
+    | '/docs/'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  CommunityRoute: typeof CommunityRoute;
-  GalleryRoute: typeof GalleryRoute;
-  DocsSectionRoute: typeof DocsSectionRoute;
-  SIdRoute: typeof SIdRoute;
-  DocsIndexRoute: typeof DocsIndexRoute;
+  IndexRoute: typeof IndexRoute
+  CommunityRoute: typeof CommunityRoute
+  GalleryRoute: typeof GalleryRoute
+  DocsSectionRoute: typeof DocsSectionRoute
+  SIdRoute: typeof SIdRoute
+  DocsIndexRoute: typeof DocsIndexRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/": {
-      id: "/";
-      path: "/";
-      fullPath: "/";
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/community": {
-      id: "/community";
-      path: "/community";
-      fullPath: "/community";
-      preLoaderRoute: typeof CommunityRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/gallery": {
-      id: "/gallery";
-      path: "/gallery";
-      fullPath: "/gallery";
-      preLoaderRoute: typeof GalleryRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/docs/": {
-      id: "/docs/";
-      path: "/docs";
-      fullPath: "/docs/";
-      preLoaderRoute: typeof DocsIndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/docs/$section": {
-      id: "/docs/$section";
-      path: "/docs/$section";
-      fullPath: "/docs/$section";
-      preLoaderRoute: typeof DocsSectionRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/s/$id": {
-      id: "/s/$id";
-      path: "/s/$id";
-      fullPath: "/s/$id";
-      preLoaderRoute: typeof SIdRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/community': {
+      id: '/community'
+      path: '/community'
+      fullPath: '/community'
+      preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/': {
+      id: '/docs/'
+      path: '/docs'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs/$section': {
+      id: '/docs/$section'
+      path: '/docs/$section'
+      fullPath: '/docs/$section'
+      preLoaderRoute: typeof DocsSectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$id': {
+      id: '/s/$id'
+      path: '/s/$id'
+      fullPath: '/s/$id'
+      preLoaderRoute: typeof SIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -156,17 +151,16 @@ const rootRouteChildren: RootRouteChildren = {
   DocsSectionRoute: DocsSectionRoute,
   SIdRoute: SIdRoute,
   DocsIndexRoute: DocsIndexRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()
 
-import type { createStart } from "@tanstack/react-start";
-import type { getRouter } from "./router.tsx";
-
-declare module "@tanstack/react-start" {
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
   interface Register {
-    ssr: true;
-    router: Awaited<ReturnType<typeof getRouter>>;
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
   }
 }
