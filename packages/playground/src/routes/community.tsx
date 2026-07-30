@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import {
   SCENE_GRID,
@@ -6,6 +7,7 @@ import {
   SectionHeading,
   shortDate,
 } from "@/components/scene-cards";
+import { Button } from "@/components/ui/button";
 import { examples } from "@/examples";
 import { listScenes, type SceneSummary } from "@/lib/scenes";
 import { SITE } from "@/routes/__root";
@@ -30,6 +32,7 @@ export const Route = createFileRoute("/community")({
 
 function Community() {
   const scenes = Route.useLoaderData();
+  const [showAll, setShowAll] = useState(false);
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -73,16 +76,33 @@ function Community() {
 
           <div className="mt-10">
             <SectionHeading>Official examples</SectionHeading>
-            <div className={SCENE_GRID}>
-              {examples.map((ex) => (
-                // Examples open straight in the editor, not on a share page.
-                <SceneCard
-                  key={ex.key}
-                  href={`/examples/${ex.key}`}
-                  title={ex.label}
-                  source={ex.source}
-                />
-              ))}
+            {/* Community submissions are the point of this page, so the examples
+                stay clamped to about two and a half rows until asked for. */}
+            <div className="relative">
+              <div
+                className={`${SCENE_GRID} ${showAll ? "" : "max-h-[580px] overflow-hidden"}`}
+              >
+                {examples.map((ex) => (
+                  // Examples open straight in the editor, not on a share page.
+                  <SceneCard
+                    key={ex.key}
+                    href={`/examples/${ex.key}`}
+                    title={ex.label}
+                    source={ex.source}
+                  />
+                ))}
+              </div>
+              {!showAll && (
+                <div className="absolute inset-x-0 bottom-0 flex h-40 items-end justify-center bg-gradient-to-t from-background via-background/80 to-transparent">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowAll(true)}
+                  >
+                    Show all official examples
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
