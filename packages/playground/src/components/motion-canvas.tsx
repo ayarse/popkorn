@@ -107,8 +107,9 @@ export function MotionCanvas({
   );
 }
 
-// TypeScript declarations for the custom element
-declare global {
+// TypeScript declarations for the custom element. React 19 dropped the global
+// JSX namespace — intrinsic elements are augmented on `react` itself now.
+declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
       "popkorn-player": React.DetailedHTMLProps<

@@ -3,3 +3,6 @@ dist/
 .DS_Store
 .claude/settings.local.json
 *.tsbuildinfo
+.wrangler
+.env
+.env.local

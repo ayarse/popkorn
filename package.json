@@ -24,8 +24,8 @@
     "@changesets/cli": "^2.31.0",
     "typescript": "~5.6.2"
   },
-  "//": "Single @types/react across the workspace: playground + react-native (and skia's <19 peer) want 18; only expo-demo asked for 19, which leaks into playground's tsc via bun hoisting. Pin 18 so the build is hoist-order-independent.",
+  "//": "Single @types/react across the workspace. TanStack Start SSRs React-19-only head semantics (<link precedence>), so the playground needs 19 and hoisting would otherwise hand it 18. react-native/skia type-check fine against 19.",
   "overrides": {
-    "@types/react": "18.3.27"
+    "@types/react": "19.2.7"
   }
 }
