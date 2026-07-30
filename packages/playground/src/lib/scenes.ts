@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { auth, clerkClient } from "@clerk/tanstack-react-start/server";
 import { parse } from "@popkorn/parser";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestIP } from "@tanstack/react-start/server";
@@ -7,7 +8,7 @@ import { sceneAspect } from "@/lib/scene-aspect";
 import { normalize, sha256, similarity } from "@/lib/scene-dedupe";
 
 export const MAX_CSS_BYTES = 100_000;
-const MAX_PER_IP_PER_HOUR = 5;
+const MAX_PER_USER_PER_HOUR = 10;
 const REPORTS_TO_HIDE = 3;
 /** Trigram-overlap ratio at or above which a submission counts as a rehash. */
 const NEAR_DUPLICATE = 0.95;
@@ -17,6 +18,8 @@ export interface SceneRow {
   title: string;
   css: string;
   created_at: number;
+  /** Null on scenes published before submissions required an account. */
+  author: string | null;
 }
 
 /** `aspect` travels with the list so a card reserves its real height before
@@ -41,7 +44,6 @@ interface D1 {
 // Secrets are set with `wrangler secret put` and never appear in wrangler.json.
 interface Bindings {
   DB: D1;
-  TURNSTILE_SECRET?: string;
   IP_SALT?: string;
 }
 
@@ -66,48 +68,29 @@ async function hashIp(): Promise<string> {
   ).join("");
 }
 
-async function verifyTurnstile(token: string | undefined): Promise<boolean> {
-  const secret = bindings().TURNSTILE_SECRET;
-  // ponytail: no secret configured (local dev) => challenge is skipped, not failed.
-  if (!secret) return true;
-  if (!token) return false;
-  const ip = getRequestIP({ xForwardedFor: true });
-  // Anything short of an explicit `success: true` fails closed, network errors
-  // and malformed bodies included.
+/** Byline, snapshotted at publish time rather than joined on every listing —
+ *  it costs one Clerk call per submission instead of one per page view.
+ *  Username only: a public gallery shouldn't out anyone's legal name because
+ *  they signed in with Google. No username set => no byline. */
+async function displayName(userId: string): Promise<string | null> {
   try {
-    const res = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          secret,
-          response: token,
-          // Omitted rather than sent empty when the IP is unknown — siteverify
-          // rejects a blank remoteip.
-          ...(ip ? { remoteip: ip } : {}),
-        }),
-      },
-    );
-    if (!res.ok) return false;
-    const body = (await res.json()) as { success?: boolean };
-    return body.success === true;
+    return (await clerkClient().users.getUser(userId)).username || null;
   } catch {
-    return false;
+    return null;
   }
 }
 
 export const submitScene = createServerFn({ method: "POST" })
-  .validator((d: { title: string; css: string; token?: string }) => {
+  .validator((d: { title: string; css: string }) => {
     const title = d.title.trim().slice(0, 80);
     if (!title) throw new Error("A title is required.");
     if (new TextEncoder().encode(d.css).length > MAX_CSS_BYTES)
       throw new Error("Scene is too large (100KB max).");
-    return { title, css: d.css, token: d.token };
+    return { title, css: d.css };
   })
   .handler(async ({ data }) => {
-    if (!(await verifyTurnstile(data.token)))
-      throw new Error("Challenge failed — please try again.");
+    const { userId } = await auth();
+    if (!userId) throw new Error("Sign in to publish a scene.");
 
     // Only playable scenes land: the parser is the gate.
     const fatal = parse(data.css).diagnostics.filter(
@@ -116,27 +99,26 @@ export const submitScene = createServerFn({ method: "POST" })
     if (fatal.length)
       throw new Error(`Scene has parse errors: ${fatal[0].message}`);
 
-    const ip = await hashIp();
     const since = Date.now() - 3_600_000;
     const { count } = (await db()
       .prepare(
-        "SELECT COUNT(*) AS count FROM scenes WHERE ip_hash = ? AND created_at > ?",
+        "SELECT COUNT(*) AS count FROM scenes WHERE user_id = ? AND created_at > ?",
       )
-      .bind(ip, since)
+      .bind(userId, since)
       .first<{ count: number }>()) ?? { count: 0 };
-    if (count >= MAX_PER_IP_PER_HOUR)
+    if (count >= MAX_PER_USER_PER_HOUR)
       throw new Error("Too many submissions — try again in an hour.");
 
     // Dedupe. Exact match is the UNIQUE index below; this catches the nudged
     // resubmission — a built-in example (or your own last upload) with a colour
-    // tweaked. Only compared against the examples and this IP's recent scenes;
+    // tweaked. Only compared against the examples and this user's recent scenes;
     // an all-pairs scan doesn't stay cheap and isn't what spam looks like.
     const normal = normalize(data.css);
     const { results: mine } = await db()
       .prepare(
-        "SELECT css FROM scenes WHERE ip_hash = ? ORDER BY created_at DESC LIMIT 5",
+        "SELECT css FROM scenes WHERE user_id = ? ORDER BY created_at DESC LIMIT 5",
       )
-      .bind(ip)
+      .bind(userId)
       .all<{ css: string }>();
     for (const prior of [
       ...examples.map((e) => e.source),
@@ -152,9 +134,18 @@ export const submitScene = createServerFn({ method: "POST" })
     try {
       await db()
         .prepare(
-          "INSERT INTO scenes (id, title, css, ip_hash, created_at, content_hash) VALUES (?, ?, ?, ?, ?, ?)",
+          "INSERT INTO scenes (id, title, css, ip_hash, created_at, content_hash, user_id, author) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .bind(id, data.title, data.css, ip, Date.now(), await sha256(normal))
+        .bind(
+          id,
+          data.title,
+          data.css,
+          await hashIp(),
+          Date.now(),
+          await sha256(normal),
+          userId,
+          await displayName(userId),
+        )
         .run();
     } catch (e: unknown) {
       if (String(e).includes("UNIQUE"))
@@ -169,7 +160,7 @@ export const getScene = createServerFn()
   .handler(async ({ data: id }) => {
     return await db()
       .prepare(
-        "SELECT id, title, css, created_at FROM scenes WHERE id = ? AND hidden = 0",
+        "SELECT id, title, css, created_at, author FROM scenes WHERE id = ? AND hidden = 0",
       )
       .bind(id)
       .first<SceneRow>();
@@ -180,7 +171,7 @@ export const listScenes = createServerFn()
   .handler(async ({ data: limit }): Promise<SceneSummary[]> => {
     const { results } = await db()
       .prepare(
-        "SELECT id, title, created_at, css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, title, created_at, author, css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
       )
       .bind(limit)
       .all<SceneRow>();

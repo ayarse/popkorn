@@ -18,11 +18,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      # The Turnstile site key is public but baked in at build time, so it has
-      # to be present here, not just as a Worker secret.
+      # The Clerk publishable key is public but baked in at build time, so it
+      # has to be present here, not just as a Worker secret.
       - run: bun --filter @popkorn/playground build
         env:
-          VITE_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ vars.CLERK_PUBLISHABLE_KEY }}
       - run: bunx wrangler deploy
         working-directory: packages/playground
         env:

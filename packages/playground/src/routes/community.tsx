@@ -67,7 +67,7 @@ function Community() {
                   key={s.id}
                   href={`/s/${s.id}`}
                   title={s.title}
-                  meta={shortDate(s.created_at)}
+                  meta={s.author ?? shortDate(s.created_at)}
                   sceneId={s.id}
                   aspect={s.aspect}
                 />
