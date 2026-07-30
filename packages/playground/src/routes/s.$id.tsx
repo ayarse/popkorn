@@ -1,29 +1,20 @@
-import {
-  ClientOnly,
-  createFileRoute,
-  Link,
-  notFound,
-} from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { getScene } from "@/lib/scenes";
 import { SITE } from "@/routes/__root";
-
-// Pulls in <popkorn-player>, which extends HTMLElement at module scope — keep
-// it off the server entirely.
-const SceneView = lazy(() =>
-  import("@/pages/scene-view").then((m) => ({ default: m.SceneView })),
-);
+import { Playground } from "@/routes/-playground";
 
 export const Route = createFileRoute("/s/$id")({
+  // Only the head is server-rendered; the editor fetches the CSS itself.
   loader: async ({ params }) => {
     const scene = await getScene({ data: params.id });
     if (!scene) throw notFound();
-    return scene;
+    return { id: scene.id, title: scene.title, author: scene.author };
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {};
+    const by = loaderData.author ? ` by ${loaderData.author}` : "";
     const title = `${loaderData.title} — Popkorn`;
-    const description = `A Popkorn scene, shared from the playground. Play it in your browser, or fork the CSS.`;
+    const description = `${loaderData.title}${by}, a Popkorn scene. Play it in your browser and read the CSS that draws it.`;
     return {
       meta: [
         { title },
@@ -32,6 +23,7 @@ export const Route = createFileRoute("/s/$id")({
         { property: "og:description", content: description },
         { property: "og:url", content: `${SITE}/s/${loaderData.id}` },
       ],
+      links: [{ rel: "canonical", href: `${SITE}/s/${loaderData.id}` }],
     };
   },
   notFoundComponent: () => (
@@ -44,17 +36,5 @@ export const Route = createFileRoute("/s/$id")({
       </p>
     </div>
   ),
-  component: SharedScene,
+  component: Playground,
 });
-
-function SharedScene() {
-  const scene = Route.useLoaderData();
-  // The player is a custom element — the surrounding page SSRs, the canvas doesn't.
-  return (
-    <ClientOnly fallback={null}>
-      <Suspense fallback={null}>
-        <SceneView id={scene.id} title={scene.title} css={scene.css} />
-      </Suspense>
-    </ClientOnly>
-  );
-}

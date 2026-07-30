@@ -1,4 +1,5 @@
 import type { PopkornPlayer } from "@popkorn/player";
+import { useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
@@ -23,7 +24,11 @@ function App() {
   // top / editor below (vertical stack), no timeline.
   const isMobile = useIsMobile();
   const split = useSplit(isMobile);
-  const [sourceCollapsed, setSourceCollapsed] = useState(false);
+  // Arriving on a community scene (`/s/$id`) is a viewing intent, so the editor
+  // starts collapsed — the source is a click away, not in the way.
+  const [sourceCollapsed, setSourceCollapsed] = useState(
+    Boolean(useParams({ strict: false }).id),
+  );
 
   // First-run onboarding tour — fire once the layout has painted so every
   // `[data-tour]` target exists to be highlighted.
@@ -59,6 +64,7 @@ function App() {
         <AppHeader
           currentExample={scene.currentExample}
           onSelectExample={scene.selectExample}
+          community={scene.community}
           importResult={scene.importResult}
           onDismissImport={scene.dismissImport}
           onImport={() => setShowImport(true)}

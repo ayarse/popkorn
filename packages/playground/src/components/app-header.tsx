@@ -1,13 +1,16 @@
+import { Show, SignInButton, UserButton } from "@clerk/tanstack-react-start";
 import { useNavigate } from "@tanstack/react-router";
 import {
   BookText,
   ChevronDown,
+  Flag,
   HelpCircle,
   Images,
   Send,
   Sparkles,
   Upload,
 } from "lucide-react";
+import { useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { ImportStatusChip } from "@/components/import-status-chip";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,14 +28,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { examples } from "@/examples";
+import type { CommunityScene } from "@/hooks/use-scene";
 import { track } from "@/lib/analytics";
 import type { ImportResult } from "@/lib/import-size";
+import { reportScene } from "@/lib/scenes";
 import { startTour } from "@/lib/tour";
 import { cn } from "@/lib/utils";
 
 export function AppHeader({
   currentExample,
   onSelectExample,
+  community,
   importResult,
   onDismissImport,
   onImport,
@@ -42,6 +48,7 @@ export function AppHeader({
 }: {
   currentExample: string | null;
   onSelectExample: (key: string) => void;
+  community: CommunityScene | null;
   importResult: ImportResult | null;
   onDismissImport: () => void;
   onImport: () => void;
@@ -50,13 +57,16 @@ export function AppHeader({
   onToggleChat: () => void;
 }) {
   const navigate = useNavigate();
+  const [reported, setReported] = useState(false);
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
       <BrandMark
         suffix={
-          <span className="ml-1.5 hidden text-[13px] font-normal text-muted-foreground sm:inline">
-            Playground
+          <span className="ml-1.5 hidden max-w-[22ch] truncate text-[13px] font-normal text-muted-foreground sm:inline">
+            {community
+              ? `${community.title}${community.author ? ` by ${community.author}` : ""}`
+              : "Playground"}
           </span>
         }
       />
@@ -149,6 +159,27 @@ export function AppHeader({
           <Sparkles className="size-3.5" />
           <span className="hidden sm:inline">Copilot</span>
         </Button>
+        {community && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={reported}
+                aria-label={reported ? "Reported" : "Report this scene"}
+                onClick={() => {
+                  setReported(true);
+                  void reportScene({ data: community.id });
+                }}
+              >
+                <Flag className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {reported ? "Reported" : "Report this scene"}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -184,6 +215,18 @@ export function AppHeader({
           </svg>
           <span className="sr-only">GitHub repository</span>
         </a>
+        <Show
+          when="signed-in"
+          fallback={
+            <SignInButton mode="modal">
+              <Button variant="ghost" size="sm">
+                Sign in
+              </Button>
+            </SignInButton>
+          }
+        >
+          <UserButton />
+        </Show>
       </div>
     </header>
   );

@@ -20,10 +20,21 @@ const SVG_RE =
 // Owns the playground's scene state — the source, its format flags, and the
 // import/minify logic that loads and transforms it. App keeps only view state
 // (which modal/sidebar is open) and wires these into the panels.
+/** A community submission opened in the editor, for the header's byline and
+ *  report button. Null for examples and for scratch scenes. */
+export interface CommunityScene {
+  id: string;
+  title: string;
+  author: string | null;
+}
+
 export function useScene() {
-  // Deep links are the `/examples/$key` route; `/` falls back to the default scene.
+  // Deep links are the `/examples/$key` and `/s/$id` routes; `/` falls back to
+  // the default scene.
   const navigate = useNavigate();
-  const routeKey = useParams({ strict: false }).key;
+  const params = useParams({ strict: false });
+  const routeKey = params.key;
+  const routeSceneId = params.id;
   const defaultExample =
     examples.find((e) => e.key === routeKey) ??
     examples.find((e) => e.key === "lottie--magic-eye") ??
@@ -36,27 +47,32 @@ export function useScene() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [minified, setMinified] = useState(false);
   const [sizeDelta, setSizeDelta] = useState<SizeDelta | null>(null);
+  const [community, setCommunity] = useState<CommunityScene | null>(null);
 
   // Load a fresh scene from anywhere but an example (import / copilot): clears
   // the example selection and the format/size state that no longer applies.
   function loadSource(css: string) {
     setCurrentExample(null);
+    setCommunity(null);
     setSource(css);
     setMinified(false);
     setSizeDelta(null);
   }
 
-  // `?scene=<id>` forks a shared submission into the editor — the share page's
-  // "Open in playground" link.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — the URL is read once
+  // `/s/$id` opens a community submission in this same editor — there is no
+  // separate viewer. The route SSRs the head; the CSS is fetched here.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the URL alone
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("scene");
-    if (!id) return;
-    void getScene({ data: id }).then((s) => {
-      if (s) loadSource(s.css);
-      else setError("That shared scene no longer exists.");
+    if (!routeSceneId || routeSceneId === community?.id) return;
+    void getScene({ data: routeSceneId }).then((s) => {
+      if (!s) {
+        setError("That shared scene no longer exists.");
+        return;
+      }
+      loadSource(s.css);
+      setCommunity({ id: s.id, title: s.title, author: s.author });
     });
-  }, []);
+  }, [routeSceneId]);
 
   // Editor edits: the byte-delta badge is only meaningful right after a
   // minify/format, so any manual edit clears it.
@@ -79,6 +95,7 @@ export function useScene() {
     const ex = examples.find((e) => e.key === routeKey);
     if (!ex) return;
     setCurrentExample(ex.key);
+    setCommunity(null);
     setSource(ex.source);
     setMinified(false);
     setSizeDelta(null);
@@ -211,6 +228,7 @@ export function useScene() {
     error,
     importResult,
     currentExample,
+    community,
     minified,
     sizeDelta,
     setError,

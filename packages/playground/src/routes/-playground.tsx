@@ -6,7 +6,8 @@ import { lazy, Suspense } from "react";
 // (and `HTMLElement` at class-definition time) off the server entirely.
 const App = lazy(() => import("@/app"));
 
-/** Shared by `/` and `/e/$key`; the example comes from the route params. */
+/** Shared by `/`, `/examples/$key` and `/s/$id`; which scene loads comes from
+ *  the route params. */
 export function Playground() {
   return (
     <ClientOnly fallback={null}>
