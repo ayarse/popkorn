@@ -27,7 +27,11 @@ function Turnstile({ onToken }: { onToken: (t: string) => void }) {
     const render = () => {
       const ts = (window as any).turnstile;
       if (ts && el.childElementCount === 0)
-        ts.render(el, { sitekey: SITE_KEY, callback: onToken });
+        ts.render(el, {
+          sitekey: SITE_KEY,
+          action: "turnstile-spin-v2",
+          callback: onToken,
+        });
     };
     if ((window as any).turnstile) {
       render();
@@ -70,6 +74,10 @@ export function ShareModal({
       setUrl(`${window.location.origin}/s/${id}`);
     } catch (e: any) {
       setError(e.message ?? "Could not publish that scene.");
+      // Turnstile tokens are single-use and this dialog stays open on error —
+      // without a reset the retry replays a spent token and fails as a duplicate.
+      setToken(undefined);
+      (window as any).turnstile?.reset();
     } finally {
       setBusy(false);
     }

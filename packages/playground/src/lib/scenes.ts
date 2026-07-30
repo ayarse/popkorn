@@ -71,15 +71,30 @@ async function verifyTurnstile(token: string | undefined): Promise<boolean> {
   // ponytail: no secret configured (local dev) => challenge is skipped, not failed.
   if (!secret) return true;
   if (!token) return false;
-  const res = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: new URLSearchParams({ secret, response: token }),
-    },
-  );
-  const body = (await res.json()) as { success?: boolean };
-  return body.success === true;
+  const ip = getRequestIP({ xForwardedFor: true });
+  // Anything short of an explicit `success: true` fails closed, network errors
+  // and malformed bodies included.
+  try {
+    const res = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          secret,
+          response: token,
+          // Omitted rather than sent empty when the IP is unknown — siteverify
+          // rejects a blank remoteip.
+          ...(ip ? { remoteip: ip } : {}),
+        }),
+      },
+    );
+    if (!res.ok) return false;
+    const body = (await res.json()) as { success?: boolean };
+    return body.success === true;
+  } catch {
+    return false;
+  }
 }
 
 export const submitScene = createServerFn({ method: "POST" })
