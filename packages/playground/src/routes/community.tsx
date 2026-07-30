@@ -1,19 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BrandMark } from "@/components/brand-mark";
-import { SCENE_GRID, SceneCard, shortDate } from "@/components/scene-cards";
+import {
+  SCENE_GRID,
+  SceneCard,
+  SectionHeading,
+  shortDate,
+} from "@/components/scene-cards";
+import { examples } from "@/examples";
 import { listScenes, type SceneSummary } from "@/lib/scenes";
 import { SITE } from "@/routes/__root";
 
+const TITLE = "Community — Popkorn";
 const DESCRIPTION =
-  "Popkorn scenes published by the community. Every one is a plain CSS file — open it in the playground and make it yours.";
+  "Popkorn scenes published by the community, plus the built-in examples. Every one is a plain CSS file — open it in the playground and make it yours.";
 
 export const Route = createFileRoute("/community")({
   loader: () => listScenes(),
   head: () => ({
     meta: [
-      { title: "Community scenes — Popkorn" },
+      { title: TITLE },
       { name: "description", content: DESCRIPTION },
-      { property: "og:title", content: "Community scenes — Popkorn" },
+      { property: "og:title", content: TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:url", content: `${SITE}/community` },
     ],
@@ -38,13 +45,10 @@ function Community() {
       <main className="flex-1 overflow-auto">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
           <p className="mb-8 max-w-2xl text-sm text-muted-foreground">
-            {DESCRIPTION}{" "}
-            <Link to="/gallery" className="text-primary underline">
-              Built-in examples
-            </Link>{" "}
-            live in the gallery.
+            {DESCRIPTION}
           </p>
 
+          <SectionHeading>Published scenes</SectionHeading>
           {scenes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Nothing published yet.{" "}
@@ -66,6 +70,22 @@ function Community() {
               ))}
             </div>
           )}
+
+          <div className="mt-10">
+            <SectionHeading>Examples</SectionHeading>
+            <div className={SCENE_GRID}>
+              {examples.map((ex) => (
+                // Examples open straight in the editor, not on a share page.
+                <SceneCard
+                  key={ex.key}
+                  href={`/examples/${ex.key}`}
+                  title={ex.label}
+                  meta="Built-in"
+                  source={ex.source}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </main>
     </div>

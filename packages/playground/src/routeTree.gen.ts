@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CommunityRouteImport } from './routes/community'
-import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as DocsSectionRouteImport } from './routes/docs.$section'
 import { Route as ExamplesKeyRouteImport } from './routes/examples.$key'
@@ -25,11 +24,6 @@ const IndexRoute = IndexRouteImport.update({
 const CommunityRoute = CommunityRouteImport.update({
   id: '/community',
   path: '/community',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GalleryRoute = GalleryRouteImport.update({
-  id: '/gallery',
-  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsIndexRoute = DocsIndexRouteImport.update({
@@ -56,7 +50,6 @@ const SIdRoute = SIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
-  '/gallery': typeof GalleryRoute
   '/docs/$section': typeof DocsSectionRoute
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
@@ -65,7 +58,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
-  '/gallery': typeof GalleryRoute
   '/docs/$section': typeof DocsSectionRoute
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
@@ -75,7 +67,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
-  '/gallery': typeof GalleryRoute
   '/docs/$section': typeof DocsSectionRoute
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
@@ -86,7 +77,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/community'
-    | '/gallery'
     | '/docs/$section'
     | '/examples/$key'
     | '/s/$id'
@@ -95,7 +85,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/community'
-    | '/gallery'
     | '/docs/$section'
     | '/examples/$key'
     | '/s/$id'
@@ -104,7 +93,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/community'
-    | '/gallery'
     | '/docs/$section'
     | '/examples/$key'
     | '/s/$id'
@@ -114,7 +102,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CommunityRoute: typeof CommunityRoute
-  GalleryRoute: typeof GalleryRoute
   DocsSectionRoute: typeof DocsSectionRoute
   ExamplesKeyRoute: typeof ExamplesKeyRoute
   SIdRoute: typeof SIdRoute
@@ -135,13 +122,6 @@ declare module '@tanstack/react-router' {
       path: '/community'
       fullPath: '/community'
       preLoaderRoute: typeof CommunityRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gallery': {
-      id: '/gallery'
-      path: '/gallery'
-      fullPath: '/gallery'
-      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/': {
@@ -178,7 +158,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CommunityRoute: CommunityRoute,
-  GalleryRoute: GalleryRoute,
   DocsSectionRoute: DocsSectionRoute,
   ExamplesKeyRoute: ExamplesKeyRoute,
   SIdRoute: SIdRoute,

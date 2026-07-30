@@ -75,10 +75,10 @@ export function AppHeader({
         variant="ghost"
         size="sm"
         className="gap-1.5"
-        onClick={() => navigate({ to: "/gallery" })}
+        onClick={() => navigate({ to: "/community" })}
       >
         <Images className="size-3.5" />
-        <span className="hidden sm:inline">Gallery</span>
+        <span className="hidden sm:inline">Community</span>
       </Button>
 
       <DropdownMenu>
@@ -137,7 +137,7 @@ export function AppHeader({
           onClick={onShare}
         >
           <Send className="size-3.5" />
-          <span className="hidden sm:inline">Publish to gallery</span>
+          <span className="hidden sm:inline">Publish to community</span>
         </Button>
         <Button
           data-tour="copilot"

@@ -41,7 +41,7 @@ export function startTour() {
         element: '[data-tour="examples"]',
         popover: {
           title: "Examples",
-          description: "Browse the gallery of ready-made scenes to start from.",
+          description: "Browse ready-made scenes to start from.",
           side: "bottom",
           align: "start",
         },

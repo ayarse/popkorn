@@ -3,8 +3,8 @@
 TanStack Start (SSR) + React shell around `<popkorn-player>`, deployed as a
 Cloudflare Worker at **usepopkorn.dev** — showcases the player/parser, dogfoods
 the Lottie/SVG converters, and hosts anonymous scene submissions. Linear-style
-dark IDE (editor left, canvas right), server-rendered `/docs`, a `/gallery`, and
-`/s/$id` share pages.
+dark IDE (editor left, canvas right), server-rendered `/docs`, a `/community`
+page (published scenes + built-in examples), and `/s/$id` share pages.
 
 Repo-root `CLAUDE.md` owns the cross-cutting rules (bun, commits,
 `examples/popkorn/*.css` as scene source, corpus gate). Below is only what an

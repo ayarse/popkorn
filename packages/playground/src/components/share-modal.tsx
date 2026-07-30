@@ -84,10 +84,11 @@ export function ShareModal({
     >
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Publish to the community gallery</DialogTitle>
+          <DialogTitle>Publish to the community</DialogTitle>
           <DialogDescription>
-            Posts the editor's CSS to the public gallery and gives you a link to
-            it. There's no account, and no way to edit or delete it afterwards.
+            Posts the editor's CSS to the public community page and gives you a
+            link to it. There's no account, and no way to edit or delete it
+            afterwards.
           </DialogDescription>
         </DialogHeader>
 
