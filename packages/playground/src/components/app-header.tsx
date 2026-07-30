@@ -3,6 +3,8 @@ import {
   BookText,
   ChevronDown,
   HelpCircle,
+  Images,
+  Send,
   Sparkles,
   Upload,
 } from "lucide-react";
@@ -34,6 +36,7 @@ export function AppHeader({
   importResult,
   onDismissImport,
   onImport,
+  onShare,
   chatOpen,
   onToggleChat,
 }: {
@@ -42,6 +45,7 @@ export function AppHeader({
   importResult: ImportResult | null;
   onDismissImport: () => void;
   onImport: () => void;
+  onShare: () => void;
   chatOpen: boolean;
   onToggleChat: () => void;
 }) {
@@ -65,6 +69,16 @@ export function AppHeader({
       >
         <BookText className="size-3.5" />
         <span className="hidden sm:inline">Docs</span>
+      </Button>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="gap-1.5"
+        onClick={() => navigate({ to: "/gallery" })}
+      >
+        <Images className="size-3.5" />
+        <span className="hidden sm:inline">Gallery</span>
       </Button>
 
       <DropdownMenu>
@@ -115,6 +129,15 @@ export function AppHeader({
         >
           <Upload className="size-3.5" />
           <span className="hidden sm:inline">Import Lottie/SVG</span>
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="gap-1.5"
+          onClick={onShare}
+        >
+          <Send className="size-3.5" />
+          <span className="hidden sm:inline">Publish to gallery</span>
         </Button>
         <Button
           data-tour="copilot"

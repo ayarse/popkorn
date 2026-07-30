@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
 import { ResizeHandle, useSplit } from "@/components/resize-handle";
+import { ShareModal } from "@/components/share-modal";
 import { SourcePanel } from "@/components/source-panel";
 import { TimelinePanel } from "@/components/timeline-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,6 +16,7 @@ import { maybeStartTour } from "@/lib/tour";
 function App() {
   const scene = useScene();
   const [showImport, setShowImport] = useState(false);
+  const [showShare, setShowShare] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [player, setPlayer] = useState<PopkornPlayer | null>(null);
   // Desktop: editor left / player right (horizontal split). Mobile: player on
@@ -60,6 +62,7 @@ function App() {
           importResult={scene.importResult}
           onDismissImport={scene.dismissImport}
           onImport={() => setShowImport(true)}
+          onShare={() => setShowShare(true)}
           chatOpen={chatOpen}
           onToggleChat={() => setChatOpen((v) => !v)}
         />
@@ -147,6 +150,13 @@ function App() {
               if (scene.importText(text)) setShowImport(false);
             }}
             onClose={() => setShowImport(false)}
+          />
+        )}
+
+        {showShare && (
+          <ShareModal
+            source={scene.source}
+            onClose={() => setShowShare(false)}
           />
         )}
       </div>
