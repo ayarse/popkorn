@@ -1,4 +1,8 @@
-name: Deploy demo to Pages
+name: Deploy redirect stub to Pages
+
+# The playground lives at usepopkorn.dev now. Pages stays enabled — disabling it
+# would 404 every old link — and serves a two-file stub that forwards
+# ayarse.github.io/popkorn/* (404.html catches the deep paths) to the new origin.
 
 on:
   push:
@@ -22,14 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      - run: bun run build
-        env:
-          GITHUB_PAGES: '1'
+      - run: |
+          mkdir -p stub
+          cp .github/pages-stub/index.html stub/index.html
+          cp .github/pages-stub/index.html stub/404.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: packages/playground/dist
+          path: stub
       - id: deployment
         uses: actions/deploy-pages@v4

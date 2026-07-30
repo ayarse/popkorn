@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Popkorn has moved to usepopkorn.dev</title>
+    <link rel="canonical" href="https://usepopkorn.dev/" />
+    <!-- Fallback for JS-off clients. The script below runs first and carries the
+         path/search/hash across; a meta refresh alone would drop them. -->
+    <meta http-equiv="refresh" content="1; url=https://usepopkorn.dev/" />
+    <style>
+      body {
+        margin: 0;
+        height: 100vh;
+        display: grid;
+        place-items: center;
+        background: oklch(0.145 0.02 264);
+        color: oklch(0.985 0.005 264);
+        font: 15px/1.6 system-ui, sans-serif;
+      }
+      a { color: oklch(0.62 0.193 275); }
+    </style>
+    <script>
+      // GitHub Pages can't send a 301, so the redirect happens here. This file is
+      // served both as /popkorn/ and (as 404.html) for every unknown path under
+      // it, so strip the /popkorn base and forward the rest verbatim.
+      (function () {
+        var path = location.pathname.replace(/^\/popkorn\/?/, "/");
+        location.replace("https://usepopkorn.dev" + path + location.search + location.hash);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>
+      Popkorn moved to <a href="https://usepopkorn.dev/">usepopkorn.dev</a>.
+    </p>
+  </body>
+</html>
