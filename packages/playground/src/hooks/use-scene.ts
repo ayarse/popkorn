@@ -1,6 +1,6 @@
 import { convertLottie, convertSvg } from "@popkorn/converters";
 import { parse, serialize } from "@popkorn/parser";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { examples } from "@/examples";
 import { track } from "@/lib/analytics";
 import {
@@ -10,6 +10,7 @@ import {
   type ImportResult,
   type SizeDelta,
 } from "@/lib/import-size";
+import { getScene } from "@/lib/scenes";
 
 // Detects pasted SVG markup (vs Lottie JSON) — leading xml decl / comments then <svg.
 const SVG_RE =
@@ -43,6 +44,18 @@ export function useScene() {
     setMinified(false);
     setSizeDelta(null);
   }
+
+  // `?scene=<id>` forks a shared submission into the editor — the share page's
+  // "Open in playground" link. Examples keep using the `#key` hash.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — the URL is read once
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("scene");
+    if (!id) return;
+    void getScene({ data: id }).then((s) => {
+      if (s) loadSource(s.css);
+      else setError("That shared scene no longer exists.");
+    });
+  }, []);
 
   // Editor edits: the byte-delta badge is only meaningful right after a
   // minify/format, so any manual edit clears it.
