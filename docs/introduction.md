@@ -73,4 +73,4 @@ you as it was to build, dive in.
 ## Next
 
 - [Getting Started](getting-started.md): write your first scene.
-- [Play in the browser](https://ayarse.github.io/popkorn), no install required.
+- [Play in the browser](https://usepopkorn.dev), no install required.

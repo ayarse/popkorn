@@ -5,7 +5,7 @@ put a scene in your own project, it's one web component.
 
 ## Try it live
 
-**▶ [ayarse.github.io/popkorn](https://ayarse.github.io/popkorn)**
+**▶ [usepopkorn.dev](https://usepopkorn.dev)**
 
 No install, it runs in your browser. Edit the example scenes, tweak values and
 watch them update, or import a Lottie or SVG to see it convert.
@@ -93,7 +93,7 @@ file. The full component API (attributes, properties, events) lives in the
 ## Bring existing art
 
 You don't have to start from a blank file. Already have a Lottie or an SVG? Drop
-it into the [playground](https://ayarse.github.io/popkorn) with the **Import**
+it into the [playground](https://usepopkorn.dev) with the **Import**
 button and it becomes a Popkorn scene you can read and tweak on the spot.
 
 ## Where to go next

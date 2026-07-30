@@ -8,7 +8,7 @@ https://github.com/user-attachments/assets/7df900b1-42f8-4db8-8aec-5dd987ab1a42
 
 <sub>Cross Platform ⭐ AI Generatable ⭐ Human Readable ⭐ Converts Lottie &amp; SVG</sub>
 
-[**▶ Playground**](https://ayarse.github.io/popkorn) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
+[**▶ Playground**](https://usepopkorn.dev) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
 </div>
 
@@ -34,7 +34,7 @@ scenes from scratch and at editing what's already there, like an imported Lottie
 changing its colors, timing, or motion. A case in point: the playground's example
 gallery is itself entirely LLM-generated.
 
-**▶ [Try it live in the playground](https://ayarse.github.io/popkorn)**: edit
+**▶ [Try it live in the playground](https://usepopkorn.dev)**: edit
 scenes in the browser, no install.
 
 ## A scene, in full
@@ -94,7 +94,7 @@ scenes today. Most start one of two ways, and because the format is readable
 underneath both, you can always drop into the code to adjust:
 
 - **From an existing animation.** Already have a Lottie or an SVG? Drop it into
-  the [playground](https://ayarse.github.io/popkorn) with the **Import** button
+  the [playground](https://usepopkorn.dev) with the **Import** button
   and it becomes a Popkorn scene you can read and tweak on the spot. No starting
   from a blank file.
 - **By prompting.** The playground's **Popkorn Copilot** builds a scene from a
@@ -111,7 +111,7 @@ edit.
 
 The quickest way in is the playground. No install, it runs in your browser:
 
-**▶ [ayarse.github.io/popkorn](https://ayarse.github.io/popkorn)**
+**▶ [usepopkorn.dev](https://usepopkorn.dev)**
 
 Edit the example scenes live, tweak values and watch them update, or import a
 Lottie or SVG to see it convert.

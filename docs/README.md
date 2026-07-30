@@ -5,7 +5,7 @@ it on the web and on mobile. These pages go deeper than the
 [project README](../README.md).
 
 New here? The fastest way to get a feel for it is the
-[live playground](https://ayarse.github.io/popkorn), then read on.
+[live playground](https://usepopkorn.dev), then read on.
 
 ## Start here
 

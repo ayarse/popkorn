@@ -60,7 +60,7 @@ conversationally, without ever going back to the tool that made it.
 
 ## Try it, and what's next
 
-Open the [playground](https://ayarse.github.io/popkorn), reveal the **Copilot**
+Open the [playground](https://usepopkorn.dev), reveal the **Copilot**
 panel, drop in a key for your model, and prompt away. Any capable model works,
 and in our own use `openai/gpt-5.5` has given the best results so far, though open
 models hold their own too: `z-ai/glm-5.2` has been a strong performer. Turning

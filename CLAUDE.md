@@ -26,8 +26,9 @@ decision flows from that:
 
 Pipeline: `@popkorn/parser` `parse(source)` → typed-CSS AST (flat, knows no
 shape semantics) → `@popkorn/player` `buildSceneGraph` → scene tree →
-`RenderLoop` → `Renderer` interface → `Canvas2DRenderer`. The demo is a Vite
-React shell around the `<popkorn-player>` web component.
+`RenderLoop` → `Renderer` interface → `Canvas2DRenderer`. The playground is a
+TanStack Start app on Cloudflare Workers (usepopkorn.dev) wrapping the
+`<popkorn-player>` web component.
 
 Invariants that keep the system correct — violating any of these is how bugs
 have actually happened here:

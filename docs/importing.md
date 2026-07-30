@@ -6,7 +6,7 @@ animations and SVG artwork and turn them into scenes you can read and edit.
 ## The fastest way: the playground
 
 Drop a `.json` (Lottie) or `.svg` file into the
-[playground](https://ayarse.github.io/popkorn) with the **Import** button. It
+[playground](https://usepopkorn.dev) with the **Import** button. It
 detects which kind of file it is, converts it, and drops the result straight into
 the editor, where you can read and tweak it on the spot.
 
