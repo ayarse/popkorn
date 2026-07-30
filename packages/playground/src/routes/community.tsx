@@ -72,7 +72,7 @@ function Community() {
           )}
 
           <div className="mt-10">
-            <SectionHeading>Examples</SectionHeading>
+            <SectionHeading>Official examples</SectionHeading>
             <div className={SCENE_GRID}>
               {examples.map((ex) => (
                 // Examples open straight in the editor, not on a share page.
@@ -80,7 +80,6 @@ function Community() {
                   key={ex.key}
                   href={`/examples/${ex.key}`}
                   title={ex.label}
-                  meta="Built-in"
                   source={ex.source}
                 />
               ))}

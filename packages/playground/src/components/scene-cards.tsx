@@ -14,7 +14,7 @@ export function SceneCard({
 }: {
   href: string;
   title: string;
-  meta: string;
+  meta?: string;
   source?: string;
   sceneId?: string;
 }) {
@@ -30,9 +30,11 @@ export function SceneCard({
         <span className="truncate text-[13px] group-hover:text-primary">
           {title}
         </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
-          {meta}
-        </span>
+        {meta && (
+          <span className="shrink-0 text-[11px] text-muted-foreground">
+            {meta}
+          </span>
+        )}
       </div>
     </a>
   );
