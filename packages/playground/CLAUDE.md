@@ -90,21 +90,35 @@ agent *can't* infer from the code.
 
 ## Deploying
 
-`wrangler.json` binds D1 and points `main` at
-`@tanstack/react-start/server-entry`; `.github/workflows/deploy.yml` runs
-`wrangler deploy` on push to main and needs a `CLOUDFLARE_API_TOKEN` secret.
-One-time setup on a fresh account:
+Live at usepopkorn.dev since 2026-07-31 (Worker `popkorn-playground`, D1
+`popkorn`, zone on the same account). `.github/workflows/deploy.yml` redeploys
+on every push to main; `bunx wrangler deploy` from this directory does the same
+by hand. Both need `CLOUDFLARE_API_TOKEN` (repo secret) and
+`CLOUDFLARE_ACCOUNT_ID` (repo variable) — a token scoped to one account can't
+enumerate it.
 
-```sh
-bunx wrangler d1 create popkorn          # paste the id into wrangler.json
-bunx wrangler d1 migrations apply popkorn --remote
-bunx wrangler secret put TURNSTILE_SECRET
-bunx wrangler secret put IP_SALT
-```
+Non-obvious operational facts:
+
+- **Migrations don't run themselves.** Neither the workflow nor `deploy` applies
+  them. A new file in `migrations/` needs
+  `bunx wrangler d1 migrations apply popkorn --remote` *before* the deploy that
+  depends on it, or every scene query 500s.
+- **Three different places hold config, and they don't overlap.** `.env` is
+  build-time and client-side (`VITE_*` only); `.dev.vars` is the local server's
+  env; `wrangler secret put` writes the deployed Worker's. A value in one is
+  invisible to the others — `TURNSTILE_SECRET` in `.env` does nothing.
+- **Rotating `IP_SALT` resets rate limiting**, since every stored `ip_hash` was
+  computed under the old salt. Harmless, but submissions get a fresh 5/hr
+  budget.
+- **The custom domain owns the apex record.** Any pre-existing A/CNAME on
+  `usepopkorn.dev` makes the deploy fail with a DNS conflict rather than
+  overwrite it.
+- Turnstile degrades open: no `TURNSTILE_SECRET` bound means submissions are
+  accepted unchallenged, which is how local dev works and how a botched secret
+  would silently look in production.
 
 Locally: `bunx wrangler d1 migrations apply popkorn --local` once, then
-`bun run dev`. Turnstile is skipped without a secret.
-`VITE_TURNSTILE_SITE_KEY` in `.env` turns the client widget on.
+`bun run dev`.
 
 ## Verify
 
