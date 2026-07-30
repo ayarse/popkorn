@@ -88,10 +88,10 @@ function Gallery() {
             <SectionHeading>Examples</SectionHeading>
             <div className={SCENE_GRID}>
               {examples.map((ex) => (
-                // Examples open in the editor via its `#key` deep link, not a share page.
+                // Examples open straight in the editor, not on a share page.
                 <SceneCard
                   key={ex.key}
-                  href={`/#${encodeURIComponent(ex.key)}`}
+                  href={`/examples/${ex.key}`}
                   title={ex.label}
                   meta="Built-in"
                   source={ex.source}

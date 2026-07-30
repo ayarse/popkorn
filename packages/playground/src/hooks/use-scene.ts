@@ -1,5 +1,6 @@
 import { convertLottie, convertSvg } from "@popkorn/converters";
 import { parse, serialize } from "@popkorn/parser";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { examples } from "@/examples";
 import { track } from "@/lib/analytics";
@@ -20,11 +21,11 @@ const SVG_RE =
 // import/minify logic that loads and transforms it. App keeps only view state
 // (which modal/sidebar is open) and wires these into the panels.
 export function useScene() {
-  // ponytail: deep links are a plain `#key` hash, no router involvement — the
-  // router's basepath differs between dev and Pages, the hash doesn't.
-  const hashKey = decodeURIComponent(window.location.hash.slice(1));
+  // Deep links are the `/examples/$key` route; `/` falls back to the default scene.
+  const navigate = useNavigate();
+  const routeKey = useParams({ strict: false }).key;
   const defaultExample =
-    examples.find((e) => e.key === hashKey) ??
+    examples.find((e) => e.key === routeKey) ??
     examples.find((e) => e.key === "lottie--magic-eye") ??
     examples[0];
   const [currentExample, setCurrentExample] = useState<string | null>(
@@ -46,7 +47,7 @@ export function useScene() {
   }
 
   // `?scene=<id>` forks a shared submission into the editor — the share page's
-  // "Open in playground" link. Examples keep using the `#key` hash.
+  // "Open in playground" link.
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — the URL is read once
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("scene");
@@ -64,18 +65,26 @@ export function useScene() {
     setSizeDelta(null);
   }
 
+  // Picking an example is a navigation; the effect below is what actually
+  // loads it, so the back button and a pasted URL take the same path.
   function selectExample(key: string) {
-    const ex = examples.find((e) => e.key === key);
-    if (!ex) return;
+    if (!examples.some((e) => e.key === key)) return;
     track("example_view", { example: key });
-    history.replaceState(null, "", `#${encodeURIComponent(key)}`);
-    setCurrentExample(key);
+    void navigate({ to: "/examples/$key", params: { key } });
+  }
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the URL alone
+  useEffect(() => {
+    if (!routeKey || routeKey === currentExample) return;
+    const ex = examples.find((e) => e.key === routeKey);
+    if (!ex) return;
+    setCurrentExample(ex.key);
     setSource(ex.source);
     setMinified(false);
     setSizeDelta(null);
     setImportResult(null);
     setError(null);
-  }
+  }, [routeKey]);
 
   function toggleMinify() {
     try {

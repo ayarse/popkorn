@@ -16,7 +16,8 @@ agent *can't* infer from the code.
   `paths`. Keep in sync; the tsconfig copy is what resolves `@` in bun tests.
 - **The playground itself never SSRs.** `<popkorn-player>` does
   `class PopkornPlayer extends HTMLElement` at module scope, so *importing* it
-  on the server throws. Routes that reach the player (`/`, `/s/$id`) wrap a
+  on the server throws. Routes that reach the player (`/`, `/examples/$key`,
+  `/s/$id`) wrap a
   `React.lazy(() => import(...))` in `<ClientOnly>` — a static import would
   evaluate the module server-side no matter what `ClientOnly` renders. Never
   "clean up" those lazies into plain imports.
@@ -27,9 +28,11 @@ agent *can't* infer from the code.
   the `docs/*.md` raw glob; `src/routes/-docs-head.ts` derives each page's
   title/description (leading `-` = not a route). Prism highlighting still runs
   client-side in an effect.
-- **Example deep links are still a plain `#<example-key>` hash** read by
-  `useScene`, not a route. `?scene=<id>` is separate: it forks a *submitted*
-  scene out of D1 into the editor.
+- **Example deep links are the `/examples/$key` route**, sharing `-playground.tsx`
+  with `/`. `useScene` reads the param and syncs on it, so picking an example
+  is a `navigate()` and the back button replays it; the route's only server
+  render is the per-example head. `?scene=<id>` is separate: it forks a
+  *submitted* scene out of D1 into the editor.
 - **`worker-configuration.d.ts` is deliberately absent.** `wrangler types`
   emits workerd's global lib, which collides with the DOM lib this package
   compiles against (it breaks `Prism.highlightAllUnder`, `addEventListener`,
