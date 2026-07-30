@@ -156,15 +156,19 @@ test("scene 22 compiled cx/cy match the interpreter to ~1e-9 over time", () => {
   };
   let envTime = 0;
 
-  // A spread of nodes across the 5000 copies, each carrying its own
-  // sibling-index()-folded cx/cy binding.
+  // A spread of nodes across the repeat copies, each carrying its own
+  // sibling-index()-folded cx/cy binding. Count comes from the scene source so
+  // the test tracks the example's particle budget.
+  const repeatCount = Number(src.match(/repeat: (\d+);/)?.[1]);
   const withBindings: SceneNode[] = [];
   (function walk(n: SceneNode) {
     if (n.bindings.some((b) => b.property === "cx")) withBindings.push(n);
     for (const c of n.children) walk(c);
   })(root);
-  expect(withBindings.length).toBe(5000);
-  const sample = [0, 1, 2, 137, 2500, 4999].map((i) => withBindings[i]);
+  expect(withBindings.length).toBe(repeatCount);
+  const sample = [0, 1, 2, 137, 2500, repeatCount - 1].map(
+    (i) => withBindings[i],
+  );
 
   for (const timeMs of [0, 250, 1000, 4321.5]) {
     envTime = timeMs;

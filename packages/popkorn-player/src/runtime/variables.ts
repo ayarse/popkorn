@@ -15,7 +15,7 @@ import {
   isStringValue,
   isVariableRefValue,
 } from "@popkorn/parser";
-import { type CompiledCalc, compileCalc } from "./calc-compile";
+import { type CompiledCalc, compileCalc, runCalc } from "./calc-compile";
 import type { InputState } from "./inputs";
 
 // Reactive calc() expressions compile to a closure once and are cached by AST
@@ -187,13 +187,17 @@ export class VariableResolver {
    * for the reactive case.
    */
   private resolveCalc(value: CalcValue): Value {
+    const n = runCalc(this.compiledFor(value), this.calcCtx);
+    return n ? calcNumericToValue(n) : { type: "number", value: 0 };
+  }
+
+  private compiledFor(value: CalcValue): CompiledCalc {
     let compiled = compiledCalcCache.get(value.expr);
     if (!compiled) {
       compiled = compileCalc(value.expr);
       compiledCalcCache.set(value.expr, compiled);
     }
-    const n = compiled(this.calcCtx);
-    return n ? calcNumericToValue(n) : { type: "number", value: 0 };
+    return compiled;
   }
 
   /**
@@ -248,6 +252,12 @@ export class VariableResolver {
    * Resolve a numeric value (for properties like cx, cy, r, etc.)
    */
   resolveNumeric(value: Value): number {
+    // Reactive calc() is the hot numeric binding: take the number straight off
+    // the compiled program instead of boxing it into a Value to unwrap again.
+    if (isCalcValue(value)) {
+      const n = runCalc(this.compiledFor(value), this.calcCtx);
+      return n ? n.value : 0;
+    }
     const resolved = this.resolveValue(value);
 
     if (isNumberValue(resolved)) {

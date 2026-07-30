@@ -23,14 +23,21 @@ import {
  * The interpreter (`evalCalc` + `calcLeaf` in variables.ts) recurses the tree,
  * dispatching on node kind and allocating a `{value, unit}` CalcNumeric at every
  * step, re-resolving each var()/input() leaf through the full resolver every
- * frame. For scene 22 (5000 circles × ~150-op expressions) that dominates the
+ * frame. For scene 22 (10000 circles × ~150-op expressions) that dominates the
  * frame. Here each expression compiles once into a postfix opcode stream:
  *
  *   - every var()/input()-free subtree is folded to a single constant push at
  *     compile time (only operators on the live path from a var()/input() leaf up
  *     to the root run per frame);
- *   - execution is a single monomorphic switch over a flat `number[]` code
- *     stream against reused value/unit stacks — no closure-tree megamorphism;
+ *   - a program is plain data run by the single shared `runCalc`, and a run
+ *     allocates nothing: leaf reads, math-function results and the returned
+ *     numeric all land in the program's own scratch. Measured on scene 22 at
+ *     10k copies (tools/bench-calc.ts), dropping those allocations is worth
+ *     ~1.5x under JSC and ~1.15x under V8, which escape-analyses most of them
+ *     away already;
+ *   - each distinct var()/input() leaf resolves ONCE per run into a leaf pool
+ *     before the loop, so a var mentioned at many leaves costs one resolve and
+ *     the loop itself never calls into the resolver;
  *   - `+ - * /` are applied inline with zero allocation; math functions defer to
  *     the shared `evalCalcFunction` so unit rules never drift from the interpreter.
  *
@@ -46,11 +53,63 @@ export interface CalcEvalContext {
   resolveCalcInput(path: string): number;
 }
 
-export type CompiledCalc = (ctx: CalcEvalContext) => CalcNumeric | null;
+/**
+ * A compiled expression: plain data, executed by `runCalc`. `constant` holds the
+ * whole result for an expression that folded at compile time (its `code` is
+ * empty); every other field is the opcode stream and its pools.
+ */
+export interface CompiledCalc {
+  constant: CalcNumeric | null | undefined;
+  code: number[];
+  constValue: number[];
+  constUnit: number[];
+  constValid: number[];
+  /** Dynamic leaves, resolved once per run into the leaf pool below. */
+  leafName: (string | null)[];
+  leafFallback: (Value | undefined)[];
+  leafPath: (string | null)[];
+  leafValue: Float64Array;
+  leafUnit: Uint8Array;
+  leafValid: Uint8Array;
+  func: CalcFunction[];
+  funcArgBuf: CalcNumeric[][];
+  depth: number;
+  /** Scratch results: the program's own, so a run allocates nothing. */
+  out: CalcNumeric;
+  funcOut: CalcNumeric;
+}
+
+// One set of operand stacks for every program: the loop never calls back into
+// the resolver (leaves are all resolved in the prologue), so no run can be
+// re-entered mid-loop and clobber them. Per-program stacks cost more in cache
+// misses than the arithmetic they serve.
+let SHARED_DEPTH = 64;
+let SHARED_VS = new Float64Array(SHARED_DEPTH);
+let SHARED_US = new Uint8Array(SHARED_DEPTH);
+let SHARED_VALID = new Uint8Array(SHARED_DEPTH);
+function growShared(depth: number): void {
+  SHARED_DEPTH = depth;
+  SHARED_VS = new Float64Array(depth);
+  SHARED_US = new Uint8Array(depth);
+  SHARED_VALID = new Uint8Array(depth);
+}
+
+// Units are interned to small ints for the loop: a string stack costs more in
+// write barriers than the arithmetic it annotates. 0 is always "" (unitless),
+// so `us[sp]` is truthy exactly when the operand carries a unit.
+const UNIT_NAMES: string[] = [""];
+const UNIT_IDS = new Map<string, number>([["", 0]]);
+function unitId(unit: string): number {
+  const hit = UNIT_IDS.get(unit);
+  if (hit !== undefined) return hit;
+  const id = UNIT_NAMES.length;
+  UNIT_NAMES.push(unit);
+  UNIT_IDS.set(unit, id);
+  return id;
+}
 
 const OP_CONST = 0; // push const pool[arg]
-const OP_VAR = 1; // push resolved var pool[arg]
-const OP_INPUT = 2; // push resolved input pool[arg]
+const OP_LEAF = 1; // push leaf pool[arg] (var()/input(), resolved in the prologue)
 const OP_BIN = 3; // pop 2, apply binop arg (0:+ 1:- 2:* 3:/)
 const OP_FUNC = 4; // pop argc, apply function pool[arg]
 
@@ -61,157 +120,198 @@ const BIN_CODE: Record<string, number> = { "+": 0, "-": 1, "*": 2, "/": 3 };
 const DYNAMIC = Symbol("dynamic");
 type Folded = CalcNumeric | null | typeof DYNAMIC;
 
-/** Compile a calc() expression tree to a program closure. Cache it by identity. */
+/** Compile a calc() expression tree to a program. Cache it by identity. */
 export function compileCalc(expr: CalcExpr): CompiledCalc {
   const c = new Compiler();
   const folded = c.fold(expr);
-  // Whole expression is a build-time constant: return it (or 0-sentinel null).
-  if (folded !== DYNAMIC) {
-    const result = folded;
-    return () => result;
-  }
+  // Whole expression is a build-time constant: carry it (or a 0-sentinel null).
+  if (folded !== DYNAMIC) return c.build(folded);
   c.emit(expr);
-  return c.build();
+  return c.build(undefined);
+}
+
+/**
+ * Run a compiled program against the live resolver. The single execution path
+ * for every reactive calc() in a scene.
+ */
+export function runCalc(
+  p: CompiledCalc,
+  ctx: CalcEvalContext,
+): CalcNumeric | null {
+  if (p.constant !== undefined) return p.constant;
+
+  // Prologue: resolve each distinct live leaf exactly once.
+  const { leafName, leafPath, leafValue, leafUnit, leafValid } = p;
+  for (let i = 0; i < leafName.length; i++) {
+    const name = leafName[i];
+    if (name === null) {
+      const path = leafPath[i];
+      leafValue[i] = path ? ctx.resolveCalcInput(path) : 0;
+      leafUnit[i] = 0;
+      leafValid[i] = 1;
+      continue;
+    }
+    // Inline of mapResolved, writing straight into the pool: allocating a
+    // CalcNumeric here costs more than the whole arithmetic loop.
+    const v = ctx.resolveCalcVar(name, p.leafFallback[i]);
+    leafValid[i] = 1;
+    if (isNumberValue(v)) {
+      leafValue[i] = v.value;
+      leafUnit[i] = 0;
+    } else if (isLengthValue(v)) {
+      leafValue[i] = v.value;
+      leafUnit[i] = unitId(v.unit);
+    } else if (isKeywordValue(v)) {
+      if (v.value === "true" || v.value === "false") {
+        leafValue[i] = v.value === "true" ? 1 : 0;
+        leafUnit[i] = 0;
+      } else {
+        const k = calcConstant(v.value);
+        if (k) {
+          leafValue[i] = k.value;
+          leafUnit[i] = unitId(k.unit);
+        } else {
+          leafValid[i] = 0;
+        }
+      }
+    } else {
+      leafValid[i] = 0;
+    }
+  }
+
+  const { code, constValue, constUnit, constValid, func, funcArgBuf } = p;
+  if (p.depth > SHARED_DEPTH) growShared(p.depth);
+  const vs = SHARED_VS;
+  const us = SHARED_US;
+  const valid = SHARED_VALID;
+  let sp = 0;
+  for (let i = 0; i < code.length; i += 2) {
+    const arg = code[i + 1];
+    switch (code[i]) {
+      case OP_CONST:
+        vs[sp] = constValue[arg];
+        us[sp] = constUnit[arg];
+        valid[sp] = constValid[arg];
+        sp++;
+        break;
+      case OP_LEAF:
+        vs[sp] = leafValue[arg];
+        us[sp] = leafUnit[arg];
+        valid[sp] = leafValid[arg];
+        sp++;
+        break;
+      case OP_BIN: {
+        sp -= 2;
+        if (!valid[sp] || !valid[sp + 1]) {
+          valid[sp] = 0;
+          sp++;
+          break;
+        }
+        // Inline mirror of evalCalcBinary (kept in lockstep by the
+        // compiled-vs-interpreter parity test).
+        const lv = vs[sp];
+        const lu = us[sp];
+        const rv = vs[sp + 1];
+        const ru = us[sp + 1];
+        switch (arg) {
+          case 0: // +
+          case 1: // -
+            if (lu && ru && lu !== ru) {
+              valid[sp] = 0;
+            } else {
+              vs[sp] = arg === 0 ? lv + rv : lv - rv;
+              us[sp] = lu || ru;
+            }
+            break;
+          case 2: // *
+            if (lu && ru) {
+              valid[sp] = 0;
+            } else {
+              vs[sp] = lv * rv;
+              us[sp] = lu || ru;
+            }
+            break;
+          default: // /
+            if (ru) {
+              valid[sp] = 0;
+            } else {
+              vs[sp] = lv / rv;
+              us[sp] = lu;
+            }
+            break;
+        }
+        sp++;
+        break;
+      }
+      case OP_FUNC: {
+        const buf = funcArgBuf[arg];
+        const argc = buf.length;
+        sp -= argc;
+        let ok = true;
+        for (let k = 0; k < argc; k++) {
+          if (!valid[sp + k]) ok = false;
+          buf[k].value = vs[sp + k];
+          buf[k].unit = UNIT_NAMES[us[sp + k]];
+        }
+        if (!ok) {
+          valid[sp] = 0;
+          sp++;
+          break;
+        }
+        const res = evalCalcFunction(func[arg], buf, p.funcOut);
+        if (res) {
+          vs[sp] = res.value;
+          us[sp] = unitId(res.unit);
+          valid[sp] = 1;
+        } else {
+          valid[sp] = 0;
+        }
+        sp++;
+        break;
+      }
+    }
+  }
+  if (!valid[0]) return null;
+  const out = p.out;
+  out.value = vs[0];
+  out.unit = UNIT_NAMES[us[0]];
+  return out;
 }
 
 class Compiler {
   private code: number[] = [];
   private constValue: number[] = [];
-  private constUnit: string[] = [];
+  private constUnit: number[] = [];
   private constValid: number[] = [];
-  private varName: string[] = [];
-  private varFallback: (Value | undefined)[] = [];
-  private inputPath: (string | null)[] = [];
+  private leafName: (string | null)[] = [];
+  private leafFallback: (Value | undefined)[] = [];
+  private leafPath: (string | null)[] = [];
   private func: CalcFunction[] = [];
   private funcArgBuf: CalcNumeric[][] = [];
   private foldCache = new Map<CalcExpr, Folded>();
   private depth = 0;
   private maxDepth = 0;
 
-  build(): CompiledCalc {
-    const {
-      code,
-      constValue,
-      constUnit,
-      constValid,
-      varName,
-      varFallback,
-      inputPath,
-      func,
-      funcArgBuf,
-    } = this;
-    // Reused across frames; safe because runs are synchronous and any reentrant
-    // var()-triggered calc is a DIFFERENT program with its own stacks.
-    const vs = new Float64Array(this.maxDepth);
-    const us: string[] = new Array(this.maxDepth).fill("");
-    const valid = new Uint8Array(this.maxDepth);
-
-    return (ctx: CalcEvalContext): CalcNumeric | null => {
-      let sp = 0;
-      for (let i = 0; i < code.length; i += 2) {
-        const arg = code[i + 1];
-        switch (code[i]) {
-          case OP_CONST:
-            vs[sp] = constValue[arg];
-            us[sp] = constUnit[arg];
-            valid[sp] = constValid[arg];
-            sp++;
-            break;
-          case OP_VAR: {
-            const r = mapResolved(
-              ctx.resolveCalcVar(varName[arg], varFallback[arg]),
-            );
-            if (r) {
-              vs[sp] = r.value;
-              us[sp] = r.unit;
-              valid[sp] = 1;
-            } else {
-              valid[sp] = 0;
-            }
-            sp++;
-            break;
-          }
-          case OP_INPUT: {
-            const p = inputPath[arg];
-            vs[sp] = p ? ctx.resolveCalcInput(p) : 0;
-            us[sp] = "";
-            valid[sp] = 1;
-            sp++;
-            break;
-          }
-          case OP_BIN: {
-            sp -= 2;
-            if (!valid[sp] || !valid[sp + 1]) {
-              valid[sp] = 0;
-              sp++;
-              break;
-            }
-            // Inline mirror of evalCalcBinary (kept in lockstep by the
-            // compiled-vs-interpreter parity test).
-            const lv = vs[sp];
-            const lu = us[sp];
-            const rv = vs[sp + 1];
-            const ru = us[sp + 1];
-            switch (arg) {
-              case 0: // +
-              case 1: // -
-                if (lu && ru && lu !== ru) {
-                  valid[sp] = 0;
-                } else {
-                  vs[sp] = arg === 0 ? lv + rv : lv - rv;
-                  us[sp] = lu || ru;
-                }
-                break;
-              case 2: // *
-                if (lu && ru) {
-                  valid[sp] = 0;
-                } else {
-                  vs[sp] = lv * rv;
-                  us[sp] = lu || ru;
-                }
-                break;
-              default: // /
-                if (ru) {
-                  valid[sp] = 0;
-                } else {
-                  vs[sp] = lv / rv;
-                  us[sp] = lu;
-                }
-                break;
-            }
-            sp++;
-            break;
-          }
-          case OP_FUNC: {
-            const fn = func[arg];
-            const buf = funcArgBuf[arg];
-            const argc = buf.length;
-            sp -= argc;
-            let ok = true;
-            for (let k = 0; k < argc; k++) {
-              if (!valid[sp + k]) ok = false;
-              buf[k].value = vs[sp + k];
-              buf[k].unit = us[sp + k];
-            }
-            if (!ok) {
-              valid[sp] = 0;
-              sp++;
-              break;
-            }
-            const res = evalCalcFunction(fn, buf);
-            if (res) {
-              vs[sp] = res.value;
-              us[sp] = res.unit;
-              valid[sp] = 1;
-            } else {
-              valid[sp] = 0;
-            }
-            sp++;
-            break;
-          }
-        }
-      }
-      return valid[0] ? { value: vs[0], unit: us[0] } : null;
+  build(constant: Folded | undefined): CompiledCalc {
+    const depth = Math.max(this.maxDepth, 1);
+    return {
+      constant:
+        constant === DYNAMIC || constant === undefined ? undefined : constant,
+      code: this.code,
+      constValue: this.constValue,
+      constUnit: this.constUnit,
+      constValid: this.constValid,
+      leafName: this.leafName,
+      leafFallback: this.leafFallback,
+      leafPath: this.leafPath,
+      leafValue: new Float64Array(this.leafName.length),
+      leafUnit: new Uint8Array(this.leafName.length),
+      leafValid: new Uint8Array(this.leafName.length),
+      func: this.func,
+      funcArgBuf: this.funcArgBuf,
+      depth,
+      out: { value: 0, unit: "" },
+      funcOut: { value: 0, unit: "" },
     };
   }
 
@@ -273,18 +373,48 @@ class Compiler {
       return;
     }
     if (isFunctionValue(v) && v.name === "input") {
-      const idx = this.inputPath.length;
-      this.inputPath.push(inputPath(v.args));
-      this.push(OP_INPUT, idx);
+      this.push(OP_LEAF, this.leaf(null, undefined, inputPath(v.args)));
       this.grow();
       return;
     }
     // Only a var() reaches here (any other leaf folds to a constant).
-    const idx = this.varName.length;
-    this.varName.push((v as { name: string }).name);
-    this.varFallback.push((v as { fallback?: Value }).fallback);
-    this.push(OP_VAR, idx);
+    this.push(
+      OP_LEAF,
+      this.leaf(
+        (v as { name: string }).name,
+        (v as { fallback?: Value }).fallback,
+        null,
+      ),
+    );
     this.grow();
+  }
+
+  /**
+   * Intern a live leaf. Repeat mentions of one var()/input() share a pool slot,
+   * so the run resolves it once however many times the expression reads it.
+   * A fallback makes the leaf distinct — it is applied only when the name is
+   * undefined, and two fallbacks can differ.
+   */
+  private leaf(
+    name: string | null,
+    fallback: Value | undefined,
+    path: string | null,
+  ): number {
+    if (fallback === undefined) {
+      for (let i = 0; i < this.leafName.length; i++) {
+        if (
+          this.leafName[i] === name &&
+          this.leafPath[i] === path &&
+          this.leafFallback[i] === undefined
+        )
+          return i;
+      }
+    }
+    const idx = this.leafName.length;
+    this.leafName.push(name);
+    this.leafFallback.push(fallback);
+    this.leafPath.push(path);
+    return idx;
   }
 
   private emitFunc(expr: CalcFunction): void {
@@ -300,7 +430,7 @@ class Compiler {
   private pushConst(n: CalcNumeric | null): void {
     const idx = this.constValue.length;
     this.constValue.push(n ? n.value : 0);
-    this.constUnit.push(n ? n.unit : "");
+    this.constUnit.push(n ? unitId(n.unit) : 0);
     this.constValid.push(n ? 1 : 0);
     this.push(OP_CONST, idx);
     this.grow();
@@ -333,19 +463,6 @@ function foldLeaf(v: Value): Folded {
     return calcConstant(v.value);
   }
   return null; // string/color/list → interpreter's leaf resolver returns null
-}
-
-// The tail of `calcLeaf`: map a resolved var() Value to a CalcNumeric.
-function mapResolved(resolved: Value): CalcNumeric | null {
-  if (isNumberValue(resolved)) return { value: resolved.value, unit: "" };
-  if (isLengthValue(resolved))
-    return { value: resolved.value, unit: resolved.unit };
-  if (isKeywordValue(resolved)) {
-    if (resolved.value === "true") return { value: 1, unit: "" };
-    if (resolved.value === "false") return { value: 0, unit: "" };
-    return calcConstant(resolved.value);
-  }
-  return null;
 }
 
 // `input(cursor.x)` → "cursor.x". Mirrors VariableResolver.getInputPath.

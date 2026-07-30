@@ -457,9 +457,26 @@ const radToDeg = (r: number): number => (r * 180) / Math.PI;
 
 // Evaluate a CSS math function against its already-resolved numeric args. Returns
 // null on an unresolvable unit combination (matching +/-'s conservatism).
+/**
+ * Write a math-function result. Callers that run per frame (the compiled-calc
+ * VM) pass their own scratch object so the hot path allocates nothing; the
+ * interpreter passes none and gets a fresh CalcNumeric.
+ */
+function setNumeric(
+  out: CalcNumeric | undefined,
+  value: number,
+  unit: string,
+): CalcNumeric {
+  if (!out) return { value, unit };
+  out.value = value;
+  out.unit = unit;
+  return out;
+}
+
 export function evalCalcFunction(
   expr: CalcFunction,
   args: CalcNumeric[],
+  out?: CalcNumeric,
 ): CalcNumeric | null {
   // Hot path: this runs per compiled-calc OP_FUNC, i.e. millions of times a
   // second in repeat-heavy reactive scenes. Args are read positionally rather
@@ -481,71 +498,73 @@ export function evalCalcFunction(
       if (unit === null) return null;
       if (expr.name === "clamp") {
         // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
-        return {
-          value: Math.max(v0, Math.min(v1, args[2].value)),
-          unit,
-        };
+        return setNumeric(out, Math.max(v0, Math.min(v1, args[2].value)), unit);
       }
-      return {
-        value:
-          expr.name === "min"
-            ? Math.min(...args.map((a) => a.value))
-            : Math.max(...args.map((a) => a.value)),
+      return setNumeric(
+        out,
+        expr.name === "min"
+          ? Math.min(...args.map((a) => a.value))
+          : Math.max(...args.map((a) => a.value)),
         unit,
-      };
+      );
     }
     case "hypot": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: Math.hypot(...args.map((a) => a.value)), unit };
+      return setNumeric(out, Math.hypot(...args.map((a) => a.value)), unit);
     }
     // mod() follows the sign of the divisor; rem() follows the dividend (CSS).
     case "mod": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: v0 - v1 * Math.floor(v0 / v1), unit };
+      return setNumeric(out, v0 - v1 * Math.floor(v0 / v1), unit);
     }
     case "rem": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      return { value: v0 % v1, unit };
+      return setNumeric(out, v0 % v1, unit);
     }
     case "round": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
       // Step defaults to 1 (in the value's own unit) when omitted.
       const step = n > 1 ? v1 : 1;
-      return { value: roundTo(expr.strategy ?? "nearest", v0, step), unit };
+      return setNumeric(
+        out,
+        roundTo(expr.strategy ?? "nearest", v0, step),
+        unit,
+      );
     }
     case "abs":
-      return { value: Math.abs(v0), unit: args[0].unit };
+      return setNumeric(out, Math.abs(v0), args[0].unit);
     case "sign":
-      return { value: Math.sign(v0), unit: "" };
+      return setNumeric(out, Math.sign(v0), "");
     case "sin":
-      return { value: Math.sin(toRadians(args[0])), unit: "" };
+      return setNumeric(out, Math.sin(toRadians(args[0])), "");
     case "cos":
-      return { value: Math.cos(toRadians(args[0])), unit: "" };
+      return setNumeric(out, Math.cos(toRadians(args[0])), "");
     case "tan":
-      return { value: Math.tan(toRadians(args[0])), unit: "" };
+      return setNumeric(out, Math.tan(toRadians(args[0])), "");
     case "asin":
-      return { value: radToDeg(Math.asin(v0)), unit: "deg" };
+      return setNumeric(out, radToDeg(Math.asin(v0)), "deg");
     case "acos":
-      return { value: radToDeg(Math.acos(v0)), unit: "deg" };
+      return setNumeric(out, radToDeg(Math.acos(v0)), "deg");
     case "atan":
-      return { value: radToDeg(Math.atan(v0)), unit: "deg" };
+      return setNumeric(out, radToDeg(Math.atan(v0)), "deg");
     case "atan2":
-      return { value: radToDeg(Math.atan2(v0, v1)), unit: "deg" };
+      return setNumeric(out, radToDeg(Math.atan2(v0, v1)), "deg");
     case "sqrt":
-      return { value: Math.sqrt(v0), unit: "" };
+      return setNumeric(out, Math.sqrt(v0), "");
     case "exp":
-      return { value: Math.exp(v0), unit: "" };
+      return setNumeric(out, Math.exp(v0), "");
     case "pow":
-      return { value: v0 ** v1, unit: "" };
+      return setNumeric(out, v0 ** v1, "");
     case "log":
-      return {
-        value: n > 1 ? Math.log(v0) / Math.log(v1) : Math.log(v0),
-        unit: "",
-      };
+      return setNumeric(
+        out,
+        n > 1 ? Math.log(v0) / Math.log(v1) : Math.log(v0),
+        "",
+      );
   }
 }
 
