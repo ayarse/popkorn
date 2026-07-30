@@ -3,6 +3,7 @@ import { parse } from "@popkorn/parser";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestIP } from "@tanstack/react-start/server";
 import { examples } from "@/examples";
+import { sceneAspect } from "@/lib/scene-aspect";
 import { normalize, sha256, similarity } from "@/lib/scene-dedupe";
 
 export const MAX_CSS_BYTES = 100_000;
@@ -18,7 +19,9 @@ export interface SceneRow {
   created_at: number;
 }
 
-export type SceneSummary = Omit<SceneRow, "css">;
+/** `aspect` travels with the list so a card reserves its real height before
+ *  the CSS is fetched — without it every thumbnail resizes on hydration. */
+export type SceneSummary = Omit<SceneRow, "css"> & { aspect: number };
 
 // Hand-typed rather than generated: `wrangler types` emits workerd's global lib,
 // which collides with the DOM lib the rest of the playground compiles against.
@@ -162,11 +165,14 @@ export const listScenes = createServerFn()
   .handler(async ({ data: limit }): Promise<SceneSummary[]> => {
     const { results } = await db()
       .prepare(
-        "SELECT id, title, created_at FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, title, created_at, css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
       )
       .bind(limit)
-      .all<SceneSummary>();
-    return results;
+      .all<SceneRow>();
+    return results.map(({ css, ...row }) => ({
+      ...row,
+      aspect: sceneAspect(css),
+    }));
   });
 
 /** No moderation queue: N reports hides the scene, and that's the whole policy. */

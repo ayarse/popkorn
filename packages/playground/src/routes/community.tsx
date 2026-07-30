@@ -51,7 +51,7 @@ function Community() {
             {DESCRIPTION}
           </p>
 
-          <SectionHeading>Published scenes</SectionHeading>
+          <SectionHeading>Community submissions</SectionHeading>
           {scenes.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Nothing published yet.{" "}
@@ -69,6 +69,7 @@ function Community() {
                   title={s.title}
                   meta={shortDate(s.created_at)}
                   sceneId={s.id}
+                  aspect={s.aspect}
                 />
               ))}
             </div>
@@ -94,11 +95,7 @@ function Community() {
               </div>
               {!showAll && (
                 <div className="absolute inset-x-0 bottom-0 flex h-40 items-end justify-center bg-gradient-to-t from-background via-background/80 to-transparent">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowAll(true)}
-                  >
+                  <Button size="lg" onClick={() => setShowAll(true)}>
                     Show all official examples
                   </Button>
                 </div>

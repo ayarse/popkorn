@@ -11,12 +11,14 @@ export function SceneCard({
   meta,
   source,
   sceneId,
+  aspect,
 }: {
   href: string;
   title: string;
   meta?: string;
   source?: string;
   sceneId?: string;
+  aspect?: number;
 }) {
   return (
     <a
@@ -24,7 +26,7 @@ export function SceneCard({
       className="group mb-4 block break-inside-avoid overflow-hidden rounded-xl border border-border bg-card/40 transition-colors hover:border-primary/60"
     >
       <div className="w-full bg-background/60">
-        <ScenePreview source={source} sceneId={sceneId} />
+        <ScenePreview source={source} sceneId={sceneId} aspect={aspect} />
       </div>
       <div className="flex items-baseline justify-between gap-3 border-t border-border px-3 py-2">
         <span className="truncate text-[13px] group-hover:text-primary">

@@ -21,13 +21,13 @@ const MotionCanvas = lazy(() =>
  * The card is sized by the scene's own aspect ratio, which is what makes the
  * masonry layout work: same column width, whatever height the scene wants.
  */
-export function ScenePreview(props: { source?: string; sceneId?: string }) {
+export function ScenePreview(props: {
+  source?: string;
+  sceneId?: string;
+  aspect?: number;
+}) {
   return (
-    <ClientOnly
-      fallback={
-        <Box aspect={props.source ? sceneAspect(props.source) : 4 / 3} />
-      }
-    >
+    <ClientOnly fallback={<Box aspect={placeholderAspect(props)} />}>
       <Preview {...props} />
     </ClientOnly>
   );
@@ -53,7 +53,26 @@ function Box({
   );
 }
 
-function Preview({ source, sceneId }: { source?: string; sceneId?: string }) {
+/** What to reserve before the scene's own CSS is in hand. */
+function placeholderAspect({
+  source,
+  aspect,
+}: {
+  source?: string;
+  aspect?: number;
+}): number {
+  return source ? sceneAspect(source) : (aspect ?? 4 / 3);
+}
+
+function Preview({
+  source,
+  sceneId,
+  aspect,
+}: {
+  source?: string;
+  sceneId?: string;
+  aspect?: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [css, setCss] = useState<string | null>(source ?? null);
   const [visible, setVisible] = useState(false);
@@ -80,7 +99,10 @@ function Preview({ source, sceneId }: { source?: string; sceneId?: string }) {
   }, [visible, css, sceneId]);
 
   return (
-    <Box boxRef={ref} aspect={css ? sceneAspect(css) : 4 / 3}>
+    <Box
+      boxRef={ref}
+      aspect={css ? sceneAspect(css) : placeholderAspect({ source, aspect })}
+    >
       {visible && css && (
         <Suspense fallback={null}>
           <MotionCanvas
