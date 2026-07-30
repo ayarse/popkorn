@@ -9,7 +9,7 @@
     {
       "binding": "DB",
       "database_name": "popkorn",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "4ce7f037-ebe3-4b5e-a61f-761a2f3146e7",
       "migrations_dir": "migrations"
     }
   ],
