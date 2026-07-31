@@ -158,12 +158,57 @@ export const submitScene = createServerFn({ method: "POST" })
 export const getScene = createServerFn()
   .validator((id: string) => id)
   .handler(async ({ data: id }) => {
-    return await db()
+    const row = await db()
       .prepare(
-        "SELECT id, title, css, created_at, author FROM scenes WHERE id = ? AND hidden = 0",
+        "SELECT id, title, css, created_at, author, user_id FROM scenes WHERE id = ? AND hidden = 0",
       )
       .bind(id)
-      .first<SceneRow>();
+      .first<SceneRow & { user_id: string | null }>();
+    if (!row) return null;
+    const { user_id, ...scene } = row;
+    // `mine` rides along so the editor knows to offer save/delete without a
+    // second round trip. Authorisation still re-checks on write.
+    const { userId } = await auth();
+    return { ...scene, mine: Boolean(userId) && user_id === userId };
+  });
+
+export const updateScene = createServerFn({ method: "POST" })
+  .validator((d: { id: string; css: string }) => {
+    if (new TextEncoder().encode(d.css).length > MAX_CSS_BYTES)
+      throw new Error("Scene is too large (100KB max).");
+    return d;
+  })
+  .handler(async ({ data }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Sign in to edit a scene.");
+
+    const fatal = parse(data.css).diagnostics.filter(
+      (d) => d.severity === "error",
+    );
+    if (fatal.length)
+      throw new Error(`Scene has parse errors: ${fatal[0].message}`);
+
+    // No rate limit or dedupe here: editing your own scene doesn't grow the
+    // gallery, and the near-duplicate check would flag every small revision.
+    await db()
+      .prepare(
+        "UPDATE scenes SET css = ?, content_hash = ? WHERE id = ? AND user_id = ?",
+      )
+      .bind(data.css, await sha256(normalize(data.css)), data.id, userId)
+      .run();
+    return { ok: true };
+  });
+
+export const deleteScene = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data: id }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Sign in to delete a scene.");
+    await db()
+      .prepare("DELETE FROM scenes WHERE id = ? AND user_id = ?")
+      .bind(id, userId)
+      .run();
+    return { ok: true };
   });
 
 export const listScenes = createServerFn()

@@ -47,7 +47,10 @@ agent *can't* infer from the code.
 - **Submissions**: D1 table in `migrations/0001_scenes.sql`, bound as `DB`.
   Four gates on submit — a signed-in Clerk user, per-user rate limit (10/hr),
   100KB cap, and `parse()` (only playable scenes land). Three reports auto-hide
-  a scene; there is no admin UI on purpose. There is deliberately **no
+  a scene; there is no admin UI on purpose. The author can re-save or delete
+  their own scene (`updateScene`/`deleteScene`, scoped `AND user_id = ?`);
+  `getScene` returns `mine` so the header can offer it. Updates skip the rate
+  limit and the near-duplicate check — a revision isn't a new submission. There is deliberately **no
   captcha**: Clerk's own bot protection guards sign-up, so a Turnstile check on
   submit only re-gated a door that already needs an account. A dormant
   Turnstile widget still exists in the Cloudflare dashboard — nothing reads it.

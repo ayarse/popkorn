@@ -65,6 +65,7 @@ function App() {
           currentExample={scene.currentExample}
           onSelectExample={scene.selectExample}
           community={scene.community}
+          source={scene.source}
           importResult={scene.importResult}
           onDismissImport={scene.dismissImport}
           onImport={() => setShowImport(true)}

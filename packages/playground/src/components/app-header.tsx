@@ -6,8 +6,11 @@ import {
   Flag,
   HelpCircle,
   Images,
+  Loader2,
+  Save,
   Send,
   Sparkles,
+  Trash2,
   Upload,
 } from "lucide-react";
 import { useState } from "react";
@@ -31,14 +34,78 @@ import { examples } from "@/examples";
 import type { CommunityScene } from "@/hooks/use-scene";
 import { track } from "@/lib/analytics";
 import type { ImportResult } from "@/lib/import-size";
-import { reportScene } from "@/lib/scenes";
+import { deleteScene, reportScene, updateScene } from "@/lib/scenes";
 import { startTour } from "@/lib/tour";
 import { cn } from "@/lib/utils";
+
+/** Save/delete for a scene you published. Both re-check ownership server-side;
+ *  this only decides what's worth showing. */
+function OwnerActions({
+  community,
+  source,
+}: {
+  community: CommunityScene;
+  source: string;
+}) {
+  const navigate = useNavigate();
+  const [state, setState] = useState<"idle" | "busy" | "saved">("idle");
+  const [armed, setArmed] = useState(false);
+
+  return (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="gap-1.5"
+        disabled={state === "busy"}
+        onClick={() => {
+          setState("busy");
+          void updateScene({ data: { id: community.id, css: source } })
+            .then(() => setState("saved"))
+            .catch(() => setState("idle"));
+        }}
+      >
+        {state === "busy" ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <Save className="size-3.5" />
+        )}
+        <span className="hidden sm:inline">
+          {state === "saved" ? "Saved" : "Save changes"}
+        </span>
+      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={armed ? "destructive" : "ghost"}
+            size={armed ? "sm" : "icon"}
+            aria-label="Delete this scene"
+            onBlur={() => setArmed(false)}
+            onClick={() => {
+              if (!armed) {
+                setArmed(true);
+                return;
+              }
+              void deleteScene({ data: community.id }).then(() =>
+                navigate({ to: "/community" }),
+              );
+            }}
+          >
+            <Trash2 className="size-4" />
+            {armed && <span className="ml-1.5">Delete?</span>}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Delete this scene</TooltipContent>
+      </Tooltip>
+    </>
+  );
+}
 
 export function AppHeader({
   currentExample,
   onSelectExample,
   community,
+  source,
   importResult,
   onDismissImport,
   onImport,
@@ -49,6 +116,7 @@ export function AppHeader({
   currentExample: string | null;
   onSelectExample: (key: string) => void;
   community: CommunityScene | null;
+  source: string;
   importResult: ImportResult | null;
   onDismissImport: () => void;
   onImport: () => void;
@@ -140,15 +208,19 @@ export function AppHeader({
           <Upload className="size-3.5" />
           <span className="hidden sm:inline">Import Lottie/SVG</span>
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="gap-1.5"
-          onClick={onShare}
-        >
-          <Send className="size-3.5" />
-          <span className="hidden sm:inline">Publish to community</span>
-        </Button>
+        {community?.mine ? (
+          <OwnerActions community={community} source={source} />
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-1.5"
+            onClick={onShare}
+          >
+            <Send className="size-3.5" />
+            <span className="hidden sm:inline">Publish to community</span>
+          </Button>
+        )}
         <Button
           data-tour="copilot"
           variant={chatOpen ? "default" : "secondary"}
@@ -159,7 +231,7 @@ export function AppHeader({
           <Sparkles className="size-3.5" />
           <span className="hidden sm:inline">Copilot</span>
         </Button>
-        {community && (
+        {community && !community.mine && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
