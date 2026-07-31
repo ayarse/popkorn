@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Send } from "lucide-react";
 import { useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import {
@@ -7,6 +8,7 @@ import {
   SectionHeading,
   shortDate,
 } from "@/components/scene-cards";
+import { ShareModal } from "@/components/share-modal";
 import { Button } from "@/components/ui/button";
 import { examples } from "@/examples";
 import { listScenes, type SceneSummary } from "@/lib/scenes";
@@ -33,6 +35,7 @@ export const Route = createFileRoute("/community")({
 function Community() {
   const scenes = Route.useLoaderData();
   const [showAll, setShowAll] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -44,6 +47,14 @@ function Community() {
             </span>
           }
         />
+        <Button
+          size="sm"
+          className="ml-auto gap-1.5"
+          onClick={() => setShowShare(true)}
+        >
+          <Send className="size-3.5" />
+          Publish an animation
+        </Button>
       </header>
       <main className="flex-1 overflow-auto">
         <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
@@ -104,6 +115,9 @@ function Community() {
           </div>
         </div>
       </main>
+
+      {/* No editor on this page, so the modal takes pasted CSS. */}
+      {showShare && <ShareModal onClose={() => setShowShare(false)} />}
     </div>
   );
 }

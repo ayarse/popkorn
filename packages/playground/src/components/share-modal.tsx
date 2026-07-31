@@ -13,25 +13,29 @@ import {
 import { track } from "@/lib/analytics";
 import { MAX_CSS_BYTES, submitScene } from "@/lib/scenes";
 
+/** Publishes `source` when the playground opens it; with no `source` (the
+ *  community page's CTA) it takes pasted Popkorn CSS instead. */
 export function ShareModal({
   source,
   onClose,
 }: {
-  source: string;
+  source?: string;
   onClose: () => void;
 }) {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
+  const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const tooBig = new TextEncoder().encode(source).length > MAX_CSS_BYTES;
+  const css = source ?? pasted;
+  const tooBig = new TextEncoder().encode(css).length > MAX_CSS_BYTES;
 
   async function submit() {
     setBusy(true);
     setError(null);
     try {
-      const { id } = await submitScene({ data: { title, css: source } });
+      const { id } = await submitScene({ data: { title, css } });
       track("scene_share");
       // The share page is where the link, the report button and the byline
       // live — landing on it beats handing back a URL to copy.
@@ -53,8 +57,9 @@ export function ShareModal({
         <DialogHeader>
           <DialogTitle>Publish to the community</DialogTitle>
           <DialogDescription>
-            Posts the editor's CSS to the public community page under your name.
-            There's no way to edit or delete it afterwards.
+            {source === undefined
+              ? "Paste an animation to post it to the community gallery. You can edit or delete it later."
+              : "Shares the animation you're working on to the community gallery. You can edit or delete it later."}
           </DialogDescription>
         </DialogHeader>
 
@@ -84,6 +89,15 @@ export function ShareModal({
               placeholder="Title"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
+            {source === undefined && (
+              <textarea
+                value={pasted}
+                onChange={(e) => setPasted(e.target.value)}
+                placeholder="Paste your Popkorn CSS here"
+                spellCheck={false}
+                className="h-48 w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-xs leading-relaxed outline-none focus:ring-2 focus:ring-ring"
+              />
+            )}
             {(error || tooBig) && (
               <p className="text-xs text-destructive">
                 {tooBig ? "Scene is too large to share (100KB max)." : error}
@@ -95,7 +109,7 @@ export function ShareModal({
               </Button>
               <Button
                 size="sm"
-                disabled={busy || tooBig || !title.trim()}
+                disabled={busy || tooBig || !title.trim() || !css.trim()}
                 onClick={() => void submit()}
               >
                 {busy && <Loader2 className="size-3.5 animate-spin" />}
