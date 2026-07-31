@@ -82,11 +82,6 @@ agent *can't* infer from the code.
 - **Tailwind v4, no config file**; theme tokens are in `globals.css`
   `@theme inline`. UI is hand-built Radix + CVA in `components/ui/*` (no shadcn
   CLI) — copy `button.tsx`/`tooltip.tsx`.
-- **Copilot agent loop** — `lib/agent.ts` + `lib/agent-tools.ts` drive the
-  chat loop, wired up in `hooks/use-agent-chat.ts` and rendered by
-  `components/agent/*`. Tested by `lib/agent-loop.test.ts` and
-  `lib/agent-tools.test.ts` (plus `lib/edits.test.ts` for the shared edit
-  helpers).
 - **Export pipeline** — GIF (`lib/gif.ts` + `lib/gif.worker.ts` +
   `lib/gif-plan.ts`) and MP4 (`lib/mp4.ts` + `lib/mp4.worker.ts` +
   `lib/mp4-plan.ts`) each split into a plan (pure, testable frame/timing math)
@@ -94,11 +89,6 @@ agent *can't* infer from the code.
 - **Timeline** — `components/timeline-panel.tsx` + `components/timeline/scale.ts`
   (time↔pixel mapping) + `lib/timeline-edits.ts`; edits write back into the
   source text, not just runtime state.
-- **Diagnostics** — `components/source-diagnostics.tsx` renders parse
-  errors/warnings computed in `lib/edits.ts`.
-- **Misc** — `lib/tour.ts` (driver.js first-run onboarding), `lib/analytics.ts`,
-  `hooks/use-is-mobile.ts`, `components/resize-handle.tsx` (the split-pane
-  drag handle).
 
 ## Deploying
 
