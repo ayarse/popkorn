@@ -78,9 +78,12 @@ export const Route = createRootRoute({
               "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-WMECFVPC03');",
           },
           {
-            src: "https://cloud.umami.is/script.js",
+            // Proxied through the worker (see server/entry.ts) so adblockers
+            // don't see a third-party analytics domain.
+            src: "/pk/s.js",
             defer: true,
             "data-website-id": "29f483fa-c21e-43ae-9478-0e4ef8d23d72",
+            "data-host-url": "/pk",
           },
         ],
   }),
