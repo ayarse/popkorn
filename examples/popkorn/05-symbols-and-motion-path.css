@@ -1,8 +1,11 @@
 /* Author: AI Generated */
-/* Symbols — a starry night built from one reusable star.
+/* Symbols and motion path — a starry night built from two reusable shapes.
    The pedagogical payload: @define a shape once, `use:` it many times, and
    override only what differs per instance (position, colour, size, twinkle
-   timing) right at the use-site. The moon and hills are plain nodes framing it. */
+   timing) right at the use-site. The stars stay put; the comets take the same
+   idiom onto a route — one `offset-path`, `offset-distance` walking it by arc
+   length, `offset-rotate: auto` aiming each comet down the tangent, and a
+   negative `animation-delay` putting the second one already in flight. */
 :root {
   width: 800px;
   height: 600px;
@@ -71,6 +74,47 @@
 #s8  { use: star; cx: 700px; cy: 380px; fill: #8793c4; outer-radius: 9px;  inner-radius: 4px; animation-delay: -2.3s; animation-duration: 2.0s; }
 #s11 { use: star; cx: 740px; cy: 300px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -1.5s; animation-duration: 1.8s; }
 
+/* The comet route: one arc, drawn once as a faint dashed guide so the path the
+   comets ride is visible. Both #comet use-sites repeat it as their offset-path —
+   `offset-path` takes the geometry inline, not a reference to this node. */
+#route {
+  type: path;
+  d: "M -60 300 Q 360 120 860 340";
+  fill: none;
+  stroke: #2a3350;
+  stroke-width: 2px;
+  stroke-dasharray: 6px 14px;
+  stroke-linecap: round;
+}
+
+/* offset-distance walks the route by ARC LENGTH, so a comet holds a steady
+   speed through the curve instead of racing the flat parts. Every keyframe
+   restates offset-distance, the same discipline the domino scene applies to
+   transform: a property only interpolates across keyframes that declare it, so
+   omitting it in the middle two would park the comet at 0% until the last leg. */
+@keyframes fly {
+  0%   { offset-distance: 0%;   opacity: 0; }
+  8%   { offset-distance: 8%;   opacity: 1; }
+  88%  { offset-distance: 88%;  opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+/* The second symbol: a comet drawn nose-first along +x (head at +18, tail
+   trailing to -46) so `offset-rotate: auto` — which aligns +x with the path
+   tangent — points it the way it's travelling. */
+@define comet {
+  type: path;
+  d: "M 18 0 L -30 6 Q -46 0 -30 -6 Z";
+  fill: #fdf6d8;
+  filter: drop-shadow(0 0 8px rgba(253, 246, 216, 0.7));
+  offset-path: path("M -60 300 Q 360 120 860 340");
+  offset-rotate: auto;
+  animation: fly 7s linear infinite;
+}
+
+#comet1 { use: comet; }
+#comet2 { use: comet; fill: #bfe4ff; animation-delay: -3.5s; }
+
 /* Hills silhouette along the bottom, darker than the sky for depth. */
 #hills {
   type: path;
@@ -80,7 +124,7 @@
 
 #title {
   type: text;
-  content: "Symbols: one @define, many stars";
+  content: "One @define, many stars — and a comet on a path";
   x: 400px;
   y: 90px;
   font-size: 24px;
