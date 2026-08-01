@@ -1,9 +1,11 @@
-import { driver } from "driver.js";
+import { type DriveStep, driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
 const TOUR_SEEN_KEY = "popkorn-tour-seen";
 
-/** Launch the onboarding tour over the current layout (targets must exist). */
+/** Launch the onboarding tour over the current layout. Steps whose target
+ *  isn't on screen are dropped — mobile has no timeline, so pointing at one
+ *  would leave the popover hanging over nothing. */
 export function startTour() {
   driver({
     showProgress: true,
@@ -17,66 +19,77 @@ export function startTour() {
         // private mode / storage disabled — tour just won't be remembered.
       }
     },
-    steps: [
-      {
-        element: '[data-tour="source"]',
-        popover: {
-          title: "Scene source",
-          description:
-            "Hand-editable CSS scene source — every edit renders live.",
-          side: "right",
-          align: "start",
+    steps: (
+      [
+        {
+          element: '[data-tour="source"]',
+          popover: {
+            title: "Scene source",
+            description:
+              "Hand-editable CSS scene source — every edit renders live.",
+            side: "right",
+            align: "start",
+          },
         },
-      },
-      {
-        element: '[data-tour="player"]',
-        popover: {
-          title: "Player",
-          description: "Your scene, rendered in real time on the canvas.",
-          side: "left",
-          align: "start",
+        {
+          element: '[data-tour="player"]',
+          popover: {
+            title: "Player",
+            description: "Your scene, rendered in real time on the canvas.",
+            side: "left",
+            align: "start",
+          },
         },
-      },
-      {
-        element: '[data-tour="examples"]',
-        popover: {
-          title: "Examples",
-          description: "Browse ready-made scenes to start from.",
-          side: "bottom",
-          align: "start",
+        {
+          element: '[data-tour="examples"]',
+          popover: {
+            title: "Examples",
+            description: "Browse ready-made scenes to start from.",
+            side: "bottom",
+            align: "start",
+          },
         },
-      },
-      {
-        element: '[data-tour="import"]',
-        popover: {
-          title: "Import",
-          description:
-            "Drop in a Lottie JSON or SVG — it converts to editable source.",
-          side: "bottom",
-          align: "end",
+        {
+          element: '[data-tour="import"]',
+          popover: {
+            title: "Import",
+            description:
+              "Drop in a Lottie JSON or SVG — it converts to editable source.",
+            side: "bottom",
+            align: "end",
+          },
         },
-      },
-      {
-        element: '[data-tour="copilot"]',
-        popover: {
-          title: "Copilot",
-          description:
-            "Describe a scene in plain English and let it write one.",
-          side: "bottom",
-          align: "end",
+        {
+          element: '[data-tour="publish"]',
+          popover: {
+            title: "Publish",
+            description: "Share your animation with the community gallery.",
+            side: "bottom",
+            align: "end",
+          },
         },
-      },
-      {
-        element: '[data-tour="timeline"]',
-        popover: {
-          title: "Timeline",
-          description:
-            "An After-Effects-style timeline — expand it to scrub keyframes.",
-          side: "top",
-          align: "start",
+        {
+          element: '[data-tour="copilot"]',
+          popover: {
+            title: "Copilot",
+            description:
+              "Describe a scene in plain English and let it write one.",
+            side: "bottom",
+            align: "end",
+          },
         },
-      },
-    ],
+        {
+          element: '[data-tour="timeline"]',
+          popover: {
+            title: "Timeline",
+            description:
+              "An After-Effects-style timeline — expand it to scrub keyframes.",
+            side: "top",
+            align: "start",
+          },
+        },
+      ] satisfies DriveStep[]
+    ).filter((s) => document.querySelector(s.element)),
   }).drive();
 }
 

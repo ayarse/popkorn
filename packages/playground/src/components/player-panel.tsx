@@ -213,15 +213,19 @@ export function PlayerPanel({
   return (
     <div className="flex flex-1 flex-col bg-background overflow-hidden">
       {/* Toolbar */}
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
+      {/* Scrolls sideways rather than clipping: on a phone the owner controls
+          and the view controls together outrun the width. */}
+      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2">
         {community?.mine && (
-          <OwnerActions
-            key={community.id}
-            community={community}
-            source={source}
-          />
+          <div className="flex shrink-0 items-center gap-1">
+            <OwnerActions
+              key={community.id}
+              community={community}
+              source={source}
+            />
+          </div>
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {/* Fit mode */}
           <DropdownMenu>
             <Tooltip>
