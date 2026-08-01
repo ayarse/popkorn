@@ -52,6 +52,7 @@ export function ConnectAgent({
   clientName,
   onConnect,
   onDisconnect,
+  onRotate,
   onClose,
 }: {
   status: OwnAgentStatus;
@@ -59,6 +60,7 @@ export function ConnectAgent({
   clientName: string | null;
   onConnect: () => void;
   onDisconnect: () => void;
+  onRotate: () => void;
   onClose: () => void;
 }) {
   return (
@@ -74,7 +76,8 @@ export function ConnectAgent({
           <DialogDescription>
             Connect Claude Code, Codex, or any MCP client and edit this scene
             from your terminal. The link below is this tab's private session —
-            anyone with it can edit the scene while the tab stays open.
+            anyone with it can edit the scene while the tab stays open. It stays
+            valid for this browser until you generate a new one.
           </DialogDescription>
         </DialogHeader>
 
@@ -99,14 +102,16 @@ export function ConnectAgent({
               </Button>
             )}
             {(status === "waiting" || status === "connected") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto"
-                onClick={onDisconnect}
-              >
-                Disconnect
-              </Button>
+              <div className="ml-auto flex items-center gap-1.5">
+                {mcpUrl && (
+                  <Button variant="ghost" size="sm" onClick={onRotate}>
+                    New link
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={onDisconnect}>
+                  Disconnect
+                </Button>
+              </div>
             )}
           </div>
 

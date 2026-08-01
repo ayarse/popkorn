@@ -267,6 +267,7 @@ function AgentChat({
             clientName={own.clientName}
             onConnect={own.connect}
             onDisconnect={own.disconnect}
+            onRotate={own.rotate}
             onClose={() => setConnectOpen(false)}
           />
         )}
