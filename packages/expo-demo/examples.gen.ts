@@ -1586,9 +1586,9 @@ export const examples: Example[] = [
 
    \`state *\` is what makes it a tab bar rather than a cycle — the transitions are
    declared once against every state, so any tab is reachable from any other in
-   one tap. Tapping flips the state, and per-tab
-   :state(nav.*) rules light the active icon/label and fade in its content panel.
-   Click Home / Search / Activity / Profile at the bottom of the screen.
+   one tap. Tapping flips the state, and per-tab :state(nav.*) rules light the
+   active icon/label and fade in its content panel. Click Home / Search /
+   Activity / Profile at the bottom of the screen.
 
    The phone body is an SVG illustration imported through @popkorn/converters
    (side buttons, bezel highlight, camera, antenna lines). The app is authored in

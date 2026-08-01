@@ -141,6 +141,10 @@ converter emits it for precomp layers.
   `import.meta.glob` in `packages/playground/src/examples.ts` — filename
   `NN-kebab-name.css` sets order + label; drop a file in to add a scene.
   Use the `creating-popkorn-animations` skill when authoring scenes.
+  The expo demo can't glob or import raw `.css` (Metro drops `.css` module
+  bodies on native), so it inlines the gallery into
+  `packages/expo-demo/examples.gen.ts` — never hand-edit that file; run
+  `bun --filter @popkorn/expo-demo gen` after touching `examples/popkorn/`.
 - Commits: straight to main, short conventional messages, no attribution
   trailers. When multiple agents work in parallel, fence them to disjoint
   files and make each run the corpus gate.
