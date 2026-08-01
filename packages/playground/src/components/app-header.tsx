@@ -213,6 +213,16 @@ export function AppHeader({
           <Upload className="size-3.5" />
           <span className="hidden sm:inline">Import Lottie/SVG</span>
         </Button>
+        <Button
+          data-tour="copilot"
+          variant={chatOpen ? "default" : "secondary"}
+          size="sm"
+          className="gap-1.5"
+          onClick={onToggleChat}
+        >
+          <Sparkles className="size-3.5" />
+          <span className="hidden sm:inline">Copilot</span>
+        </Button>
         {/* Owning a scene means editing it, not republishing it — the save,
             retag and delete controls live in the player toolbar. */}
         {!community?.mine && (
@@ -226,16 +236,6 @@ export function AppHeader({
             <span className="hidden sm:inline">Publish an animation</span>
           </Button>
         )}
-        <Button
-          data-tour="copilot"
-          variant={chatOpen ? "default" : "secondary"}
-          size="sm"
-          className="gap-1.5"
-          onClick={onToggleChat}
-        >
-          <Sparkles className="size-3.5" />
-          <span className="hidden sm:inline">Copilot</span>
-        </Button>
         {community && !community.mine && (
           <Tooltip>
             <TooltipTrigger asChild>
