@@ -1,0 +1,146 @@
+/* Author: AI Generated */
+/* Basics — per-keyframe easing, squash & stretch, and a staggered cascade.
+   A ball drops in from off-stage, bounces twice on the shelf, then rolls the
+   length of it and topples a colour cascade. Two lessons in one phrase: the
+   entry shows easing set *per keyframe* (accelerate down, decelerate up) with
+   squash on its own track, and the dominoes show choreography by negative
+   `animation-delay` — one shared @keyframes, eight phase-shifted copies. */
+:root {
+  width: 800px;
+  height: 600px;
+}
+
+/*
+ * Channels are split across a small hierarchy, the way a real rig is: the outer
+ * node carries horizontal travel, its child the vertical arc, its child the
+ * squash, its child the spin. Keeping them on separate nodes is what lets the
+ * ball ease vertically (gravity) while its horizontal speed stays dead
+ * constant — a projectile doesn't hang in the air at the top of its arc.
+ */
+
+/* Horizontal travel: one linear sweep at 200px/s from off-stage left to
+   off-stage right, so every timing below is just a position divided by that
+   speed. The last 5% parks it off-stage, hidden, while the loop reseeds. */
+@keyframes travel {
+  0%   { transform: translateX(100px); }
+  95%  { transform: translateX(860px); }
+  100% { transform: translateX(860px); }
+}
+
+/* The vertical arc. Impacts land at 10% (x=180), 22.5% (x=280) and 28.75%
+   (x=330, the first domino) — each one the moment `travel` puts the ball there.
+   The beziers are the tangents AE artists use for gravity: accelerate into the
+   floor, decelerate out of it. After the third landing the ball is rolling, so
+   the height simply holds. */
+@keyframes hop {
+  0%     { transform: translateY(-60px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
+  10%    { transform: translateY(418px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
+  16.25% { transform: translateY(308px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
+  22.5%  { transform: translateY(418px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
+  25.6%  { transform: translateY(358px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
+  28.75% { transform: translateY(418px); animation-timing-function: linear; }
+  100%   { transform: translateY(418px); }
+}
+
+/* Squash lives on its own track so the ball stays round through the flight and
+   deforms only on contact — stretched thin by the long first fall, flattened
+   hardest by the heaviest landing, then progressively less as it loses energy. */
+@keyframes squash {
+  0%, 3%        { transform: scaleX(1) scaleY(1); }
+  6%            { transform: scaleX(0.9) scaleY(1.12); }
+  10%           { transform: scaleX(1.3) scaleY(0.7); }
+  14%, 21%      { transform: scaleX(1) scaleY(1); }
+  22.5%         { transform: scaleX(1.2) scaleY(0.82); }
+  24.5%, 27.5%  { transform: scaleX(1) scaleY(1); }
+  28.75%        { transform: scaleX(1.12) scaleY(0.9); }
+  30.5%, 100%   { transform: scaleX(1) scaleY(1); }
+}
+
+/* 760px of travel over a 44px ball is 5.5 turns — linear, because the
+   horizontal speed is constant, so the roll never slips. */
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  95%  { transform: rotate(1980deg); }
+  100% { transform: rotate(1980deg); }
+}
+
+/* The contact shadow stays on the ground and reads the ball's height: tight and
+   faint at the top of an arc, wide and dark at each impact. */
+@keyframes contactShadow {
+  0%     { transform: scaleX(0.35); opacity: 0;    }
+  10%    { transform: scaleX(1.3);  opacity: 0.45; }
+  16.25% { transform: scaleX(0.6);  opacity: 0.18; }
+  22.5%  { transform: scaleX(1.2);  opacity: 0.4;  }
+  25.6%  { transform: scaleX(0.8);  opacity: 0.26; }
+  28.75% { transform: scaleX(1.1);  opacity: 0.4;  }
+  100%   { transform: scaleX(1.1);  opacity: 0.4;  }
+}
+
+/* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still
+   (the held beat), and stand back up. The fall sits at 45% of the timeline so
+   the delays below can aim it at the frame the ball arrives. Every keyframe
+   restates the transform so the rotate track never drops to base. */
+@keyframes topple {
+  0%   { transform: rotate(0deg);  animation-timing-function: linear; }
+  45%  { transform: rotate(0deg);  animation-timing-function: cubic-bezier(0.5, 0, 0.85, 0.35); }
+  58%  { transform: rotate(84deg); animation-timing-function: ease-out; }
+  62%  { transform: rotate(79deg); animation-timing-function: ease-in-out; }
+  82%  { transform: rotate(79deg); animation-timing-function: ease-in-out; }
+  94%  { transform: rotate(0deg);  animation-timing-function: linear; }
+  100% { transform: rotate(0deg); }
+}
+
+#shelf { type: rect; x: 140px; y: 440px; width: 600px; height: 8px; rx: 4px; fill: #23233f; }
+
+/* A standing tile, pivoting about its base so it topples like a domino */
+@define domino {
+  type: rect; y: 344px; width: 20px; height: 96px; rx: 3px;
+  transform-origin: center bottom;
+}
+
+/* The ball starts rolling at x=330 (28.75% of the 4s loop) and covers the 55px
+   between tiles in 0.275s, so tile k is reached at 1.15s + 0.275s·k. Each tile's
+   fall sits at 45% of its own cycle, so its delay is that arrival minus 1.8s —
+   then shifted a whole period negative. Negative (phase-shifted) delays keep
+   every animation inside the same 4s loop instead of stretching the scene to fit
+   the cascade, so the loop stays seam-free. */
+#d1 { use: domino; x: 330px; fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%); animation: topple 4s linear infinite -4.65s; }
+#d2 { use: domino; x: 385px; fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%); animation: topple 4s linear infinite -4.375s; }
+#d3 { use: domino; x: 440px; fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%); animation: topple 4s linear infinite -4.10s; }
+#d4 { use: domino; x: 495px; fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%); animation: topple 4s linear infinite -3.825s; }
+#d5 { use: domino; x: 550px; fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%); animation: topple 4s linear infinite -3.55s; }
+#d6 { use: domino; x: 605px; fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%); animation: topple 4s linear infinite -3.275s; }
+#d7 { use: domino; x: 660px; fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%); animation: topple 4s linear infinite -3.00s; }
+#d8 { use: domino; x: 715px; fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%); animation: topple 4s linear infinite -2.725s; }
+
+#ball {
+  type: group;
+  animation: travel 4s linear infinite;
+
+  /* Shares the ball's horizontal travel but never leaves the ground. */
+  > #ballShadow {
+    type: ellipse; cx: 0; cy: 444px; rx: 26px; ry: 6px; fill: #000000;
+    transform-origin: center;
+    animation: contactShadow 4s linear infinite;
+  }
+
+  > #ballHop {
+    type: group;
+    animation: hop 4s linear infinite;
+
+    > #ballSquish {
+      type: group;
+      transform-origin: center bottom;
+      animation: squash 4s linear infinite;
+
+      > #ballSpin {
+        type: group;
+        transform-origin: center;
+        animation: spin 4s linear infinite;
+
+        > #ballBody { type: circle; cx: 0; cy: 0; r: 22px; fill: radial-gradient(#ffffff 0%, #ff8f5e 100%); }
+        > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
+      }
+    }
+  }
+}
