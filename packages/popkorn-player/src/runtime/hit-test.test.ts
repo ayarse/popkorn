@@ -13,7 +13,7 @@ import { type ClickDetail, RenderLoop } from "./loop";
 // undefined, which is exactly the React Native environment where the old
 // scratch-context path hit-test silently missed every `type: path` shape.
 
-// The lamp bulb outline from examples/popkorn/13-state-machine--lamp.css.
+// The lamp bulb outline from examples/popkorn/10-state-machine--lamp.css.
 const BULB_D =
   "M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z";
 

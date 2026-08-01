@@ -306,7 +306,7 @@ test("a per-copy override keeps its copy on the scalar path", () => {
 test("scene 22 compiled cx/cy match the interpreter to ~1e-9 over time", () => {
   const src = readFileSync(
     new URL(
-      "../../../../examples/popkorn/22-procedural--particle-field.css",
+      "../../../../examples/popkorn/17-procedural--particle-field.css",
       import.meta.url,
     ),
     "utf8",

@@ -192,7 +192,7 @@ The rest of the component's event surface (`popkorn:ready`, `popkorn:timeupdate`
 - **Scrubbing a segment with `time-remap`.** `time-remap` pins a subtree to an
   instant of its local timeline, and it's animatable — so a state can drive a
   segment of a converted Lottie by animating it, instead of starting and
-  stopping separate tracks. See `examples/popkorn/17-lottie--interactive-volume.css`.
+  stopping separate tracks. See `examples/popkorn/13-lottie--interactive-volume.css`.
 
 ## Smooth state transitions: `mix`
 

@@ -261,7 +261,7 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "04-hierarchy.css", label: "Hierarchy", source: `/* Author: AI Generated */
+  { key: "03-hierarchy.css", label: "Hierarchy", source: `/* Author: AI Generated */
 /* ============================================================
    HIERARCHY — a solar system, nested groups 3–5 deep.
 
@@ -491,7 +491,7 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "05-symbols-and-motion-path.css", label: "Symbols and motion path", source: `/* Author: AI Generated */
+  { key: "04-symbols-and-motion-path.css", label: "Symbols and motion path", source: `/* Author: AI Generated */
 /* Symbols and motion path — a night circuit where one route does four jobs.
    The pedagogical payload: \`--circuit\` holds the track geometry ONCE, and every
    node that needs it (the asphalt, the racing line, the cars, the marshal
@@ -692,7 +692,7 @@ export const examples: Example[] = [
   fill: #1c2330;
 }
 ` },
-  { key: "06-trim-path.css", label: "Trim path", source: `/* Author: AI Generated */
+  { key: "05-trim-path.css", label: "Trim path", source: `/* Author: AI Generated */
 /* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
    The word is one open path; trim-end sweeps 0→100% to reveal the stroke (the draw-on),
    then trim-start sweeps up to retract it — both ends finish at 100% (empty), matching
@@ -731,7 +731,7 @@ export const examples: Example[] = [
   animation: write 5s infinite, ink 5s ease-in-out infinite;
 }
 ` },
-  { key: "07-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated */
+  { key: "06-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated */
 /* Morph — path \`d\` interpolation with animated gradient stops, as a jellyfish.
    The bell, veil, and tentacles all animate their \`d\`, and the bell's gradient
    shifts hue across the same keyframes. Two rules make it interpolate instead
@@ -928,7 +928,7 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "09-mask.css", label: "Mask", source: `/* Author: AI Generated */
+  { key: "07-mask.css", label: "Mask", source: `/* Author: AI Generated */
 /* Mask — big text revealed through a sweeping bar (luminance mask) */
 :root {
   width: 800px;
@@ -964,7 +964,7 @@ export const examples: Example[] = [
   animation: sweep 3s ease-in-out infinite alternate;
 }
 ` },
-  { key: "10-interactive--cursor.css", label: "Interactive: Cursor", source: `/* Author: AI Generated */
+  { key: "08-interactive--cursor.css", label: "Interactive: Cursor", source: `/* Author: AI Generated */
 /* Interactive — Sprout, a mochi creature, and the firefly that chases your
    cursor. The firefly rides input(cursor.x/y) and flares when you hold the
    mouse down (input(cursor.isDown)); Sprout idles with layered keyframes
@@ -1103,7 +1103,7 @@ export const examples: Example[] = [
   fill: radial-gradient(#ffffff 0%, #ffd166 55%, #ffab00 100%);
 }
 ` },
-  { key: "11-interactive--reaction-bar.css", label: "Interactive: Reaction bar", source: `/* Author: AI Generated */
+  { key: "09-interactive--reaction-bar.css", label: "Interactive: Reaction bar", source: `/* Author: AI Generated */
 /* Reaction bar: six emoji buttons on a white pill. Each one idles with a
    gentle staggered float, pops from its own center on hover, and credits a
    click to its group id (#like, #love, #lol, #wow, #sad, #angry). A few
@@ -1314,7 +1314,7 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "12-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Author: AI Generated */
+  { key: "10-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Author: AI Generated */
 /* State machine — a pull-chain lamp, and the whole @machine vocabulary with it:
    two concurrent machines on independent clocks, a state that plays once and
    advances itself \`on complete\`, a \`state-time\` timeout, several transitions
@@ -1578,7 +1578,7 @@ export const examples: Example[] = [
   font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
 }
 ` },
-  { key: "15-state-machine--app-shell.css", label: "State machine: App shell", source: `/* Author: AI Generated */
+  { key: "11-state-machine--app-shell.css", label: "State machine: App shell", source: `/* Author: AI Generated */
 /* State machine UI — a @machine with a \`state *\` wildcard driving the bottom tab
    bar of a navigable mobile app shell. Popkorn isn't just for motion graphics:
    this is a wireframe app running inside a phone frame, with a working tab bar
@@ -2054,7 +2054,7 @@ export const examples: Example[] = [
     stroke-linejoin: round;
   }
 }` },
-  { key: "16-lottie--magic-eye.css", label: "Lottie: Magic eye", source: `/* Author: LanaNguyen @LottieFiles
+  { key: "12-lottie--magic-eye.css", label: "Lottie: Magic eye", source: `/* Author: LanaNguyen @LottieFiles
    Author URL: http://lottiefiles.com/gtzfxljyba */
 /* Converted Lottie — "Free Magic eye Animation", downloaded from LottieFiles.com,
    generated by @popkorn/converters */
@@ -4105,7 +4105,7 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "17-lottie--interactive-volume.css", label: "Lottie: Interactive volume", source: `/* Author: LanaNguyen @ LottieFiles
+  { key: "13-lottie--interactive-volume.css", label: "Lottie: Interactive volume", source: `/* Author: LanaNguyen @ LottieFiles
    Author URL: http://lottiefiles.com/gtzfxljyba */
 /* Converted Lottie — "Interactive volume", downloaded from LottieFiles.com,
    generated by @popkorn/converters */
@@ -9147,7 +9147,7 @@ export const examples: Example[] = [
 }
 }
 ` },
-  { key: "19-sprite-sheet.css", label: "Sprite sheet", source: `/* Author: AI Generated, sprite sheet by Kenney (CC0)
+  { key: "14-sprite-sheet.css", label: "Sprite sheet", source: `/* Author: AI Generated, sprite sheet by Kenney (CC0)
    Author URL: https://kenney.nl/assets/toon-characters */
 /*
  * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
@@ -9261,7 +9261,7 @@ export const examples: Example[] = [
   fill: #cdd6e3;
 }
 ` },
-  { key: "20-procedural--astronomical-watch.css", label: "Procedural: Astronomical watch", source: `/* Author: AI Generated */
+  { key: "15-procedural--astronomical-watch.css", label: "Procedural: Astronomical watch", source: `/* Author: AI Generated */
 /*
  * Astronomical complication watch — an orrery / moon-phase face driven purely
  * by reactive trig + modular math on input(time), no @keyframes. Scene time
@@ -9531,7 +9531,7 @@ export const examples: Example[] = [
   stroke-width: 3px;
 }
 ` },
-  { key: "21-procedural--x-logo.css", label: "Procedural: X logo", source: `/* Author: AI Generated */
+  { key: "16-procedural--x-logo.css", label: "Procedural: X logo", source: `/* Author: AI Generated */
 /* Procedural instancing — \`repeat:\` + \`sibling-index()\` formulas + motion path,
    building the X (formerly Twitter) logo from a swarm of dots.
    The generative trio in one scene: \`repeat:\` stamps 389 copies of one
@@ -9615,7 +9615,7 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "22-procedural--particle-field.css", label: "Procedural: Particle field", source: `/* Author: AI Generated, after @yuruyurau
+  { key: "17-procedural--particle-field.css", label: "Procedural: Particle field", source: `/* Author: AI Generated, after @yuruyurau
    Author URL: https://x.com/yuruyurau */
 /* Procedural field — 10000 \`repeat:\` copies placed entirely by one calc()
    expression of sibling-index() and input(time), no @keyframes anywhere.

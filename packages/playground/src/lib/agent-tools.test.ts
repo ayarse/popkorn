@@ -69,14 +69,14 @@ test("buildOutline: line ranges are correct on the fixture", () => {
 test("buildOutline on a real example scene", async () => {
   const src = await Bun.file(
     new URL(
-      "../../../../examples/popkorn/13-state-machine--lamp.css",
+      "../../../../examples/popkorn/10-state-machine--lamp.css",
       import.meta.url,
     ),
   ).text();
   const outline = buildOutline(src);
   expect(outline).toContain(":root");
   expect(outline).toContain("@machine lamp");
-  expect(outline).toContain("@keyframes glowIn");
+  expect(outline).toContain("@keyframes surge");
   expect(outline).toContain("#lamp");
   // #lamp is a big group with many nested children.
   expect(outline).toMatch(/#lamp.*nested/);

@@ -12,7 +12,7 @@ import { buildSceneGraph } from "../packages/popkorn-player/src/scene/builder";
 import type { SceneNode } from "../packages/popkorn-player/src/scene/types";
 
 const file =
-  process.argv[2] ?? "examples/popkorn/22-procedural--particle-field.css";
+  process.argv[2] ?? "examples/popkorn/17-procedural--particle-field.css";
 const ast = parse(readFileSync(file, "utf8"));
 const root = buildSceneGraph(ast);
 

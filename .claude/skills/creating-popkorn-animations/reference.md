@@ -984,7 +984,8 @@ for `@machine` only when a state must persist.
 
 **Full spec + rationale:
 [docs/state-machines.md](../../../docs/state-machines.md); worked scenes:
-`examples/popkorn/11-state-machine.css` and `12-toggle-lamp.css`.**
+`examples/popkorn/10-state-machine--lamp.css` and
+`11-state-machine--app-shell.css`.**
 
 <!-- /repo-only -->
 
