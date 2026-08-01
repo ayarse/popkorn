@@ -1248,166 +1248,26 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "12-state-machine--pip.css", label: "State machine: Pip", source: `/* Author: AI Generated */
-/* State machine — Pip, a mascot with a mind of its own. Two @machines run
-   concurrently and independently:
+  { key: "12-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Author: AI Generated */
+/* State machine — a pull-chain lamp, and the whole @machine vocabulary with it:
+   two concurrent machines on independent clocks, a state that plays once and
+   advances itself \`on complete\`, a \`state-time\` timeout, several transitions
+   competing out of one state, and per-state styling.
 
-     @machine mood   pops in once (intro -> idle on complete), idles with a
-                     breath loop, springs on every click (a bounce state whose
-                     animation RESTARTS on each re-entry, back to idle on
-                     complete), and dozes off after 6s of no attention
-                     (a state-time timeout). Poke it to wake it.
-     @machine blink  an unrelated eye-blink loop — winks, waits, winks again —
-                     proving a second graph runs on its own clock.
+     @machine lamp   off -> warmup -> on -> off. \`warmup\` is the incandescent
+                     strike: it plays ONCE and hands over
+                     \`on complete\`, so the steady lit look never re-runs it. \`on\` has two
+                     ways out — the chain, or a 10s energy-saver timeout that
+                     switches the lamp off if you walk away (first trigger to
+                     fire wins).
+     @machine pull   the chain's own graph: still -> swing on click, back
+                     \`on complete\`. It reacts to the SAME click as \`lamp\` and
+                     knows nothing about it — proof the two run independently.
+                     Note the timeout can switch the lamp off without the chain
+                     ever moving, and the chain still swings when the lamp is
+                     already lit.
 
-   Click Pip. Then leave it alone and watch it get sleepy. */
-:root {
-  width: 800px;
-  height: 600px;
-  background: #0e0b1e;
-}
-
-/* ---- mood: the personality graph (initial state plays once, then loops) ---- */
-@machine mood {
-  initial: intro;
-  state intro  { to: idle on complete; }         /* pop-in finished -> settle */
-  state idle   {
-    to: bounce on click(#pip);                    /* poked -> spring (first wins) */
-    to: sleepy when style(state-time > 6s);       /* ignored for 6s -> doze off */
-  }
-  state bounce { to: idle on complete; }          /* spring finished -> settle */
-  state sleepy { to: idle on click(#pip); }       /* poke wakes it back up */
-}
-
-/* ---- blink: a fully independent loop on its own clock ---- */
-@machine blink {
-  initial: watch;
-  state watch { to: wink when style(state-time > 2800ms); }
-  state wink  { to: watch on complete; }          /* wink plays once, then wait */
-}
-
-/* ---- state-driven animations (restart from the state's entry time) ---- */
-@keyframes popIn {
-  0%   { transform: scale(0);          }
-  60%  { transform: scale(1.14);       animation-timing-function: ease-out; }
-  80%  { transform: scale(0.94);       }
-  100% { transform: scale(1);          }
-}
-@keyframes breathe {
-  0%, 100% { transform: translateY(0)   scale(1, 1);       }
-  50%      { transform: translateY(-7px) scale(0.98, 1.05); }
-}
-@keyframes bounce {
-  0%   { transform: translateY(0)     scale(1, 1);      animation-timing-function: ease-out; }
-  25%  { transform: translateY(-78px) scale(0.9, 1.14); animation-timing-function: ease-in;  }
-  55%  { transform: translateY(0)     scale(1.16, 0.8); animation-timing-function: ease-out; }
-  72%  { transform: translateY(-18px) scale(0.97, 1.05); animation-timing-function: ease-in;  }
-  100% { transform: translateY(0)     scale(1, 1);      }
-}
-@keyframes snooze {
-  0%, 100% { transform: rotate(-3.5deg) translateY(2px);  }
-  50%      { transform: rotate(3.5deg)  translateY(-2px); }
-}
-@keyframes wink {
-  0%, 100% { scale: 1 1;   }
-  50%      { scale: 1 0.08; }
-}
-@keyframes floatZ {
-  0%   { opacity: 0;    translate: 0px 0px;   }
-  25%  { opacity: 0.95; }
-  100% { opacity: 0;    translate: 20px -54px; }
-}
-
-/* ---- backdrop ---- */
-#sky {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
-  fill: linear-gradient(#1c1740 0%, #0e0b1e 68%, #08060f 100%);
-}
-#spot {
-  type: ellipse; cx: 400px; cy: 300px; rx: 360px; ry: 300px;
-  fill: radial-gradient(#3a2f7a55 0%, #3a2f7a00 70%);
-}
-#shadow {
-  type: ellipse; cx: 400px; cy: 452px; rx: 110px; ry: 20px;
-  fill: radial-gradient(#00000066 0%, #00000000 72%);
-}
-
-/* sleepy Z's — hidden (opacity 0) until the sleepy state animates them in */
-#zzz {
-  type: text; content: "z z z"; x: 486px; y: 246px;
-  font-size: 30px; font-family: sans-serif; font-weight: bold;
-  text-anchor: start; fill: #b9a7ff; opacity: 0;
-  transform: rotate(-8deg); transform-origin: 486px 246px;
-  &:state(mood.sleepy) { animation: floatZ 2.6s ease-out infinite; }
-}
-
-/* ---- Pip ---- the whole creature is the click target (click(#pip)); the mood
-   machine drives the group transform, so every state animation moves the body
-   and face together, anchored at Pip's feet ---- */
-#pip {
-  type: group;
-  transform-origin: 400px 410px;
-  &:state(intro)  { animation: popIn  700ms ease-out; }
-  &:state(idle)   { animation: breathe 3.4s ease-in-out infinite; }
-  &:state(bounce) { animation: bounce 720ms ease-in-out; }
-  &:state(sleepy) { animation: snooze 3s   ease-in-out infinite; }
-
-  /* antenna bobble */
-  > #stalk {
-    type: path; d: "M 400 262 C 398 240 404 228 400 214";
-    fill: none; stroke: #7b6cd6; stroke-width: 6px; stroke-linecap: round;
-  }
-  > #bobble { type: circle; cx: 400px; cy: 208px; r: 11px; fill: #ffd166; }
-  > #bobbleGlow { type: circle; cx: 400px; cy: 208px; r: 20px;
-    fill: radial-gradient(#ffd16688 0%, #ffd16600 70%); }
-
-  /* body */
-  > #body {
-    type: ellipse; cx: 400px; cy: 336px; rx: 96px; ry: 90px;
-    fill: radial-gradient(circle 150px at 356px 280px, #d9c9ff 0%, #9b7ff0 56%, #6a4fc4 100%);
-  }
-  > #belly { type: ellipse; cx: 400px; cy: 362px; rx: 66px; ry: 54px;
-    fill: #efe6ff; opacity: 0.32; }
-
-  /* cheeks */
-  > #cheekL { type: ellipse; cx: 342px; cy: 354px; rx: 13px; ry: 8px; fill: #ff8fb8; opacity: 0.55; }
-  > #cheekR { type: ellipse; cx: 458px; cy: 354px; rx: 13px; ry: 8px; fill: #ff8fb8; opacity: 0.55; }
-
-  /* eyes — their own group so the blink machine can wink them as one unit */
-  > #eyes {
-    type: group; transform-origin: 400px 322px;
-    &:state(blink.wink) { animation: wink 200ms ease-in-out; }
-    > #eyeL   { type: ellipse; cx: 368px; cy: 322px; rx: 15px; ry: 19px; fill: #241a3d; }
-    > #eyeR   { type: ellipse; cx: 432px; cy: 322px; rx: 15px; ry: 19px; fill: #241a3d; }
-    > #glintL { type: circle;  cx: 373px; cy: 315px; r: 5px; fill: #ffffff; }
-    > #glintR { type: circle;  cx: 437px; cy: 315px; r: 5px; fill: #ffffff; }
-  }
-
-  /* smile */
-  > #mouth {
-    type: path; d: "M 384 350 Q 400 364 416 350";
-    fill: none; stroke: #3a2c5a; stroke-width: 4px; stroke-linecap: round;
-  }
-}
-
-/* hint */
-#hint {
-  type: text; content: "click Pip  ·  or leave it be"; x: 400px; y: 528px;
-  font-size: 17px; font-family: sans-serif; text-anchor: middle;
-  fill: #6b6296;
-}
-` },
-  { key: "13-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Author: AI Generated */
-/* Toggle — an incandescent bulb wired to a two-state @machine. Click the glass
-   to flip it; each state has its own look AND its own motion:
-
-     off  cold frosted glass, a grey filament, a metal screw base
-     on   a warm glow stack — halo, spinning rays, hot glass, white-hot
-          filament — plus a warm room wash and a brass-warmed base
-
-   The whole recipe is the canonical toggle from the spec — two states, each
-   pointing at the other \`on click(#bulb)\` — with :state() rules supplying the
-   distinct styling and entry-anchored glow animations for each.
+   Click the chain. Then leave the lamp on and wait.
 
    The bulb is drawn in an unscaled ~200x260 "recipe" space inside #lamp, which
    translates + scales it to the centre of the 800x600 stage; every glass/base
@@ -1419,40 +1279,79 @@ export const examples: Example[] = [
 
 @machine lamp {
   initial: off;
-  state off { to: on  on click(#bulb); }
-  state on  { to: off on click(#bulb); }
+  state off    { to: warmup on click(#chain); }
+  state warmup { to: on on complete; }              /* strike finished -> hold lit */
+  state on     {
+    to: off on click(#chain);
+    to: off when style(state-time > 10s);           /* left alone -> energy saver */
+  }
 }
 
-/* ---- glow choreography (restarts each time the bulb is switched on) ----
-   fade-in and loop are split onto DISJOINT channels so they never fight:
-   glowIn owns opacity, haloBreathe owns scale, raySpin owns rotate. */
-@keyframes glowIn {
-  0%   { opacity: 0; animation-timing-function: ease-out; }
-  100% { opacity: 1; }
+/* A second graph on its own clock. \`still\`/\`swing\` are unique names, so the
+   rules below can say :state(swing) without naming the machine. */
+@machine pull {
+  initial: still;
+  state still { to: swing on click(#chain); }
+  state swing { to: still on complete; }
 }
-@keyframes haloBreathe {
-  0%, 100% { transform: scale(1);    }
-  50%      { transform: scale(1.09); }
+
+/* ---- warmup: the strike, played once on the way to \`on\` ----
+   A filament doesn't fade up, it catches: full brightness almost at once, one
+   dip as it settles, then steady. The whole thing is under half a second — long
+   enough to read as a switch-on, short enough that it never feels like a
+   loading bar. Every warmup animation is finite — \`on complete\` waits for the
+   LONGEST one, so a single infinite animation in this state would strand the
+   machine here forever. Each one lands exactly on its \`on\` value and then holds
+   statically, so the handover between the two states is invisible. */
+@keyframes surge {
+  0%   { opacity: 0;    animation-timing-function: ease-out; }
+  26%  { opacity: 1;    }
+  44%  { opacity: 0.52; }
+  62%  { opacity: 1;    }
+  80%  { opacity: 0.86; }
+  100% { opacity: 1;    }
+}
+@keyframes roomSurge {
+  0%   { opacity: 0;    animation-timing-function: ease-out; }
+  26%  { opacity: 0.55; }
+  44%  { opacity: 0.28; }
+  62%  { opacity: 0.55; }
+  80%  { opacity: 0.47; }
+  100% { opacity: 0.55; }
 }
 @keyframes raysIn {
   0%   { opacity: 0; transform: scale(0.7); animation-timing-function: ease-out; }
   100% { opacity: 1; transform: scale(1);   }
 }
+
+/* ---- on: the steady look. Static opacity holds where the surge landed, and
+   the loops own channels the surge never touched (scale, rotate). ---- */
+@keyframes haloBreathe {
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.09); }
+}
 @keyframes raySpin {
   0%   { transform: rotate(0deg);   }
   100% { transform: rotate(360deg); }
 }
-@keyframes roomOn {
-  0%   { opacity: 0;    animation-timing-function: ease-out; }
-  100% { opacity: 0.55; }
+
+/* ---- pull: a damped swing that plays once and settles ---- */
+@keyframes chainPull {
+  0%   { transform: rotate(0deg);  }
+  14%  { transform: rotate(10deg); }
+  38%  { transform: rotate(-7deg); }
+  60%  { transform: rotate(4.5deg); }
+  80%  { transform: rotate(-2deg); }
+  100% { transform: rotate(0deg);  }
 }
 
-/* ---- room ---- warm wash that only exists while the lamp is on ---- */
+/* ---- room ---- warm wash that only exists while the lamp is lit ---- */
 #room {
   type: rect; x: 0; y: 0; width: 800px; height: 600px;
   fill: radial-gradient(circle 430px at 400px 232px, #ffce8a 0%, #ffce8a00 72%);
   opacity: 0;
-  &:state(lamp.on) { animation: roomOn 800ms ease-out; }
+  &:state(lamp.warmup) { animation: roomSurge 460ms ease-out; }
+  &:state(lamp.on)     { opacity: 0.55; }
 }
 
 /* ---- the bulb assembly, authored in local recipe space, scaled to centre ---- */
@@ -1465,13 +1364,15 @@ export const examples: Example[] = [
     type: circle; cx: 100px; cy: 98px; r: 110px;
     fill: radial-gradient(circle 110px at 100px 98px, #ffdf8ed9 0%, #ffce6659 45%, #ffc14d00 100%);
     transform-origin: center; opacity: 0;
-    &:state(lamp.on) { animation: glowIn 650ms ease-out, haloBreathe 3.2s ease-in-out infinite; }
+    &:state(lamp.warmup) { animation: surge 420ms ease-out; }
+    &:state(lamp.on)     { opacity: 1; animation: haloBreathe 3.2s ease-in-out infinite; }
   }
 
-  /* 2. rays — a spoke burst that fades/spins in, never below the base ---- */
+  /* 2. rays — a spoke burst that scales in, then turns forever ---- */
   > #rays {
     type: group; transform-origin: 100px 98px; opacity: 0;
-    &:state(lamp.on) { animation: raysIn 550ms ease-out, raySpin 24s linear infinite; }
+    &:state(lamp.warmup) { animation: raysIn 380ms ease-out; }
+    &:state(lamp.on)     { opacity: 1; animation: raySpin 24s linear infinite; }
     > #ry1 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; }
     > #ry2 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(45deg);   }
     > #ry3 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-45deg);  }
@@ -1486,40 +1387,52 @@ export const examples: Example[] = [
     type: circle; cx: 100px; cy: 98px; r: 77px;
     fill: radial-gradient(circle 77px at 100px 98px, #fff7d6e6 0%, #ffe9a873 70%, #ffe9a800 100%);
     opacity: 0;
-    &:state(lamp.on) { animation: glowIn 720ms ease-out; }
+    &:state(lamp.warmup) { animation: surge 440ms ease-out; }
+    &:state(lamp.on)     { opacity: 1; }
   }
 
-  /* ---- screw base ---- metal off, brass-warmed on (fill swaps per state) ---- */
+  /* ---- screw base ---- metal off, brass-warmed once the lamp is live. Plain
+     style swaps, no animation. Each one is stated TWICE, for \`warmup\` and for
+     \`on\`: a rule matches one state, and there is no \`:state(a), :state(b)\`
+     list, so a look that spans two states is written out per state — the metal
+     must already be warm while the glow is coming up, or it reads as a cold
+     base under a lit bulb. ---- */
   > #collar {
     type: rect; x: 80px; y: 186px; width: 40px; height: 9px; rx: 3px; fill: #6e7684;
+    &:state(lamp.warmup) { fill: #7d6f52; }
     &:state(lamp.on) { fill: #7d6f52; }
   }
   > #thread1 {
     type: rect; x: 76px; y: 197px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-4deg);
     fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+    &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
     &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
   }
   > #thread2 {
     type: rect; x: 76px; y: 208px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-6.5deg);
     fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+    &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
     &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
   }
   > #thread3 {
     type: rect; x: 76px; y: 219px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-9deg);
     fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+    &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
     &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
   }
   > #taper {
     type: path; d: 'M 82 228 L 118 228 L 110 240 L 90 240 Z'; fill: #6e7684;
+    &:state(lamp.warmup) { fill: #7d6f52; }
     &:state(lamp.on) { fill: #7d6f52; }
   }
   > #tip {
     type: ellipse; cx: 100px; cy: 243px; rx: 9px; ry: 6px; fill: #4d5563;
+    &:state(lamp.warmup) { fill: #5c5138; }
     &:state(lamp.on) { fill: #5c5138; }
   }
 
-  /* ---- glass silhouette ---- THE click target: click(#bulb) toggles the
-     machine. Cold frosted gradient always; #hotGlass fades over it when on. */
+  /* ---- glass silhouette ---- cold frosted gradient always; #hotGlass fades
+     over it as the filament strikes. The glass is NOT the switch — the chain is. */
   > #bulb {
     type: path;
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
@@ -1533,7 +1446,8 @@ export const examples: Example[] = [
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
     fill: radial-gradient(circle 86px at 100px 100px, #fffdf2 0%, #fff3c4 35%, #ffd873 70%, #ffb64a 100%);
     opacity: 0; pointer-events: none;
-    &:state(lamp.on) { animation: glowIn 700ms ease-out; }
+    &:state(lamp.warmup) { animation: surge 420ms ease-out; }
+    &:state(lamp.on)     { opacity: 1; }
   }
 
   /* ---- filament ---- grey when off, white-hot when on; a bloom underlay
@@ -1542,16 +1456,19 @@ export const examples: Example[] = [
     type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
     fill: none; stroke: #ff9d2e; stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round;
     opacity: 0; pointer-events: none;
-    &:state(lamp.on) { animation: glowIn 700ms ease-out; }
+    &:state(lamp.warmup) { animation: surge 420ms ease-out; }
+    &:state(lamp.on)     { opacity: 1; }
   }
   > #supports {
     type: path; d: 'M 91 184 V 148 M 109 184 V 148';
     fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round;
+    &:state(lamp.warmup) { stroke: #fff7d6; }
     &:state(lamp.on) { stroke: #fff7d6; }
   }
   > #filament {
     type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
     fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round; stroke-linejoin: round;
+    &:state(lamp.warmup) { stroke: #fff7d6; }
     &:state(lamp.on) { stroke: #fff7d6; }
   }
 
@@ -1559,12 +1476,39 @@ export const examples: Example[] = [
   > #specular {
     type: path; d: 'M 66 70 C 74 56 88 50 99 49 C 88 56 80 64 74 76 C 70 84 68 92 68 100 C 62 92 62 79 66 70 Z';
     fill: #ffffff; opacity: 0.72; pointer-events: none;
+    &:state(lamp.warmup) { opacity: 0.85; }
     &:state(lamp.on) { opacity: 0.85; }
   }
 }
 
+/* ---- the pull chain ---- the scene's only click target. That one click
+   reaches both machines: \`lamp\` changes what the room looks like, \`pull\` swings
+   the cord as if it were tugged — neither knows about the other.
+   \`:state(swing)\` goes unqualified because no other machine has that state. */
+#chain {
+  type: group;
+  transform-origin: 620px 40px;
+  &:state(swing) { animation: chainPull 1.15s ease-out; }
+
+  > #cord {
+    type: path; d: 'M 620 40 L 620 288';
+    fill: none; stroke: #8d8574; stroke-width: 4px; stroke-linecap: round;
+    stroke-dasharray: 6px 4px;
+  }
+  /* The knob is the hit area, so it is drawn at a size you can actually aim
+     at — a hairline cord makes a miserable click target. */
+  > #knob {
+    type: rect; x: 606px; y: 288px; width: 28px; height: 52px; rx: 14px;
+    fill: linear-gradient(135deg, #f0e4c4 0%, #b9a678 55%, #8d7d55 100%);
+  }
+  > #knobRing {
+    type: rect; x: 606px; y: 300px; width: 28px; height: 4px;
+    fill: #7d6f52; opacity: 0.5; pointer-events: none;
+  }
+}
+
 #hint {
-  type: text; content: "click the bulb"; x: 400px; y: 565px;
+  type: text; content: "click the chain"; x: 400px; y: 565px;
   font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
 }
 ` },
