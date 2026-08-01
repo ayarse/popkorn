@@ -829,20 +829,46 @@ function toolApplyEdit(
   return committed + placementWarning(source, res.result);
 }
 
+// Every gallery scene opens with an `/* Author: … */` line and then a header
+// comment whose first line names the scene and the features it demonstrates
+// ("Symbols — one @define, many stars; a comet rides a motion path"). That line
+// IS the feature index the model picks by, so a scene can be merged or renamed
+// without stranding a lookup on its filename. Scenes are free to omit it — they
+// just list bare.
+function exampleSummary(source: string): string {
+  for (const [, body] of source.matchAll(/\/\*([\s\S]*?)\*\//g)) {
+    const line = body
+      .split("\n")
+      .map((l) => l.replace(/^\s*\*?\s*/, "").trim())
+      .find(Boolean);
+    if (!line || /^Author\b/i.test(line)) continue;
+    return line.length > 120 ? `${line.slice(0, 117)}…` : line;
+  }
+  return "";
+}
+
+function exampleIndex(examples: { name: string; source: string }[]): string {
+  return examples
+    .map((e) => {
+      const summary = exampleSummary(e.source);
+      return summary ? `- ${e.name} — ${summary}` : `- ${e.name}`;
+    })
+    .join("\n");
+}
+
 function toolReadExample(
   args: Record<string, unknown>,
   ctx: ToolContext,
 ): string {
   const examples = ctx.examples ?? [];
   if (examples.length === 0) return "No examples available.";
-  const names = examples.map((e) => e.name);
   const name = args.name;
   if (typeof name !== "string" || name === "") {
-    return `Available examples: ${names.join(", ")}. Call read_example with a name to read one.`;
+    return `Available examples (name — what it demonstrates):\n${exampleIndex(examples)}\n\nCall read_example with a name to read one.`;
   }
   const hit = examples.find((e) => e.name === name);
   if (!hit) {
-    return `Example "${name}" not found. Available examples: ${names.join(", ")}.`;
+    return `Example "${name}" not found. Available examples:\n${exampleIndex(examples)}`;
   }
   return hit.source;
 }
@@ -987,7 +1013,7 @@ export const TOOL_DEFS: Array<{
     function: {
       name: "read_example",
       description:
-        "Read a curated gallery scene demonstrating idiomatic Popkorn. Call with no name to list the available example names. Use as a syntax/capability reference when unsure how to express a feature — not as a template: never copy an example's subject, palette, or caption text into a new scene.",
+        "Read a curated gallery scene demonstrating idiomatic Popkorn. Call with no name to list every example with a one-line summary of the features it demonstrates — pick by that summary, since one scene often covers several features. Use as a syntax/capability reference when unsure how to express a feature — not as a template: never copy an example's subject, palette, or caption text into a new scene.",
       parameters: {
         type: "object",
         properties: {

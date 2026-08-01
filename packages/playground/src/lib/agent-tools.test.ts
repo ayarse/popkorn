@@ -462,6 +462,23 @@ test("read_example with no name lists the available example names", () => {
   expect(out).toContain("Spinner");
 });
 
+test("read_example's listing indexes each scene by its header comment", () => {
+  const ctx = {
+    ...ctxOf(SCENE),
+    examples: [
+      {
+        name: "Motion path",
+        source:
+          "/* Author: AI Generated */\n/* Motion path — travel a route by arc length.\n   Second line is not the summary. */\n#a { type: circle; }",
+      },
+    ],
+  };
+  const out = executeTool("read_example", {}, ctx);
+  expect(out).toContain("Motion path — travel a route by arc length.");
+  expect(out).not.toContain("Second line");
+  expect(out).not.toContain("Author");
+});
+
 test("read_example returns the full source on a name hit", () => {
   const ctx = { ...ctxOf(SCENE), examples: EXAMPLES };
   const out = executeTool("read_example", { name: "Spinner" }, ctx);
