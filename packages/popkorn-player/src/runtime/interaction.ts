@@ -107,8 +107,7 @@ export function involvedStateKeys(
 ): void {
   collectInvolvedKeys(entry.styles, out);
   for (const anim of entry.animations)
-    for (const kf of anim.keyframes)
-      for (const key in kf.properties) out.add(key);
+    for (const track of anim.tracks) out.add(track.property);
 }
 
 // Read the current LIVE (post-animation, pre-override) value of a property as an

@@ -79,7 +79,9 @@ test("sibling-index resolves inside an @keyframes bound to each copy", () => {
     @keyframes shift { to { cx: calc(sibling-index() * 100px); } }
   `);
   const at = (n: SceneNode) =>
-    n.animations[0].keyframes.find((k) => k.offset === 1)!.properties.cx;
+    n.animations[0].tracks
+      .find((t) => t.property === "cx")!
+      .stops.find((s) => s.offset === 1)!.value;
   expect(at(byId(root, "dot-1"))).toBe(100);
   expect(at(byId(root, "dot-2"))).toBe(200);
   expect(at(byId(root, "dot-3"))).toBe(300);

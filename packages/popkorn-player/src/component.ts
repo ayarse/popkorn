@@ -111,20 +111,6 @@ function toTimelineAnimation(
   ruleSelector: string,
   state?: { machine: string | null; state: string },
 ): TimelineAnimation {
-  // Collect keyframe stops per animated property, in keyframe order.
-  const byProperty = new Map<string, TimelineKeyframe[]>();
-  for (const kf of a.keyframes) {
-    for (const [property, value] of Object.entries(kf.properties)) {
-      const stops = byProperty.get(property) ?? [];
-      const stop: TimelineKeyframe = {
-        offset: kf.offset,
-        value: formatAnimatableValue(value),
-      };
-      if (kf.easing !== undefined) stop.easing = kf.easing;
-      stops.push(stop);
-      byProperty.set(property, stops);
-    }
-  }
   const anim: TimelineAnimation = {
     name: a.name,
     delay: a.delay,
@@ -135,9 +121,18 @@ function toTimelineAnimation(
     direction: a.direction,
     fillMode: a.fillMode,
     ruleSelector,
-    properties: [...byProperty].map(([property, keyframes]) => ({
-      property,
-      keyframes,
+    // One timeline row per animated property: the scene's keyframe tracks are
+    // already grouped and sorted that way.
+    properties: a.tracks.map((track) => ({
+      property: track.property,
+      keyframes: track.stops.map((s) => {
+        const stop: TimelineKeyframe = {
+          offset: s.offset,
+          value: formatAnimatableValue(s.value),
+        };
+        if (s.easing !== undefined) stop.easing = s.easing;
+        return stop;
+      }),
     })),
   };
   if (state) anim.state = state;

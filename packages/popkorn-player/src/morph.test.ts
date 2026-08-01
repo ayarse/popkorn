@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { interpolateKeyframes } from "./animation/keyframes";
+import {
+  buildKeyframeTracks,
+  interpolateKeyframes,
+} from "./animation/keyframes";
 import {
   getPropHandler,
   gradientsCompatible,
@@ -168,7 +171,7 @@ test("outlineLength cache invalidates when d morphs (trim tracks the new length)
   // Sample at the end: the morphed path is 300 units long. The registry's `d`
   // apply must have flagged the outline-length cache dirty for this to update.
   resetNodeToBase(node);
-  interpolateKeyframes(node, node.animations[0].keyframes, 1);
+  interpolateKeyframes(node, node.animations[0].tracks, 1);
   expect((node.shapeData as PathData).commands[1]).toMatchObject({ x: 300 });
   expect(outlineLength(node)).toBeCloseTo(300, 6);
   const endTrim = computeTrim(node)!;
@@ -192,7 +195,7 @@ test("fill gradient animates through @keyframes (interpolated at the midpoint)",
   `;
   const node = firstNode(css);
   resetNodeToBase(node);
-  interpolateKeyframes(node, node.animations[0].keyframes, 0.5);
+  interpolateKeyframes(node, node.animations[0].tracks, 0.5);
   expect(parseColor(node.fillGradient!.stops[0].color).r).toBe(128);
 });
 

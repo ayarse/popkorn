@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { interpolateKeyframes } from "./animation/keyframes";
+import {
+  buildKeyframeTracks,
+  interpolateKeyframes,
+} from "./animation/keyframes";
 import { AnimationScheduler } from "./animation/scheduler";
 import { transformPoint } from "./renderer/types";
 import { hitTest } from "./runtime/hit-test";
@@ -38,7 +41,7 @@ function makeAnim(partial: Partial<AnimationInstance>): AnimationInstance {
     direction: "normal",
     delay: 0,
     fillMode: "forwards",
-    keyframes: [],
+    tracks: [],
     ...partial,
   };
 }
@@ -47,14 +50,14 @@ function makeAnim(partial: Partial<AnimationInstance>): AnimationInstance {
 
 test("step-end: holds the departing value across the segment, then jumps (number + color)", () => {
   const node = circleNode();
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     {
       offset: 0,
       properties: { r: 0, fill: "rgb(0, 0, 0)" },
       easing: "step-end",
     },
     { offset: 1, properties: { r: 100, fill: "rgb(100, 0, 0)" } },
-  ];
+  ]);
 
   // Anywhere inside the segment holds the first keyframe's value.
   resetNodeToBase(node);
@@ -76,10 +79,10 @@ test("step-end: holds the departing value across the segment, then jumps (number
 
 test("skewX/skewY animate as number channels and land on the transform", () => {
   const node = circleNode();
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: { skewX: 0, skewY: 0 } },
     { offset: 1, properties: { skewX: 30, skewY: -10 } },
-  ];
+  ]);
 
   resetNodeToBase(node);
   interpolateKeyframes(node, kf, 0.5);
@@ -99,7 +102,7 @@ test("skew() shorthand in @keyframes drives skewX and skewY channels", () => {
   );
   const node = scene.children[0];
   resetNodeToBase(node);
-  interpolateKeyframes(node, node.animations[0].keyframes, 0.5);
+  interpolateKeyframes(node, node.animations[0].tracks, 0.5);
   expect(node.transform.skewX).toBeCloseTo(20, 6);
   expect(node.transform.skewY).toBeCloseTo(10, 6);
 });
@@ -111,9 +114,11 @@ test("step-end parses from the animation shorthand and per-keyframe", () => {
   `);
   const node = root.children[0];
   expect(node.animations[0].timingFunction).toBe("step-end");
-  // The 50% keyframe's step-end easing.
-  const mid = node.animations[0].keyframes.find((k) => k.offset === 0.5)!;
-  expect(mid.easing).toBe("step-end");
+  // The 50% keyframe's step-end easing, on the opacity track.
+  const opacity = node.animations[0].tracks.find(
+    (t) => t.property === "opacity",
+  )!;
+  expect(opacity.stops.find((s) => s.offset === 0.5)!.easing).toBe("step-end");
 });
 
 // --- (2) arc-length sampler --------------------------------------------------
@@ -156,10 +161,10 @@ test("offset-distance animates via the registry and moves the local matrix", () 
   node.offsetPath = buildMotionPath(parsePath("M 0 0 L 100 0"));
   node.base = snapshotNode(node);
 
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: { "offset-distance": 0 } },
     { offset: 1, properties: { "offset-distance": 1 } },
-  ];
+  ]);
   resetNodeToBase(node);
   interpolateKeyframes(node, kf, 0.5);
   expect(node.offsetDistance).toBeCloseTo(0.5, 6);
@@ -259,10 +264,10 @@ test("hit-test agrees with the render matrix for a node mid-path", () => {
 // --- (5) negative animation-delay --------------------------------------------
 
 test("negative delay: value at t=0 equals a zero-delay animation at t=|delay|", () => {
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: { r: 0 } },
     { offset: 1, properties: { r: 100 } },
-  ];
+  ]);
   const sched = new AnimationScheduler();
 
   const a = circleNode();
@@ -271,7 +276,7 @@ test("negative delay: value at t=0 equals a zero-delay animation at t=|delay|", 
       delay: -450,
       duration: 100,
       iterationCount: Infinity,
-      keyframes: kf,
+      tracks: kf,
     }),
   ];
   resetNodeToBase(a);
@@ -283,7 +288,7 @@ test("negative delay: value at t=0 equals a zero-delay animation at t=|delay|", 
       delay: 0,
       duration: 100,
       iterationCount: Infinity,
-      keyframes: kf,
+      tracks: kf,
     }),
   ];
   resetNodeToBase(b);
@@ -294,10 +299,10 @@ test("negative delay: value at t=0 equals a zero-delay animation at t=|delay|", 
 });
 
 test("negative delay: iteration accounting includes the skipped part (alternate)", () => {
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: { r: 0 } },
     { offset: 1, properties: { r: 100 } },
-  ];
+  ]);
   const node = circleNode();
   // local = 0 - (-125) = 125 -> iteration 1 (odd) -> alternate reverses.
   node.animations = [
@@ -306,7 +311,7 @@ test("negative delay: iteration accounting includes the skipped part (alternate)
       duration: 100,
       iterationCount: Infinity,
       direction: "alternate",
-      keyframes: kf,
+      tracks: kf,
     }),
   ];
   resetNodeToBase(node);
@@ -325,10 +330,10 @@ test("negative delay: backwards fill never shows (animation already active at t=
       delay: -50,
       duration: 100,
       fillMode: "backwards",
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   resetNodeToBase(node);

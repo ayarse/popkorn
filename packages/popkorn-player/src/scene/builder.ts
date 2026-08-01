@@ -27,6 +27,7 @@ import {
   isVariableRefValue,
   serialize,
 } from "@popkorn/parser";
+import { buildKeyframeTracks } from "../animation/keyframes";
 import type { PropValue } from "../animation/registry";
 import {
   getPropHandler,
@@ -59,6 +60,7 @@ import type {
   ImageData,
   ImageViewBox,
   KeyframeData,
+  KeyframeTrack,
   LinearEasingPoint,
   MaskMode,
   PathData,
@@ -193,16 +195,18 @@ const BLEND_MODES = new Set<string>([
 // One warning per animation whose object-valued keyframes (gradients/paths)
 // can't interpolate — interpolation will step to the departing value instead.
 const warnedAnimations = new Set<string>();
+const OBJECT_VALUED_PROPS = new Set(["fill", "stroke", "d", "clip-path"]);
 function warnIncompatibleObjectKeyframes(
   name: string,
-  frames: KeyframeData[],
+  tracks: KeyframeTrack[],
 ): void {
-  const sorted = [...frames].sort((a, b) => a.offset - b.offset);
-  for (const prop of ["fill", "stroke", "d", "clip-path"] as const) {
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const a = sorted[i].properties[prop];
-      const b = sorted[i + 1].properties[prop];
-      if (a === undefined || b === undefined) continue;
+  for (const track of tracks) {
+    const prop = track.property;
+    if (!OBJECT_VALUED_PROPS.has(prop)) continue;
+    // Consecutive stops of the track are exactly the pairs that interpolate.
+    for (let i = 0; i < track.stops.length - 1; i++) {
+      const a = track.stops[i].value;
+      const b = track.stops[i + 1].value;
       let ok: boolean;
       if (prop === "d" || prop === "clip-path") {
         // d/clip-path array values are always PathCommand[] (never FilterOp[]).
@@ -2029,7 +2033,7 @@ export class SceneBuilder {
           delay: slot.delay,
           fillMode: stateDefault && !slot.fillModeSet ? "both" : slot.fillMode,
           composition: slot.composition,
-          keyframes: this.buildKeyframes(
+          tracks: this.buildKeyframes(
             this.keyframesMap.get(slot.name)!,
             nodeId,
             sib,
@@ -2299,7 +2303,7 @@ export class SceneBuilder {
     rule: KeyframeRule,
     nodeId = "",
     sib: SiblingContext = ROOT_SIBLING,
-  ): KeyframeData[] {
+  ): KeyframeTrack[] {
     const frames = rule.blocks.flatMap((block) => {
       const properties = this.buildKeyframeProperties(block, nodeId, sib);
       // Per-keyframe easing, resolved through the one shared timing-function
@@ -2321,11 +2325,11 @@ export class SceneBuilder {
         return keyframeData;
       });
     });
-    // Author order isn't guaranteed ascending (`100% {} 0% {}` is legal CSS);
-    // sort once here so per-frame sampling can trust the order.
-    frames.sort((a, b) => a.offset - b.offset);
-    warnIncompatibleObjectKeyframes(rule.name, frames);
-    return frames;
+    // One track per animated property, sorted by offset, so per-frame sampling
+    // brackets each property against its own keyframes.
+    const tracks = buildKeyframeTracks(frames);
+    warnIncompatibleObjectKeyframes(rule.name, tracks);
+    return tracks;
   }
 
   private buildKeyframeProperties(

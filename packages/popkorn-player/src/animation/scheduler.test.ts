@@ -1,11 +1,7 @@
 import { expect, test } from "bun:test";
-import type {
-  AnimationInstance,
-  CircleData,
-  KeyframeData,
-  SceneNode,
-} from "../scene/types";
+import type { AnimationInstance, CircleData, SceneNode } from "../scene/types";
 import { createSceneNode, resetNodeToBase, snapshotNode } from "../scene/types";
+import { buildKeyframeTracks } from "./keyframes";
 import {
   AnimationScheduler,
   animationsEndTime,
@@ -25,7 +21,7 @@ function makeAnim(partial: Partial<AnimationInstance>): AnimationInstance {
     delay: 0,
     fillMode: "forwards",
     composition: "replace",
-    keyframes: [],
+    tracks: [],
     ...partial,
   };
 }
@@ -75,14 +71,14 @@ test("endTime: empty list => Infinity (a state with no animations never complete
 // --- (2) entry-time anchoring: sampleNode(node, t - entryTime) ----------------
 
 test("anchoring: sampling at t-entryTime equals sampling a state that began at 0", () => {
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: { r: 0 } },
     { offset: 1, properties: { r: 100 } },
-  ];
+  ]);
   const anchored = circleNode();
-  anchored.animations = [makeAnim({ duration: 100, keyframes: kf })];
+  anchored.animations = [makeAnim({ duration: 100, tracks: kf })];
   const fresh = circleNode();
-  fresh.animations = [makeAnim({ duration: 100, keyframes: kf })];
+  fresh.animations = [makeAnim({ duration: 100, tracks: kf })];
   const sched = new AnimationScheduler();
 
   const entryTime = 1000;
@@ -102,10 +98,10 @@ test("anchoring: before entry (negative shifted time), none/forwards => base", (
   node.animations = [
     makeAnim({
       fillMode: "none",
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   const sched = new AnimationScheduler();
@@ -121,10 +117,10 @@ test("anchoring: before entry (negative shifted time), backwards fill => first k
   node.animations = [
     makeAnim({
       fillMode: "backwards",
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   const sched = new AnimationScheduler();
@@ -140,10 +136,10 @@ test("anchoring: before entry (negative shifted time), backwards fill => first k
 test("progress: 0 / 0.5 / 1 map across one iteration", () => {
   const anim = makeAnim({
     duration: 100,
-    keyframes: [
+    tracks: buildKeyframeTracks([
       { offset: 0, properties: { r: 0 } },
       { offset: 1, properties: { r: 100 } },
-    ],
+    ]),
   });
 
   const at = (p: number) => {
@@ -161,10 +157,10 @@ test("progress: 0 / 0.5 / 1 map across one iteration", () => {
 test("progress: clamps out-of-range values to [0,1]", () => {
   const anim = makeAnim({
     duration: 100,
-    keyframes: [
+    tracks: buildKeyframeTracks([
       { offset: 0, properties: { r: 0 } },
       { offset: 1, properties: { r: 100 } },
-    ],
+    ]),
   });
 
   const at = (p: number) => {
@@ -185,10 +181,10 @@ test("progress: delay and iterationCount are ignored (progress is the playhead)"
     duration: 100,
     delay: 5000,
     iterationCount: 10,
-    keyframes: [
+    tracks: buildKeyframeTracks([
       { offset: 0, properties: { r: 0 } },
       { offset: 1, properties: { r: 100 } },
-    ],
+    ]),
   });
   const n = circleNode();
   resetNodeToBase(n);
@@ -200,10 +196,10 @@ test("progress: direction reverse mirrors progress", () => {
   const anim = makeAnim({
     duration: 100,
     direction: "reverse",
-    keyframes: [
+    tracks: buildKeyframeTracks([
       { offset: 0, properties: { r: 0 } },
       { offset: 1, properties: { r: 100 } },
-    ],
+    ]),
   });
   const n = circleNode();
   resetNodeToBase(n);
@@ -216,10 +212,10 @@ test("progress: sampleNodeAtProgress scrubs every animation on the node", () => 
   n.animations = [
     makeAnim({
       duration: 100,
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   resetNodeToBase(n);

@@ -584,8 +584,8 @@ export interface AnimationInstance {
   // 'replace' (see interpolateKeyframes). Not part of the `animation` shorthand.
   composition: CompositeOperation;
 
-  // Keyframe data
-  keyframes: KeyframeData[];
+  // Keyframe data, one track per animated property (see KeyframeTrack).
+  tracks: KeyframeTrack[];
 }
 
 export type CompositeOperation = "replace" | "add" | "accumulate";
@@ -658,10 +658,31 @@ export interface TimeRemapStop {
   easing?: TimingFunction;
 }
 
+// One authored `@keyframes` block: every property it declares at one offset.
+// Grouped into per-property KeyframeTracks by buildKeyframeTracks before it
+// reaches the sampler.
 export interface KeyframeData {
   offset: number; // 0-1
   properties: Record<string, AnimatableValue>;
   easing?: TimingFunction; // Per-keyframe easing (controls transition FROM this keyframe to the next)
+}
+
+// One stop of a property's own keyframe track: the value that property takes at
+// `offset`, and the easing (departing-keyframe convention) shaping the segment
+// from here to the next stop OF THE SAME TRACK.
+export interface KeyframeStop {
+  offset: number; // 0-1
+  value: AnimatableValue;
+  easing?: TimingFunction;
+}
+
+// One animated property's timeline: only the keyframes that declare it, sorted
+// by offset. Sampling brackets per track (CSS/WAAPI property-specific
+// keyframes), so a property omitted from an intermediate keyframe interpolates
+// across it; the base value enters only through a synthesized 0/1 edge.
+export interface KeyframeTrack {
+  property: string;
+  stops: KeyframeStop[]; // at least one, ascending by offset
 }
 
 // A keyframe endpoint value. Beyond scalars/colors/transforms, gradients

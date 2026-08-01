@@ -1,13 +1,8 @@
 import { expect, test } from "bun:test";
 import { applyInteractionOverrides } from "../runtime/interaction";
-import type {
-  AnimationInstance,
-  CircleData,
-  KeyframeData,
-  SceneNode,
-} from "../scene/types";
+import type { AnimationInstance, CircleData, SceneNode } from "../scene/types";
 import { createSceneNode, resetNodeToBase, snapshotNode } from "../scene/types";
-import { interpolateKeyframes } from "./keyframes";
+import { buildKeyframeTracks, interpolateKeyframes } from "./keyframes";
 import { AnimationScheduler } from "./scheduler";
 
 // --- helpers -----------------------------------------------------------------
@@ -30,7 +25,7 @@ function makeAnim(partial: Partial<AnimationInstance>): AnimationInstance {
     direction: "normal",
     delay: 0,
     fillMode: "forwards",
-    keyframes: [],
+    tracks: [],
     ...partial,
   };
 }
@@ -42,7 +37,7 @@ const r = (n: SceneNode) => (n.shapeData as CircleData).r;
 
 test("registry: geometry + stroke-width lerp, color lerp for fill", () => {
   const node = circleNode();
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     {
       offset: 0,
       properties: { r: 10, "stroke-width": 2, fill: "rgb(0, 0, 0)" },
@@ -51,7 +46,7 @@ test("registry: geometry + stroke-width lerp, color lerp for fill", () => {
       offset: 1,
       properties: { r: 20, "stroke-width": 6, cx: 100, fill: "rgb(100, 0, 0)" },
     },
-  ];
+  ]);
 
   resetNodeToBase(node);
   interpolateKeyframes(node, kf, 0.5); // linear, no easing
@@ -64,10 +59,10 @@ test("registry: geometry + stroke-width lerp, color lerp for fill", () => {
 
 test("registry: property absent from a keyframe falls back to the node base", () => {
   const node = circleNode(); // base r = 10
-  const kf: KeyframeData[] = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: {} }, // r absent -> base 10
     { offset: 1, properties: { r: 30 } }, // r = 30
-  ];
+  ]);
   resetNodeToBase(node);
   interpolateKeyframes(node, kf, 0.5);
   expect(r(node)).toBe(20); // (10 + 30) / 2
@@ -79,10 +74,10 @@ test("determinism: sampling at the same time twice is identical", () => {
   const node = circleNode();
   const anim = makeAnim({
     duration: 100,
-    keyframes: [
+    tracks: buildKeyframeTracks([
       { offset: 0, properties: { r: 0 } },
       { offset: 1, properties: { r: 100 } },
-    ],
+    ]),
   });
   node.animations = [anim];
   const sched = new AnimationScheduler();
@@ -113,10 +108,10 @@ test("seek: timeline maps deterministically and matches direct sampling", () => 
     makeAnim({
       duration: 100,
       iterationCount: Infinity,
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
 
@@ -139,10 +134,10 @@ test("ordering: hover delta composes on animated values, no drift after hover", 
     makeAnim({
       duration: 100,
       iterationCount: Infinity,
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { translateX: 0 } },
         { offset: 1, properties: { translateX: 100 } },
-      ],
+      ]),
     }),
   ];
   node.hoverStyles = { transform: { translateX: 50 } }; // additive delta
@@ -170,10 +165,10 @@ test("fill-mode forwards: holds final values after the animation ends", () => {
   node.animations = [
     makeAnim({
       fillMode: "forwards",
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   const sched = new AnimationScheduler();
@@ -188,10 +183,10 @@ test("fill-mode none: reverts to base outside the active interval", () => {
   node.animations = [
     makeAnim({
       fillMode: "none",
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   const sched = new AnimationScheduler();
@@ -209,10 +204,10 @@ test("fill-mode backwards: applies the first keyframe during the delay", () => {
     makeAnim({
       delay: 100,
       fillMode: "backwards",
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { r: 0 } },
         { offset: 1, properties: { r: 100 } },
-      ],
+      ]),
     }),
   ];
   const sched = new AnimationScheduler();

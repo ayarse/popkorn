@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { interpolateKeyframes } from "./animation/keyframes";
+import {
+  buildKeyframeTracks,
+  interpolateKeyframes,
+} from "./animation/keyframes";
 import { getPropHandler } from "./animation/registry";
 import { computeTrim } from "./runtime/loop";
 import { buildSceneGraph } from "./scene/builder";
@@ -139,10 +142,10 @@ test("builder: stroke-linejoin keywords and miterlimit", () => {
 
 test("registry: trim-end interpolates between keyframes", () => {
   const node = firstNode("#p { type: circle; r: 50px; trim-end: 0%; }"); // base trimEnd = 0
-  const kf = [
+  const kf = buildKeyframeTracks([
     { offset: 0, properties: { "trim-end": 0 } },
     { offset: 1, properties: { "trim-end": 1 } },
-  ];
+  ]);
 
   resetNodeToBase(node);
   interpolateKeyframes(node, kf, 0);

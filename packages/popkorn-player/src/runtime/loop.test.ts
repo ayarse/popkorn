@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
+import { buildKeyframeTracks } from "../animation/keyframes";
 import type { Renderer } from "../renderer/interface";
 import type {
   Color,
@@ -43,10 +44,10 @@ function fadingDot(): SceneNode {
     direction: "normal",
     delay: 0,
     fillMode: "forwards",
-    keyframes: [
+    tracks: buildKeyframeTracks([
       { offset: 0, properties: { opacity: 0 } },
       { offset: 1, properties: { opacity: 1 } },
-    ],
+    ]),
   };
   node.animations = [fade];
   return node;

@@ -317,7 +317,7 @@ test("steps() parses in shorthand, longhand, and per-keyframe", () => {
     count: 4,
     position: "jump-none",
   });
-  expect(a.animations[0].keyframes[0].easing).toEqual({
+  expect(a.animations[0].tracks[0].stops[0].easing).toEqual({
     type: "steps",
     count: 3,
     position: "jump-start",
@@ -354,13 +354,13 @@ test("var() easing resolves identically to inline in shorthand/longhand/keyframe
   // Shorthand, longhand, and per-keyframe easing all resolve the var().
   expect(hoisted.animations[0].timingFunction).toEqual(expected);
   expect(long.animations[0].timingFunction).toEqual(expected);
-  expect(hoisted.animations[0].keyframes[0].easing).toEqual(expected);
+  expect(hoisted.animations[0].tracks[0].stops[0].easing).toEqual(expected);
   // ...and match the inline form byte-for-byte.
   expect(hoisted.animations[0].timingFunction).toEqual(
     inl.animations[0].timingFunction,
   );
-  expect(hoisted.animations[0].keyframes[0].easing).toEqual(
-    inl.animations[0].keyframes[0].easing,
+  expect(hoisted.animations[0].tracks[0].stops[0].easing).toEqual(
+    inl.animations[0].tracks[0].stops[0].easing,
   );
 });
 
@@ -374,11 +374,11 @@ test("keyframe block with a selector list applies at every listed offset", () =>
 #a { type: circle; r: 10px; animation: k 1s linear; }
 `;
   const [node] = build(src).children;
-  const kf = node.animations[0].keyframes;
-  expect(kf.map((k) => k.offset)).toEqual([0, 0.5, 1]);
-  expect(kf[0].properties.r).toBe(10);
-  expect(kf[1].properties.r).toBe(20);
-  expect(kf[2].properties.r).toBe(10); // the trailing 100% frame — dropped before the fix
+  const stops = node.animations[0].tracks[0].stops;
+  expect(stops.map((s) => s.offset)).toEqual([0, 0.5, 1]);
+  expect(stops[0].value).toBe(10);
+  expect(stops[1].value).toBe(20);
+  expect(stops[2].value).toBe(10); // the trailing 100% stop
 });
 
 test("linear() parses and distributes missing inputs per CSS L2", () => {
@@ -447,11 +447,12 @@ test("individual transform properties animate the same channels", () => {
 #a { type: rect; width: 10px; animation: k 1s linear; }
 `;
   const [a] = build(src).children;
-  const to = a.animations[0].keyframes[1].properties;
-  expect(to.translateX).toBe(100);
-  expect(to.translateY).toBe(50);
-  expect(to.scaleX).toBe(2);
-  expect(to.scaleY).toBe(3);
+  const to = (property: string) =>
+    a.animations[0].tracks.find((t) => t.property === property)!.stops[1].value;
+  expect(to("translateX")).toBe(100);
+  expect(to("translateY")).toBe(50);
+  expect(to("scaleX")).toBe(2);
+  expect(to("scaleY")).toBe(3);
 });
 
 test("individual transform properties in :hover state block", () => {
@@ -1167,9 +1168,9 @@ test("var: animated `d:` keyframes via var() morph carry commands, not empties",
     @keyframes morph { 0% { d: var(--a); } 100% { d: var(--b); } }
     #p { type: path; d: var(--a); animation: morph 1s; }
   `).children;
-  const kf = n.animations[0].keyframes;
-  expect((kf[0].properties.d as unknown[]).length).toBeGreaterThan(0);
-  expect((kf[kf.length - 1].properties.d as unknown[]).length).toBeGreaterThan(
+  const stops = n.animations[0].tracks[0].stops;
+  expect((stops[0].value as unknown[]).length).toBeGreaterThan(0);
+  expect((stops[stops.length - 1].value as unknown[]).length).toBeGreaterThan(
     0,
   );
 });

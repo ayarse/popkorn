@@ -12,7 +12,7 @@ function anim(partial: Partial<AnimationInstance>): AnimationInstance {
     direction: "normal",
     delay: 0,
     fillMode: "forwards",
-    keyframes: [],
+    tracks: [],
     ...partial,
   };
 }

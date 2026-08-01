@@ -92,7 +92,7 @@ export class AnimationScheduler {
     t: number,
   ): void {
     const {
-      keyframes,
+      tracks,
       delay,
       duration,
       iterationCount,
@@ -100,7 +100,7 @@ export class AnimationScheduler {
       fillMode,
       composition,
     } = animation;
-    if (keyframes.length === 0) return;
+    if (tracks.length === 0) return;
 
     const local = t - delay;
     const finite = iterationCount !== Infinity;
@@ -111,7 +111,7 @@ export class AnimationScheduler {
       if (fillMode === "backwards" || fillMode === "both") {
         interpolateKeyframes(
           node,
-          keyframes,
+          tracks,
           this.startProgress(animation),
           timingFunction,
           composition,
@@ -126,7 +126,7 @@ export class AnimationScheduler {
       if (fillMode === "forwards" || fillMode === "both") {
         interpolateKeyframes(
           node,
-          keyframes,
+          tracks,
           this.endProgress(animation),
           timingFunction,
           composition,
@@ -136,13 +136,7 @@ export class AnimationScheduler {
     }
 
     const progress = this.calculateProgress(animation, local);
-    interpolateKeyframes(
-      node,
-      keyframes,
-      progress,
-      timingFunction,
-      composition,
-    );
+    interpolateKeyframes(node, tracks, progress, timingFunction, composition);
   }
 
   private calculateProgress(
@@ -265,14 +259,14 @@ export function sampleInstanceAtProgress(
   instance: AnimationInstance,
   progress: number,
 ): void {
-  const { keyframes, timingFunction, composition, direction } = instance;
-  if (keyframes.length === 0) return;
+  const { tracks, timingFunction, composition, direction } = instance;
+  if (tracks.length === 0) return;
   const p = Math.max(0, Math.min(1, progress));
   // Single iteration (iteration 0): normal/alternate keep p; reverse and
   // alternate-reverse mirror it. Matches AnimationScheduler.applyDirection(p, 0, …).
   const directed =
     direction === "reverse" || direction === "alternate-reverse" ? 1 - p : p;
-  interpolateKeyframes(node, keyframes, directed, timingFunction, composition);
+  interpolateKeyframes(node, tracks, directed, timingFunction, composition);
 }
 
 /** Scrub every animation on a node to `progress`. See sampleInstanceAtProgress. */

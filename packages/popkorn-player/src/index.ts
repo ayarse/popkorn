@@ -14,7 +14,10 @@ export type {
 export { parse } from "@popkorn/parser";
 // Animation
 export { applyEasing } from "./animation/easing";
-export { interpolateKeyframes } from "./animation/keyframes";
+export {
+  buildKeyframeTracks,
+  interpolateKeyframes,
+} from "./animation/keyframes";
 export {
   AnimationScheduler,
   computeSceneDuration,
@@ -127,6 +130,8 @@ export type {
   GroupData,
   InteractionState,
   KeyframeData,
+  KeyframeStop,
+  KeyframeTrack,
   MaskMode,
   NodeBase,
   PaintOrder,

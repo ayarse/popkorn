@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
+import { buildKeyframeTracks } from "../animation/keyframes";
 import type { Renderer } from "../renderer/interface";
 import type {
   Color,
@@ -178,10 +179,10 @@ test("visibility interacts with looping: a wrapped time re-reveals the node", ()
   // has something to wrap against.
   n.animations = [
     {
-      keyframes: [
+      tracks: buildKeyframeTracks([
         { offset: 0, properties: { opacity: 1 } },
         { offset: 1, properties: { opacity: 1 } },
-      ],
+      ]),
       delay: 0,
       duration: 3000,
       iterationCount: 1,
