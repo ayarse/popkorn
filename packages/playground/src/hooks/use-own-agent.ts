@@ -142,7 +142,13 @@ export function useOwnAgent(
     if (sessionId && !wsRef.current) connect();
   }, []);
 
-  useEffect(() => () => wsRef.current?.close(), []);
+  useEffect(
+    () => () => {
+      wsRef.current?.close();
+      wsRef.current = null;
+    },
+    [],
+  );
 
   const mcpUrl = sessionId ? `${location.origin}/mcp/${sessionId}` : null;
   return { status, mcpUrl, clientName, events, connect, rotate, disconnect };
