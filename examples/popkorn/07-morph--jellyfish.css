@@ -1,7 +1,10 @@
 /* Author: AI Generated */
-/* Jellyfish morph — the bell, veil, and tentacles all animate path `d` values.
-   Each pair of keyframes keeps an identical command sequence, so Popkorn
-   interpolates the shapes instead of holding them. */
+/* Morph — path `d` interpolation with animated gradient stops, as a jellyfish.
+   The bell, veil, and tentacles all animate their `d`, and the bell's gradient
+   shifts hue across the same keyframes. Two rules make it interpolate instead
+   of hold: every pair of `d` keyframes keeps an identical command sequence, and
+   every pair of gradients keeps the same stop count. Break either and the
+   property snaps between states. */
 :root {
   width: 800px;
   height: 600px;
