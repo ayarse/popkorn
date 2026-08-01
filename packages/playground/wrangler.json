@@ -3,7 +3,7 @@
   "name": "popkorn-playground",
   "compatibility_date": "2026-07-30",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/server/entry.ts",
   "routes": [{ "pattern": "usepopkorn.dev", "custom_domain": true }],
   "d1_databases": [
     {
@@ -13,5 +13,9 @@
       "migrations_dir": "migrations"
     }
   ],
+  "durable_objects": {
+    "bindings": [{ "name": "COPILOT_SESSION", "class_name": "CopilotSession" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CopilotSession"] }],
   "observability": { "enabled": true }
 }
