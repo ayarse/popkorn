@@ -1578,12 +1578,15 @@ export const examples: Example[] = [
   font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
 }
 ` },
-  { key: "15-app-shell--tab-navigation.css", label: "App shell: Tab navigation", source: `/* Author: AI Generated */
-/* App shell — a real mobile UI, navigable, built entirely in Popkorn. Popkorn
-   isn't just for motion graphics: this is a wireframe app running inside a phone
-   frame, with a working bottom tab bar you can actually click through.
+  { key: "15-state-machine--app-shell.css", label: "State machine: App shell", source: `/* Author: AI Generated */
+/* State machine UI — a @machine with a \`state *\` wildcard driving the bottom tab
+   bar of a navigable mobile app shell. Popkorn isn't just for motion graphics:
+   this is a wireframe app running inside a phone frame, with a working tab bar
+   you can actually click through.
 
-   The tab bar is a @machine ("nav"): tapping a tab flips the state, and per-tab
+   \`state *\` is what makes it a tab bar rather than a cycle — the transitions are
+   declared once against every state, so any tab is reachable from any other in
+   one tap. Tapping flips the state, and per-tab
    :state(nav.*) rules light the active icon/label and fade in its content panel.
    Click Home / Search / Activity / Profile at the bottom of the screen.
 
