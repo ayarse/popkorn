@@ -1,134 +1,200 @@
 /* Author: AI Generated */
-/* Symbols and motion path — a starry night built from two reusable shapes.
-   The pedagogical payload: @define a shape once, `use:` it many times, and
-   override only what differs per instance (position, colour, size, twinkle
-   timing) right at the use-site. The stars stay put; the comets take the same
-   idiom onto a route — one `offset-path`, `offset-distance` walking it by arc
-   length, `offset-rotate: auto` aiming each comet down the tangent, and a
-   negative `animation-delay` putting the second one already in flight. */
+/* Symbols and motion path — a night circuit where one route does four jobs.
+   The pedagogical payload: `--circuit` holds the track geometry ONCE, and every
+   node that needs it (the asphalt, the racing line, the cars, the marshal
+   posts) folds the same string in. `@define` a car once, `use:` it four times,
+   override only what differs (colour, lap time, grid slot) at the use-site.
+   Then the same `offset-path` shows both of its faces: animated
+   `offset-distance` drives the cars around, while a STATIC `offset-distance`
+   computed from `sibling-index()` distributes fourteen repeated posts evenly
+   along the circuit — placement by arc length, not by hand-typed coordinates.
+   `offset-rotate: auto` aims both at the tangent, so cars steer through the
+   corners and posts stand square to the kerb. */
 :root {
   width: 800px;
   height: 600px;
-  background: #0b1026;
+  background: #0b0e14;
+
+  /* One closed circuit, referenced four times below. A :root var used in a
+     structural property (`d`, `offset-path`, `clip-path`, `mask`) is folded to
+     its literal at build time, so this is deduplication, not a live binding. */
+  --circuit: "M 380 490 C 310 483 250 470 190 470 C 120 470 90 400 120 340 C 150 280 260 300 300 250 C 340 200 340 130 400 110 C 470 88 560 120 620 160 C 700 215 720 330 660 410 C 610 478 480 500 380 490 Z";
 }
 
-@keyframes twinkle {
-  0%, 100% { transform: scale(1);   opacity: 0.45; }
-  50%      { transform: scale(1.5); opacity: 1;    }
+/* Infield: the same path, filled instead of stroked, to sink the middle. */
+#infield {
+  type: path;
+  d: var(--circuit);
+  fill: #0f1420;
 }
 
-/* The reusable symbol: a real 5-pointed star with a soft glow halo.
-   Every declaration here is a default — any #use-site below can override it.
-   `transform-origin: center` keeps the twinkle pulse scaling in place. */
-@define star {
-  type: star;
-  sides: 5;
-  outer-radius: 15px;
-  inner-radius: 6px;
-  fill: #eaf1ff;
-  transform-origin: center;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.4));
-  animation: twinkle 2.4s ease-in-out infinite;
+/* Kerb: two fatter copies of the same path, stacked under the asphalt so only
+   their 8px rim shows on each side. The red one is dashed, so the white one
+   below shows through the gaps — a striped kerb the whole way round, from a
+   `stroke-dasharray` instead of a hundred hand-placed blocks. */
+#kerb-white {
+  type: path;
+  d: var(--circuit);
+  fill: none;
+  stroke: #d8dee9;
+  stroke-width: 72px;
+  stroke-linejoin: round;
+}
+#kerb-red {
+  type: path;
+  d: var(--circuit);
+  fill: none;
+  stroke: #b23a3a;
+  stroke-width: 72px;
+  stroke-linejoin: round;
+  stroke-dasharray: 22px 22px;
 }
 
-/* Crescent moon: a pale disc with a second disc masked out of it
-   (`alpha-invert` = destination-out = subtract) to carve the crescent. The
-   drop-shadow lives on the *group*, not the disc, so it glows the composited
-   crescent — put it on the disc and the shadow is computed from the full
-   circle's alpha (before the mask), ghosting a ring around the whole disc. */
-#moon {
-  filter: drop-shadow(0 0 14px rgba(246, 243, 216, 0.45));
-  > #moon-disc {
-    type: circle;
-    cx: 660px; cy: 160px; r: 46px;
-    fill: #f6f3d8;
-    mask: #moon-shade alpha-invert;
+/* Asphalt: one fat round-joined stroke. Track width 56px sets every other
+   measurement in the scene — the cars are 45px long, the checkers span 4 rows
+   of 14px, the posts stand 44px off the centreline (just clear of the verge). */
+#asphalt {
+  type: path;
+  d: var(--circuit);
+  fill: none;
+  stroke: #262b36;
+  stroke-width: 56px;
+  stroke-linejoin: round;
+}
+
+/* Racing line: same path again, hairline and dashed. */
+#racing-line {
+  type: path;
+  d: var(--circuit);
+  fill: none;
+  stroke: #3d4557;
+  stroke-width: 2px;
+  stroke-dasharray: 16px 22px;
+}
+
+/* Start/finish checkers. Four dashed rows, alternating the dash phase by half a
+   period, make a checkerboard out of one repeated node — `repeat: 4` stamps the
+   row, `sibling-index()` stacks it and flips `stroke-dashoffset`. The group
+   rides the circuit at distance 0 rather than carrying hand-typed coordinates:
+   the path start IS the start line, and `offset-rotate: auto` squares the band
+   to the asphalt for free. Children stay authored around the local origin. */
+#start-line {
+  offset-path: path(var(--circuit));
+  offset-distance: 0%;
+  offset-rotate: auto;
+  > #row {
+    type: path;
+    d: "M -21 0 L 21 0";
+    stroke: #dbe4f0;
+    stroke-width: 14px;
+    stroke-dasharray: 14px 14px;
+    repeat: 4;
+    transform: translate(0, calc(sibling-index() * 14 - 35));
+    stroke-dashoffset: calc(mod(sibling-index(), 2) * 14px);
   }
 }
-#moon-shade {
-  type: circle;
-  cx: 640px; cy: 144px; r: 44px;
-  fill: #f6f3d8;
+
+@keyframes blink {
+  0%, 100% { opacity: 0.3; }
+  50%      { opacity: 1;   }
 }
 
-/* The starfield: twelve instances of the one symbol, sorted into three depth
-   tiers to fake parallax. Each use-site overrides only what makes that star
-   different, and the tier sets three channels together: NEAR stars are big,
-   bright-white and twinkle slowly; FAR stars are tiny, dim blue-grey and
-   twinkle fast. (Size/colour ride on the overrides, not `scale`/`opacity`, so
-   they never fight the twinkle animation.) A negative `animation-delay`
-   desyncs each into a shimmer instead of pulsing in lockstep. */
-/* near — big, bright, slow */
-#s1  { use: star; cx: 110px; cy: 200px; fill: #f8fafc; outer-radius: 19px; inner-radius: 9px; animation-delay: -0.2s; animation-duration: 3.4s; }
-#s3  { use: star; cx: 200px; cy: 410px; fill: #f8fafc; outer-radius: 20px; inner-radius: 9px; animation-delay: -0.7s; animation-duration: 3.6s; }
-#s9  { use: star; cx: 470px; cy: 430px; fill: #f8fafc; outer-radius: 18px; inner-radius: 8px; animation-delay: -1.0s; animation-duration: 3.3s; }
-/* mid */
-#s2  { use: star; cx: 250px; cy: 250px; fill: #cfe3ff; outer-radius: 12px; inner-radius: 5px; animation-delay: -1.3s; animation-duration: 2.5s; }
-#s5  { use: star; cx: 410px; cy: 360px; fill: #e0e7ff; outer-radius: 13px; inner-radius: 6px; animation-delay: -0.5s; animation-duration: 2.6s; }
-#s10 { use: star; cx: 580px; cy: 420px; fill: #cfe3ff; outer-radius: 13px; inner-radius: 6px; animation-delay: -0.3s; animation-duration: 2.5s; }
-#s12 { use: star; cx: 150px; cy: 330px; fill: #e0e7ff; outer-radius: 12px; inner-radius: 5px; animation-delay: -0.8s; animation-duration: 2.6s; }
-/* far — tiny, dim, fast */
-#s4  { use: star; cx: 360px; cy: 200px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -2.0s; animation-duration: 1.8s; }
-#s6  { use: star; cx: 540px; cy: 300px; fill: #8793c4; outer-radius: 9px;  inner-radius: 4px; animation-delay: -1.7s; animation-duration: 1.9s; }
-#s7  { use: star; cx: 300px; cy: 150px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -0.9s; animation-duration: 1.7s; }
-#s8  { use: star; cx: 700px; cy: 380px; fill: #8793c4; outer-radius: 9px;  inner-radius: 4px; animation-delay: -2.3s; animation-duration: 2.0s; }
-#s11 { use: star; cx: 740px; cy: 300px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -1.5s; animation-duration: 1.8s; }
-
-/* The comet route: one arc, drawn once as a faint dashed guide so the path the
-   comets ride is visible. Both #comet use-sites repeat it as their offset-path —
-   `offset-path` takes the geometry inline, not a reference to this node. */
-#route {
-  type: path;
-  d: "M -60 300 Q 360 120 860 340";
-  fill: none;
-  stroke: #2a3350;
-  stroke-width: 2px;
-  stroke-dasharray: 6px 14px;
-  stroke-linecap: round;
-}
-
-/* offset-distance walks the route by ARC LENGTH, so a comet holds a steady
-   speed through the curve instead of racing the flat parts. The 8%/88% pair
-   fades the comet in and out without breaking that steady walk: offset-distance
-   is keyed at the same beats so its progress stays linear in time. */
-@keyframes fly {
-  0%   { offset-distance: 0%;   opacity: 0; }
-  8%   { offset-distance: 8%;   opacity: 1; }
-  88%  { offset-distance: 88%;  opacity: 1; }
-  100% { offset-distance: 100%; opacity: 0; }
-}
-
-/* The second symbol: a comet drawn nose-first along +x (head at +18, tail
-   trailing to -46) so `offset-rotate: auto` — which aligns +x with the path
-   tangent — points it the way it's travelling. */
-@define comet {
-  type: path;
-  d: "M 18 0 L -30 6 Q -46 0 -30 -6 Z";
-  fill: #fdf6d8;
-  filter: drop-shadow(0 0 8px rgba(253, 246, 216, 0.7));
-  offset-path: path("M -60 300 Q 360 120 860 340");
+/* Symbol one: a marshal post — a stub of a mast with an amber lamp on top. It
+   rides the circuit like the cars do, but its `offset-distance` never animates:
+   the motion path is being used purely as a placement tool. Geometry is authored
+   around the local origin, then pushed out to y: -40 and beyond so
+   `offset-rotate: auto` (which aligns local +x with the tangent, and therefore
+   local -y with the outside of the loop) stands it just clear of the kerb. */
+@define marshal {
+  type: rect;
+  x: -1.5px; y: -50px; width: 3px; height: 14px;
+  rx: 1px;
+  fill: #3d4557;
+  offset-path: path(var(--circuit));
   offset-rotate: auto;
-  animation: fly 7s linear infinite;
+  animation: blink 1.6s ease-in-out infinite;
+
+  > #lamp {
+    type: circle;
+    cx: 0px; cy: -52px; r: 4px;
+    fill: #fbbf24;
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.7));
+  }
 }
 
-#comet1 { use: comet; }
-#comet2 { use: comet; fill: #bfe4ff; animation-delay: -3.5s; }
+/* Fourteen posts, zero hand-typed positions: index/count spreads them by arc
+   length so the spacing stays even through the corners. The family gets its own
+   group because sibling-count() counts ALL siblings, not just the repeated ones. */
+#marshals {
+  > #post {
+    use: marshal;
+    repeat: 14;
+    offset-distance: calc((sibling-index() - 1) / sibling-count() * 100%);
+    animation-delay: calc(sibling-index() * -0.11s);
+  }
+}
 
-/* Hills silhouette along the bottom, darker than the sky for depth. */
-#hills {
+/* offset-distance walks the route by ARC LENGTH, so a car holds a steady speed
+   through the bends instead of racing the straights. Linear easing plus a
+   closed path means the loop point is seamless. */
+@keyframes lap {
+  from { offset-distance: 0%;   }
+  to   { offset-distance: 100%; }
+}
+
+/* Symbol two: the car, drawn nose-first along +x (nose at +24, gearbox at -21)
+   so `offset-rotate: auto` points it the way it's travelling. The SYMBOL NODE
+   ITSELF is the coloured shell — a shape paints its own geometry first, then its
+   children — so the wings, tyres and cockpit ride on top as fixed dark parts
+   while `fill` stays a single-declaration override at every use-site. (Children
+   can't be overridden per instance: a use-site's children are appended to the
+   definition's, not merged into them.) */
+@define car {
   type: path;
-  d: "M0 490 Q 200 450 400 485 Q 600 515 800 478 L 800 600 L 0 600 Z";
-  fill: #05060f;
+  d: "M 25 0 L 22 -2.5 L 10 -3.5 L 6 -10 L -8 -11 L -19 -10 L -22 -5 L -22 5 L -19 10 L -8 11 L 6 10 L 10 3.5 L 22 2.5 Z";
+  fill: #f43f5e;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+  offset-path: path(var(--circuit));
+  offset-rotate: auto;
+  animation: lap 9s linear infinite;
+
+  > #front-wing { type: rect; x: 20px;  y: -10px; width: 4px; height: 20px; rx: 1px; fill: #2b3446; }
+  > #rear-wing  { type: rect; x: -25px; y: -9px;  width: 4px; height: 18px; rx: 1px; fill: #2b3446; }
+  > #tyre-fl { type: rect; x: 5px;   y: -13px; width: 9px;  height: 5px; rx: 2px; fill: #0d1017; }
+  > #tyre-fr { type: rect; x: 5px;   y: 8px;   width: 9px;  height: 5px; rx: 2px; fill: #0d1017; }
+  > #tyre-rl { type: rect; x: -16px; y: -14px; width: 10px; height: 6px; rx: 2px; fill: #0d1017; }
+  > #tyre-rr { type: rect; x: -16px; y: 8px;   width: 10px; height: 6px; rx: 2px; fill: #0d1017; }
+  > #cockpit { type: ellipse; cx: -2px; cy: 0px; rx: 5px; ry: 3px; fill: #0b0e14; opacity: 0.9; }
 }
+
+/* Four use-sites, three overrides each. The negative delay is the grid: it
+   starts each car already that far into its lap. The durations differ by a few
+   hundred milliseconds, so the pack shuffles instead of orbiting in formation. */
+#car1 { use: car; fill: #f43f5e; animation-duration: 8.4s; animation-delay: -0.4s; }
+#car2 { use: car; fill: #38bdf8; animation-duration: 8.9s; animation-delay: -1.9s; }
+#car3 { use: car; fill: #a3e635; animation-duration: 9.4s; animation-delay: -3.6s; }
+#car4 { use: car; fill: #a78bfa; animation-duration: 9.1s; animation-delay: -5.2s; }
 
 #title {
   type: text;
-  content: "One @define, many stars — and a comet on a path";
-  x: 400px;
-  y: 90px;
-  font-size: 24px;
+  content: "SYMBOL CIRCUIT";
+  x: 450px;
+  y: 344px;
+  font-size: 26px;
   font-family: sans-serif;
   font-weight: bold;
+  letter-spacing: 5px;
   text-anchor: middle;
-  fill: #e2e8f0;
+  fill: #232b3a;
+}
+
+#subtitle {
+  type: text;
+  content: "one @define · one route · many riders";
+  x: 450px;
+  y: 372px;
+  font-size: 14px;
+  font-family: sans-serif;
+  text-anchor: middle;
+  fill: #1c2330;
 }
