@@ -185,20 +185,28 @@ function AgentChat({
               <span>{error}</span>
             </div>
           )}
-          {messages.length <= 1 && !typing && !error && (
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  type="button"
-                  key={s}
-                  onClick={() => send(s)}
-                  className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          {messages.length <= 1 &&
+            !typing &&
+            !error &&
+            (!config && own.status === "idle" ? (
+              <SetupChooser
+                onConnect={() => setConnectOpen(true)}
+                onBringKey={() => setSettingsOpen(true)}
+              />
+            ) : (
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    type="button"
+                    key={s}
+                    onClick={() => send(s)}
+                    className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            ))}
         </div>
 
         <form
@@ -536,6 +544,62 @@ function ReasoningControl({
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// First-open empty state, shown in place of suggestion chips until either an
+// agent connects or a key is saved — the chips otherwise just error.
+function SetupChooser({
+  onConnect,
+  onBringKey,
+}: {
+  onConnect: () => void;
+  onBringKey: () => void;
+}) {
+  return (
+    <div className="mt-1 flex flex-col gap-1.5">
+      <div className="text-[11px] text-muted-foreground">
+        Two ways to use Copilot:
+      </div>
+      <SetupOption
+        icon={Plug}
+        label="Connect your agent"
+        caption="Drive edits from Claude Code, Codex, or any MCP client"
+        onClick={onConnect}
+      />
+      <SetupOption
+        icon={Settings}
+        label="Bring your own key"
+        caption="Chat here via any OpenAI-compatible API"
+        onClick={onBringKey}
+      />
+    </div>
+  );
+}
+
+function SetupOption({
+  icon: Icon,
+  label,
+  caption,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  caption: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-start gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary"
+    >
+      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0">
+        <div className="text-[13px] text-foreground">{label}</div>
+        <div className="text-[11px] text-muted-foreground">{caption}</div>
+      </div>
+    </button>
   );
 }
 

@@ -118,7 +118,7 @@ export function useAgentChat(
 
       if (!config) {
         setTyping(false);
-        setError("Add your API key in settings to start chatting.");
+        setError("Connect your own agent or add an API key to start chatting.");
         setSettingsOpen(true);
         return;
       }
