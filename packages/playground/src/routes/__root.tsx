@@ -65,21 +65,24 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: favicon },
     ],
-    scripts: [
-      {
-        src: "https://www.googletagmanager.com/gtag/js?id=G-WMECFVPC03",
-        async: true,
-      },
-      {
-        children:
-          "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-WMECFVPC03');",
-      },
-      {
-        src: "https://cloud.umami.is/script.js",
-        defer: true,
-        "data-website-id": "29f483fa-c21e-43ae-9478-0e4ef8d23d72",
-      },
-    ],
+    // ponytail: dev builds ship no analytics at all, so localhost never counts.
+    scripts: import.meta.env.DEV
+      ? []
+      : [
+          {
+            src: "https://www.googletagmanager.com/gtag/js?id=G-WMECFVPC03",
+            async: true,
+          },
+          {
+            children:
+              "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','G-WMECFVPC03');",
+          },
+          {
+            src: "https://cloud.umami.is/script.js",
+            defer: true,
+            "data-website-id": "29f483fa-c21e-43ae-9478-0e4ef8d23d72",
+          },
+        ],
   }),
   shellComponent: RootDocument,
 });

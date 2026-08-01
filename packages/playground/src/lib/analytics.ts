@@ -9,6 +9,7 @@ type Gtag = (
 type Umami = { track: (name: string, data?: Record<string, unknown>) => void };
 
 export function track(event: string, data?: Record<string, string | number>) {
+  if (import.meta.env.DEV) return;
   (window as unknown as { umami?: Umami }).umami?.track(event, data);
   (window as unknown as { gtag?: Gtag }).gtag?.("event", event, data);
 }
