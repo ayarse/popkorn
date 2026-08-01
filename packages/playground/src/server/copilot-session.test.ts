@@ -1,5 +1,19 @@
 import { describe, expect, test } from "bun:test";
-import { PendingCalls } from "./copilot-session";
+import { localToolResult, PendingCalls } from "./copilot-session";
+
+describe("localToolResult", () => {
+  test("read_docs returns the authoring guide", () => {
+    const result = localToolResult("read_docs");
+    expect(result).not.toBeNull();
+    expect(result?.isError).toBe(false);
+    expect(result?.text.length).toBeGreaterThan(1000);
+    expect(result?.text).toContain("## Quick reference");
+  });
+
+  test("anything else falls through to the tab relay", () => {
+    expect(localToolResult("get_outline")).toBeNull();
+  });
+});
 
 describe("PendingCalls", () => {
   test("resolve() settles the matching promise", async () => {

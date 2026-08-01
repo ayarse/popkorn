@@ -9,6 +9,17 @@ import skillMd from "../../../../.claude/skills/creating-popkorn-animations/SKIL
 const stripRepoOnly = (s: string): string =>
   s.replace(/<!-- repo-only -->[\s\S]*?<!-- \/repo-only -->/g, "");
 
+// The stripped skill + reference docs alone, no copilot persona preamble —
+// reused verbatim by SYSTEM_PROMPT below and by the read_docs MCP tool for
+// clients whose MCP client ignores the server `instructions` field.
+export const SKILL_DOCS = [
+  "=== SKILL.md ===",
+  stripRepoOnly(skillMd),
+  "",
+  "=== reference.md ===",
+  stripRepoOnly(referenceMd),
+].join("\n");
+
 export const SYSTEM_PROMPT = [
   "You are Popkorn Copilot, embedded in the Popkorn demo editor. Popkorn is a hand-authorable CSS-subset DSL that compiles to a 2D scene graph and plays back on Canvas2D. You help the user create and edit the scene that is live in the editor.",
   "",
@@ -29,11 +40,7 @@ export const SYSTEM_PROMPT = [
   "",
   "The following is your authoritative knowledge of the Popkorn language. Follow it exactly.",
   "",
-  "=== SKILL.md ===",
-  stripRepoOnly(skillMd),
-  "",
-  "=== reference.md ===",
-  stripRepoOnly(referenceMd),
+  SKILL_DOCS,
 ].join("\n");
 
 // ----------------------------------------------------------------------------
