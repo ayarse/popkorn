@@ -734,7 +734,9 @@ Any of these works as the shorthand default easing or per-keyframe via
 }
 ```
 
-Keyframe blocks need not be authored in ascending order (they're sorted). If a
+Keyframe blocks need not be authored in ascending order (they're sorted). Each
+property animates off the keyframes that declare it, so a property omitted from
+an intermediate keyframe interpolates straight across it, per CSS. If a
 property's earliest keyframe isn't at 0% or its latest isn't at 100%, the
 missing edge is synthesized from the element's base value, per CSS — the
 implicit keyframe uses the animation's default timing function (an explicit

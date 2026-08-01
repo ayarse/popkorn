@@ -746,7 +746,7 @@ Supported (standard CSS seek-forward). `animation: slide 1s linear -0.5s` starts
 
 - Selectors: `from` (=0), `to` (=100), or `<n>%`, normalized to a 0–1 timeline. A multi-selector block takes its first selector's offset.
 - **`transform:` in a keyframe is decomposed** into `translateX/translateY/rotate/scaleX/scaleY` so it merges with (not replaces) the base transform.
-- A property omitted from a keyframe falls back to the node's authored base value.
+- Each property animates off its own keyframes, per CSS: a property omitted from an intermediate keyframe interpolates straight across it (`0% { opacity: 0; r: 10px } 50% { opacity: 1 } 100% { opacity: 0; r: 50px }` sweeps `r` 10 → 50 over the whole timeline). The node's authored base value is only used at the edges — if a property's earliest keyframe isn't `0%` (or its latest isn't `100%`), the missing edge is synthesized from base.
 
 ### Animatable properties
 

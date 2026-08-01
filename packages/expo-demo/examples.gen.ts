@@ -193,8 +193,9 @@ export const examples: Example[] = [
 
 /* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still
    (the held beat), and stand back up. The fall sits at 45% of the timeline so
-   the delays below can aim it at the frame the ball arrives. Every keyframe
-   restates the transform so the rotate track never drops to base. */
+   the delays below can aim it at the frame the ball arrives. Each keyframe
+   carries the easing for the segment departing from it, which is why the beats
+   are keyed individually. */
 @keyframes topple {
   0%   { transform: rotate(0deg);  animation-timing-function: linear; }
   45%  { transform: rotate(0deg);  animation-timing-function: cubic-bezier(0.5, 0, 0.85, 0.35); }
@@ -580,10 +581,9 @@ export const examples: Example[] = [
 }
 
 /* offset-distance walks the route by ARC LENGTH, so a comet holds a steady
-   speed through the curve instead of racing the flat parts. Every keyframe
-   restates offset-distance, the same discipline the domino scene applies to
-   transform: a property only interpolates across keyframes that declare it, so
-   omitting it in the middle two would park the comet at 0% until the last leg. */
+   speed through the curve instead of racing the flat parts. The 8%/88% pair
+   fades the comet in and out without breaking that steady walk: offset-distance
+   is keyed at the same beats so its progress stays linear in time. */
 @keyframes fly {
   0%   { offset-distance: 0%;   opacity: 0; }
   8%   { offset-distance: 8%;   opacity: 1; }
