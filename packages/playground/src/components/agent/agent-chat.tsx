@@ -3,6 +3,7 @@ import {
   Brain,
   LoaderCircle,
   type LucideIcon,
+  Plug,
   RotateCcw,
   Send,
   Settings,
@@ -12,6 +13,7 @@ import {
 import { marked } from "marked";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentSettings } from "@/components/agent/agent-settings";
+import { ConnectAgent } from "@/components/agent/connect-agent";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,6 +28,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAgentChat } from "@/hooks/use-agent-chat";
+import { useOwnAgent } from "@/hooks/use-own-agent";
 import {
   type AgentConfig,
   type Message,
@@ -63,6 +66,8 @@ function AgentChat({
     send,
     revert,
   } = useAgentChat(source, onApplySource);
+  const own = useOwnAgent(source, onApplySource);
+  const [connectOpen, setConnectOpen] = useState(false);
 
   // Set the reasoning mode without touching the rest of the config (persists
   // through the same saveConfig round trip as the settings dialog). undefined
@@ -97,7 +102,7 @@ function AgentChat({
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, typing, open, error]);
+  }, [messages, typing, open, error, own.events, own.status]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,9 +134,18 @@ function AgentChat({
               Popkorn Copilot
             </div>
             <div className="truncate text-[11px] text-muted-foreground">
-              {config ? `${config.model}` : "Not configured"}
+              {own.status === "connected"
+                ? `${own.clientName ?? "Your agent"} connected`
+                : config
+                  ? `${config.model}`
+                  : "Not configured"}
             </div>
           </div>
+          <HeaderIconButton
+            icon={Plug}
+            label="Use your own agent"
+            onClick={() => setConnectOpen(true)}
+          />
           <HeaderIconButton
             icon={Settings}
             label="Agent settings"
@@ -152,6 +166,18 @@ function AgentChat({
               streaming={typing && streamingId === m.id}
             />
           ))}
+          {own.events.length > 0 && (
+            <Bubble
+              message={{
+                id: -1,
+                role: "agent",
+                text: "",
+                toolEvents: own.events,
+              }}
+              onRevert={() => {}}
+              streaming={own.status === "connected"}
+            />
+          )}
           {typing && streamingId === null && <TypingBubble />}
           {error && (
             <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[11px] leading-relaxed text-destructive">
@@ -224,6 +250,15 @@ function AgentChat({
             current={config}
             onSave={applyConfig}
             onClose={() => setSettingsOpen(false)}
+          />
+        )}
+        {connectOpen && (
+          <ConnectAgent
+            status={own.status}
+            mcpUrl={own.mcpUrl}
+            clientName={own.clientName}
+            onConnect={own.connect}
+            onClose={() => setConnectOpen(false)}
           />
         )}
       </div>

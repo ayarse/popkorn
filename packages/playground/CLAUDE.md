@@ -129,6 +129,17 @@ Non-obvious operational facts:
 Locally: `bunx wrangler d1 migrations apply popkorn --local` once, then
 `bun run dev`.
 
+## Bring-your-own-agent (MCP)
+
+`/mcp/<uuid>` on the worker is a minimal streamable-HTTP MCP endpoint
+(`src/server/mcp.ts`, protocol core; `src/server/copilot-session.ts`,
+Durable Object relay). The playground tab holds `/mcp/<uuid>/tab` as a
+WebSocket (`use-own-agent.ts`) and executes relayed tool calls against the
+live editor buffer via the same `executeTool` path as the BYOK Copilot.
+The worker entry is custom (`src/server/entry.ts`) because DO classes must
+be exported from `main`. Tool defs + system prompt live import-light in
+`lib/agent-defs.ts` so the DO bundle never pulls in parser/player.
+
 ## Verify
 
 `bun --filter @popkorn/playground build` green + browser eyeball (canvas bugs

@@ -20,7 +20,7 @@ import {
 
 // The gallery scenes, exposed to the read_example tool for from-scratch few-shot.
 // Keyed by the human label ("State machine: Pip") the loader already derives.
-const AGENT_EXAMPLES = galleryExamples.map((e) => ({
+export const AGENT_EXAMPLES = galleryExamples.map((e) => ({
   name: e.label,
   source: e.source,
 }));
@@ -38,7 +38,7 @@ function buildUserMessage(source: string, request: string): string {
 }
 
 // A compact human label for a tool call, shown as a status row in the bubble.
-function toolLabel(ev: ToolEvent): string {
+export function toolLabel(ev: ToolEvent): string {
   switch (ev.name) {
     case "get_outline":
       return "outline";
