@@ -11,7 +11,8 @@ import { VariableResolver } from "../packages/popkorn-player/src/runtime/variabl
 import { buildSceneGraph } from "../packages/popkorn-player/src/scene/builder";
 import type { SceneNode } from "../packages/popkorn-player/src/scene/types";
 
-const file = process.argv[2] ?? "examples/popkorn/22-p5-particle-field.css";
+const file =
+  process.argv[2] ?? "examples/popkorn/22-procedural--particle-field.css";
 const ast = parse(readFileSync(file, "utf8"));
 const root = buildSceneGraph(ast);
 

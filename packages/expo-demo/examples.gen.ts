@@ -9192,7 +9192,7 @@ export const examples: Example[] = [
   fill: #cdd6e3;
 }
 ` },
-  { key: "20-math--watch-face.css", label: "Math: Watch face", source: `/* Author: AI Generated */
+  { key: "20-procedural--astronomical-watch.css", label: "Procedural: Astronomical watch", source: `/* Author: AI Generated */
 /*
  * Astronomical complication watch — an orrery / moon-phase face driven purely
  * by reactive trig + modular math on input(time), no @keyframes. Scene time
@@ -9462,8 +9462,9 @@ export const examples: Example[] = [
   stroke-width: 3px;
 }
 ` },
-  { key: "21-particles--x-logo.css", label: "Particles: X logo", source: `/* Author: AI Generated */
-/* Particle X — the X (formerly Twitter) logo assembled from a swarm of dots.
+  { key: "21-procedural--x-logo.css", label: "Procedural: X logo", source: `/* Author: AI Generated */
+/* Procedural instancing — \`repeat:\` + \`sibling-index()\` formulas + motion path,
+   building the X (formerly Twitter) logo from a swarm of dots.
    The generative trio in one scene: \`repeat:\` stamps 389 copies of one
    @define'd dot, ONE shared @keyframes flies them all — each copy's inbound
    arc, hold shimmer, burst vector and stagger derive from sibling-index()
@@ -9545,10 +9546,11 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "22-p5-particle-field.css", label: "P5 particle field", source: `/* Author: AI Generated, after @yuruyurau
+  { key: "22-procedural--particle-field.css", label: "Procedural: Particle field", source: `/* Author: AI Generated, after @yuruyurau
    Author URL: https://x.com/yuruyurau */
-/* Port of a p5.js one-liner particle field.
-   Original by @yuruyurau on X (https://x.com/yuruyurau).
+/* Procedural field — 10000 \`repeat:\` copies placed entirely by one calc()
+   expression of sibling-index() and input(time), no @keyframes anywhere.
+   Ported from a p5.js one-liner; original by @yuruyurau on X.
    p5:  a=(x,y,d=mag(k=4*cos(x/21),e=y/8-20))=>circle(
           (q=3*sin(k*2)+.3/k+sin(y/19)*k*(9+2*sin(e*14-d*3+t*2)))+50*cos(c=d-t)+200,
           q*sin(c)+d*39-475, k*k>15?2:1)

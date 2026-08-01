@@ -1,5 +1,6 @@
 /* Author: AI Generated */
-/* Particle X — the X (formerly Twitter) logo assembled from a swarm of dots.
+/* Procedural instancing — `repeat:` + `sibling-index()` formulas + motion path,
+   building the X (formerly Twitter) logo from a swarm of dots.
    The generative trio in one scene: `repeat:` stamps 389 copies of one
    @define'd dot, ONE shared @keyframes flies them all — each copy's inbound
    arc, hold shimmer, burst vector and stagger derive from sibling-index()
