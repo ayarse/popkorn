@@ -113,71 +113,88 @@ export const examples: Example[] = [
     #22d3ee 0%, #22d3ee 8%, #0e1016 8%, #0e1016 16%);
 }
 ` },
-  { key: "02-basics--bouncy-ball.css", label: "Basics: Bouncy ball", source: `/* Author: AI Generated */
-/* Bounce — per-keyframe easing with squash & stretch */
+  { key: "02-basics--bounce-and-cascade.css", label: "Basics: Bounce and cascade", source: `/* Author: AI Generated */
+/* Basics — per-keyframe easing, squash & stretch, and a staggered cascade.
+   A ball drops in from off-stage, bounces twice on the shelf, then rolls the
+   length of it and topples a colour cascade. Two lessons in one phrase: the
+   entry shows easing set *per keyframe* (accelerate down, decelerate up) with
+   squash on its own track, and the dominoes show choreography by negative
+   \`animation-delay\` — one shared @keyframes, eight phase-shifted copies. */
 :root {
   width: 800px;
   height: 600px;
 }
 
 /*
- * Two channels, like a real rig: position is one clean gravity arc with a
- * single reversal at the floor, and squash lives in its own animation that
- * stays round through the flight and pulses only at impact. The beziers are
- * the tangents AE artists use for gravity (accelerate down, decelerate up).
+ * Channels are split across a small hierarchy, the way a real rig is: the outer
+ * node carries horizontal travel, its child the vertical arc, its child the
+ * squash, its child the spin. Keeping them on separate nodes is what lets the
+ * ball ease vertically (gravity) while its horizontal speed stays dead
+ * constant — a projectile doesn't hang in the air at the top of its arc.
  */
-@keyframes ballBounce {
-  0%   { transform: translateY(0);     animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
-  50%  { transform: translateY(280px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
-  100% { transform: translateY(0); }
+
+/* Horizontal travel: one linear sweep at 200px/s from off-stage left to
+   off-stage right, so every timing below is just a position divided by that
+   speed. The last 5% parks it off-stage, hidden, while the loop reseeds. */
+@keyframes travel {
+  0%   { transform: translateX(100px); }
+  95%  { transform: translateX(860px); }
+  100% { transform: translateX(860px); }
 }
 
-@keyframes ballSquash {
-  0%, 45%   { transform: scaleX(1) scaleY(1); }
-  50%       { transform: scaleX(1.3) scaleY(0.7); }
-  55%, 100% { transform: scaleX(1) scaleY(1); }
+/* The vertical arc. Impacts land at 10% (x=180), 22.5% (x=280) and 28.75%
+   (x=330, the first domino) — each one the moment \`travel\` puts the ball there.
+   The beziers are the tangents AE artists use for gravity: accelerate into the
+   floor, decelerate out of it. After the third landing the ball is rolling, so
+   the height simply holds. */
+@keyframes hop {
+  0%     { transform: translateY(-60px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
+  10%    { transform: translateY(418px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
+  16.25% { transform: translateY(308px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
+  22.5%  { transform: translateY(418px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
+  25.6%  { transform: translateY(358px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
+  28.75% { transform: translateY(418px); animation-timing-function: linear; }
+  100%   { transform: translateY(418px); }
 }
 
-@keyframes shadowPulse {
-  0%   { transform: scaleX(0.5) scaleY(1); opacity: 0.2; animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
-  50%  { transform: scaleX(1.4) scaleY(1); opacity: 0.5; animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
-  100% { transform: scaleX(0.5) scaleY(1); opacity: 0.2; }
+/* Squash lives on its own track so the ball stays round through the flight and
+   deforms only on contact — stretched thin by the long first fall, flattened
+   hardest by the heaviest landing, then progressively less as it loses energy. */
+@keyframes squash {
+  0%, 3%        { transform: scaleX(1) scaleY(1); }
+  6%            { transform: scaleX(0.9) scaleY(1.12); }
+  10%           { transform: scaleX(1.3) scaleY(0.7); }
+  14%, 21%      { transform: scaleX(1) scaleY(1); }
+  22.5%         { transform: scaleX(1.2) scaleY(0.82); }
+  24.5%, 27.5%  { transform: scaleX(1) scaleY(1); }
+  28.75%        { transform: scaleX(1.12) scaleY(0.9); }
+  30.5%, 100%   { transform: scaleX(1) scaleY(1); }
 }
 
-#ground { type: rect; x: 100px; y: 480px; width: 600px; height: 4px; rx: 2px; fill: #4a4a6a; }
-
-#ballShadow {
-  type: ellipse; cx: 400px; cy: 475px; rx: 50px; ry: 8px; fill: #000000;
-  transform-origin: center;
-  animation: shadowPulse 1.2s linear infinite;
+/* 760px of travel over a 44px ball is 5.5 turns — linear, because the
+   horizontal speed is constant, so the roll never slips. */
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  95%  { transform: rotate(1980deg); }
+  100% { transform: rotate(1980deg); }
 }
 
-#ball {
-  type: circle; cx: 400px; cy: 150px; r: 40px; fill: #ff6b6b;
-  transform-origin: center bottom;
-  animation: ballBounce 1.2s linear infinite, ballSquash 1.2s linear infinite;
+/* The contact shadow stays on the ground and reads the ball's height: tight and
+   faint at the top of an arc, wide and dark at each impact. */
+@keyframes contactShadow {
+  0%     { transform: scaleX(0.35); opacity: 0;    }
+  10%    { transform: scaleX(1.3);  opacity: 0.45; }
+  16.25% { transform: scaleX(0.6);  opacity: 0.18; }
+  22.5%  { transform: scaleX(1.2);  opacity: 0.4;  }
+  25.6%  { transform: scaleX(0.8);  opacity: 0.26; }
+  28.75% { transform: scaleX(1.1);  opacity: 0.4;  }
+  100%   { transform: scaleX(1.1);  opacity: 0.4;  }
 }
 
-#ballHighlight {
-  type: circle; cx: 385px; cy: 135px; r: 12px; fill: #ffaaaa;
-  transform-origin: 400px 190px;
-  animation: ballBounce 1.2s linear infinite;
-}
-` },
-  { key: "03-basics--dominoes.css", label: "Basics: Dominoes", source: `/* Author: AI Generated */
-/* Motion — a domino run. A ball rolls in at constant speed and topples a colour
-   cascade; each tile falls under gravity (accelerating ease-in), rebounds, holds
-   flat for a beat, then rises to reset. One composed phrase, staggered by delay
-   so the wave reads as choreography — not a chart. */
-:root {
-  width: 800px;
-  height: 600px;
-}
-
-/* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still (the
-   held beat), and stand back up. The fall sits at 45% of the timeline so each tile
-   waits upright until the ball reaches it. Every keyframe restates the transform so
-   the rotate track never drops to base. */
+/* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still
+   (the held beat), and stand back up. The fall sits at 45% of the timeline so
+   the delays below can aim it at the frame the ball arrives. Every keyframe
+   restates the transform so the rotate track never drops to base. */
 @keyframes topple {
   0%   { transform: rotate(0deg);  animation-timing-function: linear; }
   45%  { transform: rotate(0deg);  animation-timing-function: cubic-bezier(0.5, 0, 0.85, 0.35); }
@@ -188,17 +205,7 @@ export const examples: Example[] = [
   100% { transform: rotate(0deg); }
 }
 
-/* The ball crosses at a steady linear pace, spinning as it goes; it fades in at the
-   left and out past the right so the loop seam is invisible. */
-@keyframes roll {
-  0%   { transform: translateX(161px)  rotate(0deg);    opacity: 0; }
-  3%   { transform: translateX(190px)  rotate(76deg);   opacity: 1; }
-  68%  { transform: translateX(825px)  rotate(1731deg); opacity: 1; }
-  72%  { transform: translateX(864px)  rotate(1833deg); opacity: 0; }
-  100% { transform: translateX(1137px) rotate(2546deg); opacity: 0; }
-}
-
-#shelf { type: rect; x: 140px; y: 440px; width: 540px; height: 8px; rx: 4px; fill: #23233f; }
+#shelf { type: rect; x: 140px; y: 440px; width: 600px; height: 8px; rx: 4px; fill: #23233f; }
 
 /* A standing tile, pivoting about its base so it topples like a domino */
 @define domino {
@@ -206,26 +213,51 @@ export const examples: Example[] = [
   transform-origin: center bottom;
 }
 
-/* The stagger is expressed as negative (phase-shifted) delays so it never extends
-   the scene duration past 3.2s — every animation shares that period and the loop
-   is seam-free. Each delay is its cascade time minus one full period. */
-#d1 { use: domino; x: 200px; fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%); animation: topple 3.2s linear infinite -1.28s; }
-#d2 { use: domino; x: 255px; fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%); animation: topple 3.2s linear infinite -1.10s; }
-#d3 { use: domino; x: 310px; fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%); animation: topple 3.2s linear infinite -0.92s; }
-#d4 { use: domino; x: 365px; fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%); animation: topple 3.2s linear infinite -0.74s; }
-#d5 { use: domino; x: 420px; fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%); animation: topple 3.2s linear infinite -0.56s; }
-#d6 { use: domino; x: 475px; fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%); animation: topple 3.2s linear infinite -0.38s; }
-#d7 { use: domino; x: 530px; fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%); animation: topple 3.2s linear infinite -0.20s; }
-#d8 { use: domino; x: 585px; fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%); animation: topple 3.2s linear infinite -0.02s; }
+/* The ball starts rolling at x=330 (28.75% of the 4s loop) and covers the 55px
+   between tiles in 0.275s, so tile k is reached at 1.15s + 0.275s·k. Each tile's
+   fall sits at 45% of its own cycle, so its delay is that arrival minus 1.8s —
+   then shifted a whole period negative. Negative (phase-shifted) delays keep
+   every animation inside the same 4s loop instead of stretching the scene to fit
+   the cascade, so the loop stays seam-free. */
+#d1 { use: domino; x: 330px; fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%); animation: topple 4s linear infinite -4.65s; }
+#d2 { use: domino; x: 385px; fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%); animation: topple 4s linear infinite -4.375s; }
+#d3 { use: domino; x: 440px; fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%); animation: topple 4s linear infinite -4.10s; }
+#d4 { use: domino; x: 495px; fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%); animation: topple 4s linear infinite -3.825s; }
+#d5 { use: domino; x: 550px; fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%); animation: topple 4s linear infinite -3.55s; }
+#d6 { use: domino; x: 605px; fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%); animation: topple 4s linear infinite -3.275s; }
+#d7 { use: domino; x: 660px; fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%); animation: topple 4s linear infinite -3.00s; }
+#d8 { use: domino; x: 715px; fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%); animation: topple 4s linear infinite -2.725s; }
 
-/* Base translate carries the vertical rest position; roll's translateX overrides x each frame */
 #ball {
   type: group;
-  transform: translate(0px, 418px);
-  animation: roll 3.2s linear infinite;
+  animation: travel 4s linear infinite;
 
-  > #ballBody { type: circle; cx: 0; cy: 0; r: 22px; fill: radial-gradient(#ffffff 0%, #ff8f5e 100%); }
-  > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
+  /* Shares the ball's horizontal travel but never leaves the ground. */
+  > #ballShadow {
+    type: ellipse; cx: 0; cy: 444px; rx: 26px; ry: 6px; fill: #000000;
+    transform-origin: center;
+    animation: contactShadow 4s linear infinite;
+  }
+
+  > #ballHop {
+    type: group;
+    animation: hop 4s linear infinite;
+
+    > #ballSquish {
+      type: group;
+      transform-origin: center bottom;
+      animation: squash 4s linear infinite;
+
+      > #ballSpin {
+        type: group;
+        transform-origin: center;
+        animation: spin 4s linear infinite;
+
+        > #ballBody { type: circle; cx: 0; cy: 0; r: 22px; fill: radial-gradient(#ffffff 0%, #ff8f5e 100%); }
+        > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
+      }
+    }
+  }
 }
 ` },
   { key: "04-hierarchy.css", label: "Hierarchy", source: `/* Author: AI Generated */
@@ -458,116 +490,14 @@ export const examples: Example[] = [
   }
 }
 ` },
-  { key: "05-motion-path.css", label: "Motion path", source: `/* Author: AI Generated */
-/* Motion path — travel a route by arc length; offset-rotate faces the tangent.
-   The stadium circuit is centred on the 800×600 stage with generous margins. */
-:root {
-  width: 800px;
-  height: 600px;
-}
-
-@keyframes fly {
-  0%   { offset-distance: 0%;   }
-  100% { offset-distance: 100%; }
-}
-
-/* The route itself, drawn once as a dashed guide (x 90..710, y 170..430) */
-#route {
-  type: path;
-  d: "M 220 170 L 580 170 A 130 130 0 0 1 580 430 L 220 430 A 130 130 0 0 1 220 170 Z";
-  fill: none;
-  stroke: #2a3350;
-  stroke-width: 3px;
-  stroke-dasharray: 10px 12px;
-  stroke-linecap: round;
-}
-
-/* A little paper plane, drawn nose-first along +x so the tangent aims it */
-@define plane {
-  type: path;
-  d: "M -14 -9 L 16 0 L -14 9 L -6 0 Z";
-  stroke: #0b1021;
-  stroke-width: 1px;
-  offset-path: path("M 220 170 L 580 170 A 130 130 0 0 1 580 430 L 220 430 A 130 130 0 0 1 220 170 Z");
-  offset-rotate: auto;
-}
-
-/* Three planes on one loop, staggered by negative delay (already in flight) */
-#plane1 { use: plane; fill: #ffe66d; animation: fly 6s linear infinite;      }
-#plane2 { use: plane; fill: #4ecdc4; animation: fly 6s linear infinite -2s;  }
-#plane3 { use: plane; fill: #f472b6; animation: fly 6s linear infinite -4s;  }
-` },
-  { key: "06-trim-path.css", label: "Trim path", source: `/* Author: AI Generated */
-/* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
-   The word is one open path; trim-end sweeps 0→100% to reveal the stroke (the draw-on),
-   then trim-start sweeps up to retract it — both ends finish at 100% (empty), matching
-   the 0% state, so the loop closes on a blank canvas with no pop. */
-:root {
-  width: 800px;
-  height: 600px;
-}
-
-/* Pen writing: reveal with trim-end, hold the finished word, then wipe with trim-start. */
-@keyframes write {
-  0%   { trim-start: 0%;   trim-end: 0%;   animation-timing-function: ease-out;    }
-  50%  { trim-start: 0%;   trim-end: 100%;                                          } /* word fully written */
-  62%  { trim-start: 0%;   trim-end: 100%; animation-timing-function: ease-in-out; } /* hold, then lift the pen */
-  100% { trim-start: 100%; trim-end: 100%;                                          }
-}
-
-/* The ink breathes 9→10→9px — the animated stroke-width the source carried, thickest as
-   the word completes. */
-@keyframes ink {
-  0%   { stroke-width: 9px;  }
-  50%  { stroke-width: 10px; }
-  100% { stroke-width: 9px;  }
-}
-
-#hello {
-  type: path;
-  /* One continuous handwritten stroke, centred on the origin (verbatim from the source glyph). */
-  d: 'M -145.66 43.75 C -145.66 43.75 -86.11 10.26 -81.85 -26.16 C -79.42 -46.94 -98.57 -44.14 -101.43 -23.01 C -103.76 -5.76 -109.6 40.56 -109.6 40.56 C -109.6 40.56 -103.98 -0.03 -85.85 1.75 C -65.94 4.08 -91.98 40.05 -69 40.31 C -48.57 40.53 -27.64 22.69 -26.87 10.94 C -25.99 -2.6 -44.36 -4.89 -50.02 11.97 C -55.23 27.46 -43.58 44.9 -23.54 40.58 C 7.34 33.92 22.48 -10.83 23.94 -26.08 C 25.47 -42.16 13.72 -43.69 6.57 -29.4 C -0.1 -16.04 -11.24 37.09 12.96 41.58 C 41.81 46.94 64.28 -5.91 67.09 -23.78 C 69.8 -41.07 58.66 -45.95 50.23 -30.67 C 41.17 -14.22 27.84 44.08 59.94 41.33 C 86.75 39.03 76.92 2.26 102.9 -0.05 C 114.56 -1.09 119.39 9.92 118.53 21.03 C 117.64 32.65 106.66 42.47 95.81 40.94 C 85.9 39.54 80.84 25.97 83.43 17.07 C 86.62 6.09 96.66 0.12 102.9 -0.05 C 111.77 -0.29 116.23 5.33 124.15 5.2 C 131.18 5.09 138.27 -2.92 138.27 -2.92';
-  fill: none;
-  stroke: linear-gradient(90deg, #ff6b6b 0%, #ffd93d 50%, #4ecdc4 100%);
-  stroke-width: 9px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  transform: translate(407px, 300px) scale(1.9);
-  animation: write 5s infinite, ink 5s ease-in-out infinite;
-}
-` },
-  { key: "07-morph.css", label: "Morph", source: `/* Author: AI Generated */
-/* Morph — path 'd' interpolation with animated gradient stops.
-   Both keyframes share the same command sequence (M C C C C Z) and stop count,
-   so 'd' and 'fill' interpolate. Break either and it holds instead. */
-:root {
-  width: 800px;
-  height: 600px;
-}
-
-@keyframes blob {
-  0% {
-    d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 C 317 450 250 383 250 300 C 250 217 317 150 400 150 Z';
-    fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%);
-  }
-  100% {
-    d: 'M 400 130 C 520 180 580 240 560 320 C 540 400 460 470 380 460 C 300 450 230 380 250 290 C 270 200 300 90 400 130 Z';
-    fill: linear-gradient(45deg, #ffe66d 0%, #a855f7 100%);
-  }
-}
-
-#blob {
-  type: path;
-  d: 'M 400 150 C 483 150 550 217 550 300 C 550 383 483 450 400 450 C 317 450 250 383 250 300 C 250 217 317 150 400 150 Z';
-  fill: linear-gradient(45deg, #ff6b6b 0%, #4ecdc4 100%);
-  animation: blob 3s ease-in-out infinite alternate;
-}
-` },
-  { key: "08-symbols.css", label: "Symbols", source: `/* Author: AI Generated */
-/* Symbols — a starry night built from one reusable star.
+  { key: "05-symbols-and-motion-path.css", label: "Symbols and motion path", source: `/* Author: AI Generated */
+/* Symbols and motion path — a starry night built from two reusable shapes.
    The pedagogical payload: @define a shape once, \`use:\` it many times, and
    override only what differs per instance (position, colour, size, twinkle
-   timing) right at the use-site. The moon and hills are plain nodes framing it. */
+   timing) right at the use-site. The stars stay put; the comets take the same
+   idiom onto a route — one \`offset-path\`, \`offset-distance\` walking it by arc
+   length, \`offset-rotate: auto\` aiming each comet down the tangent, and a
+   negative \`animation-delay\` putting the second one already in flight. */
 :root {
   width: 800px;
   height: 600px;
@@ -636,6 +566,47 @@ export const examples: Example[] = [
 #s8  { use: star; cx: 700px; cy: 380px; fill: #8793c4; outer-radius: 9px;  inner-radius: 4px; animation-delay: -2.3s; animation-duration: 2.0s; }
 #s11 { use: star; cx: 740px; cy: 300px; fill: #8793c4; outer-radius: 8px;  inner-radius: 3px; animation-delay: -1.5s; animation-duration: 1.8s; }
 
+/* The comet route: one arc, drawn once as a faint dashed guide so the path the
+   comets ride is visible. Both #comet use-sites repeat it as their offset-path —
+   \`offset-path\` takes the geometry inline, not a reference to this node. */
+#route {
+  type: path;
+  d: "M -60 300 Q 360 120 860 340";
+  fill: none;
+  stroke: #2a3350;
+  stroke-width: 2px;
+  stroke-dasharray: 6px 14px;
+  stroke-linecap: round;
+}
+
+/* offset-distance walks the route by ARC LENGTH, so a comet holds a steady
+   speed through the curve instead of racing the flat parts. Every keyframe
+   restates offset-distance, the same discipline the domino scene applies to
+   transform: a property only interpolates across keyframes that declare it, so
+   omitting it in the middle two would park the comet at 0% until the last leg. */
+@keyframes fly {
+  0%   { offset-distance: 0%;   opacity: 0; }
+  8%   { offset-distance: 8%;   opacity: 1; }
+  88%  { offset-distance: 88%;  opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+/* The second symbol: a comet drawn nose-first along +x (head at +18, tail
+   trailing to -46) so \`offset-rotate: auto\` — which aligns +x with the path
+   tangent — points it the way it's travelling. */
+@define comet {
+  type: path;
+  d: "M 18 0 L -30 6 Q -46 0 -30 -6 Z";
+  fill: #fdf6d8;
+  filter: drop-shadow(0 0 8px rgba(253, 246, 216, 0.7));
+  offset-path: path("M -60 300 Q 360 120 860 340");
+  offset-rotate: auto;
+  animation: fly 7s linear infinite;
+}
+
+#comet1 { use: comet; }
+#comet2 { use: comet; fill: #bfe4ff; animation-delay: -3.5s; }
+
 /* Hills silhouette along the bottom, darker than the sky for depth. */
 #hills {
   type: path;
@@ -645,7 +616,7 @@ export const examples: Example[] = [
 
 #title {
   type: text;
-  content: "Symbols: one @define, many stars";
+  content: "One @define, many stars — and a comet on a path";
   x: 400px;
   y: 90px;
   font-size: 24px;
@@ -653,6 +624,242 @@ export const examples: Example[] = [
   font-weight: bold;
   text-anchor: middle;
   fill: #e2e8f0;
+}
+` },
+  { key: "06-trim-path.css", label: "Trim path", source: `/* Author: AI Generated */
+/* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
+   The word is one open path; trim-end sweeps 0→100% to reveal the stroke (the draw-on),
+   then trim-start sweeps up to retract it — both ends finish at 100% (empty), matching
+   the 0% state, so the loop closes on a blank canvas with no pop. */
+:root {
+  width: 800px;
+  height: 600px;
+}
+
+/* Pen writing: reveal with trim-end, hold the finished word, then wipe with trim-start. */
+@keyframes write {
+  0%   { trim-start: 0%;   trim-end: 0%;   animation-timing-function: ease-out;    }
+  50%  { trim-start: 0%;   trim-end: 100%;                                          } /* word fully written */
+  62%  { trim-start: 0%;   trim-end: 100%; animation-timing-function: ease-in-out; } /* hold, then lift the pen */
+  100% { trim-start: 100%; trim-end: 100%;                                          }
+}
+
+/* The ink breathes 9→10→9px — the animated stroke-width the source carried, thickest as
+   the word completes. */
+@keyframes ink {
+  0%   { stroke-width: 9px;  }
+  50%  { stroke-width: 10px; }
+  100% { stroke-width: 9px;  }
+}
+
+#hello {
+  type: path;
+  /* One continuous handwritten stroke, centred on the origin (verbatim from the source glyph). */
+  d: 'M -145.66 43.75 C -145.66 43.75 -86.11 10.26 -81.85 -26.16 C -79.42 -46.94 -98.57 -44.14 -101.43 -23.01 C -103.76 -5.76 -109.6 40.56 -109.6 40.56 C -109.6 40.56 -103.98 -0.03 -85.85 1.75 C -65.94 4.08 -91.98 40.05 -69 40.31 C -48.57 40.53 -27.64 22.69 -26.87 10.94 C -25.99 -2.6 -44.36 -4.89 -50.02 11.97 C -55.23 27.46 -43.58 44.9 -23.54 40.58 C 7.34 33.92 22.48 -10.83 23.94 -26.08 C 25.47 -42.16 13.72 -43.69 6.57 -29.4 C -0.1 -16.04 -11.24 37.09 12.96 41.58 C 41.81 46.94 64.28 -5.91 67.09 -23.78 C 69.8 -41.07 58.66 -45.95 50.23 -30.67 C 41.17 -14.22 27.84 44.08 59.94 41.33 C 86.75 39.03 76.92 2.26 102.9 -0.05 C 114.56 -1.09 119.39 9.92 118.53 21.03 C 117.64 32.65 106.66 42.47 95.81 40.94 C 85.9 39.54 80.84 25.97 83.43 17.07 C 86.62 6.09 96.66 0.12 102.9 -0.05 C 111.77 -0.29 116.23 5.33 124.15 5.2 C 131.18 5.09 138.27 -2.92 138.27 -2.92';
+  fill: none;
+  stroke: linear-gradient(90deg, #ff6b6b 0%, #ffd93d 50%, #4ecdc4 100%);
+  stroke-width: 9px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform: translate(407px, 300px) scale(1.9);
+  animation: write 5s infinite, ink 5s ease-in-out infinite;
+}
+` },
+  { key: "07-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated */
+/* Morph — path \`d\` interpolation with animated gradient stops, as a jellyfish.
+   The bell, veil, and tentacles all animate their \`d\`, and the bell's gradient
+   shifts hue across the same keyframes. Two rules make it interpolate instead
+   of hold: every pair of \`d\` keyframes keeps an identical command sequence, and
+   every pair of gradients keeps the same stop count. Break either and the
+   property snaps between states. */
+:root {
+  width: 800px;
+  height: 600px;
+}
+
+@keyframes bell-morph {
+  0% {
+    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
+  }
+  100% {
+    d: "M 248 284 C 262 190 330 126 400 136 C 476 126 546 190 552 284 C 526 318 500 314 474 286 C 452 330 420 312 400 300 C 380 312 348 330 326 286 C 300 314 274 318 248 284 Z";
+    fill: linear-gradient(200deg, #ffffff 0%, #38d8ff 46%, #d946ef 100%);
+  }
+}
+
+@keyframes veil-morph {
+  0% {
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+  }
+  100% {
+    d: "M 312 286 C 346 334 352 390 330 444 C 378 410 422 410 470 444 C 448 390 454 334 488 286 C 438 316 362 316 312 286 Z";
+  }
+}
+
+@keyframes tentacle-wave {
+  0% {
+    d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
+  }
+  100% {
+    d: "M 0 0 C 18 38 -14 76 4 116 C 24 156 -10 192 8 232";
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translate(0px, 12px);
+  }
+  100% {
+    transform: translate(0px, -18px);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    opacity: 0.22;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 0.38;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes bubble-rise {
+  0% {
+    opacity: 0;
+    transform: translate(0px, 24px) scale(0.7);
+  }
+  20% {
+    opacity: 0.5;
+    transform: translate(0px, 0px) scale(0.85);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0px, -90px) scale(1.1);
+  }
+}
+
+@define tentacle {
+  type: path;
+  d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
+  fill: none;
+  stroke: linear-gradient(180deg, #a5f3fc 0%, #7dd3fc 45%, #c084fc 100%);
+  stroke-width: 7;
+  stroke-linecap: round;
+  opacity: 0.78;
+  animation: tentacle-wave 2.8s ease-in-out infinite alternate;
+}
+
+@define bubble {
+  type: circle;
+  fill: #bff7ff;
+  stroke: #ffffff;
+  stroke-width: 1;
+  opacity: 0;
+  transform-origin: center;
+  animation: bubble-rise 5s ease-in-out infinite;
+}
+
+#bubble1 {
+  use: bubble;
+  cx: 112px;
+  cy: 470px;
+  r: 7px;
+  animation-delay: -1s;
+}
+#bubble2 {
+  use: bubble;
+  cx: 178px;
+  cy: 350px;
+  r: 4px;
+  animation-duration: 4.2s;
+  animation-delay: -2.4s;
+}
+#bubble3 {
+  use: bubble;
+  cx: 642px;
+  cy: 430px;
+  r: 8px;
+  animation-duration: 6s;
+  animation-delay: -3.1s;
+}
+#bubble4 {
+  use: bubble;
+  cx: 705px;
+  cy: 290px;
+  r: 5px;
+  animation-duration: 4.8s;
+  animation-delay: -0.7s;
+}
+#bubble5 {
+  use: bubble;
+  cx: 590px;
+  cy: 190px;
+  r: 3px;
+  animation-duration: 5.6s;
+  animation-delay: -4.2s;
+}
+
+#jellyfish {
+  type: group;
+  animation: float 5s ease-in-out infinite alternate;
+
+  > #veil {
+    type: path;
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
+    opacity: 0.24;
+    animation: veil-morph 3s ease-in-out infinite alternate;
+  }
+
+  > #tentacle-left {
+    use: tentacle;
+    transform: translate(324px, 300px) rotate(8deg) scale(0.86);
+    animation-delay: -0.3s;
+  }
+  > #tentacle-mid-left {
+    use: tentacle;
+    transform: translate(370px, 305px) rotate(-4deg) scale(1);
+    animation-delay: -1.1s;
+  }
+  > #tentacle-mid {
+    use: tentacle;
+    transform: translate(405px, 306px) rotate(3deg) scale(1.08);
+    animation-delay: -0.6s;
+    stroke-width: 9;
+    opacity: 0.88;
+  }
+  > #tentacle-mid-right {
+    use: tentacle;
+    transform: translate(438px, 305px) rotate(-8deg) scale(0.98);
+    animation-delay: -1.6s;
+  }
+  > #tentacle-right {
+    use: tentacle;
+    transform: translate(480px, 300px) rotate(-14deg) scale(0.82);
+    animation-delay: -0.9s;
+  }
+
+  > #bell {
+    type: path;
+    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
+    stroke: #dffbff;
+    stroke-width: 3;
+    animation: bell-morph 3s ease-in-out infinite alternate;
+  }
+
+  > #bell-shine {
+    type: path;
+    d: "M 322 217 C 350 174 410 160 456 184 C 416 184 376 200 346 236";
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 10;
+    stroke-linecap: round;
+    opacity: 0.36;
+  }
 }
 ` },
   { key: "09-mask.css", label: "Mask", source: `/* Author: AI Generated */
@@ -1359,200 +1566,6 @@ export const examples: Example[] = [
 #hint {
   type: text; content: "click the bulb"; x: 400px; y: 565px;
   font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
-}
-` },
-  { key: "14-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated */
-/* Jellyfish morph — the bell, veil, and tentacles all animate path \`d\` values.
-   Each pair of keyframes keeps an identical command sequence, so Popkorn
-   interpolates the shapes instead of holding them. */
-:root {
-  width: 800px;
-  height: 600px;
-}
-
-@keyframes bell-morph {
-  0% {
-    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
-    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
-  }
-  100% {
-    d: "M 248 284 C 262 190 330 126 400 136 C 476 126 546 190 552 284 C 526 318 500 314 474 286 C 452 330 420 312 400 300 C 380 312 348 330 326 286 C 300 314 274 318 248 284 Z";
-    fill: linear-gradient(200deg, #ffffff 0%, #38d8ff 46%, #d946ef 100%);
-  }
-}
-
-@keyframes veil-morph {
-  0% {
-    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
-  }
-  100% {
-    d: "M 312 286 C 346 334 352 390 330 444 C 378 410 422 410 470 444 C 448 390 454 334 488 286 C 438 316 362 316 312 286 Z";
-  }
-}
-
-@keyframes tentacle-wave {
-  0% {
-    d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
-  }
-  100% {
-    d: "M 0 0 C 18 38 -14 76 4 116 C 24 156 -10 192 8 232";
-  }
-}
-
-@keyframes float {
-  0% {
-    transform: translate(0px, 12px);
-  }
-  100% {
-    transform: translate(0px, -18px);
-  }
-}
-
-@keyframes pulse-glow {
-  0% {
-    opacity: 0.22;
-    transform: scale(0.96);
-  }
-  100% {
-    opacity: 0.38;
-    transform: scale(1.04);
-  }
-}
-
-@keyframes bubble-rise {
-  0% {
-    opacity: 0;
-    transform: translate(0px, 24px) scale(0.7);
-  }
-  20% {
-    opacity: 0.5;
-    transform: translate(0px, 0px) scale(0.85);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(0px, -90px) scale(1.1);
-  }
-}
-
-@define tentacle {
-  type: path;
-  d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
-  fill: none;
-  stroke: linear-gradient(180deg, #a5f3fc 0%, #7dd3fc 45%, #c084fc 100%);
-  stroke-width: 7;
-  stroke-linecap: round;
-  opacity: 0.78;
-  animation: tentacle-wave 2.8s ease-in-out infinite alternate;
-}
-
-@define bubble {
-  type: circle;
-  fill: #bff7ff;
-  stroke: #ffffff;
-  stroke-width: 1;
-  opacity: 0;
-  transform-origin: center;
-  animation: bubble-rise 5s ease-in-out infinite;
-}
-
-#bubble1 {
-  use: bubble;
-  cx: 112px;
-  cy: 470px;
-  r: 7px;
-  animation-delay: -1s;
-}
-#bubble2 {
-  use: bubble;
-  cx: 178px;
-  cy: 350px;
-  r: 4px;
-  animation-duration: 4.2s;
-  animation-delay: -2.4s;
-}
-#bubble3 {
-  use: bubble;
-  cx: 642px;
-  cy: 430px;
-  r: 8px;
-  animation-duration: 6s;
-  animation-delay: -3.1s;
-}
-#bubble4 {
-  use: bubble;
-  cx: 705px;
-  cy: 290px;
-  r: 5px;
-  animation-duration: 4.8s;
-  animation-delay: -0.7s;
-}
-#bubble5 {
-  use: bubble;
-  cx: 590px;
-  cy: 190px;
-  r: 3px;
-  animation-duration: 5.6s;
-  animation-delay: -4.2s;
-}
-
-#jellyfish {
-  type: group;
-  animation: float 5s ease-in-out infinite alternate;
-
-  > #veil {
-    type: path;
-    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
-    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
-    opacity: 0.24;
-    animation: veil-morph 3s ease-in-out infinite alternate;
-  }
-
-  > #tentacle-left {
-    use: tentacle;
-    transform: translate(324px, 300px) rotate(8deg) scale(0.86);
-    animation-delay: -0.3s;
-  }
-  > #tentacle-mid-left {
-    use: tentacle;
-    transform: translate(370px, 305px) rotate(-4deg) scale(1);
-    animation-delay: -1.1s;
-  }
-  > #tentacle-mid {
-    use: tentacle;
-    transform: translate(405px, 306px) rotate(3deg) scale(1.08);
-    animation-delay: -0.6s;
-    stroke-width: 9;
-    opacity: 0.88;
-  }
-  > #tentacle-mid-right {
-    use: tentacle;
-    transform: translate(438px, 305px) rotate(-8deg) scale(0.98);
-    animation-delay: -1.6s;
-  }
-  > #tentacle-right {
-    use: tentacle;
-    transform: translate(480px, 300px) rotate(-14deg) scale(0.82);
-    animation-delay: -0.9s;
-  }
-
-  > #bell {
-    type: path;
-    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
-    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
-    stroke: #dffbff;
-    stroke-width: 3;
-    animation: bell-morph 3s ease-in-out infinite alternate;
-  }
-
-  > #bell-shine {
-    type: path;
-    d: "M 322 217 C 350 174 410 160 456 184 C 416 184 376 200 346 236";
-    fill: none;
-    stroke: #ffffff;
-    stroke-width: 10;
-    stroke-linecap: round;
-    opacity: 0.36;
-  }
 }
 ` },
   { key: "15-app-shell--tab-navigation.css", label: "App shell: Tab navigation", source: `/* Author: AI Generated */
