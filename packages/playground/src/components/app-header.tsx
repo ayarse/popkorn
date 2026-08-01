@@ -218,13 +218,12 @@ export function AppHeader({
         {!community?.mine && (
           <Button
             data-tour="publish"
-            variant="secondary"
             size="sm"
             className="gap-1.5"
             onClick={onShare}
           >
             <Send className="size-3.5" />
-            <span className="hidden sm:inline">Publish to community</span>
+            <span className="hidden sm:inline">Publish an animation</span>
           </Button>
         )}
         <Button
