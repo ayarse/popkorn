@@ -40,6 +40,7 @@ function App() {
   const playerNode = (
     <PlayerPanel
       source={scene.source}
+      community={scene.community}
       error={scene.error}
       onError={scene.setError}
       onPlayerReady={setPlayer}
@@ -65,7 +66,6 @@ function App() {
           currentExample={scene.currentExample}
           onSelectExample={scene.selectExample}
           community={scene.community}
-          source={scene.source}
           importResult={scene.importResult}
           onDismissImport={scene.dismissImport}
           onImport={() => setShowImport(true)}

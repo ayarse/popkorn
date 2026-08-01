@@ -50,7 +50,14 @@ agent *can't* infer from the code.
   a scene; there is no admin UI on purpose. The author can re-save or delete
   their own scene (`updateScene`/`deleteScene`, scoped `AND user_id = ?`);
   `getScene` returns `mine` so the header can offer it. Updates skip the rate
-  limit and the near-duplicate check — a revision isn't a new submission. There is deliberately **no
+  limit and the near-duplicate check — a revision isn't a new submission. Tags
+  (`migrations/0004_tags.sql`) are up to 5 slugs in one space-separated column,
+  edited through `components/tag-input.tsx` (chip field, shared by the publish
+  modal and the tag popover in `components/owner-actions.tsx` — save/retag/
+  delete, on the left of the player toolbar). Tags ride along on
+  `updateScene`, so there's one write path. The community page's
+  search and tag sidebar filter the loaded page **in the browser**; that holds
+  only while one `listScenes` page is the whole gallery. There is deliberately **no
   captcha**: Clerk's own bot protection guards sign-up, so a Turnstile check on
   submit only re-gated a door that already needs an account. A dormant
   Turnstile widget still exists in the Cloudflare dashboard — nothing reads it.

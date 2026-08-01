@@ -17,6 +17,7 @@ import {
   PLAYER_BACKGROUNDS,
 } from "@/components/bg-context-menu";
 import { MotionCanvas } from "@/components/motion-canvas";
+import { OwnerActions } from "@/components/owner-actions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -37,6 +38,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import type { CommunityScene } from "@/hooks/use-scene";
 import { parseSceneMeta } from "@/lib/scene-meta";
 import { cn } from "@/lib/utils";
 
@@ -103,11 +105,14 @@ const RENDERERS: { value: RendererKind; label: string }[] = [
 
 export function PlayerPanel({
   source,
+  community,
   error,
   onError,
   onPlayerReady,
 }: {
   source: string;
+  /** Set only on `/s/$id`; its `mine` flag unlocks the owner controls. */
+  community: CommunityScene | null;
   error: string | null;
   onError: (message: string | null) => void;
   onPlayerReady?: (
@@ -209,6 +214,13 @@ export function PlayerPanel({
     <div className="flex flex-1 flex-col bg-background overflow-hidden">
       {/* Toolbar */}
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
+        {community?.mine && (
+          <OwnerActions
+            key={community.id}
+            community={community}
+            source={source}
+          />
+        )}
         <div className="ml-auto flex items-center gap-1">
           {/* Fit mode */}
           <DropdownMenu>

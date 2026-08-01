@@ -13,6 +13,8 @@ const REPORTS_TO_HIDE = 3;
 /** Trigram-overlap ratio at or above which a submission counts as a rehash. */
 const NEAR_DUPLICATE = 0.95;
 
+export const MAX_TAGS = 5;
+
 export interface SceneRow {
   id: string;
   title: string;
@@ -20,11 +22,25 @@ export interface SceneRow {
   created_at: number;
   /** Null on scenes published before submissions required an account. */
   author: string | null;
+  /** Space-separated slugs as stored; use `parseTags` to read them. */
+  tags: string;
 }
 
 /** `aspect` travels with the list so a card reserves its real height before
  *  the CSS is fetched — without it every thumbnail resizes on hydration. */
-export type SceneSummary = Omit<SceneRow, "css"> & { aspect: number };
+export type SceneSummary = Omit<SceneRow, "css" | "tags"> & {
+  aspect: number;
+  tags: string[];
+};
+
+/** Anything the user types becomes at most `MAX_TAGS` lowercase slugs — commas,
+ *  spaces and `#` all read as separators, so no input format to explain. */
+export function parseTags(raw: string): string[] {
+  return [...new Set(raw.toLowerCase().match(/[a-z0-9-]+/g) ?? [])].slice(
+    0,
+    MAX_TAGS,
+  );
+}
 
 // Hand-typed rather than generated: `wrangler types` emits workerd's global lib,
 // which collides with the DOM lib the rest of the playground compiles against.
@@ -81,12 +97,12 @@ async function displayName(userId: string): Promise<string | null> {
 }
 
 export const submitScene = createServerFn({ method: "POST" })
-  .validator((d: { title: string; css: string }) => {
+  .validator((d: { title: string; css: string; tags?: string }) => {
     const title = d.title.trim().slice(0, 80);
     if (!title) throw new Error("A title is required.");
     if (new TextEncoder().encode(d.css).length > MAX_CSS_BYTES)
       throw new Error("Scene is too large (100KB max).");
-    return { title, css: d.css };
+    return { title, css: d.css, tags: parseTags(d.tags ?? "").join(" ") };
   })
   .handler(async ({ data }) => {
     const { userId } = await auth();
@@ -134,7 +150,7 @@ export const submitScene = createServerFn({ method: "POST" })
     try {
       await db()
         .prepare(
-          "INSERT INTO scenes (id, title, css, ip_hash, created_at, content_hash, user_id, author) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO scenes (id, title, css, ip_hash, created_at, content_hash, user_id, author, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(
           id,
@@ -145,6 +161,7 @@ export const submitScene = createServerFn({ method: "POST" })
           await sha256(normal),
           userId,
           await displayName(userId),
+          data.tags,
         )
         .run();
     } catch (e: unknown) {
@@ -160,23 +177,27 @@ export const getScene = createServerFn()
   .handler(async ({ data: id }) => {
     const row = await db()
       .prepare(
-        "SELECT id, title, css, created_at, author, user_id FROM scenes WHERE id = ? AND hidden = 0",
+        "SELECT id, title, css, created_at, author, tags, user_id FROM scenes WHERE id = ? AND hidden = 0",
       )
       .bind(id)
       .first<SceneRow & { user_id: string | null }>();
     if (!row) return null;
-    const { user_id, ...scene } = row;
+    const { user_id, tags, ...scene } = row;
     // `mine` rides along so the editor knows to offer save/delete without a
     // second round trip. Authorisation still re-checks on write.
     const { userId } = await auth();
-    return { ...scene, mine: Boolean(userId) && user_id === userId };
+    return {
+      ...scene,
+      tags: tags ? tags.split(" ") : [],
+      mine: Boolean(userId) && user_id === userId,
+    };
   });
 
 export const updateScene = createServerFn({ method: "POST" })
-  .validator((d: { id: string; css: string }) => {
+  .validator((d: { id: string; css: string; tags: string }) => {
     if (new TextEncoder().encode(d.css).length > MAX_CSS_BYTES)
       throw new Error("Scene is too large (100KB max).");
-    return d;
+    return { ...d, tags: parseTags(d.tags).join(" ") };
   })
   .handler(async ({ data }) => {
     const { userId } = await auth();
@@ -192,9 +213,15 @@ export const updateScene = createServerFn({ method: "POST" })
     // gallery, and the near-duplicate check would flag every small revision.
     await db()
       .prepare(
-        "UPDATE scenes SET css = ?, content_hash = ? WHERE id = ? AND user_id = ?",
+        "UPDATE scenes SET css = ?, content_hash = ?, tags = ? WHERE id = ? AND user_id = ?",
       )
-      .bind(data.css, await sha256(normalize(data.css)), data.id, userId)
+      .bind(
+        data.css,
+        await sha256(normalize(data.css)),
+        data.tags,
+        data.id,
+        userId,
+      )
       .run();
     return { ok: true };
   });
@@ -216,12 +243,16 @@ export const listScenes = createServerFn()
   .handler(async ({ data: limit }): Promise<SceneSummary[]> => {
     const { results } = await db()
       .prepare(
-        "SELECT id, title, created_at, author, css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, title, created_at, author, tags, css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
       )
       .bind(limit)
       .all<SceneRow>();
-    return results.map(({ css, ...row }) => ({
+    // NOTE: the page ships every scene and the community page filters in the
+    // browser. Move search and the tag facet into SQL once the gallery outgrows
+    // a single page of results.
+    return results.map(({ css, tags, ...row }) => ({
       ...row,
+      tags: tags ? tags.split(" ") : [],
       aspect: sceneAspect(css),
     }));
   });

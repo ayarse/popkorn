@@ -2,6 +2,7 @@ import { Show, SignInButton } from "@clerk/tanstack-react-start";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { TagInput } from "@/components/tag-input";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,6 +25,7 @@ export function ShareModal({
 }) {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,9 @@ export function ShareModal({
     setBusy(true);
     setError(null);
     try {
-      const { id } = await submitScene({ data: { title, css } });
+      const { id } = await submitScene({
+        data: { title, css, tags: tags.join(" ") },
+      });
       track("scene_share");
       // The share page is where the link, the report button and the byline
       // live — landing on it beats handing back a URL to copy.
@@ -89,6 +93,7 @@ export function ShareModal({
               placeholder="Title"
               className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
+            <TagInput tags={tags} onChange={setTags} />
             {source === undefined && (
               <textarea
                 value={pasted}

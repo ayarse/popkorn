@@ -26,6 +26,7 @@ export interface CommunityScene {
   id: string;
   title: string;
   author: string | null;
+  tags: string[];
   /** True when the signed-in user published it — unlocks save/delete. */
   mine: boolean;
 }
@@ -76,6 +77,7 @@ export function useScene() {
         id: s.id,
         title: s.title,
         author: s.author,
+        tags: s.tags,
         mine: s.mine,
       });
     });
