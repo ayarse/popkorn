@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { executeTool, isToolError, type ToolContext } from "@/lib/agent-tools";
+import { handleTabFrame } from "./tab-frame";
 import { AGENT_EXAMPLES, toolLabel } from "./use-agent-chat";
 
 export type OwnAgentStatus = "idle" | "waiting" | "connected" | "disconnected";
@@ -15,6 +16,8 @@ export function useOwnAgent(
   source: string,
   onApplySource: (css: string) => void,
 ) {
+  // NOTE: no agent-liveness signal — "connected" persists after the agent
+  // exits; a last-activity timestamp is the upgrade path.
   const [status, setStatus] = useState<OwnAgentStatus>("idle");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string | null>(null);
@@ -38,19 +41,7 @@ export function useOwnAgent(
     wsRef.current = ws;
 
     ws.onmessage = (e) => {
-      let msg: any;
-      try {
-        msg = JSON.parse(e.data);
-      } catch {
-        return;
-      }
-      if (msg.type === "client") {
-        setClientName(msg.name ?? null);
-        setStatus("connected");
-        return;
-      }
-      if (typeof msg.id !== "number" || typeof msg.name !== "string") return;
-      setStatus("connected");
+      if (typeof e.data !== "string") return;
       const ctx: ToolContext = {
         getSource: () => sourceRef.current,
         commit: (next) => {
@@ -59,14 +50,35 @@ export function useOwnAgent(
         },
         examples: AGENT_EXAMPLES,
       };
-      const args = (msg.args ?? {}) as Record<string, unknown>;
-      const result = executeTool(msg.name, args, ctx);
-      const ok = !isToolError(result);
+      const frame = handleTabFrame(e.data, {
+        execute: (name, args) => executeTool(name, args, ctx),
+        isError: (result) => isToolError(result),
+      });
+      if (frame === null) return;
+      if (frame.kind === "client") {
+        setClientName(frame.name);
+        setStatus("connected");
+        return;
+      }
+      setStatus("connected");
       setEvents((prev) => [
         ...prev.slice(-(MAX_EVENTS - 1)),
-        { label: toolLabel({ name: msg.name, args, result }), ok },
+        {
+          label: toolLabel({
+            name: frame.name,
+            args: frame.args,
+            result: frame.result,
+          }),
+          ok: !frame.isError,
+        },
       ]);
-      ws.send(JSON.stringify({ id: msg.id, result, isError: !ok }));
+      ws.send(
+        JSON.stringify({
+          id: frame.id,
+          result: frame.result,
+          isError: frame.isError,
+        }),
+      );
     };
 
     ws.onclose = () => {

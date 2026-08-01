@@ -51,12 +51,14 @@ export function ConnectAgent({
   mcpUrl,
   clientName,
   onConnect,
+  onDisconnect,
   onClose,
 }: {
   status: OwnAgentStatus;
   mcpUrl: string | null;
   clientName: string | null;
   onConnect: () => void;
+  onDisconnect: () => void;
   onClose: () => void;
 }) {
   return (
@@ -94,6 +96,16 @@ export function ConnectAgent({
             {(status === "idle" || status === "disconnected") && (
               <Button size="sm" className="ml-auto" onClick={onConnect}>
                 Connect
+              </Button>
+            )}
+            {(status === "waiting" || status === "connected") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={onDisconnect}
+              >
+                Disconnect
               </Button>
             )}
           </div>

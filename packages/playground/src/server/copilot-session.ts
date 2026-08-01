@@ -24,7 +24,10 @@ const CALL_TIMEOUT_MS = 30_000;
  * in-flight MCP request keeps the DO active, and anything older than the
  * timeout is dead anyway. */
 export class PendingCalls {
-  private nextId = 1;
+  // Seeded randomly, not from 1: a fresh DO instance after eviction must not
+  // reuse ids from the evicted instance, or a stale tab reply arriving late
+  // could settle the wrong call.
+  private nextId = Math.floor(Math.random() * 2 ** 30);
   private pending = new Map<
     number,
     {

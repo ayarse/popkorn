@@ -258,6 +258,7 @@ function AgentChat({
             mcpUrl={own.mcpUrl}
             clientName={own.clientName}
             onConnect={own.connect}
+            onDisconnect={own.disconnect}
             onClose={() => setConnectOpen(false)}
           />
         )}
