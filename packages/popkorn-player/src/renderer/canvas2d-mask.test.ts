@@ -3,7 +3,8 @@ import { Canvas2DRenderer } from "./canvas2d";
 
 // A minimal recording 2D context. Tracks clearRect ("frame begins") and blit
 // drawImage calls so we can reason about which buffer got wiped when. Enough
-// surface for beginFrame() + the compositeMask blit tail.
+// surface for beginFrame(), the region clip each composite opens with, and the
+// compositeMask blit tail.
 function recCtx(width: number, height: number, tag: string, log: string[]) {
   const ctx: any = {
     tag,
@@ -17,6 +18,9 @@ function recCtx(width: number, height: number, tag: string, log: string[]) {
     },
     save() {},
     restore() {},
+    beginPath() {},
+    rect() {},
+    clip() {},
     // Record the active filter on the blit so compositeFilter can be asserted.
     drawImage(src: any) {
       const f =

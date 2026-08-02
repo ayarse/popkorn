@@ -1,3 +1,4 @@
+import type { DeviceRect } from "../scene/bounds";
 import type {
   BlendMode,
   FillRule,
@@ -91,10 +92,15 @@ export interface Renderer {
   // buffers (each closure sets its own world transform and draws a subtree),
   // masks the content by the mask per `mode`, and blits the result to the main
   // canvas. Degrades to drawing the content alone when offscreen isn't available.
+  // `region` is the device-space box the composite can affect (see
+  // scene/bounds). Optional: a backend that picks its own region (SVG filters
+  // use the element bbox) or has no offscreen at all ignores it, and a caller
+  // that can't compute one omits it for whole-buffer behaviour.
   compositeMask(
     mode: MaskMode,
     drawContent: () => void,
     drawMask: () => void,
+    region?: DeviceRect,
   ): void;
 
   // CSS filter compositing. Optional so backends without a filter concept (or
@@ -104,7 +110,11 @@ export interface Renderer {
   // transform) into an offscreen and blits it back through `filter` (a CSS
   // filter string already scaled to device space by the caller).
   supportsFilter?(): boolean;
-  compositeFilter?(filter: string, drawContent: () => void): void;
+  compositeFilter?(
+    filter: string,
+    drawContent: () => void,
+    region?: DeviceRect,
+  ): void;
   // A device-space-blit backend (Canvas2D) wants the filter string pre-scaled by
   // the node's full world scale. A retained backend that applies the string as a
   // CSS `filter` on a group in the node's *parent* user space (SVG) instead gets

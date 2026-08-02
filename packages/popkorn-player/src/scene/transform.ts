@@ -19,6 +19,13 @@ import type {
   TransformOriginValue,
 } from "./types";
 
+/** Uniform device-space scale of a 3×3 affine matrix (geometric mean of its
+ * axis scales, √|det| — a single-value approximation for the elliptical case). */
+export function matrixScale(m: Matrix3x3): number {
+  const det = m[0] * m[4] - m[1] * m[3];
+  return Math.sqrt(Math.abs(det));
+}
+
 /**
  * Axis-aligned bounding box of a shape in its local coordinate space.
  * Groups and paths have no intrinsic box, so percentage origins resolve to 0.

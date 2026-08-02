@@ -9,6 +9,7 @@ import {
 import type { Renderer } from "../renderer/interface";
 import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
 import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
+import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds";
 import {
   insetShadowCommands,
   outerShadowCommands,
@@ -27,6 +28,7 @@ import {
   clamp01,
   computeLocalMatrix,
   computeWorldMatrixFromRoot,
+  matrixScale,
 } from "../scene/transform";
 import type {
   CircleData,
@@ -1121,8 +1123,25 @@ export class RenderLoop {
     );
     const contentAlpha = worldAlpha(node.parent);
     const maskAlpha = worldAlpha(source.parent);
+
+    // Scope the composite to the pixels it can actually affect. The output is
+    // always a subset of the content, so content bounds alone are sufficient;
+    // the mask only narrows it further when the mode isn't inverted (an
+    // inverted mask preserves content by being TRANSPARENT, so content outside
+    // the mask's own box survives and intersecting would clip it away).
+    const mode = node.mask!.mode;
+    const inverted = mode === "alpha-invert" || mode === "luminance-invert";
+    const w = this.renderer.getWidth();
+    const h = this.renderer.getHeight();
+    const region = maskDeviceBounds(
+      subtreeDeviceBounds(node, contentParent, w, h, true),
+      inverted ? null : subtreeDeviceBounds(source, maskParent, w, h, true),
+      inverted,
+    );
+    if (!region) return; // content lands nowhere on the buffer
+
     this.renderer.compositeMask(
-      node.mask!.mode,
+      mode,
       // Content: paint it (even if it is itself a source), but skip its own mask
       // redirect — we ARE that composite. Source: paint it, but keep its own mask
       // (skipMask=false) so a chained matte composites instead of painting solid.
@@ -1138,6 +1157,7 @@ export class RenderLoop {
         this.renderer.setTransform(maskParent);
         this.renderNode(source, { paintSource: true }, maskAlpha);
       },
+      region,
     );
   }
 
@@ -1175,10 +1195,24 @@ export class RenderLoop {
       : matrixScale(world);
     if (!this.renderer.compositeFilter) return;
     const css = filterToCSS(ops, scale);
-    this.renderer.compositeFilter(css, () => {
-      this.renderer.setTransform(parentWorld);
-      this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
-    });
+    // Bounds include this node's own filter bleed, so the blit region has room
+    // for the blur/shadow to spread instead of cutting it off at the geometry.
+    const region = subtreeDeviceBounds(
+      node,
+      parentWorld,
+      this.renderer.getWidth(),
+      this.renderer.getHeight(),
+      opts.paintSource ?? false,
+    );
+    if (!region) return; // subtree lands nowhere on the buffer
+    this.renderer.compositeFilter(
+      css,
+      () => {
+        this.renderer.setTransform(parentWorld);
+        this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
+      },
+      region,
+    );
   }
 
   /**
@@ -1240,13 +1274,6 @@ export class RenderLoop {
       }
     }
   }
-}
-
-/** Uniform device-space scale of a 3×3 affine matrix (geometric mean of its
- * axis scales, √|det| — a single-value approximation for the elliptical case). */
-function matrixScale(m: Matrix3x3): number {
-  const det = m[0] * m[4] - m[1] * m[3];
-  return Math.sqrt(Math.abs(det));
 }
 
 // A box-shadow that must draw as a geometric shape rather than ride the CSS

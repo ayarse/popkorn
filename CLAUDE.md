@@ -57,6 +57,18 @@ have actually happened here:
 6. **The renderer clears the full device-space backing buffer before the
    viewport (fit/DPR) transform is applied**; pointer input maps CSS px →
    device px → scene coords through the inverse viewport in `InputTracker`.
+   Filter/mask composites are the exception: they clear, clip and blit only
+   the device region `scene/bounds.ts` computes for the subtree (buffers stay
+   full-size and shared, so per-composite cost tracks the *element*, not the
+   viewport — this is what makes filter-heavy scenes viable off Chrome, where
+   canvas filters aren't GPU-backed). `subtreeDeviceBounds` MUST stay a
+   superset of what the walk paints: it mirrors the walk's `hidden`/
+   `displayNone`/`isMaskSource` gating, adds each node's own filter bleed on
+   the way OUT of the recursion (a blurred descendant widens its ancestor),
+   and pads for stroke, antialiasing and text ink. Under-report and content
+   gets clipped. A mask region is the CONTENT's box — intersect with the mask
+   only when the mode is NOT inverted, since an inverted mask preserves
+   content by being transparent.
 7. **The three renderer backends (Canvas2D, SVG, Skia) must never hand-copy
    paint semantics from each other** — Skia drifted this way once. Rendering
    *decisions* live in the shared walk (`runtime/loop.ts renderNode`) or the

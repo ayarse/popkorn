@@ -1,3 +1,4 @@
+import type { DeviceRect } from "../scene/bounds";
 import { applyCommandsToPath, computePathBounds } from "../scene/path-parser";
 import type { BlendMode, MaskMode, TextAnchor } from "../scene/types";
 import type { PaintBox } from "./gradient-geometry";
@@ -290,6 +291,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     mode: MaskMode,
     drawContent: () => void,
     drawMask: () => void,
+    region?: DeviceRect,
   ): void {
     const base = this.maskDepth * 2;
     const a = this.ensureOffscreen(base);
@@ -300,6 +302,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     } // headless / no offscreen: content only
 
     const main = this.ctx;
+    const r = region ?? this.fullRegion();
 
     // Content -> A, mask source -> B; each closure sets its own world transform.
     // A nested matte encountered inside these closures re-enters here at a
@@ -307,12 +310,20 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.maskDepth++;
     try {
       this.ctx = a;
-      this.beginFrame();
-      drawContent();
+      this.enterRegion(a, r);
+      try {
+        drawContent();
+      } finally {
+        a.restore();
+      }
 
       this.ctx = b;
-      this.beginFrame();
-      drawMask();
+      this.enterRegion(b, r);
+      try {
+        drawMask();
+      } finally {
+        b.restore();
+      }
     } finally {
       this.maskDepth--;
     }
@@ -320,15 +331,29 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     // Turn a luminance mask into an alpha mask in place, so a single
     // destination-in/out handles every mode.
     if (mode === "luminance" || mode === "luminance-invert")
-      luminanceToAlpha(b);
+      luminanceToAlpha(b, r);
 
     // destination-in keeps content where the mask is opaque; destination-out
     // keeps it where the mask is transparent (the *-invert variants).
+    // destination-in erases the destination everywhere the source is absent, so
+    // the clip is load-bearing: it confines that erasure to the region and
+    // leaves the rest of the shared buffer (another composite's pixels) alone.
     const invert = mode === "alpha-invert" || mode === "luminance-invert";
     a.save();
     a.setTransform(1, 0, 0, 1, 0, 0);
+    clipToRegion(a, r);
     a.globalCompositeOperation = invert ? "destination-out" : "destination-in";
-    a.drawImage(b.canvas, 0, 0);
+    a.drawImage(
+      b.canvas,
+      r.x,
+      r.y,
+      r.width,
+      r.height,
+      r.x,
+      r.y,
+      r.width,
+      r.height,
+    );
     a.globalCompositeOperation = "source-over";
     a.restore();
 
@@ -338,7 +363,17 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     main.save();
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
-    main.drawImage(a.canvas, 0, 0);
+    main.drawImage(
+      a.canvas,
+      r.x,
+      r.y,
+      r.width,
+      r.height,
+      r.x,
+      r.y,
+      r.width,
+      r.height,
+    );
     main.restore();
   }
 
@@ -354,7 +389,11 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   // device space, the caller must have already scaled the filter's lengths by the
   // node's world scale (so a scaled element's blur/shadow scales — CSS semantics),
   // rather than relying on ctx.filter honoring the CTM (which browsers diverge on).
-  compositeFilter(filter: string, drawContent: () => void): void {
+  compositeFilter(
+    filter: string,
+    drawContent: () => void,
+    region?: DeviceRect,
+  ): void {
     const buf = this.ensureOffscreen(this.maskDepth * 2);
     if (!buf) {
       // Headless (no offscreen): draw unfiltered, bracketed so the closure's
@@ -366,13 +405,18 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     }
 
     const main = this.ctx;
+    const r = region ?? this.fullRegion();
     // A nested composite inside drawContent claims a deeper band, so it can't
     // clear this buffer mid-composite (mirrors compositeMask's depth discipline).
     this.maskDepth++;
     try {
       this.ctx = buf;
-      this.beginFrame();
-      drawContent();
+      this.enterRegion(buf, r);
+      try {
+        drawContent();
+      } finally {
+        buf.restore();
+      }
     } finally {
       this.maskDepth--;
     }
@@ -382,9 +426,48 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
     main.filter = filter;
-    main.drawImage(buf.canvas, 0, 0);
+    // Source sub-rect, not the whole buffer: only `r` was cleared and redrawn,
+    // so the rest still holds a previous composite's pixels and would otherwise
+    // be filtered in. `r` already carries the filter's bleed margin (see
+    // scene/bounds), so the blur samples transparent padding, not a hard edge.
+    main.drawImage(
+      buf.canvas,
+      r.x,
+      r.y,
+      r.width,
+      r.height,
+      r.x,
+      r.y,
+      r.width,
+      r.height,
+    );
     main.filter = "none";
     main.restore();
+  }
+
+  /** The whole backing buffer — the region used when a caller supplies none. */
+  private fullRegion(): DeviceRect {
+    return {
+      x: 0,
+      y: 0,
+      width: this.ctx.canvas.width,
+      height: this.ctx.canvas.height,
+    };
+  }
+
+  /**
+   * Open a composite buffer for drawing into `r`: reset to device space, clear
+   * just that rect, and clip to it. Buffers stay full-canvas-sized and are
+   * shared across composites (resizing per composite would reallocate on nearly
+   * every one), so scoping the clear and the clip is what keeps the cost
+   * proportional to the node rather than the viewport. Pairs with ctx.restore().
+   */
+  private enterRegion(ctx: CanvasRenderingContext2D, r: DeviceRect): void {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.clearRect(r.x, r.y, r.width, r.height);
+    clipToRegion(ctx, r);
   }
 
   /** Lazily create/resize an offscreen 2D context sized to the main canvas. */
@@ -517,6 +600,13 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   }
 }
 
+/** Confine drawing to `r`, in device space (caller has reset the transform). */
+function clipToRegion(ctx: CanvasRenderingContext2D, r: DeviceRect): void {
+  ctx.beginPath();
+  ctx.rect(r.x, r.y, r.width, r.height);
+  ctx.clip();
+}
+
 /** A blank offscreen 2D context sized w×h, or null when no canvas API exists. */
 function createOffscreen(
   w: number,
@@ -548,12 +638,20 @@ function createOffscreen(
  * NOTE: a filter-only fast path (`ctx.filter = 'grayscale(1)'` + a luminance
  * blend) would avoid the CPU round-trip; the pixel loop is the simple version.
  */
-function luminanceToAlpha(ctx: CanvasRenderingContext2D): void {
-  const { width, height } = ctx.canvas;
-  if (width === 0 || height === 0) return;
+function luminanceToAlpha(
+  ctx: CanvasRenderingContext2D,
+  region?: DeviceRect,
+): void {
+  const r = region ?? {
+    x: 0,
+    y: 0,
+    width: ctx.canvas.width,
+    height: ctx.canvas.height,
+  };
+  if (r.width === 0 || r.height === 0) return;
   let data: ImageData;
   try {
-    data = ctx.getImageData(0, 0, width, height);
+    data = ctx.getImageData(r.x, r.y, r.width, r.height);
   } catch {
     return; // tainted canvas — leave as-is (treated as an alpha mask)
   }
@@ -565,5 +663,5 @@ function luminanceToAlpha(ctx: CanvasRenderingContext2D): void {
       LUMA_COEFFICIENTS.b * px[i + 2];
     px[i + 3] = (px[i + 3] * lum) / 255;
   }
-  ctx.putImageData(data, 0, 0);
+  ctx.putImageData(data, r.x, r.y);
 }
