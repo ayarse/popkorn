@@ -277,8 +277,10 @@ test("loop on: time past duration wraps", () => {
   loop.setScene(fadingDot());
   loop.setLoop(true);
 
-  loop.seek(4000); // 4000 % 3000 = 1000 -> one third through the ramp
-  expect(loop.currentTime).toBeCloseTo(1000, 0);
+  atFrozenClock(() => {
+    loop.seek(4000); // 4000 % 3000 = 1000 -> one third through the ramp
+    expect(loop.currentTime).toBe(1000);
+  });
   expect(renderer.opacities.at(-1)!).toBeCloseTo(1000 / 3000, 3);
 
   // Turning loop back off then seeking past the end freezes at the duration.
@@ -287,6 +289,32 @@ test("loop on: time past duration wraps", () => {
   loop.seek(8000);
   expect(loop.currentTime).toBe(3000);
 });
+
+/**
+ * Run `fn` with `performance.now` frozen at a single instant.
+ *
+ * An unpaused timeline reads its time as `now - timelineZero`, so a `seek()`
+ * that re-anchors the clock and the `currentTime` read that follows observe two
+ * DIFFERENT instants — currentTime lands a fraction of a millisecond past the
+ * seek target. That drift is real elapsed time, normally microseconds but enough
+ * to break an exact assertion whenever the machine is loaded. These tests are
+ * about which time the loop picks (fold / clamp / free-run), not about how long
+ * the assertion took to run, so pinning the clock makes them exact.
+ *
+ * Pausing instead would change what is under test: the loop only folds a looping
+ * timeline while it is NOT paused (see runtime/loop drawFrame).
+ */
+function atFrozenClock<T>(fn: () => T): T {
+  const perf = globalThis.performance;
+  const real = perf.now.bind(perf);
+  const instant = real();
+  perf.now = () => instant;
+  try {
+    return fn();
+  } finally {
+    perf.now = real;
+  }
+}
 
 // --- state-machine scenes are unbounded --------------------------------------
 
@@ -320,8 +348,10 @@ test("machine scene: loop enabled does not wrap past sceneDuration", () => {
   loop.setScene(root);
   loop.setLoop(true);
 
-  loop.seek(2000); // past sceneDuration (1000)
-  expect(loop.currentTime).toBeCloseTo(2000, 0); // monotonic — NOT folded to 1000/0
+  atFrozenClock(() => {
+    loop.seek(2000); // past sceneDuration (1000)
+    expect(loop.currentTime).toBe(2000); // monotonic — NOT folded to 1000/0
+  });
   expect(nodeCx(root, "dot")).toBeCloseTo(100); // slide held at end, not replayed
 });
 
@@ -385,8 +415,10 @@ test("all-infinite scene: loop on does not wrap past sceneDuration", () => {
   loop.setScene(perpetualDot()); // sceneDuration 3000
   loop.setLoop(true);
 
-  loop.seek(4000); // past sceneDuration
-  expect(loop.currentTime).toBeCloseTo(4000, 0); // free-running, NOT folded to 1000
+  atFrozenClock(() => {
+    loop.seek(4000); // past sceneDuration
+    expect(loop.currentTime).toBe(4000); // free-running, NOT folded to 1000
+  });
 });
 
 // It never "completes" and never settles — perpetual by definition (CSS infinite
@@ -397,8 +429,10 @@ test("all-infinite scene: never completes, never static", () => {
   let completes = 0;
   loop.setCompleteCallback(() => completes++);
 
-  loop.seek(9000); // well past sceneDuration
-  expect(loop.currentTime).toBeCloseTo(9000, 0); // free-runs, no play-once clamp
+  atFrozenClock(() => {
+    loop.seek(9000); // well past sceneDuration
+    expect(loop.currentTime).toBe(9000); // free-runs, no play-once clamp
+  });
   expect(completes).toBe(0); // infinite never ends
   expect(loop.isStatic()).toBe(false); // perpetually animating
 });
@@ -421,8 +455,10 @@ test("mixed finite+infinite scene keeps the wrap", () => {
   const loop = new RenderLoop(createRecordingRenderer());
   loop.setScene(root); // sceneDuration 3000
   loop.setLoop(true);
-  loop.seek(4000);
-  expect(loop.currentTime).toBeCloseTo(1000, 0); // folded 4000 % 3000
+  atFrozenClock(() => {
+    loop.seek(4000);
+    expect(loop.currentTime).toBe(1000); // folded 4000 % 3000
+  });
 });
 
 // `duration` reports Infinity for an unbounded (all-infinite) scene — the timeline
