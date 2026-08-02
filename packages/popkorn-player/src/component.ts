@@ -175,7 +175,11 @@ export class PopkornPlayer extends HTMLElementBase {
   private canvas: HTMLCanvasElement;
   // Live SVG surface, created lazily when renderer="svg" (default is canvas).
   private svg: SVGSVGElement | null = null;
-  private renderer: Canvas2DRenderer | SVGRenderer | null = null;
+  // The live backend instance. Deliberately NOT named `renderer`: that name is
+  // the public attribute/property, and a field of the same name silently
+  // swallows an embedder's `el.renderer = 'svg'` (React sets custom-element
+  // props as properties) before init ever reads it.
+  private backend: Canvas2DRenderer | SVGRenderer | null = null;
   private useSvg = false;
   private renderLoop: RenderLoop | null = null;
   private scheduler: AnimationScheduler | null = null;
@@ -213,6 +217,7 @@ export class PopkornPlayer extends HTMLElementBase {
       "controls",
       "fit",
       "autoplay",
+      "renderer",
     ];
   }
 
@@ -372,8 +377,35 @@ export class PopkornPlayer extends HTMLElementBase {
       case "fit":
         this.syncSize();
         break;
+      case "renderer": {
+        // Swapping the backend rebuilds the surface and the loop, so re-init —
+        // restoring the timeline position and play state, since a backend swap
+        // shouldn't look like a replay.
+        if (!this.renderLoop) break; // not initialized yet; init will read it
+        const t = this.currentTime;
+        const wasPaused = this.paused;
+        void this.initializePlayer().then(() => {
+          this.seek(t);
+          if (wasPaused) this.pause();
+        });
+        break;
+      }
       // `autoplay` only affects the initial start, handled in initializePlayer.
     }
+  }
+
+  /**
+   * Rendering backend: `"canvas"` (default) or `"svg"`. Reflects the attribute,
+   * so assigning the property (how React passes props to custom elements) also
+   * takes effect.
+   */
+  get renderer(): string | null {
+    return this.getAttribute("renderer");
+  }
+
+  set renderer(value: string | null) {
+    if (value === null) this.removeAttribute("renderer");
+    else this.setAttribute("renderer", value);
   }
 
   /**
@@ -701,14 +733,14 @@ export class PopkornPlayer extends HTMLElementBase {
       const surface = this.useSvg ? this.ensureSvg() : this.canvas;
       this.canvas.style.display = this.useSvg ? "none" : "block";
       if (this.svg) this.svg.style.display = this.useSvg ? "block" : "none";
-      this.renderer = this.useSvg
+      this.backend = this.useSvg
         ? new SVGRenderer(this.svg!)
         : new Canvas2DRenderer(this.canvas);
       // Fresh renderer surface must be sized even if the element size didn't change.
       this._lastSize = null;
       this.scheduler = new AnimationScheduler();
 
-      this.renderLoop = new RenderLoop(this.renderer, this.scheduler);
+      this.renderLoop = new RenderLoop(this.backend, this.scheduler);
       this.renderLoop.setScene(sceneRoot);
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
       // Artboard clipping defaults to on (crop to the stage box, like an AE
@@ -824,7 +856,7 @@ export class PopkornPlayer extends HTMLElementBase {
     this._lastSize = { bw, bh, dpr };
     // Both backends work in the same device-px space (viewport folds in DPR/fit);
     // each backend's resize() sizes its own surface (canvas w/h vs SVG viewBox).
-    this.renderer?.resize(bw, bh);
+    this.backend?.resize(bw, bh);
 
     const vp = computeViewport(
       this.sceneWidth,
