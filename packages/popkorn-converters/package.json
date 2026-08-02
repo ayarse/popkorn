@@ -1,6 +1,6 @@
 {
   "name": "@popkorn/converters",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Lottie and SVG converters for the Popkorn DSL",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,14 @@
 # @popkorn/playground
 
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [9b3430e]
+  - @popkorn/parser@0.2.4
+  - @popkorn/player@0.2.4
+  - @popkorn/converters@0.2.4
+
 ## 0.1.5
 
 ### Patch Changes
