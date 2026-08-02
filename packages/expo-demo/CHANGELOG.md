@@ -1,5 +1,13 @@
 # @popkorn/expo-demo
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [b003544]
+  - @popkorn/player@0.2.3
+  - @popkorn/react-native@0.2.3
+
 ## 0.0.4
 
 ### Patch Changes
