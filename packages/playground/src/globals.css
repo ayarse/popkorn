@@ -294,10 +294,17 @@
   .npm__react-simple-code-editor__textarea:focus {
     outline: none;
   }
+  /* Every page is an app shell — a `h-full` column whose panes scroll
+     internally, never the document. `svh` (not `%`/`vh`) because a mobile URL
+     bar that collapses on scroll resizes the layout viewport, and with it the
+     player pane; the small-viewport height is the one value that never moves.
+     `overflow: hidden` keeps the document itself unscrollable so the bar can't
+     collapse in the first place. */
   html,
   body,
   #root {
-    height: 100%;
+    height: 100svh;
+    overflow: hidden;
   }
   body {
     margin: 0;
