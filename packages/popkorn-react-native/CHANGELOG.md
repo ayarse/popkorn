@@ -1,5 +1,19 @@
 # @popkorn/react-native
 
+## 0.2.4
+
+### Patch Changes
+
+- 9b3430e: Fix `renderer="svg"` being silently ignored. The component held its live backend
+  in a private field named `renderer`, which shadowed the public attribute name —
+  so an embedder assigning `el.renderer = "svg"` (how React passes props to custom
+  elements) had it overwritten at init, and the backend never switched. The field
+  is now `backend`, `renderer` is a reflecting property, and it is an observed
+  attribute, so swapping backends at runtime re-initializes and restores the
+  timeline position and play state instead of being read once at startup.
+- Updated dependencies [9b3430e]
+  - @popkorn/player@0.2.4
+
 ## 0.2.3
 
 ### Patch Changes
