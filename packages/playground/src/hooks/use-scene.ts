@@ -40,7 +40,7 @@ export function useScene() {
   const routeSceneId = params.id;
   const defaultExample =
     examples.find((e) => e.key === routeKey) ??
-    examples.find((e) => e.key === "procedural--particle-field") ??
+    examples.find((e) => e.key === "lottie--magic-eye") ??
     examples[0];
   const [currentExample, setCurrentExample] = useState<string | null>(
     defaultExample.key,
