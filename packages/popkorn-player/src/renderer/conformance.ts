@@ -34,6 +34,15 @@ import type { GradientData } from "./types";
  * each harness, documenting the disagreement so a silent behavior change still
  * fails.
  *
+ * The raster cache isn't in this table either: `cacheComposite` is an
+ * optional Canvas2D-only capability (SVG diffs its DOM, Skia has no offscreen
+ * to snapshot), and a cached composite is BY CONTRACT the same pixels the
+ * direct composite draws — so the semantics under test are the uncached ones
+ * already covered here. The opt-outs are pinned as single-backend divergence
+ * tests next to the SVG and Skia harnesses, and the cache's own promise
+ * (cached frames == uncached frames, command for command) is asserted through
+ * the shared walk in runtime/raster-cache.test.ts.
+ *
  * `box-shadow` isn't a Renderer primitive: the shared walk (loop.ts) realizes it
  * over drawPath + clip + compositeFilter (all covered here). Its only per-backend
  * divergence — Skia draws the shadow shapes SHARP because it has no filter — is

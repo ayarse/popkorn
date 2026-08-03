@@ -121,6 +121,21 @@ test('paints a rect and a path with fill paint through the render loop', () => {
   expect(ops.indexOf('drawRect')).toBeLessThan(ops.indexOf('drawPath'));
 });
 
+// DELIBERATE DIVERGENCE: the raster cache is Canvas2D-only. Skia composites
+// through the RN canvas per frame and has no offscreen it can snapshot, so it
+// opts out by not implementing the hook and the shared walk composites directly.
+test('no raster cache: Skia opts out of composite caching', () => {
+  const { Skia } = mockSkia();
+  const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
+  expect(
+    (renderer as unknown as { supportsRasterCache?: unknown })
+      .supportsRasterCache
+  ).toBeUndefined();
+  expect(
+    (renderer as unknown as { cacheComposite?: unknown }).cacheComposite
+  ).toBeUndefined();
+});
+
 // DELIBERATE DIVERGENCE: Skia has no CSS-`filter` realization (compositeFilter/
 // supportsFilter are unimplemented), so a filtered node — blur, drop-shadow, or
 // any of the color-adjust functions — degrades to an unfiltered paint. Canvas2D

@@ -508,6 +508,21 @@ test("compositeMask: a source shared by two masked nodes gets an independent cop
   }
 });
 
+// DELIBERATE DIVERGENCE: the raster cache is Canvas2D-only. SVG is retained —
+// it already diffs its DOM and lets the browser skip unchanged subtrees — so it
+// opts out by not implementing the hook, and the shared walk keeps the direct
+// composite path for it. Pinned so adding a cache here is a conscious change.
+test("no raster cache: the retained backend opts out of composite caching", () => {
+  const svg = installFakeDom();
+  const { r } = makeRenderer(svg);
+  expect(
+    (r as unknown as { supportsRasterCache?: unknown }).supportsRasterCache,
+  ).toBeUndefined();
+  expect(
+    (r as unknown as { cacheComposite?: unknown }).cacheComposite,
+  ).toBeUndefined();
+});
+
 test("compositeFilter: wraps content in a CSS-filtered group; nests a matte inside", () => {
   const svg = installFakeDom();
   const { r, defs, rootG } = makeRenderer(svg);

@@ -48,6 +48,7 @@ import {
   refreshSortedChildren,
   resetNodeToBase,
 } from "../scene/types";
+import { subtreeToken } from "./content-hash";
 import { hitTest, hitTestClick } from "./hit-test";
 import { createInputTracker, type InputTracker } from "./inputs";
 import {
@@ -185,6 +186,15 @@ export class RenderLoop {
   // both the bounds walk and filterToCSS are non-trivial. Cleared every frame —
   // it caches nothing across time (invariants 2 and 4).
   private filterPlans = new Map<SceneNode, FilterPlan>();
+  // Per-frame memo of each composite subtree's content token (see
+  // runtime/content-hash). Same lifetime and reasoning as `filterPlans`: a mask
+  // reaches the same subtree twice per frame, and the token is a pure function
+  // of this frame's resolved state, so it must not outlive the frame.
+  private contentTokens = new Map<SceneNode, string | null>();
+  // Renderer capability (invariant 7: the decision to cache lives here, the
+  // buffers live in the backend). Resolved on first use — Canvas2D opts in, SVG
+  // and Skia don't.
+  private rasterCacheable: boolean | null = null;
 
   constructor(
     renderer: Renderer,
@@ -852,8 +862,56 @@ export class RenderLoop {
     );
   }
 
+  /**
+   * Run one composite through the renderer's raster cache when it can be
+   * content-addressed, else run it directly. The signature is everything the
+   * composite's pixels depend on: the subtree's resolved state (content token),
+   * the transform(s) it is painted under, the inherited alpha(s), the composite
+   * parameters (filter string / mask mode), and the device region — so a hit
+   * means the raster is what this frame would have drawn.
+   *
+   * NOTE: an ancestor transform change misses even when it only translates the
+   * subtree (the raster is unchanged, just moved). Reusing it would mean
+   * blitting at an offset, which is only sound for whole-device-pixel deltas —
+   * left for later; a wrong hit here freezes a sublayer.
+   */
+  private composite(
+    node: SceneNode,
+    kind: string,
+    signature: () => string,
+    region: DeviceRect,
+    draw: () => void,
+  ): void {
+    this.rasterCacheable ??=
+      (this.renderer.supportsRasterCache?.() ?? false) &&
+      this.renderer.cacheComposite !== undefined;
+    const token = this.rasterCacheable ? this.contentToken(node) : null;
+    if (token === null) {
+      draw();
+      return;
+    }
+    this.renderer.cacheComposite!(
+      `${this.nodeKey(node)}:${kind}`,
+      `${token}|${signature()}`,
+      region,
+      draw,
+    );
+  }
+
+  /** This frame's content token for a composite subtree (memoized — a mask
+   *  walks the same subtree twice). Null when the subtree can't be hashed. */
+  private contentToken(node: SceneNode): string | null {
+    let token = this.contentTokens.get(node);
+    if (token === undefined) {
+      token = subtreeToken(node);
+      this.contentTokens.set(node, token);
+    }
+    return token;
+  }
+
   private render(): void {
     this.filterPlans.clear();
+    this.contentTokens.clear();
     this.renderer.beginFrame();
 
     // beginFrame clears the whole device buffer at identity, so letterbox
@@ -1157,24 +1215,33 @@ export class RenderLoop {
     );
     if (!region) return; // content lands nowhere on the buffer
 
-    this.renderer.compositeMask(
-      mode,
-      // Content: paint it (even if it is itself a source), but skip its own mask
-      // redirect — we ARE that composite. Source: paint it, but keep its own mask
-      // (skipMask=false) so a chained matte composites instead of painting solid.
-      () => {
-        this.renderer.setTransform(contentParent);
-        this.renderNode(
-          node,
-          { paintSource: true, skipMask: true },
-          contentAlpha,
-        );
-      },
-      () => {
-        this.renderer.setTransform(maskParent);
-        this.renderNode(source, { paintSource: true }, maskAlpha);
-      },
+    this.composite(
+      node,
+      "mask",
+      () =>
+        `${mode}|${contentParent.join(",")}|${maskParent.join(",")}|${contentAlpha}|${maskAlpha}|${regionKey(region)}`,
       region,
+      () =>
+        this.renderer.compositeMask(
+          mode,
+          // Content: paint it (even if it is itself a source), but skip its own
+          // mask redirect — we ARE that composite. Source: paint it, but keep its
+          // own mask (skipMask=false) so a chained matte composites instead of
+          // painting solid.
+          () => {
+            this.renderer.setTransform(contentParent);
+            this.renderNode(
+              node,
+              { paintSource: true, skipMask: true },
+              contentAlpha,
+            );
+          },
+          () => {
+            this.renderer.setTransform(maskParent);
+            this.renderNode(source, { paintSource: true }, maskAlpha);
+          },
+          region,
+        ),
     );
   }
 
@@ -1223,13 +1290,25 @@ export class RenderLoop {
       return;
     }
     if (!region) return; // subtree lands nowhere on the buffer
-    this.renderer.compositeFilter(
-      css,
-      () => {
-        this.renderer.setTransform(parentWorld);
-        this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
-      },
+    this.composite(
+      node,
+      // The same node can be composited under different render options in one
+      // frame (as a mask's content, and again in the normal walk), each with its
+      // own raster — so the variant belongs in the KEY, not just the signature,
+      // or the two would evict each other every frame.
+      `filter${paintSource ? "S" : ""}${opts.skipMask ? "M" : ""}`,
+      () =>
+        `${css}|${parentWorld.join(",")}|${inheritedAlpha}|${regionKey(region)}`,
       region,
+      () =>
+        this.renderer.compositeFilter!(
+          css,
+          () => {
+            this.renderer.setTransform(parentWorld);
+            this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
+          },
+          region,
+        ),
     );
   }
 
@@ -1564,6 +1643,11 @@ export function sceneIsPerpetual(root: SceneNode): boolean {
 }
 
 /** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */
+/** A device region, flattened for a cache signature. */
+function regionKey(r: DeviceRect): string {
+  return `${r.x},${r.y},${r.width},${r.height}`;
+}
+
 function worldAlpha(node: SceneNode | null): number {
   let alpha = 1;
   for (let n: SceneNode | null = node; n; n = n.parent) alpha *= n.opacity;

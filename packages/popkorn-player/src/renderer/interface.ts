@@ -122,6 +122,24 @@ export interface Renderer {
   // own local scale. Return true for the latter. Feature-detected; default false.
   filtersUseUserSpace?(): boolean;
 
+  // Raster cache for composite subtrees. `cacheComposite` runs `draw` (a
+  // compositeFilter/compositeMask call for one subtree) into a dedicated
+  // region-sized raster and blits it; a later call with the same `key`,
+  // `signature` and `region` blits the stored raster WITHOUT running `draw`.
+  // The shared walk owns the decision — it derives the signature from the
+  // subtree's resolved state, world transform, filter string and region — and
+  // the backend owns storage, admission and eviction. Optional: an immediate-
+  // mode backend that can snapshot its own composite output implements both; a
+  // retained backend (SVG, which already diffs its DOM) and one without
+  // offscreen compositing (Skia) omit them and keep the uncached path.
+  supportsRasterCache?(): boolean;
+  cacheComposite?(
+    key: string,
+    signature: string,
+    region: DeviceRect,
+    draw: () => void,
+  ): void;
+
   // Style (called before draw)
   setFill(color: Color | null): void;
   setFillGradient(gradient: GradientData | null): void;

@@ -28,6 +28,19 @@ interface ImageEntry {
   errored: boolean;
 }
 
+// One cached composite raster: the buffer holding it (its pixel (0,0) is the
+// region's device origin, like every composite buffer), the signature the shared
+// walk captured it under, and the region it covers.
+interface RasterEntry {
+  ctx: CanvasRenderingContext2D;
+  signature: string;
+  region: DeviceRect;
+}
+
+function entryArea(e: RasterEntry): number {
+  return e.ctx.canvas.width * e.ctx.canvas.height;
+}
+
 // Intrinsic size: HTMLImageElement exposes naturalWidth/Height, ImageBitmap width/height.
 function imgWidth(img: HTMLImageElement | ImageBitmap): number {
   return "naturalWidth" in img ? img.naturalWidth : img.width;
@@ -57,6 +70,20 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   // Filter and mask share the counter so they interleave (filter-in-matte,
   // matte-in-filter) without clobbering each other's buffers.
   private maskDepth = 0;
+  // Raster cache for composite subtrees, keyed by the shared walk's cache key.
+  // Insertion order IS the LRU order (a hit re-inserts), and `rasterArea` tracks
+  // the allocated pixels so eviction can bound the pool by area.
+  private rasters = new Map<string, RasterEntry>();
+  private rasterArea = 0;
+  // Signature last seen for a key that wasn't cached — the admission gate: a
+  // subtree earns a buffer only once its signature repeats, so a genuinely
+  // animating subtree (a new signature every frame) never allocates one.
+  private rasterAdmit = new Map<string, string>();
+  // Set while capturing when a draw could not produce final pixels (an image
+  // still decoding, a webfont still loading). Such a raster is blitted but not
+  // stored — caching it would freeze the pre-decode frame forever.
+  private rasterIncomplete = false;
+  private capturing = false;
 
   constructor(canvas: HTMLCanvasElement) {
     super();
@@ -155,6 +182,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     anchor: TextAnchor,
     letterSpacing = 0,
   ): void {
+    // A webfont landing later re-shapes this text with no scene-state change, so
+    // a raster captured before the fonts settle must not be stored.
+    if (this.capturing && typeof document !== "undefined") {
+      if (document.fonts && document.fonts.status !== "loaded")
+        this.rasterIncomplete = true;
+    }
     this.ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
     this.ctx.textAlign =
       anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
@@ -211,7 +244,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       if (!loaded) return; // fully headless (no Image, no fetch/createImageBitmap): node is inert
       entry = loaded;
     }
-    if (!entry.loaded || !entry.img) return; // repaints in once the decode lands
+    if (!entry.loaded || !entry.img) {
+      // Repaints in once the decode lands — but a raster captured now would
+      // freeze the image out permanently, so the capture must not be stored.
+      if (this.capturing && !entry.errored) this.rasterIncomplete = true;
+      return;
+    }
     // Source-cropped (object-view-box): 9-arg sample of the sub-rect into the box.
     if (
       sx !== undefined &&
@@ -460,6 +498,138 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     main.restore();
   }
 
+  supportsRasterCache(): boolean {
+    return true;
+  }
+
+  /**
+   * Run a composite into a dedicated region-sized raster and blit it, reusing
+   * the stored raster when the caller's signature and region match the one it
+   * was captured under. The composite draws into a transparent buffer and is
+   * blitted with the same identity/source-over blit `compositeFilter` and
+   * `compositeMask` use, so a captured frame lands the same pixels the direct
+   * composite would (bar the 8-bit rounding of one extra premultiplied blit).
+   */
+  cacheComposite(
+    key: string,
+    signature: string,
+    region: DeviceRect,
+    draw: () => void,
+  ): void {
+    if (region.width <= 0 || region.height <= 0) return;
+    const hit = this.rasters.get(key);
+    if (hit && hit.signature === signature) {
+      // Re-insert to move it to the young end of the LRU order.
+      this.rasters.delete(key);
+      this.rasters.set(key, hit);
+      this.blitRaster(hit.ctx, region);
+      return;
+    }
+    // First sighting of this signature: draw straight through. A subtree that
+    // changes every frame stops here forever and never claims a buffer.
+    if (this.rasterAdmit.get(key) !== signature) {
+      this.rasterAdmit.set(key, signature);
+      draw();
+      return;
+    }
+
+    // Drop the superseded entry BEFORE capturing: the capture may reuse its
+    // canvas (and always invalidates its pixels), and an aborted capture must
+    // not leave a live entry pointing at half-overwritten pixels.
+    const w = gridUp(region.width);
+    const h = gridUp(region.height);
+    let buf: CanvasRenderingContext2D | null = null;
+    if (hit) {
+      this.rasters.delete(key);
+      this.rasterArea -= entryArea(hit);
+      if (hit.ctx.canvas.width >= w && hit.ctx.canvas.height >= h)
+        buf = hit.ctx;
+    }
+    buf ??= this.newRaster(w, h);
+    if (!buf) {
+      draw();
+      return;
+    }
+
+    const main = this.ctx;
+    const mainX = this.originX;
+    const mainY = this.originY;
+    const outerIncomplete = this.rasterIncomplete;
+    const outerCapturing = this.capturing;
+    this.rasterIncomplete = false;
+    this.capturing = true;
+    try {
+      this.ctx = buf;
+      this.originX = region.x;
+      this.originY = region.y;
+      // The capture buffer is dedicated, not from the depth-banded scratch pool,
+      // so a nested composite inside `draw` still claims its own band and the
+      // depth counter needs no bump here.
+      this.enterRegion(buf, region);
+      try {
+        draw();
+      } finally {
+        buf.restore();
+      }
+    } finally {
+      this.ctx = main;
+      this.originX = mainX;
+      this.originY = mainY;
+      this.capturing = outerCapturing;
+    }
+
+    this.blitRaster(buf, region);
+    const incomplete = this.rasterIncomplete;
+    // An enclosing capture must inherit the incompleteness, or it would store a
+    // raster containing this one's placeholder pixels.
+    this.rasterIncomplete = outerIncomplete || incomplete;
+    if (incomplete) return;
+    this.store(key, { ctx: buf, signature, region });
+  }
+
+  /** A raster buffer for one cached composite: its own allocation, never the
+   *  depth-banded scratch pool (whose bands a nested composite clobbers). */
+  private newRaster(w: number, h: number): CanvasRenderingContext2D | null {
+    return createOffscreen(w, h);
+  }
+
+  /** Insert a cache entry and evict by LRU until the pool fits the budget: 4x
+   *  the main buffer's pixels, which holds a handful of typical composite
+   *  regions without tracking the viewport. */
+  private store(key: string, entry: RasterEntry): void {
+    this.rasters.delete(key);
+    this.rasters.set(key, entry);
+    this.rasterArea += entryArea(entry);
+    const budget =
+      4 * Math.max(1, this.main.canvas.width * this.main.canvas.height);
+    for (const [k, e] of this.rasters) {
+      if (this.rasterArea <= budget || k === key) break;
+      this.rasters.delete(k);
+      this.rasterArea -= entryArea(e);
+    }
+  }
+
+  /** Blit a stored raster's region into the current target, at identity — the
+   *  same shape of blit the two composites end with. */
+  private blitRaster(src: CanvasRenderingContext2D, r: DeviceRect): void {
+    const dst = this.ctx;
+    dst.save();
+    dst.setTransform(1, 0, 0, 1, 0, 0);
+    dst.globalAlpha = 1;
+    dst.drawImage(
+      src.canvas,
+      0,
+      0,
+      r.width,
+      r.height,
+      r.x - this.originX,
+      r.y - this.originY,
+      r.width,
+      r.height,
+    );
+    dst.restore();
+  }
+
   /** The whole backing buffer — the region used when a caller supplies none. */
   private fullRegion(): DeviceRect {
     return {
@@ -581,8 +751,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     if (c.width !== width) c.width = width;
     if (c.height !== height) c.height = height;
     // Composite buffers grow monotonically; a resize is the point where a
-    // pool sized for the old canvas should stop being retained.
+    // pool sized for the old canvas should stop being retained. Cached rasters
+    // go with them: every one was captured in the old device space.
     this.offscreen.length = 0;
+    this.rasters.clear();
+    this.rasterAdmit.clear();
+    this.rasterArea = 0;
   }
 
   private applyFillAndStroke(bounds: PaintBox): void {
