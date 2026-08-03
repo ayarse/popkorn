@@ -5,7 +5,7 @@ import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
-import { ResizeHandle, useSplit } from "@/components/resize-handle";
+import { useSplit } from "@/components/resize-handle";
 import { ShareModal } from "@/components/share-modal";
 import { SourcePanel } from "@/components/source-panel";
 import { TimelinePanel } from "@/components/timeline-panel";
@@ -101,14 +101,14 @@ function App() {
             {isMobile ? playerNode : sourceNode}
           </div>
 
+          {/* ponytail: panel resizing is off for now — static divider. Swap
+              back to <ResizeHandle {...split} vertical={isMobile} /> to
+              re-enable; useSplit still supplies the fixed 50/50 frac. */}
           {!sourceCollapsed && (
-            <ResizeHandle
-              frac={split.frac}
-              min={split.min}
-              max={split.max}
-              vertical={isMobile}
-              onPointerDown={split.onPointerDown}
-              onKeyDown={split.onKeyDown}
+            <div
+              className={
+                isMobile ? "h-px shrink-0 bg-border" : "w-px shrink-0 bg-border"
+              }
             />
           )}
 
