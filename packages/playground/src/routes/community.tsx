@@ -71,7 +71,7 @@ function Community() {
   const [showShare, setShowShare] = useState(false);
   const [query, setQuery] = useState("");
   const [tagQuery, setTagQuery] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
 
   // Tag facet, most-used first — the sidebar's own search is what makes a long
   // tail navigable, so the list isn't truncated.
@@ -86,22 +86,20 @@ function Community() {
     t.includes(tagQuery.trim().toLowerCase()),
   );
 
-  // Selected tags are ANDed; free text matches title, author or tag.
+  // One tag filters at a time; free text matches title, author or tag.
   const q = query.trim().toLowerCase();
   const visible = scenes.filter(
     (s: SceneSummary) =>
-      selected.every((t) => s.tags.includes(t)) &&
+      (!selected || s.tags.includes(selected)) &&
       (!q ||
         s.title.toLowerCase().includes(q) ||
         s.author?.toLowerCase().includes(q) ||
         s.tags.some((t) => t.includes(q))),
   );
-  const filtering = Boolean(q) || selected.length > 0;
+  const filtering = Boolean(q) || selected !== null;
 
   const toggleTag = (tag: string) =>
-    setSelected((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
+    setSelected((prev) => (prev === tag ? null : tag));
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -131,13 +129,13 @@ function Community() {
             onChange={setTagQuery}
             placeholder="Search tags"
           />
-          {selected.length > 0 && (
+          {selected && (
             <button
               type="button"
-              onClick={() => setSelected([])}
+              onClick={() => setSelected(null)}
               className="self-start text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear {selected.length} filter{selected.length > 1 ? "s" : ""}
+              Clear filter
             </button>
           )}
           <div className="flex flex-col gap-0.5">
@@ -152,7 +150,7 @@ function Community() {
                   type="button"
                   onClick={() => toggleTag(tag)}
                   className={`flex items-center justify-between gap-2 rounded px-2 py-1 text-left text-sm ${
-                    selected.includes(tag)
+                    selected === tag
                       ? "bg-primary/15 text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
