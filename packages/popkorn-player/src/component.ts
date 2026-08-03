@@ -344,6 +344,7 @@ export class PopkornPlayer extends HTMLElementBase {
       cancelAnimationFrame(this._resizeRaf);
       this._resizeRaf = null;
     }
+    this.renderLoop?.getInputTracker().detach();
     this.stop();
   }
 
@@ -706,6 +707,8 @@ export class PopkornPlayer extends HTMLElementBase {
   private async initializePlayer(): Promise<void> {
     // Stop any existing loop
     this.stop();
+    // Detach the outgoing loop's input listeners before it's replaced below.
+    this.renderLoop?.getInputTracker().detach();
 
     if (!this._source) {
       return;

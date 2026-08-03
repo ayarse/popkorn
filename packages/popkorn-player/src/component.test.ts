@@ -1,6 +1,23 @@
 import { expect, test } from "bun:test";
-import { formatAnimatableValue } from "./component";
+import { formatAnimatableValue, PopkornPlayer } from "./component";
+import type { Renderer } from "./renderer/interface";
+import { RenderLoop } from "./runtime/loop";
 import { createDefaultTransform } from "./scene/types";
+
+/** Minimal canvas/window doubles: just enough surface for InputTracker.attach/
+ * detach to record listener churn, without a real DOM (this suite is DOM-free). */
+function createListenerCounter() {
+  let count = 0;
+  return {
+    count: () => count,
+    addEventListener: () => {
+      count++;
+    },
+    removeEventListener: () => {
+      count--;
+    },
+  };
+}
 
 test("formatAnimatableValue: number trims to a short display string", () => {
   expect(formatAnimatableValue(45)).toBe("45");
@@ -50,4 +67,62 @@ test("formatAnimatableValue: gradient / path / filter type tags", () => {
   expect(formatAnimatableValue([{ type: "blur", radius: 4 }] as never)).toBe(
     "filter",
   );
+});
+
+// PopkornPlayer's constructor needs a real DOM (attachShadow/document), which
+// this headless suite doesn't have, so these build a bare instance via
+// Object.create (skipping the constructor) and call the real, unmodified
+// initializePlayer/disconnectedCallback methods directly — the two spots that
+// must detach an outgoing RenderLoop's InputTracker before discarding it.
+
+test("re-initializing the player detaches the outgoing RenderLoop's InputTracker", async () => {
+  const canvas = createListenerCounter();
+  const win = createListenerCounter();
+  const prevWindow = (globalThis as { window?: unknown }).window;
+  (globalThis as { window?: unknown }).window = win;
+  try {
+    const oldLoop = new RenderLoop({} as unknown as Renderer);
+    oldLoop.getInputTracker().attach(canvas as unknown as HTMLCanvasElement);
+    expect(canvas.count()).toBe(3); // mousemove/mousedown/mouseup
+    expect(win.count()).toBe(1); // scroll
+
+    const fakePlayer = Object.create(PopkornPlayer.prototype) as PopkornPlayer;
+    (fakePlayer as unknown as { renderLoop: RenderLoop }).renderLoop = oldLoop;
+    // Falsy source -> initializePlayer returns right after stop()+detach(),
+    // skipping the DOM-heavy rebuild below it.
+    (fakePlayer as unknown as { _source: string })._source = "";
+
+    await (
+      fakePlayer as unknown as { initializePlayer(): Promise<void> }
+    ).initializePlayer();
+
+    expect(canvas.count()).toBe(0);
+    expect(win.count()).toBe(0);
+  } finally {
+    (globalThis as { window?: unknown }).window = prevWindow;
+  }
+});
+
+test("disconnectedCallback detaches the RenderLoop's InputTracker", () => {
+  const canvas = createListenerCounter();
+  const win = createListenerCounter();
+  const prevWindow = (globalThis as { window?: unknown }).window;
+  (globalThis as { window?: unknown }).window = win;
+  try {
+    const loop = new RenderLoop({} as unknown as Renderer);
+    loop.getInputTracker().attach(canvas as unknown as HTMLCanvasElement);
+    expect(canvas.count()).toBe(3);
+
+    const fakePlayer = Object.create(PopkornPlayer.prototype) as PopkornPlayer;
+    (fakePlayer as unknown as { renderLoop: RenderLoop }).renderLoop = loop;
+    (fakePlayer as unknown as { resizeObserver: null }).resizeObserver = null;
+    (fakePlayer as unknown as { _resizeRaf: null })._resizeRaf = null;
+
+    fakePlayer.disconnectedCallback();
+
+    expect(canvas.count()).toBe(0);
+    expect(win.count()).toBe(0);
+  } finally {
+    (globalThis as { window?: unknown }).window = prevWindow;
+  }
 });
