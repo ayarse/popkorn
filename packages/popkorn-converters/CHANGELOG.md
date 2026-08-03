@@ -1,5 +1,14 @@
 # @popkorn/converters
 
+## 0.2.6
+
+### Patch Changes
+
+- 2deef14: Fix published packages for strict ESM consumers: explicit `.js` extensions in all relative imports (plain Node and Webpack 5 could not resolve the dist output), and fix the publish script so `@popkorn/converters` gets its `workspace:*` deps resolved and dist-pointing entry fields applied (it was uninstallable via npm).
+- Updated dependencies [2deef14]
+  - @popkorn/parser@0.2.6
+  - @popkorn/player@0.2.6
+
 ## 0.2.5
 
 ### Patch Changes
