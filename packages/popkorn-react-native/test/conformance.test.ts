@@ -129,7 +129,9 @@ function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], clips: ClipObs[],
   });
   // The mask-carrying layer is the one whose paint set a blend mode.
   const masks: MaskObs[] = layers.filter((l) => l.blend !== undefined).map((l) => ({ mode: skiaMode(l.blend!, l.filter != null) }));
-  return { paints, masks, clips, width, height };
+  // Skia realizes no CSS filter (the pinned no-filter divergence), so a
+  // composite never contributes a filter string.
+  return { paints, masks, clips, filters: [], width, height };
 }
 
 const skiaHarness: ConformanceHarness = {

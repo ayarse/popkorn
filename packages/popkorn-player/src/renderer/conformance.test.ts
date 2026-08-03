@@ -36,7 +36,13 @@ import type { GradientData } from "./types";
 type CanvasEvent =
   | { type: "paint"; index: string | number; obs: PaintObs }
   | { type: "clip"; index: string | number; obs: ClipObs }
-  | { type: "blit"; srcIndex: number; dstIndex: string | number; gco: string }
+  | {
+      type: "blit";
+      srcIndex: number;
+      dstIndex: string | number;
+      gco: string;
+      filter: string;
+    }
   | { type: "luma"; index: number };
 
 // Path2D is absent under bun, so Canvas2DRenderer.clip (which does `new Path2D()`)
@@ -220,6 +226,7 @@ function recCtx(
           srcIndex: src.__index,
           dstIndex: index,
           gco: ctx.globalCompositeOperation,
+          filter: ctx.filter,
         });
       }
     },
@@ -258,7 +265,14 @@ function canvasTrace(
         e.type === "clip" && e.index === "main",
     )
     .map((e) => e.obs);
-  return { paints, masks, clips, width, height };
+  // A filtered composite is a blit onto the main canvas with ctx.filter live.
+  const filters = log
+    .filter(
+      (e): e is Extract<CanvasEvent, { type: "blit" }> =>
+        e.type === "blit" && e.dstIndex === "main" && e.filter !== "none",
+    )
+    .map((e) => e.filter);
+  return { paints, masks, clips, filters, width, height };
 }
 
 function canvasMode(luma: boolean, invert: boolean): MaskMode {
@@ -501,7 +515,18 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
       if (s.tagName === "circle") return { type: "circle" as const };
       return { type: "path" as const };
     });
-  return { paints, masks, clips, width: r.getWidth(), height: r.getHeight() };
+  // A filtered composite is a wrapper <g> carrying `style="filter: …"`.
+  const filters = findAll(rootG, (e) =>
+    (e.getAttribute("style") ?? "").includes("filter:"),
+  ).map((e) => (e.getAttribute("style") as string).replace(/^filter:\s*/, ""));
+  return {
+    paints,
+    masks,
+    clips,
+    filters,
+    width: r.getWidth(),
+    height: r.getHeight(),
+  };
 }
 
 function svgMaskMode(defs: FakeElement, mask: FakeElement): MaskMode {

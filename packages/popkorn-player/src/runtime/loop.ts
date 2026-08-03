@@ -32,6 +32,7 @@ import {
 } from "../scene/transform";
 import type {
   CircleData,
+  ColorFilterFn,
   EllipseData,
   FilterOp,
   ImageData,
@@ -1195,6 +1196,14 @@ export class RenderLoop {
       : matrixScale(world);
     if (!this.renderer.compositeFilter) return;
     const css = filterToCSS(ops, scale);
+    // Every op is identity at this scale (a blur under half a device pixel, a
+    // 1× color multiplier, a transparent shadow): the composite would cost a
+    // buffer swap, clear, clip, subtree re-walk and filtered blit to reproduce
+    // the unfiltered pixels. Draw inline instead — same result, no offscreen.
+    if (css === null) {
+      this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
+      return;
+    }
     // Bounds include this node's own filter bleed, so the blit region has room
     // for the blur/shadow to spread instead of cutting it off at the geometry.
     const region = subtreeDeviceBounds(
@@ -1313,13 +1322,79 @@ function effectiveFilterOps(node: SceneNode): FilterOp[] | null {
   return ops.length > 0 ? ops : null;
 }
 
-/** Build a CSS filter string from the ops, scaling every length to device px. */
-function filterToCSS(ops: FilterOp[], scale: number): string {
+/**
+ * A blur whose device-space radius is under half a pixel spreads nothing a
+ * viewer can see, so it counts as identity and the whole composite it would
+ * force can be dropped.
+ */
+const MIN_DEVICE_BLUR_PX = 0.5;
+
+/** The amount at which each single-scalar color function is a no-op. */
+const COLOR_FN_IDENTITY: Record<ColorFilterFn, number> = {
+  brightness: 1,
+  contrast: 1,
+  saturate: 1,
+  opacity: 1,
+  grayscale: 0,
+  sepia: 0,
+  invert: 0,
+  "hue-rotate": 0,
+};
+
+/** A fully transparent paint contributes nothing wherever it lands. */
+function isTransparentColor(color: string): boolean {
+  if (color === "transparent") return true;
+  const rgba = color.match(/^rgba?\(([^)]*)\)$/);
+  if (rgba) {
+    const parts = rgba[1].split(/[,/]/);
+    return parts.length === 4 && Number(parts[3].trim()) === 0;
+  }
+  // #rgba / #rrggbbaa — the alpha nibble/byte is the tail.
+  if (/^#[0-9a-f]{4}$/i.test(color)) return color[4] === "0";
+  if (/^#[0-9a-f]{8}$/i.test(color)) return color.slice(7) === "00";
+  return false;
+}
+
+// Does this op leave the composited pixels untouched at `scale`? A drop-shadow
+// only qualifies when its color is fully transparent — a zero-blur, zero-offset
+// shadow still paints an opaque silhouette *under* translucent content.
+function isIdentityOp(op: FilterOp, scale: number): boolean {
+  if (op.type === "blur") return op.radius * scale < MIN_DEVICE_BLUR_PX;
+  if (op.type === "drop-shadow") return isTransparentColor(op.color);
+  if (op.type === "hue-rotate") return op.amount % 360 === 0;
+  return op.amount === COLOR_FN_IDENTITY[op.type];
+}
+
+/**
+ * Build a CSS filter string from the ops, scaling every length to device px —
+ * or null when every op is identity there, which lets the caller skip the
+ * composite and draw the subtree inline (pixel-equivalent: opacity is applied
+ * per primitive inside the buffer and the blit runs at globalAlpha 1).
+ *
+ * Runs of ADJACENT blurs collapse into one, since independent Gaussians compose
+ * as σ = √(Σσᵢ²): a chained `ctx.filter` string falls off the browsers'
+ * single-function fast path and costs 15-20× a lone blur. Never across a
+ * non-blur op — `blur() drop-shadow() blur()` is order-dependent. This relies on
+ * scene/bounds.ts summing 3σ of bleed PER blur, which is strictly wider than the
+ * collapsed blur's reach, so the composite region stays a superset (invariant 6).
+ */
+export function filterToCSS(ops: FilterOp[], scale: number): string | null {
   const parts: string[] = [];
+  let blurSigmaSq = 0; // running Σσᵢ² over the current adjacent-blur run
+  const flushBlur = (): void => {
+    const sigma = Math.sqrt(blurSigmaSq);
+    if (sigma >= MIN_DEVICE_BLUR_PX) parts.push(`blur(${sigma}px)`);
+    blurSigmaSq = 0;
+  };
   for (const op of ops) {
     if (op.type === "blur") {
-      parts.push(`blur(${op.radius * scale}px)`);
-    } else if (op.type === "drop-shadow") {
+      const radius = op.radius * scale;
+      blurSigmaSq += radius * radius;
+      continue;
+    }
+    flushBlur();
+    if (isIdentityOp(op, scale)) continue;
+    if (op.type === "drop-shadow") {
       parts.push(
         `drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`,
       );
@@ -1331,7 +1406,8 @@ function filterToCSS(ops: FilterOp[], scale: number): string {
       parts.push(`${op.type}(${op.amount})`);
     }
   }
-  return parts.join(" ");
+  flushBlur();
+  return parts.length > 0 ? parts.join(" ") : null;
 }
 
 /**

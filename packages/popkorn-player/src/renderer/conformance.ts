@@ -1,3 +1,4 @@
+import { filterToCSS } from "../runtime/loop";
 import { insetShadowCommands, shapeClip } from "../scene/box-shadow";
 import type {
   BlendMode,
@@ -91,10 +92,14 @@ export interface ClipObs {
 }
 
 // The normalized observation a harness produces from running one case's ops.
+// `filters` holds the CSS filter string each compositeFilter realized, in
+// encounter order (Canvas: the ctx.filter live at the blit; SVG: the wrapper
+// group's filter style; Skia: always empty — it has no filter realization).
 export interface ConformanceTrace {
   paints: PaintObs[];
   masks: MaskObs[];
   clips: ClipObs[];
+  filters: string[];
   width: number;
   height: number;
 }
@@ -684,6 +689,65 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
         ["luminance", "alpha-invert"],
         expect,
       );
+    },
+  },
+
+  // --- CSS filter: shared string, shared skip -------------------------------
+  {
+    // The shared walk collapses adjacent blur()s (sigma = sqrt(sum of squares))
+    // before handing the string to a backend, so a chain and its collapsed
+    // equivalent must realize the SAME filter — and one composite each. Scoped
+    // to the filter-realizing backends; Skia's no-filter degrade is its pinned
+    // divergence, and it would observe two empty strings here.
+    name: "a chained blur realizes the same filter as its collapsed equivalent",
+    backends: ["canvas2d", "svg"],
+    ops: (r) => {
+      const chained = filterToCSS(
+        [
+          { type: "blur", radius: 9 },
+          { type: "blur", radius: 89 },
+        ],
+        1,
+      );
+      const collapsed = filterToCSS(
+        [{ type: "blur", radius: Math.sqrt(9 * 9 + 89 * 89) }],
+        1,
+      );
+      for (const css of [chained, collapsed]) {
+        r.compositeFilter?.(css as string, () => {
+          r.setFill("#0000ff");
+          r.setStroke(null, 0);
+          r.drawRect(0, 0, 10, 10);
+        });
+      }
+    },
+    assert: (t, expect) => {
+      expect(t.filters.length).toBe(2);
+      expect(t.filters[0]).toBe(t.filters[1]);
+      // One function, not a chain — the whole point of the collapse.
+      expect(t.filters[0].split(" ").length).toBe(1);
+    },
+  },
+  {
+    // A blur under half a device pixel is identity, so filterToCSS returns null
+    // and the walk draws the subtree inline: no composite, no filter realized,
+    // the same trace an unfiltered shape produces. Pinned on every backend —
+    // the skip is a decision in the shared walk, not a per-backend degrade.
+    name: "a sub-half-pixel blur realizes no filter and paints inline",
+    ops: (r) => {
+      const css = filterToCSS([{ type: "blur", radius: 0.4 }], 1);
+      const draw = () => {
+        r.setFill("#0000ff");
+        r.setStroke(null, 0);
+        r.drawRect(0, 0, 10, 10);
+      };
+      // Exactly the shared walk's branch: null means composite nothing.
+      if (css) r.compositeFilter?.(css, draw);
+      else draw();
+    },
+    assert: (t, expect) => {
+      expect(t.filters).toEqual([]);
+      expect(t.paints.map((p) => p.kind)).toEqual(["fill"]);
     },
   },
 

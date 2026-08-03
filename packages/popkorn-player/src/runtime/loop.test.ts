@@ -23,7 +23,7 @@ import type {
   TextAnchor,
 } from "../scene/types";
 import { createSceneNode, snapshotNode } from "../scene/types";
-import { RenderLoop, sceneIsPerpetual } from "./loop";
+import { filterToCSS, RenderLoop, sceneIsPerpetual } from "./loop";
 import { createVariableResolver } from "./variables";
 
 // A dot whose opacity ramps 0 -> 1 over a single 3s iteration, then holds
@@ -756,4 +756,124 @@ test("mix-blend-mode brackets the shape draw (mode then reset to normal)", () =>
 test("mix-blend-mode: normal (default) sets no blend at all", () => {
   const r = loadScene("#b { type: rect; width: 10; height: 10; fill: #f00; }");
   expect(r.blends).toEqual([]);
+});
+
+// --- filter string: adjacent-blur collapse + identity skip -------------------
+
+test("filterToCSS collapses adjacent blurs into one sqrt-sum blur", () => {
+  const css = filterToCSS(
+    [
+      { type: "blur", radius: 9 },
+      { type: "blur", radius: 89 },
+    ],
+    1,
+  );
+  // Independent Gaussians compose as sigma = sqrt(9^2 + 89^2).
+  expect(css).toBe(`blur(${Math.sqrt(9 * 9 + 89 * 89)}px)`);
+});
+
+test("filterToCSS collapses on the device values (scale folded in)", () => {
+  const css = filterToCSS(
+    [
+      { type: "blur", radius: 3 },
+      { type: "blur", radius: 4 },
+    ],
+    2,
+  );
+  expect(css).toBe("blur(10px)"); // sqrt(6^2 + 8^2)
+});
+
+test("filterToCSS never collapses across a non-blur op", () => {
+  const css = filterToCSS(
+    [
+      { type: "blur", radius: 3 },
+      { type: "drop-shadow", dx: 1, dy: 2, blur: 4, color: "#ff0000" },
+      { type: "blur", radius: 4 },
+    ],
+    1,
+  );
+  // Order-dependent: three functions, the two blurs untouched.
+  expect(css).toBe("blur(3px) drop-shadow(1px 2px 4px #ff0000) blur(4px)");
+});
+
+test("filterToCSS collapses each adjacent run separately", () => {
+  const css = filterToCSS(
+    [
+      { type: "blur", radius: 3 },
+      { type: "blur", radius: 4 },
+      { type: "brightness", amount: 2 },
+      { type: "blur", radius: 6 },
+      { type: "blur", radius: 8 },
+    ],
+    1,
+  );
+  expect(css).toBe("blur(5px) brightness(2) blur(10px)");
+});
+
+test("filterToCSS returns null when every op is identity", () => {
+  expect(filterToCSS([{ type: "blur", radius: 0 }], 1)).toBe(null);
+  // Sub-half-device-pixel blur, either from a small radius or a small scale.
+  expect(filterToCSS([{ type: "blur", radius: 0.4 }], 1)).toBe(null);
+  expect(filterToCSS([{ type: "blur", radius: 4 }], 0.1)).toBe(null);
+  expect(filterToCSS([{ type: "hue-rotate", amount: 0 }], 1)).toBe(null);
+  expect(filterToCSS([{ type: "hue-rotate", amount: 360 }], 1)).toBe(null);
+  expect(filterToCSS([{ type: "brightness", amount: 1 }], 1)).toBe(null);
+  expect(filterToCSS([{ type: "opacity", amount: 1 }], 1)).toBe(null);
+  expect(filterToCSS([{ type: "grayscale", amount: 0 }], 1)).toBe(null);
+  expect(filterToCSS([{ type: "invert", amount: 0 }], 1)).toBe(null);
+  expect(
+    filterToCSS(
+      [{ type: "drop-shadow", dx: 2, dy: 2, blur: 3, color: "transparent" }],
+      1,
+    ),
+  ).toBe(null);
+  expect(
+    filterToCSS(
+      [{ type: "drop-shadow", dx: 2, dy: 2, blur: 3, color: "rgba(0,0,0,0)" }],
+      1,
+    ),
+  ).toBe(null);
+  expect(
+    filterToCSS(
+      [{ type: "drop-shadow", dx: 0, dy: 0, blur: 0, color: "#ff000000" }],
+      1,
+    ),
+  ).toBe(null);
+});
+
+test("filterToCSS keeps non-identity ops and drops identity ones", () => {
+  const css = filterToCSS(
+    [
+      { type: "brightness", amount: 1 },
+      { type: "blur", radius: 0.1 },
+      { type: "saturate", amount: 2 },
+      { type: "hue-rotate", amount: 0 },
+    ],
+    1,
+  );
+  expect(css).toBe("saturate(2)");
+});
+
+test("filterToCSS keeps an opaque zero-blur shadow (it paints a silhouette)", () => {
+  const css = filterToCSS(
+    [{ type: "drop-shadow", dx: 0, dy: 0, blur: 0, color: "#ff0000" }],
+    1,
+  );
+  expect(css).toBe("drop-shadow(0px 0px 0px #ff0000)");
+});
+
+test("filter: an all-identity filter draws inline with no composite", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 10; height: 10; fill: #f00; filter: blur(0px) brightness(1); }",
+  );
+  expect(r.filters).toEqual([]);
+  // The node still paints — the composite is skipped, not the draw.
+  expect(r.fills).toContain("#f00");
+});
+
+test("filter: chained blurs composite once with the collapsed radius", () => {
+  const r = loadScene(
+    "#b { type: rect; width: 10; height: 10; fill: #f00; filter: blur(3px) blur(4px); }",
+  );
+  expect(r.filters).toEqual(["blur(5px)"]);
 });
