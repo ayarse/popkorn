@@ -18,18 +18,16 @@
 // NOTE: git-checkout restore; if you add non-tracked manifest edits, revisit.
 import { $ } from "bun";
 
-const PKGS = [
-  "packages/popkorn-parser/package.json",
-  "packages/popkorn-player/package.json",
-  "packages/popkorn-react-native/package.json",
-];
-
+// Derived, not hand-listed — a hand-listed set silently skips new packages.
+const PKGS: string[] = [];
 // name -> version for every workspace package, to resolve `workspace:` ranges.
 const versions: Record<string, string> = {};
 for await (const path of new Bun.Glob("packages/*/package.json").scan(".")) {
-  const { name, version } = await Bun.file(path).json();
+  const { name, version, private: isPrivate } = await Bun.file(path).json();
   if (name && version) versions[name] = version;
+  if (!isPrivate) PKGS.push(path);
 }
+PKGS.sort();
 
 // workspace:*  -> "1.2.3"   |   workspace:^ -> "^1.2.3"   |   workspace:^1.2.3 -> "^1.2.3"
 function resolveRange(range: string, version: string): string {
@@ -42,8 +40,6 @@ function resolveRange(range: string, version: string): string {
 for (const path of PKGS) {
   const pkg = await Bun.file(path).json();
   if (pkg.publishConfig) Object.assign(pkg, pkg.publishConfig);
-  // Only consumer-facing dep fields need real versions; devDependencies aren't
-  // installed transitively, so a leftover workspace:* there is inert.
   for (const field of ["dependencies", "peerDependencies", "optionalDependencies"]) {
     const deps = pkg[field];
     for (const name in deps) {
@@ -52,11 +48,24 @@ for (const path of PKGS) {
       }
     }
   }
+  // devDeps aren't installed transitively; drop workspace refs rather than
+  // resolving them — some point at private packages that aren't on npm.
+  for (const name in pkg.devDependencies) {
+    if (String(pkg.devDependencies[name]).startsWith("workspace:")) delete pkg.devDependencies[name];
+  }
   await Bun.write(path, JSON.stringify(pkg, null, 2) + "\n");
 }
 
+// --dry-run <dir>: pack the same transformed manifests instead of publishing.
+const dryRun = process.argv.indexOf("--dry-run");
 try {
-  await $`bunx changeset publish`;
+  if (dryRun !== -1) {
+    const out = Bun.pathToFileURL(process.argv[dryRun + 1] ?? "dry-run-packs").pathname;
+    await $`mkdir -p ${out}`;
+    for (const path of PKGS) await $`bun pm pack --destination ${out}`.cwd(path.replace("/package.json", ""));
+  } else {
+    await $`bunx changeset publish`;
+  }
 } finally {
   await $`git checkout -- ${PKGS}`;
 }

@@ -17,5 +17,12 @@ package's dist-pointing `publishConfig` onto its manifest AND rewrites
 src-pointing dev manifests back (dev keeps main/types/exports on `./src` so the
 workspace runs build-free; only the published tarball points at `./dist`).
 **Don't drop the `workspace:*` rewrite — without it the published tarballs are
-uninstallable.** Tests are `bun:test`, so switching to pnpm (which would delete
-this shim) isn't worth it.
+uninstallable.** The package set is derived from `packages/*/package.json`
+minus `private` ones — never hand-list it; a hand-listed set is how
+`@popkorn/converters` shipped 0.1.0–0.2.5 with raw `workspace:*` deps and
+`./src` entry points (issue #12). Tests are `bun:test`, so switching to pnpm
+(which would delete this shim) isn't worth it.
+
+To check a tarball without publishing: `bun scripts/publish.ts --dry-run <dir>`
+runs the same manifest transform, `bun pm pack`s every publishable package into
+`<dir>`, then restores the dev manifests.
