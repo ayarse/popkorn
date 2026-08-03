@@ -17,6 +17,7 @@ import {
   TOOL_DEFS,
   type ToolContext,
 } from "@/lib/agent-tools";
+import { track } from "@/lib/analytics";
 
 // The gallery scenes, exposed to the read_example tool for from-scratch few-shot.
 // Keyed by the human label ("State machine: Pip") the loader already derives.
@@ -81,7 +82,9 @@ export function useAgentChat(
     return () => abortRef.current?.abort();
   }, []);
 
+  // Analytics: model/tool names only — never prompt text or the API key.
   const applyConfig = useCallback((cfg: AgentConfig) => {
+    track("copilot_config_saved", { model: cfg.model });
     saveConfig(cfg);
     setConfig(cfg);
     setError(null);
@@ -91,7 +94,10 @@ export function useAgentChat(
   const revert = useCallback(
     (messageId: number) => {
       const msg = messages.find((m) => m.id === messageId);
-      if (msg?.revertTo !== undefined) onApplySource(msg.revertTo);
+      if (msg?.revertTo !== undefined) {
+        track("copilot_revert");
+        onApplySource(msg.revertTo);
+      }
     },
     [messages, onApplySource],
   );
@@ -122,6 +128,8 @@ export function useAgentChat(
         setSettingsOpen(true);
         return;
       }
+
+      track("copilot_send", { model: config.model });
 
       const apiMessages = [
         { role: "system", content: SYSTEM_PROMPT },
@@ -196,7 +204,10 @@ export function useAgentChat(
           onToolEvent,
         });
       } catch (e: any) {
-        if (!ac.signal.aborted) setError(e?.message ?? String(e));
+        if (!ac.signal.aborted) {
+          track("copilot_error", { model: config.model });
+          setError(e?.message ?? String(e));
+        }
       } finally {
         if (!ac.signal.aborted) {
           // If the run changed the scene, hang the pre-run snapshot off the

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { executeTool, isToolError, type ToolContext } from "@/lib/agent-tools";
+import { track } from "@/lib/analytics";
 import { handleTabFrame } from "./tab-frame";
 import { AGENT_EXAMPLES, toolLabel } from "./use-agent-chat";
 
@@ -75,10 +76,13 @@ export function useOwnAgent(
       });
       if (frame === null) return;
       if (frame.kind === "client") {
+        // Analytics: client and tool names only — no scene source or args.
+        track("mcp_client", { client: frame.name ?? "unknown" });
         setClientName(frame.name);
         setStatus("connected");
         return;
       }
+      track("mcp_tool", { tool: frame.name, ok: frame.isError ? 0 : 1 });
       setStatus("connected");
       setEvents((prev) => [
         ...prev.slice(-(MAX_EVENTS - 1)),
@@ -108,7 +112,12 @@ export function useOwnAgent(
   const connect = useCallback(() => {
     wsRef.current?.close();
     const id = sessionId ?? crypto.randomUUID();
-    if (!sessionId) writeStoredId(id);
+    // Fires only on a first mint, so auto-reconnects don't inflate the count —
+    // pairs with mcp_client as the "minted a URL → an agent showed up" funnel.
+    if (!sessionId) {
+      track("mcp_session_start");
+      writeStoredId(id);
+    }
     setSessionId(id);
     setStatus("waiting");
     openSocket(id);
