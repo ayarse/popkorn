@@ -37,7 +37,15 @@ function imgHeight(img: HTMLImageElement | ImageBitmap): number {
 }
 
 export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
+  // The visible canvas — the composite target of last resort, and the authority
+  // on device size (`this.ctx` is an offscreen buffer mid-composite).
+  private main: CanvasRenderingContext2D;
   private ctx: CanvasRenderingContext2D;
+  // Device coordinates of `this.ctx`'s pixel (0, 0). Zero on the main canvas;
+  // a composite buffer's origin is its region's origin, so buffers only need to
+  // be region-sized. setTransform folds it in, so callers stay in device space.
+  private originX = 0;
+  private originY = 0;
   // Image cache and lazily-created offscreen buffers for track masks.
   private images = new Map<string, ImageEntry>();
   // In-flight image decodes; each promise settles (never rejects) on load/error.
@@ -57,10 +65,11 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       throw new Error("Failed to get 2D rendering context");
     }
     this.ctx = ctx;
+    this.main = ctx;
   }
 
   clear(): void {
-    this.ctx.clearRect(0, 0, this.ctx.canvas.width, this.ctx.canvas.height);
+    this.main.clearRect(0, 0, this.main.canvas.width, this.main.canvas.height);
   }
 
   beginFrame(): void {
@@ -293,23 +302,29 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     drawMask: () => void,
     region?: DeviceRect,
   ): void {
+    const r = region ?? this.fullRegion();
+    if (r.width <= 0 || r.height <= 0) return;
     const base = this.maskDepth * 2;
-    const a = this.ensureOffscreen(base);
-    const b = this.ensureOffscreen(base + 1);
+    const a = this.ensureOffscreen(base, r.width, r.height);
+    const b = this.ensureOffscreen(base + 1, r.width, r.height);
     if (!a || !b) {
       drawContent();
       return;
     } // headless / no offscreen: content only
 
     const main = this.ctx;
-    const r = region ?? this.fullRegion();
+    const mainX = this.originX;
+    const mainY = this.originY;
 
     // Content -> A, mask source -> B; each closure sets its own world transform.
     // A nested matte encountered inside these closures re-enters here at a
     // deeper depth, so it claims its own buffer pair rather than clearing ours.
+    // Both buffers take the same origin, so they combine at matching coords.
     this.maskDepth++;
     try {
       this.ctx = a;
+      this.originX = r.x;
+      this.originY = r.y;
       this.enterRegion(a, r);
       try {
         drawContent();
@@ -326,51 +341,43 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       }
     } finally {
       this.maskDepth--;
+      this.ctx = main;
+      this.originX = mainX;
+      this.originY = mainY;
     }
 
     // Turn a luminance mask into an alpha mask in place, so a single
     // destination-in/out handles every mode.
     if (mode === "luminance" || mode === "luminance-invert")
-      luminanceToAlpha(b, r);
+      luminanceToAlpha(b, r.width, r.height);
 
     // destination-in keeps content where the mask is opaque; destination-out
-    // keeps it where the mask is transparent (the *-invert variants).
-    // destination-in erases the destination everywhere the source is absent, so
-    // the clip is load-bearing: it confines that erasure to the region and
-    // leaves the rest of the shared buffer (another composite's pixels) alone.
+    // keeps it where the mask is transparent (the *-invert variants). Both
+    // buffers hold the region at their own top-left corner, so the combine is
+    // corner-to-corner; the clip keeps destination-in's erasure off the slack
+    // a grow-only buffer carries beyond the region.
     const invert = mode === "alpha-invert" || mode === "luminance-invert";
     a.save();
     a.setTransform(1, 0, 0, 1, 0, 0);
-    clipToRegion(a, r);
+    clipToRegion(a, 0, 0, r.width, r.height);
     a.globalCompositeOperation = invert ? "destination-out" : "destination-in";
-    a.drawImage(
-      b.canvas,
-      r.x,
-      r.y,
-      r.width,
-      r.height,
-      r.x,
-      r.y,
-      r.width,
-      r.height,
-    );
+    a.drawImage(b.canvas, 0, 0, r.width, r.height, 0, 0, r.width, r.height);
     a.globalCompositeOperation = "source-over";
     a.restore();
 
-    // Blit the masked result onto the main canvas at identity (A already holds
-    // world-positioned pixels).
-    this.ctx = main;
+    // Blit the masked result back at identity, landing the buffer's corner on
+    // the region's position in the destination's own coordinates.
     main.save();
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
     main.drawImage(
       a.canvas,
-      r.x,
-      r.y,
+      0,
+      0,
       r.width,
       r.height,
-      r.x,
-      r.y,
+      r.x - mainX,
+      r.y - mainY,
       r.width,
       r.height,
     );
@@ -394,7 +401,9 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     drawContent: () => void,
     region?: DeviceRect,
   ): void {
-    const buf = this.ensureOffscreen(this.maskDepth * 2);
+    const r = region ?? this.fullRegion();
+    if (r.width <= 0 || r.height <= 0) return;
+    const buf = this.ensureOffscreen(this.maskDepth * 2, r.width, r.height);
     if (!buf) {
       // Headless (no offscreen): draw unfiltered, bracketed so the closure's
       // absolute setTransform can't leak into sibling draws on the main ctx.
@@ -405,12 +414,15 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     }
 
     const main = this.ctx;
-    const r = region ?? this.fullRegion();
+    const mainX = this.originX;
+    const mainY = this.originY;
     // A nested composite inside drawContent claims a deeper band, so it can't
     // clear this buffer mid-composite (mirrors compositeMask's depth discipline).
     this.maskDepth++;
     try {
       this.ctx = buf;
+      this.originX = r.x;
+      this.originY = r.y;
       this.enterRegion(buf, r);
       try {
         drawContent();
@@ -419,25 +431,28 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       }
     } finally {
       this.maskDepth--;
+      this.ctx = main;
+      this.originX = mainX;
+      this.originY = mainY;
     }
 
-    this.ctx = main;
     main.save();
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
     main.filter = filter;
-    // Source sub-rect, not the whole buffer: only `r` was cleared and redrawn,
-    // so the rest still holds a previous composite's pixels and would otherwise
-    // be filtered in. `r` already carries the filter's bleed margin (see
-    // scene/bounds), so the blur samples transparent padding, not a hard edge.
+    // Source sub-rect, not the whole buffer: only the region was cleared and
+    // redrawn, so a grow-only buffer's slack still holds a previous composite's
+    // pixels and would otherwise be filtered in. The region already carries the
+    // filter's bleed margin (see scene/bounds), so the blur samples transparent
+    // padding, not a hard edge.
     main.drawImage(
       buf.canvas,
-      r.x,
-      r.y,
+      0,
+      0,
       r.width,
       r.height,
-      r.x,
-      r.y,
+      r.x - mainX,
+      r.y - mainY,
       r.width,
       r.height,
     );
@@ -450,38 +465,51 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     return {
       x: 0,
       y: 0,
-      width: this.ctx.canvas.width,
-      height: this.ctx.canvas.height,
+      width: this.main.canvas.width,
+      height: this.main.canvas.height,
     };
   }
 
   /**
    * Open a composite buffer for drawing into `r`: reset to device space, clear
-   * just that rect, and clip to it. Buffers stay full-canvas-sized and are
-   * shared across composites (resizing per composite would reallocate on nearly
-   * every one), so scoping the clear and the clip is what keeps the cost
-   * proportional to the node rather than the viewport. Pairs with ctx.restore().
+   * the region, and clip to it. The buffer's pixel (0, 0) IS the region's
+   * device origin (see `originX`), so the region sits at the buffer's corner
+   * and drawing in device space still lands correctly. Pairs with ctx.restore().
    */
   private enterRegion(ctx: CanvasRenderingContext2D, r: DeviceRect): void {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
-    ctx.clearRect(r.x, r.y, r.width, r.height);
-    clipToRegion(ctx, r);
+    ctx.clearRect(0, 0, r.width, r.height);
+    clipToRegion(ctx, 0, 0, r.width, r.height);
   }
 
-  /** Lazily create/resize an offscreen 2D context sized to the main canvas. */
-  private ensureOffscreen(index: number): CanvasRenderingContext2D | null {
-    const w = this.ctx.canvas.width,
-      h = this.ctx.canvas.height;
+  /**
+   * Lazily create an offscreen 2D context holding at least w×h pixels. Buffers
+   * are region-sized rather than canvas-sized because a filtered blit costs in
+   * proportion to its SOURCE surface (Firefox measurably so, ~2× from a
+   * viewport-sized source), and because the pool retains 2×(depth+1) of them.
+   *
+   * Sizes round UP to a 64px grid and only ever grow within a frame band, so a
+   * region jittering by a pixel per frame doesn't reallocate; `resize()` drops
+   * the pool so a shrunken canvas doesn't keep paying for the old one.
+   */
+  private ensureOffscreen(
+    index: number,
+    w: number,
+    h: number,
+  ): CanvasRenderingContext2D | null {
     let ctx = this.offscreen[index];
     if (ctx === undefined) {
-      ctx = createOffscreen(w, h);
+      ctx = createOffscreen(gridUp(w), gridUp(h));
       this.offscreen[index] = ctx;
+      return ctx;
     }
-    if (ctx && (ctx.canvas.width !== w || ctx.canvas.height !== h)) {
-      ctx.canvas.width = w;
-      ctx.canvas.height = h;
+    if (ctx && (ctx.canvas.width < w || ctx.canvas.height < h)) {
+      // Assigning either dimension wipes the canvas; both composites clear the
+      // region they draw into first, so there is nothing to preserve.
+      ctx.canvas.width = Math.max(ctx.canvas.width, gridUp(w));
+      ctx.canvas.height = Math.max(ctx.canvas.height, gridUp(h));
     }
     return ctx;
   }
@@ -526,21 +554,35 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   setTransform(m: Matrix3x3): void {
     // Matrix3x3 is [a, b, tx, c, d, ty, 0, 0, 1]
     // Canvas setTransform takes (a, b, c, d, e, f) = (a, c, b, d, tx, ty)
-    this.ctx.setTransform(m[0], m[3], m[1], m[4], m[2], m[5]);
+    // The translation drops the current target's origin, so an absolute
+    // device-space matrix addresses a region-sized composite buffer unchanged.
+    this.ctx.setTransform(
+      m[0],
+      m[3],
+      m[1],
+      m[4],
+      m[2] - this.originX,
+      m[5] - this.originY,
+    );
   }
 
+  // Device size is the main canvas's, never the composite buffer we may be
+  // drawing into: the walk clamps its bounds against this.
   getWidth(): number {
-    return this.ctx.canvas.width;
+    return this.main.canvas.width;
   }
 
   getHeight(): number {
-    return this.ctx.canvas.height;
+    return this.main.canvas.height;
   }
 
   resize(width: number, height: number): void {
-    const c = this.ctx.canvas;
+    const c = this.main.canvas;
     if (c.width !== width) c.width = width;
     if (c.height !== height) c.height = height;
+    // Composite buffers grow monotonically; a resize is the point where a
+    // pool sized for the old canvas should stop being retained.
+    this.offscreen.length = 0;
   }
 
   private applyFillAndStroke(bounds: PaintBox): void {
@@ -600,11 +642,24 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   }
 }
 
-/** Confine drawing to `r`, in device space (caller has reset the transform). */
-function clipToRegion(ctx: CanvasRenderingContext2D, r: DeviceRect): void {
+/** Confine drawing to a rect, in the target's own pixels (caller has reset the
+ *  transform). */
+function clipToRegion(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
   ctx.beginPath();
-  ctx.rect(r.x, r.y, r.width, r.height);
+  ctx.rect(x, y, w, h);
   ctx.clip();
+}
+
+/** Round an allocation up to a 64px grid — never below the request, so a
+ *  buffer always holds the whole region (invariant: regions stay supersets). */
+function gridUp(n: number): number {
+  return Math.max(1, Math.ceil(n / 64) * 64);
 }
 
 /** A blank offscreen 2D context sized w×h, or null when no canvas API exists. */
@@ -640,18 +695,14 @@ function createOffscreen(
  */
 function luminanceToAlpha(
   ctx: CanvasRenderingContext2D,
-  region?: DeviceRect,
+  width: number,
+  height: number,
 ): void {
-  const r = region ?? {
-    x: 0,
-    y: 0,
-    width: ctx.canvas.width,
-    height: ctx.canvas.height,
-  };
-  if (r.width === 0 || r.height === 0) return;
+  if (width <= 0 || height <= 0) return;
   let data: ImageData;
   try {
-    data = ctx.getImageData(r.x, r.y, r.width, r.height);
+    // The mask region sits at the buffer's corner, so the readback does too.
+    data = ctx.getImageData(0, 0, width, height);
   } catch {
     return; // tainted canvas — leave as-is (treated as an alpha mask)
   }
@@ -663,5 +714,5 @@ function luminanceToAlpha(
       LUMA_COEFFICIENTS.b * px[i + 2];
     px[i + 3] = (px[i + 3] * lum) / 255;
   }
-  ctx.putImageData(data, r.x, r.y);
+  ctx.putImageData(data, 0, 0);
 }

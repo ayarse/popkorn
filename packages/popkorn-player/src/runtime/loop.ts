@@ -9,6 +9,7 @@ import {
 import type { Renderer } from "../renderer/interface";
 import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
 import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
+import type { DeviceRect } from "../scene/bounds";
 import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds";
 import {
   insetShadowCommands,
@@ -77,6 +78,14 @@ import { createVariableResolver, type VariableResolver } from "./variables";
 interface RenderOpts {
   paintSource?: boolean;
   skipMask?: boolean;
+}
+
+/** A filtered node's composite plan for one frame, plus the transform/flag key
+ *  it was derived under (a second visit at a different transform re-derives). */
+interface FilterPlan {
+  key: string;
+  css: string | null;
+  region: DeviceRect | null;
 }
 
 /** Detail of a `popkorn:click` — the hit node's id, its ancestor id path (root
@@ -170,6 +179,12 @@ export class RenderLoop {
   // for the scene's lifetime, so the WeakMap keeps keys stable across frames.
   private nodeKeys = new WeakMap<SceneNode, string>();
   private nextNodeKey = 0;
+  // Per-frame memo of each filtered node's composite plan (CSS string + device
+  // region). A mask double-walks its content and source subtrees, so the same
+  // filtered node is commonly reached twice in one frame at the same transform;
+  // both the bounds walk and filterToCSS are non-trivial. Cleared every frame —
+  // it caches nothing across time (invariants 2 and 4).
+  private filterPlans = new Map<SceneNode, FilterPlan>();
 
   constructor(
     renderer: Renderer,
@@ -838,6 +853,7 @@ export class RenderLoop {
   }
 
   private render(): void {
+    this.filterPlans.clear();
     this.renderer.beginFrame();
 
     // beginFrame clears the whole device buffer at identity, so letterbox
@@ -1179,10 +1195,53 @@ export class RenderLoop {
     inheritedAlpha: number,
     ops: FilterOp[],
   ): void {
+    if (!this.renderer.compositeFilter) return;
     const parentWorld = multiplyMatrices(
       this.viewport,
       computeWorldMatrixFromRoot(node.parent),
     );
+    const paintSource = opts.paintSource ?? false;
+    // The plan (CSS + region) depends only on the node's state this frame and
+    // the transform it is drawn under, so a second visit at the same transform
+    // reuses it instead of re-deriving the scale and re-walking the subtree.
+    const planKey = `${parentWorld.join(",")}|${paintSource}`;
+    let plan = this.filterPlans.get(node);
+    if (!plan || plan.key !== planKey) {
+      plan = {
+        key: planKey,
+        ...this.planFilter(node, parentWorld, ops, paintSource),
+      };
+      this.filterPlans.set(node, plan);
+    }
+    // Every op is identity at this scale (a blur under half a device pixel, a
+    // 1× color multiplier, a transparent shadow): the composite would cost a
+    // buffer swap, clear, clip, subtree re-walk and filtered blit to reproduce
+    // the unfiltered pixels. Draw inline instead — same result, no offscreen.
+    const { css, region } = plan;
+    if (css === null) {
+      this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
+      return;
+    }
+    if (!region) return; // subtree lands nowhere on the buffer
+    this.renderer.compositeFilter(
+      css,
+      () => {
+        this.renderer.setTransform(parentWorld);
+        this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
+      },
+      region,
+    );
+  }
+
+  /** Derive a filtered node's composite plan: the CSS filter string at the
+   *  right scale (null when every op is identity) and the device region the
+   *  blit covers (null when the subtree lands off-buffer). */
+  private planFilter(
+    node: SceneNode,
+    parentWorld: Matrix3x3,
+    ops: FilterOp[],
+    paintSource: boolean,
+  ): { css: string | null; region: DeviceRect | null } {
     const world = multiplyMatrices(
       this.viewport,
       computeWorldMatrixFromRoot(node),
@@ -1194,16 +1253,8 @@ export class RenderLoop {
     const scale = this.renderer.filtersUseUserSpace?.()
       ? matrixScale(world) / (matrixScale(parentWorld) || 1)
       : matrixScale(world);
-    if (!this.renderer.compositeFilter) return;
     const css = filterToCSS(ops, scale);
-    // Every op is identity at this scale (a blur under half a device pixel, a
-    // 1× color multiplier, a transparent shadow): the composite would cost a
-    // buffer swap, clear, clip, subtree re-walk and filtered blit to reproduce
-    // the unfiltered pixels. Draw inline instead — same result, no offscreen.
-    if (css === null) {
-      this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
-      return;
-    }
+    if (css === null) return { css: null, region: null };
     // Bounds include this node's own filter bleed, so the blit region has room
     // for the blur/shadow to spread instead of cutting it off at the geometry.
     const region = subtreeDeviceBounds(
@@ -1211,17 +1262,9 @@ export class RenderLoop {
       parentWorld,
       this.renderer.getWidth(),
       this.renderer.getHeight(),
-      opts.paintSource ?? false,
+      paintSource,
     );
-    if (!region) return; // subtree lands nowhere on the buffer
-    this.renderer.compositeFilter(
-      css,
-      () => {
-        this.renderer.setTransform(parentWorld);
-        this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
-      },
-      region,
-    );
+    return { css, region };
   }
 
   /**
@@ -1270,6 +1313,11 @@ export class RenderLoop {
         this.renderer.restore();
       };
       const blur = s.blur * scale;
+      // NOTE: no region is passed, so this composite claims the whole device
+      // buffer — and composite buffers grow monotonically per band, so one
+      // geometric blurred shadow sizes its band up for the rest of the frame's
+      // composites. Upgrade path: bound the shadow's own device rect (shape
+      // bounds + offset + spread + blur bleed) and pass it here.
       if (
         blur > 0 &&
         this.renderer.supportsFilter?.() &&

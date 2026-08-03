@@ -877,3 +877,43 @@ test("filter: chained blurs composite once with the collapsed radius", () => {
   );
   expect(r.filters).toEqual(["blur(5px)"]);
 });
+
+// A mask double-walks (content pass + source pass), so a filtered mask source
+// shared by two masked nodes is reached twice per frame at the same transform.
+// Deriving its filter string and blit region is a subtree bounds walk each time;
+// the per-frame memo derives it once. The memo is frame-scoped, so a second seek
+// re-derives (the timeline stays a pure function of time).
+test("filter: a node reached twice in one frame plans its composite once", () => {
+  const root = buildSceneGraph(
+    parse(`
+      :root { width: 100px; height: 100px; }
+      #a { type: rect; width: 20px; height: 20px; fill: #f00; mask: #src alpha; }
+      #b { type: rect; width: 20px; height: 20px; fill: #0f0; mask: #src alpha; }
+      #src { type: circle; cx: 50; cy: 50; r: 20; fill: #fff; filter: blur(4px); }
+    `),
+  );
+  const renderer = createRecordingRenderer();
+  const loop = new RenderLoop(renderer);
+  const proto = Object.getPrototypeOf(loop) as {
+    planFilter: (...args: unknown[]) => unknown;
+  };
+  const real = proto.planFilter;
+  let plans = 0;
+  (loop as unknown as { planFilter: unknown }).planFilter = function (
+    this: unknown,
+    ...args: unknown[]
+  ) {
+    plans++;
+    return real.apply(this, args);
+  };
+
+  loop.setScene(root);
+  loop.seek(0);
+  // Both masks composite the source, so the filter is applied twice...
+  expect(renderer.filters).toEqual(["blur(4px)", "blur(4px)"]);
+  // ...off a single derivation.
+  expect(plans).toBe(1);
+
+  loop.seek(16);
+  expect(plans).toBe(2); // next frame re-derives; nothing carries over
+});
