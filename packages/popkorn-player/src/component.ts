@@ -349,9 +349,13 @@ export class PopkornPlayer extends HTMLElementBase {
 
   attributeChangedCallback(
     name: string,
-    _oldValue: string | null,
+    oldValue: string | null,
     newValue: string | null,
   ) {
+    // setAttribute fires this even when the value is unchanged, and a framework
+    // that re-asserts props each render does exactly that. Rebuilding the scene
+    // on a no-op write would discard machine state and in-flight interaction.
+    if (oldValue === newValue) return;
     switch (name) {
       case "src":
         if (newValue !== null) {

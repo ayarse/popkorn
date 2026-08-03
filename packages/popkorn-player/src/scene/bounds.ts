@@ -2,7 +2,13 @@ import type { Matrix3x3 } from "./matrix";
 import { multiplyMatrices, transformPoint } from "./matrix";
 import { computePathBounds } from "./path-parser";
 import { computeLocalMatrix, getShapeBounds, matrixScale } from "./transform";
-import type { FilterOp, PathData, SceneNode, TextData } from "./types";
+import type {
+  FilterOp,
+  ImageData,
+  PathData,
+  SceneNode,
+  TextData,
+} from "./types";
 
 /** An axis-aligned rect in device (backing-buffer) pixels. */
 export interface DeviceRect {
@@ -38,11 +44,21 @@ interface Box {
 }
 
 /**
+ * Carried through the walk so a node whose painted size can't be known yet (an
+ * undecoded image with no explicit size and no crop) widens the region to the
+ * whole buffer instead of being culled. Clipping is the failure we can't detect
+ * later; a too-large region only costs speed.
+ */
+interface WalkState {
+  unbounded: boolean;
+}
+
+/**
  * Local-space box a node paints on its own. Groups paint nothing, and paths have
  * no intrinsic box in `getShapeBounds`, so they resolve through the command
  * extents instead (conservative: control points are included).
  */
-function localPaintBox(node: SceneNode): Box | null {
+function localPaintBox(node: SceneNode, state: WalkState): Box | null {
   let b: { x: number; y: number; width: number; height: number };
   if (node.shapeData.type === "path") {
     const commands = (node.shapeData as PathData).commands;
@@ -50,16 +66,29 @@ function localPaintBox(node: SceneNode): Box | null {
     b = computePathBounds(commands);
   } else if (node.shapeData.type === "group") {
     return null;
+  } else if (node.shapeData.type === "image") {
+    const im = node.shapeData as ImageData;
+    // A 0 dest size means "use the crop's pixel size", or the bitmap's natural
+    // size when there's no crop (mirrors the draw in runtime/loop). Natural size
+    // isn't known until the decode lands, so that case is unbounded rather than
+    // empty — culling it would drop the image instead of merely widening it.
+    const w = im.width > 0 ? im.width : (im.viewBox?.width ?? 0);
+    const h = im.height > 0 ? im.height : (im.viewBox?.height ?? 0);
+    if (w <= 0 || h <= 0) {
+      state.unbounded = true;
+      return null;
+    }
+    b = { x: im.x, y: im.y, width: w, height: h };
   } else {
     b = getShapeBounds(node);
   }
-  if (b.width === 0 && b.height === 0) return null;
 
-  // A stroke straddles the path; a miter join can reach further than half the
-  // width, so inflate by the full width rather than solving per-join geometry.
-  let pad = node.stroke || node.strokeGradient ? node.strokeWidth : 0;
-  if (node.shapeData.type === "text")
-    pad += (node.shapeData as TextData).fontSize * TEXT_INK_SLOP;
+  const pad = strokePad(node) + textPad(node);
+  // Cull only what genuinely paints nothing. A zero-area box can still paint:
+  // a zero-length subpath with a round/square cap draws a full dot, which is a
+  // routine dotted-line idiom in converted Lottie. Pad first, cull after.
+  if (b.width === 0 && b.height === 0 && pad === 0) return null;
+
   return {
     minX: b.x - pad,
     minY: b.y - pad,
@@ -68,7 +97,40 @@ function localPaintBox(node: SceneNode): Box | null {
   };
 }
 
-/** Per-side reach, in the filtered node's own units, of a filter list. */
+/**
+ * How far a stroke reaches outside the path, in local units.
+ *
+ * A stroke straddles the path, so half the width each side — except at a miter
+ * join, where the spike runs to `miterLimit × width / 2` before the renderer
+ * bevels it (loop.ts hands the limit to the backend). At the default limit of 4
+ * that is 2× the width, so the old flat `strokeWidth` pad clipped ordinary
+ * sharp corners.
+ */
+function strokePad(node: SceneNode): number {
+  if (!node.stroke && !node.strokeGradient) return 0;
+  const half = node.strokeWidth / 2;
+  return node.strokeLineJoin === "miter"
+    ? Math.max(half, (node.strokeMiterLimit || 0) * half)
+    : half * 2; // round/bevel stay inside a full-width pad
+}
+
+/** Extra local-unit slop for text ink; 0 for every other shape. */
+function textPad(node: SceneNode): number {
+  return node.shapeData.type === "text"
+    ? (node.shapeData as TextData).fontSize * TEXT_INK_SLOP
+    : 0;
+}
+
+/**
+ * Per-side reach, in the filtered node's own units, of a filter list.
+ *
+ * A CSS filter list is a PIPELINE: each function takes the previous one's
+ * output, so their reaches ACCUMULATE — `blur(10px) drop-shadow(60px 0 0)`
+ * displaces an already-blurred image, reaching 3σ + 60 to the right. Taking the
+ * per-side max instead would truncate the chain, which is invisible on a
+ * top-level blit (nothing clips it) but cuts a hard edge as soon as the node
+ * sits inside another composite's region clip.
+ */
 function filterBleed(ops: FilterOp[]): {
   l: number;
   t: number;
@@ -82,18 +144,18 @@ function filterBleed(ops: FilterOp[]): {
   for (const op of ops) {
     if (op.type === "blur") {
       const reach = op.radius * BLUR_REACH;
-      l = Math.max(l, reach);
-      t = Math.max(t, reach);
-      r = Math.max(r, reach);
-      b = Math.max(b, reach);
+      l += reach;
+      t += reach;
+      r += reach;
+      b += reach;
     } else if (op.type === "drop-shadow") {
-      // The shadow is a displaced, blurred copy; it extends the box in the
-      // offset's direction only, but the blur reaches both ways around it.
+      // The result is the source PLUS a displaced, blurred copy, so each side
+      // grows only where the shadow overhangs the source — never negative.
       const reach = op.blur * BLUR_REACH + (op.spread ?? 0);
-      l = Math.max(l, reach - op.dx);
-      r = Math.max(r, reach + op.dx);
-      t = Math.max(t, reach - op.dy);
-      b = Math.max(b, reach + op.dy);
+      l += Math.max(0, reach - op.dx);
+      r += Math.max(0, reach + op.dx);
+      t += Math.max(0, reach - op.dy);
+      b += Math.max(0, reach + op.dy);
     }
   }
   return { l, t, r, b };
@@ -142,17 +204,18 @@ function subtreeBox(
   node: SceneNode,
   parentWorld: Matrix3x3,
   paintSource: boolean,
+  state: WalkState,
 ): Box | null {
   if (node.hidden || node.displayNone) return null;
   if (!paintSource && node.isMaskSource) return null;
 
   const world = multiplyMatrices(parentWorld, computeLocalMatrix(node));
 
-  let box = localPaintBox(node);
+  let box = localPaintBox(node, state);
   if (box) box = transformBox(box, world);
 
   for (const child of node.children) {
-    box = union(box, subtreeBox(child, world, false));
+    box = union(box, subtreeBox(child, world, false, state));
   }
 
   // A masked node paints at most where its content paints, so the content box
@@ -200,7 +263,10 @@ export function subtreeDeviceBounds(
   bufferHeight: number,
   paintSource: boolean = false,
 ): DeviceRect | null {
-  const box = subtreeBox(node, parentWorld, paintSource);
+  const state: WalkState = { unbounded: false };
+  const box = subtreeBox(node, parentWorld, paintSource, state);
+  if (state.unbounded)
+    return { x: 0, y: 0, width: bufferWidth, height: bufferHeight };
   if (!box) return null;
   const minX = Math.max(0, Math.floor(box.minX - ANTIALIAS_SLOP));
   const minY = Math.max(0, Math.floor(box.minY - ANTIALIAS_SLOP));

@@ -159,3 +159,118 @@ test("a text box is padded past its advance width and em square", () => {
   expect(b.y).toBeLessThan(200);
   expect(b.y + b.height).toBeGreaterThan(300);
 });
+
+// --- regressions: cases where the box under-reported and clipped real paint ---
+
+test("a miter join's spike is inside the box (miterLimit, not just width)", () => {
+  // The spike at a sharp vertex runs to miterLimit x width / 2 past the path;
+  // padding by width alone chopped it off for ordinary sharp corners.
+  const n = createSceneNode("m", "path");
+  n.shapeData = {
+    type: "path",
+    d: "",
+    commands: [
+      { type: "M", x: 60, y: 150 },
+      { type: "L", x: 260, y: 150 },
+      { type: "L", x: 60, y: 192 },
+      { type: "Z" },
+    ],
+  } as never;
+  n.stroke = "#fff";
+  n.strokeWidth = 30;
+  n.strokeLineJoin = "miter";
+  n.strokeMiterLimit = 10;
+
+  const b = bounds(n)!;
+  // miterLimit 10 x width 30 / 2 = 150 of reach, vs the old flat 30.
+  expect(b.x + b.width).toBeGreaterThanOrEqual(260 + 150);
+});
+
+test("round/bevel joins don't pay the miter pad", () => {
+  const mk = (join: "miter" | "round") => {
+    const n = createSceneNode("j", "rect");
+    n.shapeData = { type: "rect", x: 0, y: 0, width: 10, height: 10 } as never;
+    n.stroke = "#fff";
+    n.strokeWidth = 20;
+    n.strokeMiterLimit = 10;
+    n.strokeLineJoin = join;
+    return bounds(n)!;
+  };
+  expect(mk("round").width).toBeLessThan(mk("miter").width);
+});
+
+test("a zero-length round-cap stroke still gets a box (it paints a dot)", () => {
+  // Standard converted-Lottie dotted-line idiom: the box is a point, but the
+  // cap paints a full-width dot. Culling it dropped the node entirely.
+  const n = createSceneNode("dot", "path");
+  n.shapeData = {
+    type: "path",
+    d: "",
+    commands: [
+      { type: "M", x: 200, y: 100 },
+      { type: "L", x: 200, y: 100 },
+    ],
+  } as never;
+  n.stroke = "#fff";
+  n.strokeWidth = 40;
+  n.strokeLineCap = "round";
+
+  const b = bounds(n);
+  expect(b).not.toBeNull();
+  expect(b!.width).toBeGreaterThanOrEqual(40);
+});
+
+test("a zero-area shape with no stroke is still culled", () => {
+  const n = createSceneNode("empty", "rect");
+  n.shapeData = { type: "rect", x: 5, y: 5, width: 0, height: 0 } as never;
+  expect(bounds(n)).toBeNull();
+});
+
+test("chained filter ops accumulate rather than taking the max", () => {
+  // A filter list is a pipeline: drop-shadow displaces the ALREADY-blurred
+  // image, so the reaches add. Taking the max cut the chain short, which shows
+  // up as a hard edge once the node sits inside another composite's clip.
+  const n = createSceneNode("f", "rect");
+  n.shapeData = {
+    type: "rect",
+    x: 200,
+    y: 200,
+    width: 60,
+    height: 60,
+  } as never;
+  n.filter = [
+    { type: "blur", radius: 10 },
+    { type: "drop-shadow", dx: 60, dy: 0, blur: 0, color: "red" },
+  ];
+  const b = bounds(n)!;
+  // right edge 260 + blur 3x10 + shadow offset 60 = 350 (max() would give 290).
+  expect(b.x + b.width).toBeGreaterThanOrEqual(350);
+});
+
+test("an image with no explicit size falls back to its crop, else unbounded", () => {
+  const cropped = createSceneNode("img", "image");
+  cropped.shapeData = {
+    type: "image",
+    x: 10,
+    y: 20,
+    width: 0,
+    height: 0,
+    src: "a.png",
+    viewBox: { x: 0, y: 0, width: 40, height: 30 },
+  } as never;
+  expect(bounds(cropped)).toEqual(slop(10, 20, 40, 30));
+
+  // No crop and no size: the natural size isn't known until the decode lands,
+  // so the region must widen to the whole buffer, never cull the image.
+  const unsized = createSceneNode("img2", "image");
+  unsized.shapeData = {
+    type: "image",
+    x: 10,
+    y: 20,
+    width: 0,
+    height: 0,
+    src: "a.png",
+    viewBox: null,
+  } as never;
+  expect(bounds(unsized)).toEqual({ x: 0, y: 0, width: BUF, height: BUF });
+});
