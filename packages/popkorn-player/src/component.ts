@@ -1,14 +1,14 @@
 import { parse } from "@popkorn/parser";
-import { AnimationScheduler } from "./animation/scheduler";
-import { Canvas2DRenderer } from "./renderer/canvas2d";
-import { SVGRenderer } from "./renderer/svg";
-import { type ClickDetail, RenderLoop } from "./runtime/loop";
+import { AnimationScheduler } from "./animation/scheduler.js";
+import { Canvas2DRenderer } from "./renderer/canvas2d.js";
+import { SVGRenderer } from "./renderer/svg.js";
+import { type ClickDetail, RenderLoop } from "./runtime/loop.js";
 import {
   computeViewport,
   type FitMode,
   viewportMatrix,
-} from "./runtime/viewport";
-import { buildSceneGraph } from "./scene/builder";
+} from "./runtime/viewport.js";
+import { buildSceneGraph } from "./scene/builder.js";
 import type {
   AnimatableValue,
   AnimationDirection,
@@ -17,7 +17,7 @@ import type {
   SceneNode,
   TimingFunction,
   Transform,
-} from "./scene/types";
+} from "./scene/types.js";
 
 /** One keyframe stop for the timeline UI: its offset, a short display string
  * for the endpoint value, and the per-keyframe easing (transition FROM here). */

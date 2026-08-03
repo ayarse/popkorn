@@ -27,25 +27,25 @@ import {
   isVariableRefValue,
   serialize,
 } from "@popkorn/parser";
-import { buildKeyframeTracks } from "../animation/keyframes";
-import type { PropValue } from "../animation/registry";
+import { buildKeyframeTracks } from "../animation/keyframes.js";
+import type { PropValue } from "../animation/registry.js";
 import {
   getPropHandler,
   gradientsCompatible,
   pathsCompatible,
-} from "../animation/registry";
+} from "../animation/registry.js";
 import type {
   GradientData,
   GradientStop,
   PathCommand,
-} from "../renderer/types";
-import { isGradientData } from "../renderer/types";
-import { colorStringFromValue } from "./color";
-import { buildMotionPath, parsePath } from "./path-parser";
-import { freezeRandom, hashString, valueHasRandom } from "./random";
-import type { SiblingContext } from "./sibling";
-import { foldSiblingFns, valueHasSiblingFn } from "./sibling";
-import { clamp01 } from "./transform";
+} from "../renderer/types.js";
+import { isGradientData } from "../renderer/types.js";
+import { colorStringFromValue } from "./color.js";
+import { buildMotionPath, parsePath } from "./path-parser.js";
+import { freezeRandom, hashString, valueHasRandom } from "./random.js";
+import type { SiblingContext } from "./sibling.js";
+import { foldSiblingFns, valueHasSiblingFn } from "./sibling.js";
+import { clamp01 } from "./transform.js";
 import type {
   AnimatableValue,
   AnimationDirection,
@@ -79,12 +79,12 @@ import type {
   Transform,
   TransformOriginValue,
   TransitionSpec,
-} from "./types";
+} from "./types.js";
 import {
   createDefaultTransformOrigin,
   createSceneNode,
   snapshotNode,
-} from "./types";
+} from "./types.js";
 
 // Declarations that are valid inside a state block but handled outside the
 // buildStateStyles switch (transition* → resolveTransitions, animation* →

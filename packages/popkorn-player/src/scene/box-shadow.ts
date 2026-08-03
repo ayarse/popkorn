@@ -1,6 +1,6 @@
-import type { PathCommand, ResolvedClip } from "../renderer/types";
-import { computePathBounds, roundedRectPath } from "./path-parser";
-import { polystarToCommands } from "./polystar";
+import type { PathCommand, ResolvedClip } from "../renderer/types.js";
+import { computePathBounds, roundedRectPath } from "./path-parser.js";
+import { polystarToCommands } from "./polystar.js";
 import type {
   CircleData,
   EllipseData,
@@ -8,7 +8,7 @@ import type {
   PolystarData,
   RectData,
   ShapeData,
-} from "./types";
+} from "./types.js";
 
 // A full ellipse (or circle, rx===ry) as four clockwise quarter-arcs — the shape
 // primitives the renderer draws natively don't compose into the compound inset

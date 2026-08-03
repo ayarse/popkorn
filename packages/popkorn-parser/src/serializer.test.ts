@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { format, minify } from "./index";
-import { parse } from "./parser";
-import { serialize } from "./serializer";
+import { format, minify } from "./index.js";
+import { parse } from "./parser.js";
+import { serialize } from "./serializer.js";
 
 // Strip position metadata (spans + diagnostics) before value-equality: serialize
 // reformats text, so source offsets shift, but the AST *value* is unchanged. Same

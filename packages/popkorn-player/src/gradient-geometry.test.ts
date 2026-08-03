@@ -1,15 +1,18 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { gradientsCompatible, interpolateGradient } from "./animation/registry";
-import { Canvas2DRenderer } from "./renderer/canvas2d";
-import { resolveGradient } from "./renderer/gradient-geometry";
+import {
+  gradientsCompatible,
+  interpolateGradient,
+} from "./animation/registry.js";
+import { Canvas2DRenderer } from "./renderer/canvas2d.js";
+import { resolveGradient } from "./renderer/gradient-geometry.js";
 import type {
   ConicGradientData,
   GradientData,
   LinearGradientData,
   RadialGradientData,
-} from "./renderer/types";
-import { buildSceneGraph } from "./scene/builder";
+} from "./renderer/types.js";
+import { buildSceneGraph } from "./scene/builder.js";
 
 function gradientOf(css: string): GradientData {
   const node = buildSceneGraph(parse(css)).children[0];

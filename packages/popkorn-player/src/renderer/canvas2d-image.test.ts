@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Canvas2DRenderer } from "./canvas2d";
+import { Canvas2DRenderer } from "./canvas2d.js";
 
 // A stand-in 2D context that records drawImage calls so we can assert paints.
 function mockImageCanvas() {

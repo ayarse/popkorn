@@ -2,7 +2,7 @@ import {
   childrenInPaintOrder,
   type SceneNode,
   type Transform,
-} from "../scene/types";
+} from "../scene/types.js";
 
 /**
  * Content addressing for composite subtrees.

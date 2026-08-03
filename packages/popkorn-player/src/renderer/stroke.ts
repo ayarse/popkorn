@@ -1,5 +1,5 @@
-import type { PaintOrder } from "../scene/types";
-import type { TrimDescriptor } from "./types";
+import type { PaintOrder } from "../scene/types.js";
+import type { TrimDescriptor } from "./types.js";
 
 // Which dash pattern applies to a stroke, given the sticky trim descriptor and
 // the authored stroke-dasharray. When both are set they compose: the authored

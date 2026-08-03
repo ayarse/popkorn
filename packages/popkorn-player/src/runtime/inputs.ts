@@ -2,7 +2,7 @@
  * Input tracking for cursor, touch, and scroll — feeds input(cursor.*)/input(scroll.*) bindings.
  */
 
-import { deviceToScene, IDENTITY_VIEWPORT, type Viewport } from "./viewport";
+import { deviceToScene, IDENTITY_VIEWPORT, type Viewport } from "./viewport.js";
 
 export interface InputState {
   cursor: {

@@ -1,4 +1,4 @@
-import type { Matrix3x3 } from "../renderer/types";
+import type { Matrix3x3 } from "../renderer/types.js";
 
 /**
  * How the scene box is fitted into the host element, mirroring CSS object-fit.

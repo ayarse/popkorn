@@ -1,19 +1,22 @@
-import type { DeviceRect } from "../scene/bounds";
-import { applyCommandsToPath, computePathBounds } from "../scene/path-parser";
-import type { BlendMode, MaskMode, TextAnchor } from "../scene/types";
-import type { PaintBox } from "./gradient-geometry";
-import { resolveGradient } from "./gradient-geometry";
-import type { Renderer } from "./interface";
-import { PaintStateRenderer } from "./paint-state";
-import { paintOrderSequence, resolveStrokeDash } from "./stroke";
+import type { DeviceRect } from "../scene/bounds.js";
+import {
+  applyCommandsToPath,
+  computePathBounds,
+} from "../scene/path-parser.js";
+import type { BlendMode, MaskMode, TextAnchor } from "../scene/types.js";
+import type { PaintBox } from "./gradient-geometry.js";
+import { resolveGradient } from "./gradient-geometry.js";
+import type { Renderer } from "./interface.js";
+import { PaintStateRenderer } from "./paint-state.js";
+import { paintOrderSequence, resolveStrokeDash } from "./stroke.js";
 import type {
   CornerRadii,
   GradientData,
   Matrix3x3,
   PathCommand,
   ResolvedClip,
-} from "./types";
-import { LUMA_COEFFICIENTS } from "./types";
+} from "./types.js";
+import { LUMA_COEFFICIENTS } from "./types.js";
 
 /**
  * Canvas 2D implementation of the Renderer interface

@@ -1,3 +1,3 @@
-export type { PopkornViewProps, PopkornViewRef } from "./PopkornView";
-export { PopkornView } from "./PopkornView";
-export { SkiaRenderer } from "./skia-renderer";
+export type { PopkornViewProps, PopkornViewRef } from "./PopkornView.js";
+export { PopkornView } from "./PopkornView.js";
+export { SkiaRenderer } from "./skia-renderer.js";

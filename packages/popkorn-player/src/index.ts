@@ -13,24 +13,24 @@ export type {
 } from "@popkorn/parser";
 export { parse } from "@popkorn/parser";
 // Animation
-export { applyEasing } from "./animation/easing";
+export { applyEasing } from "./animation/easing.js";
 export {
   buildKeyframeTracks,
   interpolateKeyframes,
-} from "./animation/keyframes";
+} from "./animation/keyframes.js";
 export {
   AnimationScheduler,
   computeSceneDuration,
-} from "./animation/scheduler";
+} from "./animation/scheduler.js";
 // Web Component (main export)
 export type {
   TimelineAnimation,
   TimelineAnimationProperty,
   TimelineTrack,
-} from "./component";
-export { PopkornPlayer, registerPopkornPlayer } from "./component";
+} from "./component.js";
+export { PopkornPlayer, registerPopkornPlayer } from "./component.js";
 // Renderer
-export { Canvas2DRenderer } from "./renderer/canvas2d";
+export { Canvas2DRenderer } from "./renderer/canvas2d.js";
 export type {
   ClipObs,
   ConformanceHarness,
@@ -38,26 +38,26 @@ export type {
   MaskObs,
   NormGradient,
   PaintObs,
-} from "./renderer/conformance";
+} from "./renderer/conformance.js";
 // Cross-backend renderer conformance suite (shared spec-table; each backend's
 // test package builds a harness and calls registerConformance).
 export {
   CONFORMANCE_CASES,
   MASK_MODES,
   registerConformance,
-} from "./renderer/conformance";
+} from "./renderer/conformance.js";
 export type {
   PaintBox,
   ResolvedGradient,
   ResolvedLinearGradient,
   ResolvedRadialGradient,
-} from "./renderer/gradient-geometry";
-export { resolveGradient } from "./renderer/gradient-geometry";
-export type { Renderer } from "./renderer/interface";
+} from "./renderer/gradient-geometry.js";
+export { resolveGradient } from "./renderer/gradient-geometry.js";
+export type { Renderer } from "./renderer/interface.js";
 // Shared renderer paint semantics (consumed by every backend, incl. @popkorn/react-native).
-export { PaintStateRenderer } from "./renderer/paint-state";
-export type { StrokeDashDecision } from "./renderer/stroke";
-export { paintOrderSequence, resolveStrokeDash } from "./renderer/stroke";
+export { PaintStateRenderer } from "./renderer/paint-state.js";
+export type { StrokeDashDecision } from "./renderer/stroke.js";
+export { paintOrderSequence, resolveStrokeDash } from "./renderer/stroke.js";
 export type {
   Color,
   CornerRadii,
@@ -69,7 +69,7 @@ export type {
   ResolvedClip,
   RGBAColor,
   TrimDescriptor,
-} from "./renderer/types";
+} from "./renderer/types.js";
 export {
   colorToCSS,
   IDENTITY_MATRIX,
@@ -81,42 +81,45 @@ export {
   scaleMatrix,
   transformPoint,
   translationMatrix,
-} from "./renderer/types";
-export type { HitTestResult, Point } from "./runtime/hit-test";
-export { hitTest } from "./runtime/hit-test";
-export type { InputState } from "./runtime/inputs";
-export { createInputTracker, InputTracker } from "./runtime/inputs";
+} from "./renderer/types.js";
+export type { HitTestResult, Point } from "./runtime/hit-test.js";
+export { hitTest } from "./runtime/hit-test.js";
+export type { InputState } from "./runtime/inputs.js";
+export { createInputTracker, InputTracker } from "./runtime/inputs.js";
 export {
   createInteractionManager,
   InteractionManager,
-} from "./runtime/interaction";
+} from "./runtime/interaction.js";
 // Runtime
-export { RenderLoop, wrapTime } from "./runtime/loop";
-export { createVariableResolver, VariableResolver } from "./runtime/variables";
-export type { FitMode, Viewport } from "./runtime/viewport";
+export { RenderLoop, wrapTime } from "./runtime/loop.js";
+export {
+  createVariableResolver,
+  VariableResolver,
+} from "./runtime/variables.js";
+export type { FitMode, Viewport } from "./runtime/viewport.js";
 export {
   computeViewport,
   deviceToScene,
   IDENTITY_VIEWPORT,
   viewportMatrix,
-} from "./runtime/viewport";
-export { buildSceneGraph, SceneBuilder } from "./scene/builder";
-export type { PathSink } from "./scene/path-parser";
+} from "./runtime/viewport.js";
+export { buildSceneGraph, SceneBuilder } from "./scene/builder.js";
+export type { PathSink } from "./scene/path-parser.js";
 export {
   applyCommandsToPath,
   computePathBounds,
   computePathLength,
   parsePath,
   roundedRectPath,
-} from "./scene/path-parser";
-export { polystarToCommands } from "./scene/polystar";
-export type { TextMeasurer } from "./scene/transform";
+} from "./scene/path-parser.js";
+export { polystarToCommands } from "./scene/polystar.js";
+export type { TextMeasurer } from "./scene/transform.js";
 export {
   computeLocalMatrix,
   computeWorldMatrix,
   lerp,
   setTextMeasurer,
-} from "./scene/transform";
+} from "./scene/transform.js";
 // Scene
 export type {
   AnimatableValue,
@@ -147,11 +150,11 @@ export type {
   TextAnchor,
   TimingFunction,
   Transform,
-} from "./scene/types";
+} from "./scene/types.js";
 export {
   cloneTransform,
   createDefaultTransform,
   createSceneNode,
   resetNodeToBase,
   snapshotNode,
-} from "./scene/types";
+} from "./scene/types.js";

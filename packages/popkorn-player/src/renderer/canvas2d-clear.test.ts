@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Canvas2DRenderer } from "./canvas2d";
+import { Canvas2DRenderer } from "./canvas2d.js";
 
 // A stand-in 2D context that records the order and arguments of the calls
 // beginFrame makes, so we can assert the clear happens in device space.

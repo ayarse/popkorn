@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { createVariableResolver } from "../runtime/variables";
-import { buildSceneGraph } from "./builder";
-import type { CircleData } from "./types";
+import { createVariableResolver } from "../runtime/variables.js";
+import { buildSceneGraph } from "./builder.js";
+import type { CircleData } from "./types.js";
 
 const build = (src: string) => buildSceneGraph(parse(src));
 

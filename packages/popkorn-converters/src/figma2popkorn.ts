@@ -30,9 +30,9 @@ import {
   serializeRule,
   num as sharedNum,
   warnOnce,
-} from "./shared";
+} from "./shared.js";
 
-export { validate } from "./shared";
+export { validate } from "./shared.js";
 
 const num = (x: number, dec = 3): string => sharedNum(x, dec);
 

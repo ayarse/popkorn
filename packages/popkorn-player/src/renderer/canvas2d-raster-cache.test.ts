@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { DeviceRect } from "../scene/bounds";
-import { Canvas2DRenderer } from "./canvas2d";
+import type { DeviceRect } from "../scene/bounds.js";
+import { Canvas2DRenderer } from "./canvas2d.js";
 
 // Storage side of the raster cache: admission, blit geometry, LRU eviction and
 // the guards that refuse to store a raster that isn't final. The shared walk's

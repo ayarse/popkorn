@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { polystarToCommands } from "./polystar";
-import type { PolystarData } from "./types";
+import { polystarToCommands } from "./polystar.js";
+import type { PolystarData } from "./types.js";
 
 const base: Omit<PolystarData, "type"> = {
   sides: 5,

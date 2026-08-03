@@ -34,7 +34,7 @@ export type {
   Value,
   VariableDefinition,
   VariableRefValue,
-} from "./ast";
+} from "./ast.js";
 export {
   calcConstant,
   calcNumericToValue,
@@ -54,16 +54,16 @@ export {
   isRandomValue,
   isStringValue,
   isVariableRefValue,
-} from "./ast";
-export { crush } from "./crush";
-export type { Diagnostic, Severity } from "./diagnostics";
-export { offsetToLineCol } from "./diagnostics";
-export { parse, validate } from "./parser";
-export type { SerializeOptions } from "./serializer";
-export { serialize } from "./serializer";
+} from "./ast.js";
+export { crush } from "./crush.js";
+export type { Diagnostic, Severity } from "./diagnostics.js";
+export { offsetToLineCol } from "./diagnostics.js";
+export { parse, validate } from "./parser.js";
+export type { SerializeOptions } from "./serializer.js";
+export { serialize } from "./serializer.js";
 
-import { parse as parseSource } from "./parser";
-import { serialize as serializeSheet } from "./serializer";
+import { parse as parseSource } from "./parser.js";
+import { serialize as serializeSheet } from "./serializer.js";
 
 /** Minify Popkorn DSL source. Value-preserving: output parses to the same AST. */
 export function minify(source: string): string {

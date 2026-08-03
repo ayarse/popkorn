@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { offsetToLineCol } from "./diagnostics";
-import { parse, validate } from "./parser";
+import { offsetToLineCol } from "./diagnostics.js";
+import { parse, validate } from "./parser.js";
 
 // One assertion per diagnostic code — each pins the code, severity, a hint when
 // applicable, and the flagged source span (so editor underlines land right).

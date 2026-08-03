@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { buildKeyframeTracks } from "../animation/keyframes";
-import type { Renderer } from "../renderer/interface";
+import { buildKeyframeTracks } from "../animation/keyframes.js";
+import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
   GradientData,
@@ -9,9 +9,9 @@ import type {
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
-} from "../renderer/types";
-import { IDENTITY_MATRIX } from "../renderer/types";
-import { buildSceneGraph } from "../scene/builder";
+} from "../renderer/types.js";
+import { IDENTITY_MATRIX } from "../renderer/types.js";
+import { buildSceneGraph } from "../scene/builder.js";
 import type {
   AnimationInstance,
   BlendMode,
@@ -21,10 +21,10 @@ import type {
   SceneNode,
   StrokeLineCap,
   TextAnchor,
-} from "../scene/types";
-import { createSceneNode, snapshotNode } from "../scene/types";
-import { filterToCSS, RenderLoop, sceneIsPerpetual } from "./loop";
-import { createVariableResolver } from "./variables";
+} from "../scene/types.js";
+import { createSceneNode, snapshotNode } from "../scene/types.js";
+import { filterToCSS, RenderLoop, sceneIsPerpetual } from "./loop.js";
+import { createVariableResolver } from "./variables.js";
 
 // A dot whose opacity ramps 0 -> 1 over a single 3s iteration, then holds
 // (fill: forwards). sceneDuration is that iteration (3000). A FINITE clip — it

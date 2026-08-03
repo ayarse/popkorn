@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "@popkorn/parser";
 import { buildSceneGraph } from "@popkorn/player";
-import { convertFigma, type FigmaCaptureBundle } from "./figma2popkorn";
+import { convertFigma, type FigmaCaptureBundle } from "./figma2popkorn.js";
 
 const FIX = join(import.meta.dir, "..", "test", "fixtures", "figma");
 const load = (name: string): FigmaCaptureBundle =>

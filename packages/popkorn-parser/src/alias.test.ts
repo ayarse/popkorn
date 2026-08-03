@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { parse } from "./parser";
-import { serialize } from "./serializer";
+import { parse } from "./parser.js";
+import { serialize } from "./serializer.js";
 
 // Write-in-only CSS alias sugar: aliases are rewritten to canonical properties
 // at parse time; the AST/serializer only ever speak canonical names.

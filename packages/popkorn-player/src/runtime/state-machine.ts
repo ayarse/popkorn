@@ -28,10 +28,10 @@ import type {
   MachineRule,
   MachineTrigger,
 } from "@popkorn/parser";
-import { applyEasing, parseTimingString } from "../animation/easing";
-import { animationsEndTime } from "../animation/scheduler";
-import type { SceneNode, TimingFunction } from "../scene/types";
-import type { VariableResolver } from "./variables";
+import { applyEasing, parseTimingString } from "../animation/easing.js";
+import { animationsEndTime } from "../animation/scheduler.js";
+import type { SceneNode, TimingFunction } from "../scene/types.js";
+import type { VariableResolver } from "./variables.js";
 
 // A pointer event detected this frame, credited to the top hit node (nearest
 // interactive) — or null for empty canvas (still a `:root` occurrence). Built by
@@ -324,7 +324,7 @@ export class StateMachineRunner {
   }
 
   private animationsForState(machine: string, state: string) {
-    const acc: import("../scene/types").AnimationInstance[] = [];
+    const acc: import("../scene/types.js").AnimationInstance[] = [];
     const visit = (n: SceneNode): void => {
       for (const e of n.stateStyles) {
         if (e.name === state && (e.machine === null || e.machine === machine))

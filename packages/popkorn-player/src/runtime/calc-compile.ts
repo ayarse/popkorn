@@ -15,7 +15,7 @@ import {
   isNumberValue,
   isVariableRefValue,
 } from "@popkorn/parser";
-import type { CalcLane } from "./calc-batch";
+import type { CalcLane } from "./calc-batch.js";
 
 /**
  * Compiles a reactive calc() AST into a flat postfix program run per frame with

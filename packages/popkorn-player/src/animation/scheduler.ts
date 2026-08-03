@@ -2,8 +2,8 @@ import type {
   AnimationDirection,
   AnimationInstance,
   SceneNode,
-} from "../scene/types";
-import { interpolateKeyframes } from "./keyframes";
+} from "../scene/types.js";
+import { interpolateKeyframes } from "./keyframes.js";
 
 /**
  * Animation scheduler.

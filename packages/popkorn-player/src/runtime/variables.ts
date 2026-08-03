@@ -16,9 +16,9 @@ import {
   isStringValue,
   isVariableRefValue,
 } from "@popkorn/parser";
-import { planCalcBatches, runCalcLane } from "./calc-batch";
-import { type CompiledCalc, compileCalc, runCalc } from "./calc-compile";
-import type { InputState } from "./inputs";
+import { planCalcBatches, runCalcLane } from "./calc-batch.js";
+import { type CompiledCalc, compileCalc, runCalc } from "./calc-compile.js";
+import type { InputState } from "./inputs.js";
 
 // Reactive calc() expressions compile to a closure once and are cached by AST
 // identity; the 5000 repeat copies each carry a distinct expr (sibling-index()

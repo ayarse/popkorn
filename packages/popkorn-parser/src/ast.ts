@@ -1,6 +1,6 @@
 // AST Type Definitions for the CSS-like DSL
 
-import type { Diagnostic } from "./diagnostics";
+import type { Diagnostic } from "./diagnostics.js";
 
 export interface StyleSheet {
   type: "stylesheet";

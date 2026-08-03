@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { Canvas2DRenderer } from "./canvas2d";
+import { Canvas2DRenderer } from "./canvas2d.js";
 
 // A minimal recording 2D context. Tracks clearRect ("frame begins") and blit
 // drawImage calls so we can reason about which buffer got wiped when. Enough

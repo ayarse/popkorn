@@ -3,18 +3,22 @@ import { parse } from "@popkorn/parser";
 import {
   buildKeyframeTracks,
   interpolateKeyframes,
-} from "./animation/keyframes";
-import { getPropHandler } from "./animation/registry";
-import { computeTrim } from "./runtime/loop";
-import { buildSceneGraph } from "./scene/builder";
+} from "./animation/keyframes.js";
+import { getPropHandler } from "./animation/registry.js";
+import { computeTrim } from "./runtime/loop.js";
+import { buildSceneGraph } from "./scene/builder.js";
 import {
   computePathLength,
   outlineLength,
   parsePath,
   shapeOutlineLength,
-} from "./scene/path-parser";
-import type { CircleData, SceneNode } from "./scene/types";
-import { createSceneNode, resetNodeToBase, snapshotNode } from "./scene/types";
+} from "./scene/path-parser.js";
+import type { CircleData, SceneNode } from "./scene/types.js";
+import {
+  createSceneNode,
+  resetNodeToBase,
+  snapshotNode,
+} from "./scene/types.js";
 
 function firstNode(css: string): SceneNode {
   return buildSceneGraph(parse(css)).children[0];

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { LinearEasing, StepsEasing } from "../scene/types";
-import { applyEasing, linearEasing, stepEasing } from "./easing";
+import type { LinearEasing, StepsEasing } from "../scene/types.js";
+import { applyEasing, linearEasing, stepEasing } from "./easing.js";
 
 const approx = (a: number, b: number) => Math.abs(a - b) < 1e-9;
 

@@ -12,9 +12,9 @@ import {
   isVariableRefValue,
   parse,
 } from "@popkorn/parser";
-import { buildSceneGraph } from "../scene/builder";
-import type { SceneNode } from "../scene/types";
-import { createVariableResolver } from "./variables";
+import { buildSceneGraph } from "../scene/builder.js";
+import type { SceneNode } from "../scene/types.js";
+import { createVariableResolver } from "./variables.js";
 
 // Parse a single `cx:` declaration into its Value (a reactive calc()).
 const cxValue = (decl: string) =>

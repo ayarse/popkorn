@@ -1,13 +1,21 @@
 import { expect, test } from "bun:test";
-import type { AnimationInstance, CircleData, SceneNode } from "../scene/types";
-import { createSceneNode, resetNodeToBase, snapshotNode } from "../scene/types";
-import { buildKeyframeTracks } from "./keyframes";
+import type {
+  AnimationInstance,
+  CircleData,
+  SceneNode,
+} from "../scene/types.js";
+import {
+  createSceneNode,
+  resetNodeToBase,
+  snapshotNode,
+} from "../scene/types.js";
+import { buildKeyframeTracks } from "./keyframes.js";
 import {
   AnimationScheduler,
   animationsEndTime,
   sampleInstanceAtProgress,
   sampleNodeAtProgress,
-} from "./scheduler";
+} from "./scheduler.js";
 
 // --- helpers -----------------------------------------------------------------
 

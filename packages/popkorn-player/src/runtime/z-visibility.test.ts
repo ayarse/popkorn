@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { buildKeyframeTracks } from "../animation/keyframes";
-import type { Renderer } from "../renderer/interface";
+import { buildKeyframeTracks } from "../animation/keyframes.js";
+import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
   GradientData,
@@ -9,19 +9,19 @@ import type {
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
-} from "../renderer/types";
-import { buildSceneGraph } from "../scene/builder";
+} from "../renderer/types.js";
+import { buildSceneGraph } from "../scene/builder.js";
 import type {
   FillRule,
   MaskMode,
   SceneNode,
   StrokeLineCap,
   TextAnchor,
-} from "../scene/types";
-import { createSceneNode, snapshotNode } from "../scene/types";
-import { hitTest } from "./hit-test";
-import { RenderLoop } from "./loop";
-import { createVariableResolver } from "./variables";
+} from "../scene/types.js";
+import { createSceneNode, snapshotNode } from "../scene/types.js";
+import { hitTest } from "./hit-test.js";
+import { RenderLoop } from "./loop.js";
+import { createVariableResolver } from "./variables.js";
 
 // Build a scene from CSS, wire :root vars into a fresh resolver, and drive it
 // through a recording renderer so a test can read paint order + host var toggles.

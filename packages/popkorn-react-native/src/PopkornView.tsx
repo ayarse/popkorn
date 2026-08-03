@@ -15,10 +15,10 @@ import {
   makeMachineEventCallback,
   type PopkornViewRef,
   touchToScene,
-} from "./interop";
-import { SkiaRenderer } from "./skia-renderer";
+} from "./interop.js";
+import { SkiaRenderer } from "./skia-renderer.js";
 
-export type { PopkornViewRef } from "./interop";
+export type { PopkornViewRef } from "./interop.js";
 
 // SkiaViewApi is a native-injected global (not a package export) — the same seam
 // SkiaPictureView uses internally to push its `picture` prop. We read it off

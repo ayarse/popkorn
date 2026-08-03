@@ -3,7 +3,7 @@ import type {
   LinearEasingPoint,
   StepPosition,
   TimingFunction,
-} from "../scene/types";
+} from "../scene/types.js";
 
 /**
  * Easing functions for animations

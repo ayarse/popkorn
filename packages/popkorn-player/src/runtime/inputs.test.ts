@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { scrollProgress } from "./inputs";
+import { scrollProgress } from "./inputs.js";
 
 // scroll.progress = scrollY / max(1, scrollHeight - innerHeight)
 

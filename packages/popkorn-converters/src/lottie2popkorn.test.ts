@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { Converter, validate } from "./lottie2popkorn";
+import { Converter, validate } from "./lottie2popkorn.js";
 
 const IDENTITY_TR = {
   ty: "tr",

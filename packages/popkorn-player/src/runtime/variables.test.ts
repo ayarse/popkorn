@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { VariableDefinition } from "@popkorn/parser";
 import { parse } from "@popkorn/parser";
-import { createVariableResolver } from "./variables";
+import { createVariableResolver } from "./variables.js";
 
 // Extract the value of `cx` from a one-declaration rule — lets these tests
 // build calc/min/max/clamp AST via the parser instead of by hand.

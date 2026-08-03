@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { RenderLoop } from "../runtime/loop";
-import { buildSceneGraph } from "../scene/builder";
-import type { ImageData } from "../scene/types";
-import type { Renderer } from "./interface";
+import { RenderLoop } from "../runtime/loop.js";
+import { buildSceneGraph } from "../scene/builder.js";
+import type { ImageData } from "../scene/types.js";
+import type { Renderer } from "./interface.js";
 
 // A no-op renderer that records the full drawImage argument list per call, so a
 // test can assert the source-crop rect (sx..sh) the shared walk hands each backend.

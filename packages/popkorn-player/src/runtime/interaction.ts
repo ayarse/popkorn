@@ -21,7 +21,7 @@
  * time: `seek(t)` twice is identical whenever no interaction state changes.
  */
 
-import { applyEasing } from "../animation/easing";
+import { applyEasing } from "../animation/easing.js";
 import {
   filtersCompatible,
   getPropHandler,
@@ -31,18 +31,18 @@ import {
   type PropHandler,
   type PropValue,
   pathsCompatible,
-} from "../animation/registry";
-import { cloneGradient, isGradientData } from "../renderer/types";
-import { clamp01 } from "../scene/transform";
+} from "../animation/registry.js";
+import { cloneGradient, isGradientData } from "../renderer/types.js";
+import { clamp01 } from "../scene/transform.js";
 import type {
   InteractionState,
   NodeStateStyle,
   SceneNode,
   StateStyles,
   TransitionSpec,
-} from "../scene/types";
-import { hitTest, type Point } from "./hit-test";
-import type { InputState } from "./inputs";
+} from "../scene/types.js";
+import { hitTest, type Point } from "./hit-test.js";
+import type { InputState } from "./inputs.js";
 
 // A running tween toward `node.interactionState`, started when the state flipped.
 interface ActiveTransition {

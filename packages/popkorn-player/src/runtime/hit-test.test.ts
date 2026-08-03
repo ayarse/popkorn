@@ -1,13 +1,17 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import type { Renderer } from "../renderer/interface";
-import type { Matrix3x3, PathCommand, ResolvedClip } from "../renderer/types";
-import { buildSceneGraph } from "../scene/builder";
-import { parsePath } from "../scene/path-parser";
-import type { FillRule, MaskMode, SceneNode } from "../scene/types";
-import { createSceneNode, snapshotNode } from "../scene/types";
-import { hitTest, hitTestClick } from "./hit-test";
-import { type ClickDetail, RenderLoop } from "./loop";
+import type { Renderer } from "../renderer/interface.js";
+import type {
+  Matrix3x3,
+  PathCommand,
+  ResolvedClip,
+} from "../renderer/types.js";
+import { buildSceneGraph } from "../scene/builder.js";
+import { parsePath } from "../scene/path-parser.js";
+import type { FillRule, MaskMode, SceneNode } from "../scene/types.js";
+import { createSceneNode, snapshotNode } from "../scene/types.js";
+import { hitTest, hitTestClick } from "./hit-test.js";
+import { type ClickDetail, RenderLoop } from "./loop.js";
 
 // These tests are DOM-free ON PURPOSE: they run headless where `Path2D` is
 // undefined, which is exactly the React Native environment where the old

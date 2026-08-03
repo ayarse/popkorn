@@ -12,7 +12,7 @@
  * stdout. Byte counts are printed to stderr either way.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { crushSource, format, minify } from "./index";
+import { crushSource, format, minify } from "./index.js";
 
 const args = process.argv.slice(2);
 let input: string | undefined;

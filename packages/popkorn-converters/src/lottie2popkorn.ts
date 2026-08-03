@@ -23,9 +23,9 @@ import {
   sanitizeIdent,
   serializeRule,
   warnOnce,
-} from "./shared";
+} from "./shared.js";
 
-export { validate } from "./shared";
+export { validate } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers

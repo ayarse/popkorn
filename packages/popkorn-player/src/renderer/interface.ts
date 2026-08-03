@@ -1,4 +1,4 @@
-import type { DeviceRect } from "../scene/bounds";
+import type { DeviceRect } from "../scene/bounds.js";
 import type {
   BlendMode,
   FillRule,
@@ -7,7 +7,7 @@ import type {
   StrokeLineCap,
   StrokeLineJoin,
   TextAnchor,
-} from "../scene/types";
+} from "../scene/types.js";
 import type {
   Color,
   CornerRadii,
@@ -16,7 +16,7 @@ import type {
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
-} from "./types";
+} from "./types.js";
 
 /**
  * Abstract renderer interface (ThorVG-style)

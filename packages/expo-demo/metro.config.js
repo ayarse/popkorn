@@ -29,6 +29,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       platform,
     );
   }
+  // Metro can't map TS-ESM `./x.js` specifiers onto their `.ts` source.
+  if (/^\.\.?\/.*\.js$/.test(moduleName)) {
+    try {
+      return context.resolveRequest(context, moduleName.slice(0, -3), platform);
+    } catch {}
+  }
   return context.resolveRequest(context, moduleName, platform);
 };
 

@@ -6,7 +6,7 @@ import {
   isKeywordValue,
   isStringValue,
 } from "@popkorn/parser";
-import { tryParseColor } from "../renderer/types";
+import { tryParseColor } from "../renderer/types.js";
 
 // Resolve any parseable color string to a canonical hex/rgba string, or null if
 // unrecognized. Used to fold hsl()/named colors down to hex at build time (so

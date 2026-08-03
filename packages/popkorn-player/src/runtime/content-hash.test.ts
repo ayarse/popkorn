@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { buildSceneGraph } from "../scene/builder";
-import type { SceneNode } from "../scene/types";
-import { subtreeToken } from "./content-hash";
+import { buildSceneGraph } from "../scene/builder.js";
+import type { SceneNode } from "../scene/types.js";
+import { subtreeToken } from "./content-hash.js";
 
 // The content token is what the raster cache keys on: equal tokens must mean
 // equal draw calls for the subtree. These pin the propagation direction — a

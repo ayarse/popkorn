@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "@popkorn/parser";
-import type { DeviceRect } from "../scene/bounds";
-import { buildSceneGraph } from "../scene/builder";
-import { RenderLoop } from "./loop";
+import type { DeviceRect } from "../scene/bounds.js";
+import { buildSceneGraph } from "../scene/builder.js";
+import { RenderLoop } from "./loop.js";
 
 /**
  * Raster cache, driven through the shared walk.

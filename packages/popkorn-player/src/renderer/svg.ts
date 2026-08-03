@@ -1,23 +1,23 @@
-import { computePathBounds, roundedRectPath } from "../scene/path-parser";
-import type { MaskMode, TextAnchor } from "../scene/types";
-import type { PaintBox } from "./gradient-geometry";
-import { resolveGradient } from "./gradient-geometry";
-import type { Renderer } from "./interface";
-import { PaintStateRenderer } from "./paint-state";
-import { resolveStrokeDash } from "./stroke";
+import { computePathBounds, roundedRectPath } from "../scene/path-parser.js";
+import type { MaskMode, TextAnchor } from "../scene/types.js";
+import type { PaintBox } from "./gradient-geometry.js";
+import { resolveGradient } from "./gradient-geometry.js";
+import type { Renderer } from "./interface.js";
+import { PaintStateRenderer } from "./paint-state.js";
+import { resolveStrokeDash } from "./stroke.js";
 import type {
   CornerRadii,
   GradientData,
   Matrix3x3,
   PathCommand,
   ResolvedClip,
-} from "./types";
+} from "./types.js";
 import {
   IDENTITY_MATRIX,
   invertMatrix,
   multiplyMatrices,
   parseColor,
-} from "./types";
+} from "./types.js";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 

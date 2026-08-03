@@ -1,14 +1,18 @@
-import type { Matrix3x3 } from "./matrix";
-import { multiplyMatrices, transformPoint } from "./matrix";
-import { computePathBounds } from "./path-parser";
-import { computeLocalMatrix, getShapeBounds, matrixScale } from "./transform";
+import type { Matrix3x3 } from "./matrix.js";
+import { multiplyMatrices, transformPoint } from "./matrix.js";
+import { computePathBounds } from "./path-parser.js";
+import {
+  computeLocalMatrix,
+  getShapeBounds,
+  matrixScale,
+} from "./transform.js";
 import type {
   FilterOp,
   ImageData,
   PathData,
   SceneNode,
   TextData,
-} from "./types";
+} from "./types.js";
 
 /** An axis-aligned rect in device (backing-buffer) pixels. */
 export interface DeviceRect {

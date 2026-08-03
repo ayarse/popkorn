@@ -2,16 +2,16 @@ import type {
   GradientData,
   PathCommand,
   RadialGradientData,
-} from "../renderer/types";
-import { isGradientData, parseColor } from "../renderer/types";
-import { lerp } from "../scene/transform";
+} from "../renderer/types.js";
+import { isGradientData, parseColor } from "../renderer/types.js";
+import { lerp } from "../scene/transform.js";
 import type {
   FilterOp,
   ImageViewBox,
   NodeBase,
   RectData,
   SceneNode,
-} from "../scene/types";
+} from "../scene/types.js";
 
 /**
  * Property registry.

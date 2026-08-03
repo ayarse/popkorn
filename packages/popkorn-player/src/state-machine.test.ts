@@ -1,15 +1,15 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import type { Renderer } from "./renderer/interface";
-import { RenderLoop } from "./runtime/loop";
+import type { Renderer } from "./renderer/interface.js";
+import { RenderLoop } from "./runtime/loop.js";
 import type {
   MachineEvalContext,
   PointerTriggerEvent,
-} from "./runtime/state-machine";
-import { StateMachineRunner } from "./runtime/state-machine";
-import { createVariableResolver } from "./runtime/variables";
-import { buildSceneGraph } from "./scene/builder";
-import type { CircleData, SceneNode } from "./scene/types";
+} from "./runtime/state-machine.js";
+import { StateMachineRunner } from "./runtime/state-machine.js";
+import { createVariableResolver } from "./runtime/variables.js";
+import { buildSceneGraph } from "./scene/builder.js";
+import type { CircleData, SceneNode } from "./scene/types.js";
 
 const stubRenderer = new Proxy(
   {},

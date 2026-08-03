@@ -12,11 +12,11 @@ export {
   type FigmaKeyframeValue,
   type FigmaPaint,
   type RGBA,
-} from "./figma2popkorn";
+} from "./figma2popkorn.js";
 export {
   Converter as LottieConverter,
   convertLottie,
   validate,
-} from "./lottie2popkorn";
-export { parseXml, type SvgNode } from "./svg-xml";
-export { Converter as SvgConverter, convertSvg } from "./svg2popkorn";
+} from "./lottie2popkorn.js";
+export { parseXml, type SvgNode } from "./svg-xml.js";
+export { Converter as SvgConverter, convertSvg } from "./svg2popkorn.js";

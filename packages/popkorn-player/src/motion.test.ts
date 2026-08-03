@@ -3,20 +3,28 @@ import { parse } from "@popkorn/parser";
 import {
   buildKeyframeTracks,
   interpolateKeyframes,
-} from "./animation/keyframes";
-import { AnimationScheduler } from "./animation/scheduler";
-import { transformPoint } from "./renderer/types";
-import { hitTest } from "./runtime/hit-test";
-import { buildSceneGraph } from "./scene/builder";
-import { buildMotionPath, parsePath, samplePathAt } from "./scene/path-parser";
-import { computeLocalMatrix } from "./scene/transform";
+} from "./animation/keyframes.js";
+import { AnimationScheduler } from "./animation/scheduler.js";
+import { transformPoint } from "./renderer/types.js";
+import { hitTest } from "./runtime/hit-test.js";
+import { buildSceneGraph } from "./scene/builder.js";
+import {
+  buildMotionPath,
+  parsePath,
+  samplePathAt,
+} from "./scene/path-parser.js";
+import { computeLocalMatrix } from "./scene/transform.js";
 import type {
   AnimationInstance,
   CircleData,
   KeyframeData,
   SceneNode,
-} from "./scene/types";
-import { createSceneNode, resetNodeToBase, snapshotNode } from "./scene/types";
+} from "./scene/types.js";
+import {
+  createSceneNode,
+  resetNodeToBase,
+  snapshotNode,
+} from "./scene/types.js";
 
 // --- helpers -----------------------------------------------------------------
 

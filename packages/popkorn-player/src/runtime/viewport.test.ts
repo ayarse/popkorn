@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { wrapTime } from "./loop";
-import { computeViewport, deviceToScene } from "./viewport";
+import { wrapTime } from "./loop.js";
+import { computeViewport, deviceToScene } from "./viewport.js";
 
 // Scene 800×600 fitted into a 400×300 CSS element at dpr 2 => device 800×600,
 // so contain/cover/fill all map exactly (same aspect). Use a mismatched aspect

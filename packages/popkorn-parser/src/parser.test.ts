@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { getNumericValue, isRandomValue } from "./ast";
-import { parse } from "./parser";
-import { serialize } from "./serializer";
+import { getNumericValue, isRandomValue } from "./ast.js";
+import { parse } from "./parser.js";
+import { serialize } from "./serializer.js";
 
 // Strip position metadata (source-offset spans + diagnostics) so structural
 // assertions compare the AST *value*. Dedicated span round-trip tests below

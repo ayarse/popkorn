@@ -5,10 +5,10 @@ import type {
   KeyframeTrack,
   SceneNode,
   TimingFunction,
-} from "../scene/types";
-import { applyEasing, holdsAtStart } from "./easing";
-import type { PropValue } from "./registry";
-import { getPropHandler, interpolateProp } from "./registry";
+} from "../scene/types.js";
+import { applyEasing, holdsAtStart } from "./easing.js";
+import type { PropValue } from "./registry.js";
+import { getPropHandler, interpolateProp } from "./registry.js";
 
 /**
  * Group parsed keyframes into one track per animated property (CSS/WAAPI

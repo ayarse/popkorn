@@ -1,6 +1,6 @@
-import type { ResolvedClip } from "../renderer/types";
-import { getShapeBounds } from "./transform";
-import type { SceneNode } from "./types";
+import type { ResolvedClip } from "../renderer/types.js";
+import { getShapeBounds } from "./transform.js";
+import type { SceneNode } from "./types.js";
 
 /**
  * Resolve a node's authored clip-path to concrete local-space geometry.

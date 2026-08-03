@@ -1,5 +1,5 @@
-import type { GradientData, GradientStop } from "./types";
-import { colorToCSS, parseColor } from "./types";
+import type { GradientData, GradientStop } from "./types.js";
+import { colorToCSS, parseColor } from "./types.js";
 
 // The shape's local bounding box a gradient is realized against.
 export interface PaintBox {

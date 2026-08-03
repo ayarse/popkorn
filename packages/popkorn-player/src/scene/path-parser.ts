@@ -1,6 +1,6 @@
-import type { CornerRadii, PathCommand } from "../renderer/types";
-import { polystarToCommands } from "./polystar";
-import type { SceneNode, ShapeData } from "./types";
+import type { CornerRadii, PathCommand } from "../renderer/types.js";
+import { polystarToCommands } from "./polystar.js";
+import type { SceneNode, ShapeData } from "./types.js";
 
 /**
  * Outline of a rect with per-corner radii, as path commands, walking clockwise

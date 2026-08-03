@@ -7,16 +7,20 @@
  * hover/active regions match what is painted exactly, including transform-origin.
  */
 
-import type { Matrix3x3, PathCommand, ResolvedClip } from "../renderer/types";
+import type {
+  Matrix3x3,
+  PathCommand,
+  ResolvedClip,
+} from "../renderer/types.js";
 import {
   IDENTITY_MATRIX,
   invertMatrix,
   transformPoint,
-} from "../renderer/types";
-import { resolveClip } from "../scene/clip";
-import { flattenToSubpaths } from "../scene/path-parser";
-import { polystarCommands } from "../scene/polystar";
-import { computeWorldMatrix, getShapeBounds } from "../scene/transform";
+} from "../renderer/types.js";
+import { resolveClip } from "../scene/clip.js";
+import { flattenToSubpaths } from "../scene/path-parser.js";
+import { polystarCommands } from "../scene/polystar.js";
+import { computeWorldMatrix, getShapeBounds } from "../scene/transform.js";
 import type {
   CircleData,
   EllipseData,
@@ -24,8 +28,8 @@ import type {
   PathData,
   RectData,
   SceneNode,
-} from "../scene/types";
-import { childrenInPaintOrder } from "../scene/types";
+} from "../scene/types.js";
+import { childrenInPaintOrder } from "../scene/types.js";
 
 export interface Point {
   x: number;

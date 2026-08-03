@@ -1,12 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { buildSceneGraph } from "./builder";
+import { buildSceneGraph } from "./builder.js";
 import {
   getShapeBounds,
   resolveTransformOrigin,
   setTextMeasurer,
-} from "./transform";
-import type { TextData } from "./types";
+} from "./transform.js";
+import type { TextData } from "./types.js";
 
 // A fake platform measurer: fixed advance per character, distinct from the
 // 0.6·em headless estimate so tests can tell which path produced a box.

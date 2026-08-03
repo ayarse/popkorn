@@ -1,8 +1,12 @@
 import type { MachineRule, Value } from "@popkorn/parser";
-import type { PropValue } from "../animation/registry";
-import type { CornerRadii, GradientData, PathCommand } from "../renderer/types";
-import { cloneGradient } from "../renderer/types";
-import type { MotionPath } from "./path-parser";
+import type { PropValue } from "../animation/registry.js";
+import type {
+  CornerRadii,
+  GradientData,
+  PathCommand,
+} from "../renderer/types.js";
+import { cloneGradient } from "../renderer/types.js";
+import type { MotionPath } from "./path-parser.js";
 
 // CSS Motion Path offset-rotate: `auto` follows the path tangent; `angle` adds a
 // fixed offset (auto + angle) or a fixed orientation (angle only, auto = false).

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseXml, type SvgNode } from "./svg-xml";
+import { parseXml, type SvgNode } from "./svg-xml.js";
 
 /** Local names of an element's direct children. */
 function tags(node: SvgNode): string[] {

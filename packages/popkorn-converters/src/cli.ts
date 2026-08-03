@@ -12,9 +12,10 @@
  */
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import * as figma from "./figma2popkorn";
-import * as lottie from "./lottie2popkorn";
-import * as svg from "./svg2popkorn";
+import { pathToFileURL } from "node:url";
+import * as figma from "./figma2popkorn.js";
+import * as lottie from "./lottie2popkorn.js";
+import * as svg from "./svg2popkorn.js";
 
 type Format = {
   mod: { Converter: new () => any; validate: (css: string) => string[] };
@@ -193,4 +194,4 @@ function main() {
 }
 
 // Only run the CLI when executed directly, so tests can import helpers.
-if (import.meta.main) main();
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) main();

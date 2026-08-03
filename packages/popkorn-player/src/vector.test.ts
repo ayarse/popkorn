@@ -1,11 +1,14 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import type { LinearGradientData, RadialGradientData } from "./renderer/types";
-import { hitTest } from "./runtime/hit-test";
-import { buildSceneGraph } from "./scene/builder";
-import { arcToEllipse } from "./scene/path-parser";
-import type { SceneNode } from "./scene/types";
-import { createSceneNode } from "./scene/types";
+import type {
+  LinearGradientData,
+  RadialGradientData,
+} from "./renderer/types.js";
+import { hitTest } from "./runtime/hit-test.js";
+import { buildSceneGraph } from "./scene/builder.js";
+import { arcToEllipse } from "./scene/path-parser.js";
+import type { SceneNode } from "./scene/types.js";
+import { createSceneNode } from "./scene/types.js";
 
 // --- helpers -----------------------------------------------------------------
 

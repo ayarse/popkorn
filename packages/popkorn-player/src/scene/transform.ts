@@ -1,4 +1,4 @@
-import type { Matrix3x3 } from "./matrix";
+import type { Matrix3x3 } from "./matrix.js";
 import {
   IDENTITY_MATRIX,
   multiplyMatrices,
@@ -6,8 +6,8 @@ import {
   scaleMatrix,
   skewMatrix,
   translationMatrix,
-} from "./matrix";
-import { samplePathAt } from "./path-parser";
+} from "./matrix.js";
+import { samplePathAt } from "./path-parser.js";
 import type {
   CircleData,
   EllipseData,
@@ -17,7 +17,7 @@ import type {
   SceneNode,
   TextData,
   TransformOriginValue,
-} from "./types";
+} from "./types.js";
 
 /** Uniform device-space scale of a 3×3 affine matrix (geometric mean of its
  * axis scales, √|det| — a single-value approximation for the elliptical case). */

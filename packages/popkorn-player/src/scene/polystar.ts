@@ -1,5 +1,5 @@
-import type { PathCommand } from "../renderer/types";
-import type { PolystarData, SceneNode } from "./types";
+import type { PathCommand } from "../renderer/types.js";
+import type { PolystarData, SceneNode } from "./types.js";
 
 /**
  * Synthesize a star or polygon into absolute-coordinate PathCommand[], matching

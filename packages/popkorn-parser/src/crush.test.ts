@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { crushSource } from "./index";
-import { parse } from "./parser";
-import { serialize } from "./serializer";
+import { crushSource } from "./index.js";
+import { parse } from "./parser.js";
+import { serialize } from "./serializer.js";
 
 const crush = (src: string) => serialize(parse(src), { crush: true });
 

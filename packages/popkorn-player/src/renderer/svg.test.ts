@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { RenderLoop } from "../runtime/loop";
-import type { SceneNode } from "../scene/types";
-import { createSceneNode, snapshotNode } from "../scene/types";
-import type { Renderer } from "./interface";
+import { RenderLoop } from "../runtime/loop.js";
+import type { SceneNode } from "../scene/types.js";
+import { createSceneNode, snapshotNode } from "../scene/types.js";
+import type { Renderer } from "./interface.js";
 import {
   deviceRegionInUserSpace,
   diffAttr,
@@ -11,8 +11,8 @@ import {
   pathToD,
   realizeGradientAttrs,
   SVGRenderer,
-} from "./svg";
-import type { GradientData, Matrix3x3, PathCommand } from "./types";
+} from "./svg.js";
+import type { GradientData, Matrix3x3, PathCommand } from "./types.js";
 
 // --- pathToD -----------------------------------------------------------------
 

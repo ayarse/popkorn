@@ -160,7 +160,7 @@ export const LUMA_COEFFICIENTS = { r: 0.2126, g: 0.7152, b: 0.0722 } as const;
 
 // Affine matrix math lives in scene/matrix.ts (the scene layer owns transform
 // math). Re-exported here so `../renderer/types` import paths keep working.
-export type { Matrix3x3 } from "../scene/matrix";
+export type { Matrix3x3 } from "../scene/matrix.js";
 export {
   IDENTITY_MATRIX,
   invertMatrix,
@@ -169,7 +169,7 @@ export {
   scaleMatrix,
   transformPoint,
   translationMatrix,
-} from "../scene/matrix";
+} from "../scene/matrix.js";
 
 // Helper to convert Color to CSS string
 export function colorToCSS(color: Color): string {

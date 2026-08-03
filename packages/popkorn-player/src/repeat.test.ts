@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { buildSceneGraph } from "./scene/builder";
-import type { CircleData, SceneNode } from "./scene/types";
+import { buildSceneGraph } from "./scene/builder.js";
+import type { CircleData, SceneNode } from "./scene/types.js";
 
 const build = (src: string) => buildSceneGraph(parse(src));
 const ids = (n: SceneNode) => n.children.map((c) => c.id);

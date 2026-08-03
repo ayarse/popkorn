@@ -32,15 +32,15 @@ import type {
   StyleSheet,
   Value,
   VariableDefinition,
-} from "./ast";
+} from "./ast.js";
 import {
   isColorValue,
   isKeywordValue,
   isLengthValue,
   isListValue,
   isNumberValue,
-} from "./ast";
-import type { Diagnostic, Severity } from "./diagnostics";
+} from "./ast.js";
+import type { Diagnostic, Severity } from "./diagnostics.js";
 import {
   COLOR_KEYWORDS,
   COLOR_PROPERTIES,
@@ -48,7 +48,7 @@ import {
   KNOWN_PROPERTIES,
   NAMED_COLORS,
   suggest,
-} from "./diagnostics";
+} from "./diagnostics.js";
 
 // A cross-sheet reference captured with its source span during the single
 // parse pass, resolved against the collected definitions after parsing (the AST

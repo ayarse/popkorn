@@ -47,8 +47,8 @@ import type {
   StyleSheet,
   Value,
   VariableDefinition,
-} from "./ast";
-import { isReservedAnimationKeyword } from "./diagnostics";
+} from "./ast.js";
+import { isReservedAnimationKeyword } from "./diagnostics.js";
 
 // A short-name generator: a, b, … z, aa, ab, … Skips names that would change
 // meaning if re-parsed — reserved animation keywords (so a crushed @keyframes

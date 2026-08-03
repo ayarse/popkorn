@@ -38,10 +38,10 @@ import {
   serializeRule,
   num as sharedNum,
   warnOnce,
-} from "./shared";
-import { parseXml, type SvgNode } from "./svg-xml";
+} from "./shared.js";
+import { parseXml, type SvgNode } from "./svg-xml.js";
 
-export { validate } from "./shared";
+export { validate } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // Formatting helpers

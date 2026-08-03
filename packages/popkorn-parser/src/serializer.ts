@@ -32,8 +32,8 @@ import type {
   StyleSheet,
   Value,
   VariableDefinition,
-} from "./ast";
-import { crush } from "./crush";
+} from "./ast.js";
+import { crush } from "./crush.js";
 
 // Synthetic declarations exist only to be printed (fmtDecl reads property +
 // value, never the span), so they carry a zero source span.

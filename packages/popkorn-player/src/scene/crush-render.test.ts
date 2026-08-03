@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse, serialize } from "@popkorn/parser";
-import type { Renderer } from "../renderer/interface";
+import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
   GradientData,
@@ -10,15 +10,15 @@ import type {
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
-} from "../renderer/types";
-import { RenderLoop } from "../runtime/loop";
+} from "../renderer/types.js";
+import { RenderLoop } from "../runtime/loop.js";
 import type {
   FillRule,
   MaskMode,
   StrokeLineCap,
   TextAnchor,
-} from "../scene/types";
-import { buildSceneGraph } from "./builder";
+} from "../scene/types.js";
+import { buildSceneGraph } from "./builder.js";
 
 // A renderer that records every primitive call (name + args) as a flat trace.
 // The trace carries geometry/paint but NO identifier strings, so it is exactly

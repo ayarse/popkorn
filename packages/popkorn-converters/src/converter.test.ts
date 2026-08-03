@@ -7,7 +7,7 @@ import {
   normalizeKfs,
   prop,
   splitProp,
-} from "./lottie2popkorn";
+} from "./lottie2popkorn.js";
 
 // A closed triangle bezier shape (matching vertex/tangent counts guaranteed).
 const shape = (v: number[][]) => ({

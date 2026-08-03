@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parsePath } from "./path-parser";
+import { parsePath } from "./path-parser.js";
 
 test("parsePath splits compact concatenated decimals into separate numbers", () => {
   // Compact SVG notation: ".2-1.96" must tokenize as -0.2, -1.96, not one number.

@@ -1,36 +1,36 @@
 import { isFunctionValue, isKeywordValue, type Value } from "@popkorn/parser";
-import { applyEasing, holdsAtStart } from "../animation/easing";
-import { getPropHandler } from "../animation/registry";
+import { applyEasing, holdsAtStart } from "../animation/easing.js";
+import { getPropHandler } from "../animation/registry.js";
 import {
   AnimationScheduler,
   computeSceneDuration,
   sampleNodeAtProgress,
-} from "../animation/scheduler";
-import type { Renderer } from "../renderer/interface";
-import type { Matrix3x3, TrimDescriptor } from "../renderer/types";
-import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types";
-import type { DeviceRect } from "../scene/bounds";
-import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds";
+} from "../animation/scheduler.js";
+import type { Renderer } from "../renderer/interface.js";
+import type { Matrix3x3, TrimDescriptor } from "../renderer/types.js";
+import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types.js";
+import type { DeviceRect } from "../scene/bounds.js";
+import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds.js";
 import {
   insetShadowCommands,
   outerShadowCommands,
   shapeClip,
-} from "../scene/box-shadow";
+} from "../scene/box-shadow.js";
 import {
   extractImageViewBox,
   extractIndividualTransform,
   extractTransform,
-} from "../scene/builder";
-import { resolveClip } from "../scene/clip";
-import { colorStringFromValue } from "../scene/color";
-import { outlineLength } from "../scene/path-parser";
-import { polystarCommands } from "../scene/polystar";
+} from "../scene/builder.js";
+import { resolveClip } from "../scene/clip.js";
+import { colorStringFromValue } from "../scene/color.js";
+import { outlineLength } from "../scene/path-parser.js";
+import { polystarCommands } from "../scene/polystar.js";
 import {
   clamp01,
   computeLocalMatrix,
   computeWorldMatrixFromRoot,
   matrixScale,
-} from "../scene/transform";
+} from "../scene/transform.js";
 import type {
   CircleData,
   ColorFilterFn,
@@ -42,15 +42,15 @@ import type {
   SceneNode,
   TextData,
   TimeRemapStop,
-} from "../scene/types";
+} from "../scene/types.js";
 import {
   childrenInPaintOrder,
   refreshSortedChildren,
   resetNodeToBase,
-} from "../scene/types";
-import { subtreeToken } from "./content-hash";
-import { hitTest, hitTestClick } from "./hit-test";
-import { createInputTracker, type InputTracker } from "./inputs";
+} from "../scene/types.js";
+import { subtreeToken } from "./content-hash.js";
+import { hitTest, hitTestClick } from "./hit-test.js";
+import { createInputTracker, type InputTracker } from "./inputs.js";
 import {
   applyStateStyles,
   blendProp,
@@ -59,15 +59,15 @@ import {
   involvedStateKeys,
   readLiveProp,
   writeProp,
-} from "./interaction";
+} from "./interaction.js";
 import {
   createStateMachineRunner,
   type MachineOutput,
   type PointerTriggerEvent,
   type StateBlend,
   type StateMachineRunner,
-} from "./state-machine";
-import { createVariableResolver, type VariableResolver } from "./variables";
+} from "./state-machine.js";
+import { createVariableResolver, type VariableResolver } from "./variables.js";
 
 /**
  * Flags set only on the TOP node of a mask composite pass (renderMask). Never

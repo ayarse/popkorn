@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { BlendMode, MaskMode } from "../scene/types";
-import { Canvas2DRenderer } from "./canvas2d";
+import type { BlendMode, MaskMode } from "../scene/types.js";
+import { Canvas2DRenderer } from "./canvas2d.js";
 
 // Canvas globalCompositeOperation -> CSS blend keyword (source-over == normal,
 // recorded as undefined). Every other gCO value IS the CSS mix-blend-mode name.
@@ -15,12 +15,12 @@ import type {
   MaskObs,
   NormGradient,
   PaintObs,
-} from "./conformance";
-import { registerConformance } from "./conformance";
-import { resolveGradient } from "./gradient-geometry";
-import type { Renderer } from "./interface";
-import { realizeGradientAttrs, SVGRenderer } from "./svg";
-import type { GradientData } from "./types";
+} from "./conformance.js";
+import { registerConformance } from "./conformance.js";
+import { resolveGradient } from "./gradient-geometry.js";
+import type { Renderer } from "./interface.js";
+import { realizeGradientAttrs, SVGRenderer } from "./svg.js";
+import type { GradientData } from "./types.js";
 
 // =============================================================================
 // Canvas2D harness

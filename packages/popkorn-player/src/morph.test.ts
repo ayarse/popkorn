@@ -3,7 +3,7 @@ import { parse } from "@popkorn/parser";
 import {
   buildKeyframeTracks,
   interpolateKeyframes,
-} from "./animation/keyframes";
+} from "./animation/keyframes.js";
 import {
   getPropHandler,
   gradientsCompatible,
@@ -12,14 +12,18 @@ import {
   interpolatePath,
   interpolateProp,
   pathsCompatible,
-} from "./animation/registry";
-import type { GradientData } from "./renderer/types";
-import { parseColor } from "./renderer/types";
-import { computeTrim } from "./runtime/loop";
-import { buildSceneGraph } from "./scene/builder";
-import { outlineLength, parsePath } from "./scene/path-parser";
-import type { PathData, SceneNode } from "./scene/types";
-import { createSceneNode, resetNodeToBase, snapshotNode } from "./scene/types";
+} from "./animation/registry.js";
+import type { GradientData } from "./renderer/types.js";
+import { parseColor } from "./renderer/types.js";
+import { computeTrim } from "./runtime/loop.js";
+import { buildSceneGraph } from "./scene/builder.js";
+import { outlineLength, parsePath } from "./scene/path-parser.js";
+import type { PathData, SceneNode } from "./scene/types.js";
+import {
+  createSceneNode,
+  resetNodeToBase,
+  snapshotNode,
+} from "./scene/types.js";
 
 function firstNode(css: string): SceneNode {
   return buildSceneGraph(parse(css)).children[0];

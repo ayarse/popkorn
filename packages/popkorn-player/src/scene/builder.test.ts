@@ -1,15 +1,15 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { getPropHandler } from "../animation/registry";
-import { AnimationScheduler } from "../animation/scheduler";
-import { hitTest } from "../runtime/hit-test";
+import { getPropHandler } from "../animation/registry.js";
+import { AnimationScheduler } from "../animation/scheduler.js";
+import { hitTest } from "../runtime/hit-test.js";
 import {
   applyStateStyles,
   createInteractionManager,
-} from "../runtime/interaction";
-import { createVariableResolver } from "../runtime/variables";
-import { buildSceneGraph, extractTransform } from "./builder";
-import { getShapeBounds } from "./transform";
+} from "../runtime/interaction.js";
+import { createVariableResolver } from "../runtime/variables.js";
+import { buildSceneGraph, extractTransform } from "./builder.js";
+import { getShapeBounds } from "./transform.js";
 import type {
   CircleData,
   EllipseData,
@@ -18,8 +18,8 @@ import type {
   PolystarData,
   RectData,
   TextData,
-} from "./types";
-import { resetNodeToBase } from "./types";
+} from "./types.js";
+import { resetNodeToBase } from "./types.js";
 
 const build = (src: string) => buildSceneGraph(parse(src));
 

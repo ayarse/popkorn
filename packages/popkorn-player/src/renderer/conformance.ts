@@ -1,5 +1,5 @@
-import { filterToCSS } from "../runtime/loop";
-import { insetShadowCommands, shapeClip } from "../scene/box-shadow";
+import { filterToCSS } from "../runtime/loop.js";
+import { insetShadowCommands, shapeClip } from "../scene/box-shadow.js";
 import type {
   BlendMode,
   CircleData,
@@ -7,10 +7,10 @@ import type {
   MaskMode,
   PathData,
   RectData,
-} from "../scene/types";
-import { resolveGradient } from "./gradient-geometry";
-import type { Renderer } from "./interface";
-import type { GradientData } from "./types";
+} from "../scene/types.js";
+import { resolveGradient } from "./gradient-geometry.js";
+import type { Renderer } from "./interface.js";
+import type { GradientData } from "./types.js";
 
 /**
  * Cross-backend renderer conformance suite.

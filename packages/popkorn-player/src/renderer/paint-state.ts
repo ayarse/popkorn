@@ -4,14 +4,19 @@ import type {
   PaintOrder,
   StrokeLineCap,
   StrokeLineJoin,
-} from "../scene/types";
-import type { Color, GradientData, Matrix3x3, TrimDescriptor } from "./types";
+} from "../scene/types.js";
+import type {
+  Color,
+  GradientData,
+  Matrix3x3,
+  TrimDescriptor,
+} from "./types.js";
 import {
   colorToCSS,
   IDENTITY_MATRIX,
   invertMatrix,
   multiplyMatrices,
-} from "./types";
+} from "./types.js";
 
 /**
  * Shared sticky paint state + an opt-in JS CTM mirror for the renderer backends.
