@@ -731,35 +731,82 @@ export const examples: Example[] = [
   animation: write 5s infinite, ink 5s ease-in-out infinite;
 }
 ` },
-  { key: "06-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated */
-/* Morph — path \`d\` interpolation with animated gradient stops, as a jellyfish.
-   The bell, veil, and tentacles all animate their \`d\`, and the bell's gradient
-   shifts hue across the same keyframes. Two rules make it interpolate instead
-   of hold: every pair of \`d\` keyframes keeps an identical command sequence, and
-   every pair of gradients keeps the same stop count. Break either and the
-   property snaps between states. */
+  { key: "06-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated (Opus 5) */
+/* Morph — a jellyfish springs into a hot air balloon and back, on one 10s clock.
+   \`d\` interpolates only between identical command sequences (and gradients of
+   equal stop count), so the envelope is authored to the bell's M + 6C + Z and
+   the basket to the veil's M + 4C + Z. Shapes that can't match are cross-faded
+   instead: tentacles/ropes, bubbles/clouds. */
 :root {
   width: 800px;
   height: 600px;
+  background: #101c3d;
 }
 
+/* Master grid, shared by every morphing node: jelly dwell to 41%, spring to
+   48%, balloon dwell to 89%, spring back to 96%, settle. A dwell is two
+   identical keyframes; the linear() overshoot extrapolates the path lerp. */
 @keyframes bell-morph {
   0% {
-    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
+    d: "M 258 292 C 258 196 316 140 400 140 C 484 140 542 196 542 292 C 538 330 508 336 478 300 C 452 340 424 336 400 300 C 376 336 348 340 322 300 C 292 336 262 330 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
+  }
+  41% {
+    d: "M 258 292 C 258 196 316 140 400 140 C 484 140 542 196 542 292 C 538 330 508 336 478 300 C 452 340 424 336 400 300 C 376 336 348 340 322 300 C 292 336 262 330 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
+    animation-timing-function: linear(0, -0.05 9%, -0.07 16%, 0.18 26%, 0.76 36%, 1.16 46%, 1.22 52%, 1.05 62%, 0.95 71%, 1.04 80%, 0.99 89%, 1.005 95%, 1);
+  }
+  48% {
+    d: "M 264 212 C 264 148 324 100 400 100 C 476 100 536 148 536 212 C 536 286 502 346 450 374 C 434 380 418 382 400 382 C 382 382 366 380 350 374 C 298 346 264 286 264 212 Z";
+    fill: linear-gradient(150deg, #ffe6b3 0%, #ff8f6b 46%, #a8407f 100%);
+  }
+  89% {
+    d: "M 264 212 C 264 148 324 100 400 100 C 476 100 536 148 536 212 C 536 286 502 346 450 374 C 434 380 418 382 400 382 C 382 382 366 380 350 374 C 298 346 264 286 264 212 Z";
+    fill: linear-gradient(150deg, #ffe6b3 0%, #ff8f6b 46%, #a8407f 100%);
+    animation-timing-function: linear(0, -0.05 9%, -0.07 16%, 0.18 26%, 0.76 36%, 1.16 46%, 1.22 52%, 1.05 62%, 0.95 71%, 1.04 80%, 0.99 89%, 1.005 95%, 1);
+  }
+  96% {
+    d: "M 258 292 C 258 196 316 140 400 140 C 484 140 542 196 542 292 C 538 330 508 336 478 300 C 452 340 424 336 400 300 C 376 336 348 340 322 300 C 292 336 262 330 258 292 Z";
     fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
   }
   100% {
-    d: "M 248 284 C 262 190 330 126 400 136 C 476 126 546 190 552 284 C 526 318 500 314 474 286 C 452 330 420 312 400 300 C 380 312 348 330 326 286 C 300 314 274 318 248 284 Z";
-    fill: linear-gradient(200deg, #ffffff 0%, #38d8ff 46%, #d946ef 100%);
+    d: "M 258 292 C 258 196 316 140 400 140 C 484 140 542 196 542 292 C 538 330 508 336 478 300 C 452 340 424 336 400 300 C 376 336 348 340 322 300 C 292 336 262 330 258 292 Z";
+    fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
   }
 }
 
 @keyframes veil-morph {
   0% {
     d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
+    opacity: 0.24;
+  }
+  41% {
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
+    opacity: 0.24;
+    animation-timing-function: linear(0, -0.05 9%, -0.07 16%, 0.18 26%, 0.76 36%, 1.16 46%, 1.22 52%, 1.05 62%, 0.95 71%, 1.04 80%, 0.99 89%, 1.005 95%, 1);
+  }
+  48% {
+    d: "M 356 426 C 354 444 358 462 366 478 C 388 483 412 483 434 478 C 442 462 446 444 444 426 C 416 420 384 420 356 426 Z";
+    fill: linear-gradient(180deg, #e0b183 0%, #8a5a34 100%);
+    opacity: 1;
+  }
+  89% {
+    d: "M 356 426 C 354 444 358 462 366 478 C 388 483 412 483 434 478 C 442 462 446 444 444 426 C 416 420 384 420 356 426 Z";
+    fill: linear-gradient(180deg, #e0b183 0%, #8a5a34 100%);
+    opacity: 1;
+    animation-timing-function: linear(0, -0.05 9%, -0.07 16%, 0.18 26%, 0.76 36%, 1.16 46%, 1.22 52%, 1.05 62%, 0.95 71%, 1.04 80%, 0.99 89%, 1.005 95%, 1);
+  }
+  96% {
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
+    opacity: 0.24;
   }
   100% {
-    d: "M 312 286 C 346 334 352 390 330 444 C 378 410 422 410 470 444 C 448 390 454 334 488 286 C 438 316 362 316 312 286 Z";
+    d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
+    fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
+    opacity: 0.24;
   }
 }
 
@@ -772,24 +819,137 @@ export const examples: Example[] = [
   }
 }
 
+/* Hand-keyed squash-and-stretch: crouch, launch, landing, damped settle. Scale
+   pairs preserve volume; easing sits on turning points only, since easing every
+   key drops velocity to zero at each pose and reads as stop-start. */
 @keyframes float {
   0% {
-    transform: translate(0px, 12px);
+    transform: translate(0px, 10px) scale(1, 1);
+  }
+  22% {
+    transform: translate(0px, -6px) scale(1.01, 1.01);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  39% {
+    transform: translate(0px, 20px) scale(1.16, 0.86);
+    animation-timing-function: cubic-bezier(0.3, 0, 1, 1);
+  }
+  44% {
+    transform: translate(0px, -54px) scale(0.84, 1.19);
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  48% {
+    transform: translate(0px, -18px) scale(1.17, 0.85);
+    animation-timing-function: ease-in-out;
+  }
+  54% {
+    transform: translate(0px, -36px) scale(0.96, 1.05);
+    animation-timing-function: ease-in-out;
+  }
+  62% {
+    transform: translate(0px, -27px) scale(1.02, 0.98);
+    animation-timing-function: ease-in-out;
+  }
+  70% {
+    transform: translate(0px, -30px) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  86% {
+    transform: translate(0px, -44px) scale(1.02, 0.98);
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  89% {
+    transform: translate(0px, -56px) scale(1.14, 0.87);
+    animation-timing-function: cubic-bezier(0.3, 0, 1, 1);
+  }
+  92% {
+    transform: translate(0px, 32px) scale(0.84, 1.19);
+    animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+  95% {
+    transform: translate(0px, 4px) scale(1.16, 0.86);
+    animation-timing-function: ease-in-out;
+  }
+  98% {
+    transform: translate(0px, 16px) scale(0.96, 1.04);
+    animation-timing-function: ease-in-out;
   }
   100% {
-    transform: translate(0px, -18px);
+    transform: translate(0px, 10px) scale(1, 1);
   }
 }
 
+/* Cross-fade pairs: each family is fully faded through both dwells. */
+@keyframes tentacles-fade {
+  0% { opacity: 1; }
+  41% { opacity: 1; }
+  46% { opacity: 0; }
+  90% { opacity: 0; }
+  97% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+@keyframes bubbles-fade {
+  0% { opacity: 1; }
+  42% { opacity: 1; }
+  47% { opacity: 0; }
+  90% { opacity: 0; }
+  98% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+@keyframes clouds-fade {
+  0% { opacity: 0; }
+  44% { opacity: 0; }
+  51% { opacity: 1; }
+  88% { opacity: 1; }
+  94% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* Gores arrive with the shape; rigging lags ~120ms so the balloon assembles. */
+@keyframes ropes-fade {
+  0% { opacity: 0; }
+  43% { opacity: 0; }
+  49% { opacity: 1; }
+  89% { opacity: 1; }
+  94% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes rigging-fade {
+  0% { opacity: 0; }
+  45% { opacity: 0; }
+  52% { opacity: 0.9; }
+  88% { opacity: 0.9; }
+  93% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* Backdrop light, recoloured per form. Peaks at 50%, just after the landing. */
 @keyframes pulse-glow {
-  0% {
-    opacity: 0.22;
-    transform: scale(0.96);
-  }
-  100% {
-    opacity: 0.38;
-    transform: scale(1.04);
-  }
+  0% { opacity: 0.3; transform: scale(0.96); fill: #38bdf8; }
+  22% { opacity: 0.42; transform: scale(1.05); fill: #38bdf8; }
+  41% { opacity: 0.3; transform: scale(0.96); fill: #38bdf8; }
+  50% { opacity: 0.62; transform: scale(1.16); fill: #ff9f5a; }
+  64% { opacity: 0.4; transform: scale(1.02); fill: #ff9f5a; }
+  89% { opacity: 0.46; transform: scale(1.08); fill: #ff9f5a; }
+  98% { opacity: 0.44; transform: scale(1.1); fill: #38bdf8; }
+  100% { opacity: 0.3; transform: scale(0.96); fill: #38bdf8; }
+}
+
+@keyframes twinkle {
+  0% { opacity: 0.1; }
+  50% { opacity: 0.75; }
+  100% { opacity: 0.1; }
+}
+
+@keyframes flame-flicker {
+  0% { transform: scale(1, 0.9); opacity: 0.85; }
+  30% { transform: scale(0.88, 1.15); opacity: 1; }
+  55% { transform: scale(1.08, 0.95); opacity: 0.8; }
+  78% { transform: scale(0.94, 1.08); opacity: 1; }
+  100% { transform: scale(1, 0.9); opacity: 0.85; }
 }
 
 @keyframes bubble-rise {
@@ -828,103 +988,321 @@ export const examples: Example[] = [
   animation: bubble-rise 5s ease-in-out infinite;
 }
 
-#bubble1 {
-  use: bubble;
-  cx: 112px;
-  cy: 470px;
-  r: 7px;
-  animation-delay: -1s;
+/* One mote field serves both phases — plankton underwater, stars in the sky.
+   mod() steps, not random(per-element), which crush reseeds. The x and y
+   multipliers need different fractional steps or the points land on diagonals. */
+#motes {
+  type: group;
+
+  > #mote {
+    repeat: 18;
+    type: circle;
+    cx: calc((20 + mod(sibling-index() * 31, 76) * 10) * 1px);
+    cy: calc((20 + mod(sibling-index() * 17, 56) * 10) * 1px);
+    r: calc((0.8 + mod(sibling-index() * 5, 4) * 0.5) * 1px);
+    fill: #dbeafe;
+    opacity: 0.2;
+    animation: twinkle 4.5s ease-in-out infinite;
+    animation-delay: calc(sibling-index() * -0.24s);
+  }
 }
-#bubble2 {
-  use: bubble;
-  cx: 178px;
-  cy: 350px;
-  r: 4px;
-  animation-duration: 4.2s;
-  animation-delay: -2.4s;
+
+#glow {
+  type: ellipse;
+  cx: 400px;
+  cy: 250px;
+  rx: 230px;
+  ry: 175px;
+  fill: #38bdf8;
+  opacity: 0.3;
+  filter: blur(60px);
+  transform-origin: 400px 250px;
+  animation: pulse-glow 10s ease-in-out infinite;
 }
-#bubble3 {
-  use: bubble;
-  cx: 642px;
-  cy: 430px;
-  r: 8px;
-  animation-duration: 6s;
-  animation-delay: -3.1s;
+
+/* Clouds answer the bubbles: a circle has no path form to morph toward. */
+@define cloud {
+  type: path;
+  d: "M 24 44 C 8 44 2 30 12 22 C 10 8 26 0 38 8 C 46 -4 68 -2 72 12 C 88 6 102 18 98 32 C 106 36 104 44 94 44 Z";
+  fill: #f2f7ff;
+  opacity: 0.85;
+  transform-origin: 0 0;
+  /* \`add\`, else the drift keyframes replace each instance's placement transform. */
+  animation-name: cloud-drift;
+  animation-duration: 26s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  animation-composition: add;
 }
-#bubble4 {
-  use: bubble;
-  cx: 705px;
-  cy: 290px;
-  r: 5px;
-  animation-duration: 4.8s;
-  animation-delay: -0.7s;
+
+@keyframes cloud-drift {
+  0% { transform: translate(-26px, 0px); }
+  100% { transform: translate(26px, 0px); }
 }
-#bubble5 {
-  use: bubble;
-  cx: 590px;
-  cy: 190px;
-  r: 3px;
-  animation-duration: 5.6s;
-  animation-delay: -4.2s;
+
+#bubbles {
+  type: group;
+  animation: bubbles-fade 10s ease-in-out infinite;
+
+  > #bubble1 {
+    use: bubble;
+    cx: 112px;
+    cy: 470px;
+    r: 7px;
+    animation-delay: -1s;
+  }
+  > #bubble2 {
+    use: bubble;
+    cx: 178px;
+    cy: 350px;
+    r: 4px;
+    animation-duration: 4.2s;
+    animation-delay: -2.4s;
+  }
+  > #bubble3 {
+    use: bubble;
+    cx: 642px;
+    cy: 430px;
+    r: 8px;
+    animation-duration: 6s;
+    animation-delay: -3.1s;
+  }
+  > #bubble4 {
+    use: bubble;
+    cx: 705px;
+    cy: 290px;
+    r: 5px;
+    animation-duration: 4.8s;
+    animation-delay: -0.7s;
+  }
+  > #bubble5 {
+    use: bubble;
+    cx: 590px;
+    cy: 190px;
+    r: 3px;
+    animation-duration: 5.6s;
+    animation-delay: -4.2s;
+  }
+}
+
+#clouds {
+  type: group;
+  opacity: 0;
+  animation: clouds-fade 10s ease-in-out infinite;
+
+  > #cloud1 {
+    use: cloud;
+    transform: translate(46px, 128px) scale(1.4);
+    opacity: 0.9;
+    animation-delay: -4s;
+  }
+  > #cloud2 {
+    use: cloud;
+    transform: translate(608px, 96px) scale(1.1);
+    opacity: 0.72;
+    animation-duration: 33s;
+    animation-delay: -13s;
+  }
+  > #cloud3 {
+    use: cloud;
+    transform: translate(566px, 322px) scale(1.5);
+    opacity: 0.5;
+    animation-duration: 21s;
+    animation-delay: -8s;
+  }
+  > #cloud4 {
+    use: cloud;
+    transform: translate(58px, 366px) scale(1.2);
+    opacity: 0.42;
+    animation-duration: 38s;
+    animation-delay: -19s;
+  }
+  > #cloud5 {
+    use: cloud;
+    transform: translate(178px, 34px) scale(0.85);
+    opacity: 0.5;
+    animation-duration: 29s;
+    animation-delay: -22s;
+  }
 }
 
 #jellyfish {
   type: group;
-  animation: float 5s ease-in-out infinite alternate;
+  transform-origin: 400px 300px;
+  animation: float 10s ease-in-out infinite;
 
   > #veil {
     type: path;
     d: "M 320 292 C 350 340 360 384 336 430 C 374 404 426 404 464 430 C 440 384 450 340 480 292 C 432 310 368 310 320 292 Z";
     fill: linear-gradient(180deg, #67e8f9 0%, #a78bfa 100%);
     opacity: 0.24;
-    animation: veil-morph 3s ease-in-out infinite alternate;
+    animation: veil-morph 10s ease-in-out infinite;
   }
 
-  > #tentacle-left {
-    use: tentacle;
-    transform: translate(324px, 300px) rotate(8deg) scale(0.86);
-    animation-delay: -0.3s;
+  /* Grouped so one fade covers all five, each keeping its own wave. */
+  > #tentacles {
+    type: group;
+    animation: tentacles-fade 10s ease-in-out infinite;
+
+    > #tentacle-left {
+      use: tentacle;
+      transform: translate(324px, 300px) rotate(8deg) scale(0.86);
+      animation-delay: -0.3s;
+    }
+    > #tentacle-mid-left {
+      use: tentacle;
+      transform: translate(370px, 305px) rotate(-4deg) scale(1);
+      animation-delay: -1.1s;
+    }
+    > #tentacle-mid {
+      use: tentacle;
+      transform: translate(405px, 306px) rotate(3deg) scale(1.08);
+      animation-delay: -0.6s;
+      stroke-width: 9;
+      opacity: 0.88;
+    }
+    > #tentacle-mid-right {
+      use: tentacle;
+      transform: translate(438px, 305px) rotate(-8deg) scale(0.98);
+      animation-delay: -1.6s;
+    }
+    > #tentacle-right {
+      use: tentacle;
+      transform: translate(480px, 300px) rotate(-14deg) scale(0.82);
+      animation-delay: -0.9s;
+    }
   }
-  > #tentacle-mid-left {
-    use: tentacle;
-    transform: translate(370px, 305px) rotate(-4deg) scale(1);
-    animation-delay: -1.1s;
+
+  /* z-index is load-bearing: in document order these paint under #bell. */
+  > #gore-panels {
+    type: path;
+    d: "M 400 100 C 330 140 300 262 350 374 C 360 378 370 380 378 381 C 364 262 372 142 400 100 Z M 400 100 C 470 140 500 262 450 374 C 440 378 430 380 422 381 C 436 262 428 142 400 100 Z";
+    fill: #9c3b74;
+    z-index: 2;
+    opacity: 0;
+    animation: ropes-fade 10s ease-in-out infinite;
   }
-  > #tentacle-mid {
-    use: tentacle;
-    transform: translate(405px, 306px) rotate(3deg) scale(1.08);
-    animation-delay: -0.6s;
-    stroke-width: 9;
-    opacity: 0.88;
+
+  > #gore-seams {
+    type: path;
+    d: "M 400 100 C 330 140 300 262 350 374 M 400 100 C 364 142 364 262 378 381 M 400 100 C 400 160 400 280 400 382 M 400 100 C 436 142 436 262 422 381 M 400 100 C 470 140 500 262 450 374";
+    fill: none;
+    stroke: #fff0d0;
+    stroke-width: 2;
+    stroke-linecap: round;
+    z-index: 3;
+    opacity: 0;
+    animation: ropes-fade 10s ease-in-out infinite;
   }
-  > #tentacle-mid-right {
-    use: tentacle;
-    transform: translate(438px, 305px) rotate(-8deg) scale(0.98);
-    animation-delay: -1.6s;
+
+  /* Group carries the phase fade so each flame can flicker independently. */
+  > #burner {
+    type: group;
+    z-index: 1;
+    opacity: 0;
+    animation: rigging-fade 10s ease-in-out infinite;
+
+    > #burner-halo {
+      type: ellipse;
+      cx: 400px;
+      cy: 404px;
+      rx: 46px;
+      ry: 34px;
+      fill: #ff9d3c;
+      opacity: 0.35;
+      filter: blur(18px);
+    }
+    > #burner-flame {
+      type: path;
+      d: "M 400 386 C 412 398 416 410 409 419 C 405 425 395 425 391 419 C 384 410 388 398 400 386 Z";
+      fill: #ffd166;
+      filter: blur(2px);
+      transform-origin: 400px 422px;
+      animation: flame-flicker 0.42s ease-in-out infinite;
+    }
+    > #burner-core {
+      type: path;
+      d: "M 400 396 C 406 403 408 411 404 416 C 402 419 398 419 396 416 C 392 411 394 403 400 396 Z";
+      fill: #fff6d8;
+      transform-origin: 400px 418px;
+      animation: flame-flicker 0.31s ease-in-out infinite;
+    }
   }
-  > #tentacle-right {
-    use: tentacle;
-    transform: translate(480px, 300px) rotate(-14deg) scale(0.82);
-    animation-delay: -0.9s;
+
+  > #ropes {
+    type: path;
+    d: "M 352 372 C 352 388 354 408 357 426 M 382 378 C 381 392 380 410 380 424 M 400 380 C 400 394 400 410 400 424 M 418 378 C 419 392 420 410 420 424 M 448 372 C 448 388 446 408 443 426";
+    fill: none;
+    stroke: #7a5230;
+    stroke-width: 3;
+    stroke-linecap: round;
+    opacity: 0;
+    animation: rigging-fade 10s ease-in-out infinite;
   }
 
   > #bell {
     type: path;
-    d: "M 258 292 C 258 202 320 140 400 140 C 480 140 542 202 542 292 C 520 308 498 302 476 292 C 456 324 424 302 400 294 C 376 302 344 324 324 292 C 302 302 280 308 258 292 Z";
+    d: "M 258 292 C 258 196 316 140 400 140 C 484 140 542 196 542 292 C 538 330 508 336 478 300 C 452 340 424 336 400 300 C 376 336 348 340 322 300 C 292 336 262 330 258 292 Z";
     fill: linear-gradient(160deg, #f8fdff 0%, #70e1ff 46%, #8b5cf6 100%);
     stroke: #dffbff;
     stroke-width: 3;
-    animation: bell-morph 3s ease-in-out infinite alternate;
+    animation: bell-morph 10s ease-in-out infinite;
   }
 
-  > #bell-shine {
-    type: path;
-    d: "M 322 217 C 350 174 410 160 456 184 C 416 184 376 200 346 236";
-    fill: none;
-    stroke: #ffffff;
-    stroke-width: 10;
-    stroke-linecap: round;
-    opacity: 0.36;
+  /* Jellyfish-only anatomy; rides the tentacle fade window. */
+  > #bell-marks {
+    type: group;
+    animation: tentacles-fade 10s ease-in-out infinite;
+
+    > #bell-rim {
+      type: path;
+      d: "M 276 274 C 320 306 350 312 400 288 C 450 312 480 306 524 274";
+      fill: none;
+      stroke: #e8fbff;
+      stroke-width: 3;
+      stroke-linecap: round;
+      opacity: 0.45;
+    }
+    > #bell-ribs {
+      type: path;
+      d: "M 322 176 C 306 214 300 250 304 284 M 362 156 C 352 202 348 246 350 288 M 400 150 C 400 200 400 246 400 288 M 438 156 C 448 202 452 246 450 288 M 478 176 C 494 214 500 250 496 284";
+      fill: none;
+      stroke: #ffffff;
+      stroke-width: 2;
+      stroke-linecap: round;
+      opacity: 0.22;
+    }
+    > #organ-left {
+      type: ellipse;
+      cx: 368px;
+      cy: 236px;
+      rx: 16px;
+      ry: 26px;
+      fill: #f0abfc;
+      opacity: 0.5;
+      filter: blur(4px);
+    }
+    > #organ-right {
+      type: ellipse;
+      cx: 432px;
+      cy: 236px;
+      rx: 16px;
+      ry: 26px;
+      fill: #f0abfc;
+      opacity: 0.5;
+      filter: blur(4px);
+    }
+    > #organ-mid {
+      type: ellipse;
+      cx: 400px;
+      cy: 250px;
+      rx: 13px;
+      ry: 22px;
+      fill: #a5f3fc;
+      opacity: 0.55;
+      filter: blur(4px);
+    }
   }
 }
 ` },
