@@ -14,15 +14,15 @@
     "@popkorn/player": "workspace:*",
     "@popkorn/react-native": "workspace:*",
     "@rivascva/react-native-code-editor": "^1.2.2",
-    "@shopify/react-native-skia": "2.2.12",
+    "@shopify/react-native-skia": "2.11.0",
     "expo": "~54.0.0",
     "expo-camera": "~17.0.10",
     "expo-status-bar": "~3.0.0",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
+    "react": "19.2.8",
+    "react-native": "0.86.2",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-worklets": "0.5.1"
+    "react-native-worklets": "0.11.3"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
