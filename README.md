@@ -1,3 +1,5 @@
+
+
 <div align="center">
 
 # Popkorn
@@ -133,9 +135,7 @@ component:
 </script>
 ```
 
-Driving the renderer yourself? The parser, scene builder, and renderers are all
-exported from [`@popkorn/player`](packages/popkorn-player); its README covers the
-programmatic API.
+Driving the renderer yourself? The scene builder and renderers are exported from [`@popkorn/player`](packages/popkorn-player), with the parser available separately as [`@popkorn/parser`](packages/popkorn-parser); both READMEs cover the programmatic API.
 
 To run the playground or hack on Popkorn locally:
 
