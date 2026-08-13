@@ -9,21 +9,23 @@ concurrency: release-${{ github.ref }}
 permissions:
   contents: write # push the Version Packages PR + git tags
   pull-requests: write # open/update the Version Packages PR
+  id-token: write # npm trusted publishing (OIDC) — no long-lived token
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/setup-node@v4 # for npm auth (changeset publish -> npm publish)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      # changeset publish shells out to `npm publish`; OIDC needs npm >= 11.5.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org
       - run: bun install --frozen-lockfile
       # With pending changesets: opens/updates a "Version Packages" PR (runs `version`).
       # On merge of that PR (no changesets left): runs `publish`.
-      - uses: changesets/action@v1
+      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         with:
           version: bun run version-packages
           publish: bun run release
@@ -31,4 +33,6 @@ jobs:
           commit: "chore: update versions"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Fallback only: npm uses OIDC when the package has a trusted
+          # publisher configured. Delete the secret once all four are set up.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
