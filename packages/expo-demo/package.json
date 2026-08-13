@@ -15,7 +15,7 @@
     "@popkorn/react-native": "workspace:*",
     "@rivascva/react-native-code-editor": "^1.2.2",
     "@shopify/react-native-skia": "2.2.12",
-    "expo": "~54.0.0",
+    "expo": "~57.0.12",
     "expo-camera": "~17.0.10",
     "expo-status-bar": "~3.0.0",
     "react": "19.1.0",
