@@ -8,13 +8,7 @@ updates:
       actions:
         patterns: ["*"]
 
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    groups:
-      # One PR a week for everything routine; security fixes still come alone.
-      dev-deps:
-        patterns: ["*"]
-        update-types: [minor, patch]
+# No npm ecosystem on purpose. Dependabot rewrites the manifests but leaves
+# bun.lock untouched in a workspace repo (dependabot-core#14223), so every PR
+# lands broken under `bun install --frozen-lockfile`. Repo-level Dependabot
+# security updates are separate and still on; fix the lockfile by hand there.
