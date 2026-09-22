@@ -87,3 +87,14 @@ export function avcCodec(width: number, height: number): string {
   }
   return `avc1.4200${level.toString(16).padStart(2, "0")}`;
 }
+
+/** Largest export scale (1..3) whose frame still fits the top AVC level above. */
+export function maxMp4Scale(stageWidth: number, stageHeight: number): number {
+  const maxMb = LEVELS[LEVELS.length - 1][0];
+  for (let s = 3; s > 1; s--) {
+    const w = evenDim(Math.round(stageWidth * s));
+    const h = evenDim(Math.round(stageHeight * s));
+    if (Math.ceil(w / 16) * Math.ceil(h / 16) <= maxMb) return s;
+  }
+  return 1;
+}

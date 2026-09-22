@@ -7,7 +7,9 @@ import {
   RenderLoop,
 } from "@popkorn/player";
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
-import { avcCodec, evenDim, planMp4 } from "@/lib/mp4-plan";
+import { scaledFrame } from "@/lib/export-scale";
+import type { ExportOptions } from "@/lib/gif";
+import { avcCodec, evenDim, maxMp4Scale, planMp4 } from "@/lib/mp4-plan";
 
 export { planMp4 } from "@/lib/mp4-plan";
 
@@ -38,7 +40,7 @@ function makeCanvas(width: number, height: number): HTMLCanvasElement {
  */
 export async function exportMp4(
   source: string,
-  { onProgress }: { onProgress?: (fraction: number) => void } = {},
+  { onProgress, durationMs, scale = 1 }: ExportOptions = {},
 ): Promise<Uint8Array> {
   if (typeof VideoEncoder === "undefined") {
     throw new Error(
@@ -48,8 +50,14 @@ export async function exportMp4(
 
   const ast = parse(source);
   // NOTE: even-dimension rounding can crop up to 1px off an odd-sized stage.
-  const width = evenDim(ast.canvas?.width ?? 400);
-  const height = evenDim(ast.canvas?.height ?? 300);
+  const stageWidth = ast.canvas?.width ?? 400;
+  const stageHeight = ast.canvas?.height ?? 300;
+  const { width, height, viewport } = scaledFrame(
+    stageWidth,
+    stageHeight,
+    Math.min(scale, maxMp4Scale(stageWidth, stageHeight)),
+    evenDim,
+  );
 
   const root = buildSceneGraph(ast);
   const canvas = makeCanvas(width, height);
@@ -57,7 +65,8 @@ export async function exportMp4(
   const scheduler = new AnimationScheduler();
   const loop = new RenderLoop(renderer, scheduler);
   loop.setScene(root);
-  loop.setSceneSize(width, height);
+  loop.setSceneSize(stageWidth, stageHeight);
+  loop.setViewport(viewport);
   loop.getVariableResolver().setVariables(ast.variables);
 
   // Export range, NOT `loop.duration`: an unbounded scene reports Infinity to
@@ -65,8 +74,12 @@ export async function exportMp4(
   // frame range — one cycle of the nominal period. Only a state machine with no
   // timeline animations (nominal 0 yet unbounded) has nothing to export; a
   // static scene is nominal 0 and bounded, and exports its single frame.
-  const duration = computeSceneDuration(root);
-  if (duration <= 0 && !Number.isFinite(loop.duration)) {
+  const duration = durationMs ?? computeSceneDuration(root);
+  if (
+    durationMs === undefined &&
+    duration <= 0 &&
+    !Number.isFinite(loop.duration)
+  ) {
     throw new Error(
       "This scene is a state machine with no timeline animation, so it has no frame range to export to MP4.",
     );
@@ -152,10 +165,10 @@ export async function exportMp4(
  */
 export function exportMp4InWorker(
   source: string,
-  { onProgress }: { onProgress?: (fraction: number) => void } = {},
+  { onProgress, durationMs, scale }: ExportOptions = {},
 ): Promise<Uint8Array> {
   if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") {
-    return exportMp4(source, { onProgress });
+    return exportMp4(source, { onProgress, durationMs, scale });
   }
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./mp4.worker.ts", import.meta.url), {
@@ -177,7 +190,7 @@ export function exportMp4InWorker(
       worker.terminate();
       reject(new Error(e.message));
     };
-    worker.postMessage({ source });
+    worker.postMessage({ source, durationMs, scale });
   });
 }
 

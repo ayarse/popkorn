@@ -10,11 +10,15 @@ const ctx = self as unknown as {
 // NOTE: raster image nodes render blank and custom web fonts aren't
 // registered in the worker — acceptable for now.
 ctx.onmessage = async (e: MessageEvent) => {
-  const { source } = e.data as {
+  const { source, durationMs, scale } = e.data as {
     source: string;
+    durationMs?: number;
+    scale?: number;
   };
   try {
     const bytes = await exportGif(source, {
+      durationMs,
+      scale,
       onProgress: (fraction) => ctx.postMessage({ type: "progress", fraction }),
     });
     ctx.postMessage({ type: "done", bytes }, [bytes.buffer as ArrayBuffer]);

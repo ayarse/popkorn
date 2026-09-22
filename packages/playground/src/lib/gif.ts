@@ -7,9 +7,18 @@ import {
   RenderLoop,
 } from "@popkorn/player";
 import { GIFEncoder, type Palette, quantize } from "gifenc";
+import { scaledFrame } from "@/lib/export-scale";
 import { planGif } from "@/lib/gif-plan";
 
 export { planGif } from "@/lib/gif-plan";
+
+export interface ExportOptions {
+  onProgress?: (fraction: number) => void;
+  /** Export length in ms; overrides the scene's computed duration. */
+  durationMs?: number;
+  /** Output pixel scale over the stage size (default 1). */
+  scale?: number;
+}
 
 /** Alpha at or above this (0–255) counts as opaque; below maps to transparency. */
 const ALPHA_THRESHOLD = 128;
@@ -204,11 +213,16 @@ export function quantizeFrame(
  */
 export async function exportGif(
   source: string,
-  { onProgress }: { onProgress?: (fraction: number) => void } = {},
+  { onProgress, durationMs, scale = 1 }: ExportOptions = {},
 ): Promise<Uint8Array> {
   const ast = parse(source);
-  const width = ast.canvas?.width ?? 400;
-  const height = ast.canvas?.height ?? 300;
+  const stageWidth = ast.canvas?.width ?? 400;
+  const stageHeight = ast.canvas?.height ?? 300;
+  const { width, height, viewport } = scaledFrame(
+    stageWidth,
+    stageHeight,
+    scale,
+  );
 
   // Off the main thread there's no document; an OffscreenCanvas is DOM-free and
   // Canvas2DRenderer only ever calls getContext("2d") on it (HTMLCanvasElement
@@ -225,7 +239,8 @@ export async function exportGif(
   const scheduler = new AnimationScheduler();
   const loop = new RenderLoop(renderer, scheduler);
   loop.setScene(root);
-  loop.setSceneSize(width, height);
+  loop.setSceneSize(stageWidth, stageHeight);
+  loop.setViewport(viewport);
   loop.getVariableResolver().setVariables(ast.variables);
 
   const ctx = canvas.getContext("2d")!;
@@ -235,8 +250,12 @@ export async function exportGif(
   // frame range — one cycle of the nominal period. Only a state machine with no
   // timeline animations (nominal 0 yet unbounded) has nothing to export; a
   // static scene is nominal 0 and bounded, and exports its single frame.
-  const duration = computeSceneDuration(root);
-  if (duration <= 0 && !Number.isFinite(loop.duration)) {
+  const duration = durationMs ?? computeSceneDuration(root);
+  if (
+    durationMs === undefined &&
+    duration <= 0 &&
+    !Number.isFinite(loop.duration)
+  ) {
     throw new Error(
       "This scene is a state machine with no timeline animation, so it has no frame range to export to GIF.",
     );
@@ -299,10 +318,10 @@ export async function exportGif(
  */
 export function exportGifInWorker(
   source: string,
-  { onProgress }: { onProgress?: (fraction: number) => void } = {},
+  { onProgress, durationMs, scale }: ExportOptions = {},
 ): Promise<Uint8Array> {
   if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") {
-    return exportGif(source, { onProgress });
+    return exportGif(source, { onProgress, durationMs, scale });
   }
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL("./gif.worker.ts", import.meta.url), {
@@ -324,7 +343,7 @@ export function exportGifInWorker(
       worker.terminate();
       reject(new Error(e.message));
     };
-    worker.postMessage({ source });
+    worker.postMessage({ source, durationMs, scale });
   });
 }
 

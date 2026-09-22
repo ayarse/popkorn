@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   ChevronDown,
+  FileJson,
   Film,
   Info,
   Layers,
@@ -16,6 +17,7 @@ import {
   BgContextMenu,
   PLAYER_BACKGROUNDS,
 } from "@/components/bg-context-menu";
+import { type ExportChoice, ExportDialog } from "@/components/export-dialog";
 import { MotionCanvas } from "@/components/motion-canvas";
 import { OwnerActions } from "@/components/owner-actions";
 import { Button } from "@/components/ui/button";
@@ -173,13 +175,61 @@ export function PlayerPanel({
   const setProgress = (format: "GIF" | "MP4") => (progress: number) =>
     setExporting({ format, progress });
 
+  // Pending export dialog; resolve(null) = cancelled.
+  const [exportPrompt, setExportPrompt] = useState<{
+    format: string;
+    stage: { width: number; height: number };
+    scale?: { default: number; max: number };
+    lengthMs?: number;
+    resolve: (choice: ExportChoice | null) => void;
+  } | null>(null);
+
+  /** Asks for export settings: raster formats always (scale), any format needing a length. */
+  async function askExportSettings(
+    format: "GIF" | "MP4" | "Lottie",
+  ): Promise<ExportChoice | null> {
+    const [{ parse }, { buildSceneGraph, sceneExportLength }, { maxMp4Scale }] =
+      await Promise.all([
+        import("@popkorn/parser"),
+        import("@popkorn/player"),
+        import("@/lib/mp4-plan"),
+      ]);
+    const ast = parse(source);
+    const length = sceneExportLength(buildSceneGraph(ast), ast.variables);
+    const lengthMs = length && !length.fixed ? length.suggestedMs : undefined;
+    const stage = {
+      width: ast.canvas?.width ?? 400,
+      height: ast.canvas?.height ?? 300,
+    };
+    const mp4Max = maxMp4Scale(stage.width, stage.height);
+    const scale = {
+      GIF: { default: 1, max: 3 },
+      MP4: { default: Math.min(2, mp4Max), max: mp4Max },
+      Lottie: undefined,
+    }[format];
+    if (!scale && lengthMs === undefined) return {};
+    return new Promise((resolve) =>
+      setExportPrompt({ format, stage, scale, lengthMs, resolve }),
+    );
+  }
+
+  function closeExportPrompt(choice: ExportChoice | null) {
+    exportPrompt?.resolve(choice);
+    setExportPrompt(null);
+  }
+
   async function handleExportGif() {
     if (exporting !== null) return;
-    setExporting({ format: "GIF", progress: 0 });
     try {
+      const choice = await askExportSettings("GIF");
+      if (!choice) return;
+      setExporting({ format: "GIF", progress: 0 });
       const { exportGifInWorker, downloadGif } = await import("@/lib/gif");
       downloadGif(
-        await exportGifInWorker(source, { onProgress: setProgress("GIF") }),
+        await exportGifInWorker(source, {
+          onProgress: setProgress("GIF"),
+          ...choice,
+        }),
       );
     } catch (e: any) {
       onError(`GIF export failed: ${e.message}`);
@@ -190,16 +240,46 @@ export function PlayerPanel({
 
   async function handleExportMp4() {
     if (exporting !== null) return;
-    setExporting({ format: "MP4", progress: 0 });
     try {
+      const choice = await askExportSettings("MP4");
+      if (!choice) return;
+      setExporting({ format: "MP4", progress: 0 });
       const { exportMp4InWorker, downloadMp4 } = await import("@/lib/mp4");
       downloadMp4(
-        await exportMp4InWorker(source, { onProgress: setProgress("MP4") }),
+        await exportMp4InWorker(source, {
+          onProgress: setProgress("MP4"),
+          ...choice,
+        }),
       );
     } catch (e: any) {
       onError(`MP4 export failed: ${e.message}`);
     } finally {
       setExporting(null);
+    }
+  }
+
+  async function handleExportLottie() {
+    try {
+      const choice = await askExportSettings("Lottie");
+      if (!choice) return;
+      const { convertPopkorn } = await import("@popkorn/converters");
+      const { lottie, warnings } = convertPopkorn(source, {
+        durationMs: choice.durationMs,
+      });
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(lottie)], { type: "application/json" }),
+      );
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "scene.json";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (warnings.length)
+        onError(
+          `Lottie exported with ${warnings.length} warning${warnings.length > 1 ? "s" : ""}: ${warnings.join("; ")}`,
+        );
+    } catch (e: any) {
+      onError(`Lottie export failed: ${e.message}`);
     }
   }
 
@@ -324,7 +404,7 @@ export function PlayerPanel({
             </TooltipContent>
           </Tooltip>
 
-          {/* Export (GIF / MP4) */}
+          {/* Export (GIF / MP4 / Lottie) */}
           <DropdownMenu>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -358,6 +438,10 @@ export function PlayerPanel({
                   MP4
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onSelect={handleExportLottie}>
+                <FileJson className="size-3.5" />
+                Lottie
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -452,7 +536,6 @@ export function PlayerPanel({
             }}
           />
         </div>
-
         {/* Attribution badge — icon-only until hovered, so it stays out of the
             way of the scene. Fed by the example file's `Author:` header. */}
         {author && (
@@ -462,7 +545,6 @@ export function PlayerPanel({
             url={meta["Author URL"]}
           />
         )}
-
         {/* Event badge — flashes the latest player DOM event (click / machine).
             Non-interactive so it never intercepts the pointer. */}
         {eventBadge && (
@@ -470,7 +552,6 @@ export function PlayerPanel({
             {eventBadge}
           </div>
         )}
-
         {/* Error toast */}
         {error && (
           <div className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-foreground backdrop-blur-md">
@@ -478,7 +559,6 @@ export function PlayerPanel({
             <span className="max-w-[420px] truncate font-mono">{error}</span>
           </div>
         )}
-
         {/* Right-click background context menu */}
         {bgMenu && (
           <BgContextMenu
@@ -486,6 +566,16 @@ export function PlayerPanel({
             onClose={() => setBgMenu(null)}
             bgIndex={bgIndex}
             onSelect={setBgIndex}
+          />
+        )}
+        {exportPrompt && (
+          <ExportDialog
+            format={exportPrompt.format}
+            stage={exportPrompt.stage}
+            scale={exportPrompt.scale}
+            lengthMs={exportPrompt.lengthMs}
+            onSubmit={closeExportPrompt}
+            onCancel={() => closeExportPrompt(null)}
           />
         )}
       </div>
