@@ -18,5 +18,10 @@ export {
   convertLottie,
   validate,
 } from "./lottie2popkorn.js";
+export {
+  Converter as PopkornToLottieConverter,
+  convertPopkorn,
+  type LottieJson,
+} from "./popkorn2lottie.js";
 export { parseXml, type SvgNode } from "./svg-xml.js";
 export { Converter as SvgConverter, convertSvg } from "./svg2popkorn.js";
