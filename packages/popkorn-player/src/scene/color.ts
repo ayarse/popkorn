@@ -6,6 +6,7 @@ import {
   isKeywordValue,
   isStringValue,
 } from "@popkorn/parser";
+import { oklabToString, tryParseOklabColor } from "../renderer/oklab.js";
 import { tryParseColor } from "../renderer/types.js";
 
 // Resolve any parseable color string to a canonical hex/rgba string, or null if
@@ -22,6 +23,19 @@ export function canonicalColor(raw: string): string | null {
   return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
 }
 
+/**
+ * Render one color-function argument back to its CSS token. Keeps the
+ * component rules (`%`, `none`, `<angle>` units) in tryParseOklabColor rather
+ * than duplicating them against the AST here. The parser flattens `/` to a
+ * positional arg, so alpha arrives as the 4th token and is re-slashed below.
+ */
+function colorArgToken(v: Value): string {
+  if (v.type === "number") return String(v.value);
+  if (v.type === "length") return `${v.value}${v.unit}`;
+  if (v.type === "keyword") return v.value;
+  return "0";
+}
+
 function buildColorString(func: FunctionValue): string {
   if (func.name === "rgb") {
     const r = getNumericValue(func.args[0]);
@@ -35,6 +49,19 @@ function buildColorString(func: FunctionValue): string {
     const b = getNumericValue(func.args[2]);
     const a = getNumericValue(func.args[3]);
     return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+  if (func.name === "oklab" || func.name === "oklch") {
+    // Normalize to canonical oklab() rather than folding to hex like hsl():
+    // the oklab() spelling is what tells interpolateColor this endpoint does
+    // not interpolate in sRGB (CSS Color 4's rule). Only opted-in colors pay
+    // the wider parse on the hot path.
+    const tokens = func.args.map(colorArgToken);
+    const args =
+      tokens.length > 3
+        ? `${tokens.slice(0, 3).join(" ")} / ${tokens[3]}`
+        : tokens.join(" ");
+    const ok = tryParseOklabColor(`${func.name}(${args})`);
+    return ok ? oklabToString(ok) : "#000000";
   }
   if (func.name === "hsl" || func.name === "hsla") {
     // Fold hsl()/hsla() to canonical hex/rgba once so the per-frame hot path
@@ -69,7 +96,9 @@ export function colorStringFromValue(value: Value): string | null {
     (value.name === "rgb" ||
       value.name === "rgba" ||
       value.name === "hsl" ||
-      value.name === "hsla")
+      value.name === "hsla" ||
+      value.name === "oklab" ||
+      value.name === "oklch")
   ) {
     return buildColorString(value);
   }

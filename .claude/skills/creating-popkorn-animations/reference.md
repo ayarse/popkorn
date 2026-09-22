@@ -226,6 +226,49 @@ Number grammar `-?[0-9]+(\.[0-9]+)?` — **no exponents, no leading-dot** (`.5` 
 
 ---
 
+### Color spaces (`oklab()` / `oklch()`)
+
+```css
+fill: oklch(0.7 0.2 30deg);          /* L 0-1, chroma, hue */
+fill: oklab(70% 0.1 -0.05 / 50%);    /* L, a, b, slash alpha */
+```
+
+CSS Color 4 spellings, alongside hex, `rgb()`, `hsl()` and named colors. `L`
+takes `0..1` or a percentage; `oklab`'s `a`/`b` and `oklch`'s chroma take a
+number or a percentage against a `0.4` reference; hue takes `deg`/`rad`/`grad`/
+`turn` or a bare number (degrees).
+
+They also decide the **interpolation space**, following CSS: a pair of legacy
+sRGB colors (hex, named, `rgb()`) interpolates in sRGB, and anything with an
+`oklab()`/`oklch()` endpoint interpolates in Oklab. That matters most where sRGB
+collapses to grey:
+
+```css
+/* blue -> yellow through a dead grey midpoint */
+@keyframes srgb  { from { fill: #0011ff; }                    to { fill: #fff300; } }
+/* the same sweep, keeping its chroma */
+@keyframes wide  { from { fill: oklch(0.45 0.31 264); }       to { fill: #fff300; } }
+```
+
+Gradients opt in with CSS Images 4's `in <space>`, which may sit either side of
+the direction, plus an optional hue method for `oklch`:
+
+```css
+fill: linear-gradient(90deg in oklab, #0011ff, #fff300);
+fill: conic-gradient(in oklch longer hue, #0011ff, #fff300, #0011ff);
+```
+
+Hue methods are `shorter` (the CSS default), `longer`, `increasing`,
+`decreasing`. An unrecognized space degrades to sRGB rather than erroring.
+
+> Only `oklab`/`oklch` are realized: sRGB is already the default, and the other
+> Color 4 spaces have no demand yet. Out-of-gamut results clip per channel
+> rather than gamut-mapping along constant lightness. `in <space>` gradients are
+> realized by inserting intermediate sRGB stops, so all three backends show the
+> same ramp.
+
+---
+
 ## 4. Node / shape types
 
 Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so declaration order doesn't matter.
@@ -264,7 +307,7 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 
 | Property                                  | Values                                                                               | Default                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------- |
-| `fill`                                    | hex, `rgb()`/`rgba()`, `linear-gradient()`, `radial-gradient()`, named color, `none` | `none`                                    |
+| `fill`                                    | hex, `rgb()`/`rgba()`, `linear-gradient()`, `radial-gradient()`, `conic-gradient()`, any `repeating-*` variant, named color, `none` | `none`                                    |
 | `stroke`                                  | same as fill                                                                         | `none`                                    |
 | `stroke-width`                            | number                                                                               | `1`                                       |
 | `stroke-linecap`                          | `butt` \| `round` \| `square`                                                        | `butt`                                    |
@@ -322,9 +365,33 @@ fill: radial-gradient(
 
 - Linear `from <x> <y> to <x> <y>` — exact endpoints instead of an angle.
 - Radial `circle <r> at <cx> <cy>` — exact radius + center; optional `from <fx> <fy>` sets a **focal point** (offset inner-circle center, for off-axis highlights).
+- Conic `from <angle>` start (**0deg = up, clockwise**, as CSS) and `at <cx> <cy>` center; both optional, center defaults to the bbox center.
 - Angle/bbox-centered forms remain the fallback when geometry is omitted.
 
-- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are _compatible_ — same gradient type and same stop count (stops pair index-for-index; colors, offsets, **and matching geometry fields** interpolate). Incompatible endpoints step (hold departing value).
+**Conic** sweeps its stops around a center (pie slices, sunbursts, a palette that
+rides a closed outline). Stop positions may be `%` **or** an angle in `deg`
+(fraction of the turn):
+
+```css
+fill: conic-gradient(from 0deg, #ff0000 0deg, #00ff00 120deg, #0000ff 240deg);
+stroke: conic-gradient(from 0deg at 800px 450px, #0011ff 0deg, #ff2aff 180deg, #0011ff 360deg);
+```
+
+Make the first and last stop the same color for a seamless wrap.
+
+**Repeating variants** — `repeating-linear-gradient`, `repeating-radial-gradient`,
+`repeating-conic-gradient` — tile the stop run across the whole extent (stripes,
+rings, checker sweeps):
+
+```css
+fill: repeating-linear-gradient(45deg, #222 0%, #222 10%, #eee 10%, #eee 20%);
+```
+
+- **Gradient fills/strokes ARE animatable** (§12) when the two keyframe endpoints are _compatible_ — same gradient type, same stop count, the **same `repeating` flag**, and the **same explicit-geometry presence** (both or neither give `from`/`to`, `at`/`focal`), so stops pair index-for-index. Colors, offsets, the linear angle, the conic `from`/`at`, and the radial radius/center/focal all interpolate. Incompatible endpoints step (hold departing value).
+
+> Renderer note: conic gradients paint natively on Canvas2D and Skia; the SVG
+> backend has no conic primitive and degrades a conic to a flat fill of its
+> middle stop (pinned divergence).
 
 ### Blend modes
 
@@ -408,8 +475,25 @@ Text color uses **`fill`** (and `stroke`), not `color`.  Gradients work.
 | `content`          | `url('<URL or data: URI>')` | `''`    |
 | `x` / `y`          | number                      | `0`     |
 | `width` / `height` | number                      | `0`     |
+| `object-view-box`  | `xywh(<x> <y> <w> <h>)` \| `none` | `none` |
 
 Source property is **`content: url(...)`** (the CSS spelling — not `href`/`src`). **No `object-fit`.** `width`/`height` of `0` → natural size. Nothing paints until the image decodes.
+
+`object-view-box: xywh(...)` crops the source to a sub-rect (in image pixels)
+before it scales into the box — the CSS property for cropping a replaced
+element. It's **animatable** (each component interpolates, so `steps(N)` pages
+discrete frames) and **bindable**, which is how a sprite sheet is paged:
+
+```css
+@keyframes walk {
+  from { object-view-box: xywh(0 0 64px 64px); }
+  to   { object-view-box: xywh(512px 0 64px 64px); }  /* 8 frames x 64px */
+}
+#hero { type: image; width: 64px; height: 64px; animation: walk 800ms steps(8) infinite; }
+```
+
+Only the `xywh()` form is supported. A zero/negative crop size draws nothing; an
+out-of-bounds crop draws only the overlapping region.
 
 ---
 
@@ -600,6 +684,23 @@ fill modes, motion-path distance) follows along.
 
 - `time-offset: <time>` — `s`/`ms` (bare number = ms). Default `0`.
 - `time-scale: <number>` — playback rate. Must be `> 0` (else warns, falls back to `1`). Default `1`.
+- `time-remap: <in> <out> [easing], …` — maps inherited time through an explicit
+  curve instead of a linear offset/scale (this is how imported After Effects time
+  remapping plays). Outside the input domain the endpoints hold. When present it
+  **replaces** `time-offset`/`time-scale`.
+
+```css
+#clip { type: group; time-remap: 0s 0s, 1s 2s ease-out, 2s 0s; } /* forward, then rewind */
+```
+
+Unlike `time-offset`/`time-scale`, `time-remap` **is animatable**: given a single
+time value in `@keyframes` or a `:state()`, it becomes a scalar the animation
+drives, scrubbing the subtree to that instant of its local timeline. That's how a
+`@machine` plays, loops, or reverses a segment of a subtree's master timeline.
+
+```css
+@keyframes seg { from { time-remap: 1.017s; } to { time-remap: 1.483s; } }
+```
 - Both are **static** (not animatable). Nested scopes compose — each applies to the local time it inherits. This is how imported compositions (Lottie precomps, with per-instance start time and stretch) keep independent clocks.
 
 ### Paint order — `z-index`
@@ -755,7 +856,7 @@ Color (rgb/rgba lerp): `fill`, `stroke` (solid colors).
 Gradient paint: `fill`, `stroke` — interpolated when endpoints are **compatible** (same gradient type + stop count); otherwise step.
 Path shape: **`d` morphs** — interpolated when both keyframe paths have the **same command sequence** (same letters, same order/counts); otherwise step. Trim, fill-rule, hit-testing keep working on the morphing path.
 Filter/shadow: `box-shadow` — each shadow's `dx`/`dy`/`blur`/`spread`/color animates through the same object-endpoint path as `filter`.
-**Not animatable:** `sides` (star/polygon vertex count), `time-offset`, `time-scale`, `mix-blend-mode` (static).
+**Not animatable:** `sides` (star/polygon vertex count), `time-offset`, `time-scale`, `mix-blend-mode` (static). (`time-remap` **is** animatable — see §10.)
 
 ```css
 @keyframes recolor {

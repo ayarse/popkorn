@@ -1,4 +1,9 @@
-import type { GradientData, GradientStop } from "./types.js";
+import { mixOklab, mixOklch, oklabToRgba, rgbaToOklab } from "./oklab.js";
+import type {
+  GradientData,
+  GradientInterpolation,
+  GradientStop,
+} from "./types.js";
 import { colorToCSS, parseColor } from "./types.js";
 
 // The shape's local bounding box a gradient is realized against.
@@ -48,6 +53,15 @@ export type ResolvedGradient =
 // Colour at fraction `t` between two stop colours (boundary clipping for
 // repeating tiles). Kept here so the shared helper owns every repeating-gradient
 // geometry decision rather than leaning on the animation registry's lerp.
+function rgbaToStopColor(c: {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}): string {
+  return c.a === 1 ? `rgb(${c.r}, ${c.g}, ${c.b})` : colorToCSS(c);
+}
+
 function lerpStopColor(a: string, b: string, t: number): string {
   const c1 = parseColor(a);
   const c2 = parseColor(b);
@@ -57,9 +71,46 @@ function lerpStopColor(a: string, b: string, t: number): string {
   const al = c1.a + (c2.a - c1.a) * t;
   // Emit rgb() at full alpha (matching interpolateColor) so a backend that
   // splits rgba()/hex8 into stop-color + opacity (SVG) doesn't diverge here.
-  return al === 1
-    ? `rgb(${r}, ${g}, ${bl})`
-    : colorToCSS({ r, g, b: bl, a: al });
+  return rgbaToStopColor({ r, g, b: bl, a: al });
+}
+
+// Backends interpolate between stops in sRGB and nothing else (Canvas gradients,
+// SVG <stop>, Skia shaders). An `in oklab`/`in oklch` gradient is realized by
+// inserting intermediate sRGB stops sampled along the requested space, so the
+// visible ramp follows it while every backend stays dumb and byte-identical.
+// NOTE: fixed subdivision. 16 segments keeps the worst-case sRGB chord error
+// under a JND for full-chroma pairs; adaptive subdivision on deltaEOK would cut
+// stop counts on near-neutral ramps if a scene ever makes that matter.
+const OKLAB_SEGMENTS = 16;
+
+function densifyStops(
+  stops: { offset: number; color: string }[],
+  interpolate: GradientInterpolation,
+): { offset: number; color: string }[] {
+  if (stops.length < 2) return stops;
+  const mix = interpolate.space === "oklch" ? mixOklch : mixOklab;
+
+  const out: { offset: number; color: string }[] = [stops[0]];
+  for (let i = 1; i < stops.length; i++) {
+    const a = stops[i - 1];
+    const b = stops[i];
+    // A zero-width step (hard colour stop) has nothing to subdivide.
+    if (b.offset > a.offset) {
+      const from = rgbaToOklab(parseColor(a.color));
+      const to = rgbaToOklab(parseColor(b.color));
+      for (let k = 1; k < OKLAB_SEGMENTS; k++) {
+        const t = k / OKLAB_SEGMENTS;
+        out.push({
+          offset: a.offset + (b.offset - a.offset) * t,
+          color: rgbaToStopColor(
+            oklabToRgba(mix(from, to, t, interpolate.hue)),
+          ),
+        });
+      }
+    }
+    out.push(b);
+  }
+  return out;
 }
 
 // Realize a gradient's stop list into concrete [0,1] offsets. Non-repeating just
@@ -69,22 +120,31 @@ function lerpStopColor(a: string, b: string, t: number): string {
 function realizeStops(
   authored: GradientStop[],
   repeating: boolean,
+  interpolate?: GradientInterpolation,
 ): { offset: number; color: string }[] {
+  const finish = (
+    out: { offset: number; color: string }[],
+  ): { offset: number; color: string }[] =>
+    interpolate ? densifyStops(out, interpolate) : out;
   if (!repeating)
-    return authored.map((s) => ({
-      offset: Math.max(0, Math.min(1, s.offset)),
-      color: s.color,
-    }));
+    return finish(
+      authored.map((s) => ({
+        offset: Math.max(0, Math.min(1, s.offset)),
+        color: s.color,
+      })),
+    );
 
   const first = authored[0].offset;
   const last = authored[authored.length - 1].offset;
   const w = last - first;
   // Degenerate tile (zero/negative width) can't repeat — fall back to a clamp.
   if (w <= 0)
-    return authored.map((s) => ({
-      offset: Math.max(0, Math.min(1, s.offset)),
-      color: s.color,
-    }));
+    return finish(
+      authored.map((s) => ({
+        offset: Math.max(0, Math.min(1, s.offset)),
+        color: s.color,
+      })),
+    );
 
   // Tile the run across [0,1] (a couple of cycles of slack past each edge), then
   // clip to the unit range, interpolating the colour where a tile crosses 0 or 1.
@@ -116,7 +176,7 @@ function realizeStops(
     }
     out.push(s);
   }
-  return out;
+  return finish(out);
 }
 
 /**
@@ -133,7 +193,7 @@ export function resolveGradient(
 ): ResolvedGradient {
   const cx = b.x + b.width / 2;
   const cy = b.y + b.height / 2;
-  const stops = realizeStops(g.stops, g.repeating ?? false);
+  const stops = realizeStops(g.stops, g.repeating ?? false, g.interpolate);
 
   if (g.type === "conic-gradient") {
     const c = g.at ?? { x: cx, y: cy };

@@ -1,4 +1,7 @@
 // Color types
+import type { HueMethod } from "./oklab.js";
+import { oklabToRgba, tryParseOklabColor } from "./oklab.js";
+
 export interface RGBAColor {
   r: number;
   g: number;
@@ -21,6 +24,14 @@ export interface GradientPoint {
   y: number;
 }
 
+// `in <space>` (CSS Images 4): the space a gradient's stops interpolate in.
+// Absent = sRGB, matching CSS's default for legacy colors. Densified into plain
+// sRGB stops by gradient-geometry's realizeStops, so no backend sees this.
+export interface GradientInterpolation {
+  space: "oklab" | "oklch";
+  hue?: HueMethod; // oklch only; CSS default is `shorter`
+}
+
 export interface LinearGradientData {
   type: "linear-gradient";
   angle: number; // CSS degrees: 0 = up, 90 = right
@@ -32,6 +43,7 @@ export interface LinearGradientData {
   // `repeating-linear-gradient()`: the stop run tiles across the axis. Not
   // interpolable (a mismatch replaces rather than morphs — see registry).
   repeating?: boolean;
+  interpolate?: GradientInterpolation;
 }
 
 export interface RadialGradientData {
@@ -43,6 +55,7 @@ export interface RadialGradientData {
   at?: GradientPoint;
   focal?: GradientPoint; // inner-circle center (Lottie highlight); defaults to `at`
   repeating?: boolean; // `repeating-radial-gradient()` — tiles outward
+  interpolate?: GradientInterpolation;
 }
 
 export interface ConicGradientData {
@@ -51,6 +64,7 @@ export interface ConicGradientData {
   stops: GradientStop[]; // offsets are 0-1 fractions of the full turn
   at?: GradientPoint; // sweep centre in local space; defaults to the box centre
   repeating?: boolean; // `repeating-conic-gradient()` — tiles around the turn
+  interpolate?: GradientInterpolation;
 }
 
 export type GradientData =
@@ -73,6 +87,7 @@ export function cloneGradient(g: GradientData | null): GradientData | null {
   if (!g) return null;
   const stops = g.stops.map((s) => ({ offset: s.offset, color: s.color }));
   const pt = (p?: GradientPoint) => (p ? { x: p.x, y: p.y } : undefined);
+  const interpolate = g.interpolate ? { ...g.interpolate } : undefined;
   if (g.type === "linear-gradient")
     return {
       type: "linear-gradient",
@@ -81,6 +96,7 @@ export function cloneGradient(g: GradientData | null): GradientData | null {
       from: pt(g.from),
       to: pt(g.to),
       repeating: g.repeating,
+      interpolate,
     };
   if (g.type === "conic-gradient")
     return {
@@ -89,6 +105,7 @@ export function cloneGradient(g: GradientData | null): GradientData | null {
       stops,
       at: pt(g.at),
       repeating: g.repeating,
+      interpolate,
     };
   return {
     type: "radial-gradient",
@@ -97,6 +114,7 @@ export function cloneGradient(g: GradientData | null): GradientData | null {
     at: pt(g.at),
     focal: pt(g.focal),
     repeating: g.repeating,
+    interpolate,
   };
 }
 
@@ -312,6 +330,12 @@ export function tryParseColor(value: string): RGBAColor | null {
       parseFloat(parts[2]) / 100,
     );
     return { r, g, b, a: parts[3] != null ? parseFloat(parts[3]) : 1 };
+  }
+
+  // oklab()/oklch() (CSS Color 4). Wide-gamut input clips per channel.
+  if (s.startsWith("okl")) {
+    const ok = tryParseOklabColor(s);
+    if (ok) return oklabToRgba(ok);
   }
 
   // Named colors

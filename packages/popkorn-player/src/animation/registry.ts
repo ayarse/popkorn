@@ -1,3 +1,9 @@
+import {
+  isOklabSpelling,
+  mixOklab,
+  oklabToString,
+  rgbaToOklab,
+} from "../renderer/oklab.js";
 import type {
   GradientData,
   PathCommand,
@@ -551,6 +557,13 @@ export function gradientsCompatible(a: GradientData, b: GradientData): boolean {
   // The repeating flag is a discrete paint mode, not an interpolable value — a
   // mismatch replaces rather than morphs (the registry's gradient contract).
   if (!!a.repeating !== !!b.repeating) return false;
+  // Same for the interpolation space: it decides how the ramp between stops is
+  // realized, so a mismatch would flip the whole ramp partway through a morph.
+  if (
+    a.interpolate?.space !== b.interpolate?.space ||
+    a.interpolate?.hue !== b.interpolate?.hue
+  )
+    return false;
   // Explicit geometry must be present on both (or neither) so fields pair up.
   if (a.type === "linear-gradient" && b.type === "linear-gradient") {
     return !!a.from === !!b.from && !!a.to === !!b.to;
@@ -655,12 +668,27 @@ export function interpolatePath(
 
 /**
  * Interpolate between two colors.
+ *
+ * Space follows CSS Color 4: a pair of legacy sRGB colors (hex, named, rgb())
+ * interpolates in sRGB, anything else in Oklab. Since oklab()/oklch() survive
+ * the build as `oklab(...)` text (see scene/color.ts), the spelling of either
+ * endpoint is enough to decide, and scenes that never opt in never leave the
+ * hex/rgb fast path.
  */
 export function interpolateColor(
   color1: string,
   color2: string,
   t: number,
 ): string {
+  if (isOklabSpelling(color1) || isOklabSpelling(color2)) {
+    const mixed = mixOklab(
+      rgbaToOklab(parseColor(color1)),
+      rgbaToOklab(parseColor(color2)),
+      t,
+    );
+    return oklabToString(mixed);
+  }
+
   const c1 = parseColor(color1);
   const c2 = parseColor(color2);
 

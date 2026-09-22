@@ -321,6 +321,47 @@ lengths; a single value fills the other axis with `50%`.
 }
 ```
 
+## Color spaces (`oklab()` / `oklch()`)
+
+```css
+fill: oklch(0.7 0.2 30deg);          /* L 0-1, chroma, hue */
+fill: oklab(70% 0.1 -0.05 / 50%);    /* L, a, b, slash alpha */
+```
+
+CSS Color 4 spellings, alongside hex, `rgb()`, `hsl()` and named colors. `L`
+takes `0..1` or a percentage; `oklab`'s `a`/`b` and `oklch`'s chroma take a
+number or a percentage against a `0.4` reference; hue takes `deg`/`rad`/`grad`/
+`turn` or a bare number (degrees).
+
+They also decide the **interpolation space**, following CSS: a pair of legacy
+sRGB colors (hex, named, `rgb()`) interpolates in sRGB, and anything with an
+`oklab()`/`oklch()` endpoint interpolates in Oklab. That matters most where sRGB
+collapses to grey:
+
+```css
+/* blue -> yellow through a dead grey midpoint */
+@keyframes srgb  { from { fill: #0011ff; }                    to { fill: #fff300; } }
+/* the same sweep, keeping its chroma */
+@keyframes wide  { from { fill: oklch(0.45 0.31 264); }       to { fill: #fff300; } }
+```
+
+Gradients opt in with CSS Images 4's `in <space>`, which may sit either side of
+the direction, plus an optional hue method for `oklch`:
+
+```css
+fill: linear-gradient(90deg in oklab, #0011ff, #fff300);
+fill: conic-gradient(in oklch longer hue, #0011ff, #fff300, #0011ff);
+```
+
+Hue methods are `shorter` (the CSS default), `longer`, `increasing`,
+`decreasing`. An unrecognized space degrades to sRGB rather than erroring.
+
+> Only `oklab`/`oklch` are realized: sRGB is already the default, and the other
+> Color 4 spaces have no demand yet. Out-of-gamut results clip per channel
+> rather than gamut-mapping along constant lightness. `in <space>` gradients are
+> realized by inserting intermediate sRGB stops, so all three backends show the
+> same ramp.
+
 ## Gradient Fills
 
 `fill` and `stroke` accept CSS gradients. Color stops are hex, `rgb()`/`rgba()`,
@@ -918,7 +959,7 @@ Available inputs (mouse on the web; touch on React Native):
   through the inverse viewport, so bindings stay correct under any fit/DPR)
 - `cursor.isDown` - Pointer/press state (1 or 0)
 - `scroll.x`, `scroll.y` - Scroll position (`window.scrollX`/`scrollY`)
-- `time` - Monotonic clock timestamp in milliseconds (`performance.now()`)
+- `time` - Timeline time in milliseconds (follows play, pause and seek, so scrubbing and exports sample it)
 
 Notes on bindings:
 

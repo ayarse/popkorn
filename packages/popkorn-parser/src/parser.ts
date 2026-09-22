@@ -970,7 +970,10 @@ function parseValue(c: Cursor): Value {
     c.expect("(");
     const args: Value[] = [];
     while (!c.eat(")")) {
-      if (c.eat(",")) continue;
+      // `,` and `/` are both argument separators: modern CSS color functions
+      // put alpha behind a slash (`oklch(L C H / 50%)`, `rgb(r g b / 50%)`).
+      // Both flatten to positional args, so alpha lands last either way.
+      if (c.eat(",") || c.eat("/")) continue;
       args.push(parseValue(c));
     }
     return { type: "function", name, args };

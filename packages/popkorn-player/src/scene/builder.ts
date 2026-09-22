@@ -34,8 +34,10 @@ import {
   gradientsCompatible,
   pathsCompatible,
 } from "../animation/registry.js";
+import type { HueMethod } from "../renderer/oklab.js";
 import type {
   GradientData,
+  GradientInterpolation,
   GradientStop,
   PathCommand,
 } from "../renderer/types.js";
@@ -131,7 +133,7 @@ function setCornerRadius(node: SceneNode, index: number, value: number): void {
 
 // CSS gradient functions accepted as a fill/stroke paint (+ their repeating
 // tiled variants). conic and every repeating-* form route through parseGradient.
-const GRADIENT_FN = new Set([
+export const GRADIENT_FN = new Set([
   "linear-gradient",
   "radial-gradient",
   "conic-gradient",
@@ -2524,10 +2526,48 @@ export class SceneBuilder {
     const num = (v?: Value): number | null =>
       v && (isLengthValue(v) || isNumberValue(v)) ? v.value : null;
 
+    // `in <space> [<method> hue]` (CSS Images 4). The grammar lets it sit either
+    // side of the direction, so try both positions. NOTE: oklab/oklch only —
+    // srgb is already the default and the other Color 4 spaces have no demand
+    // yet; an unknown space is left unconsumed and degrades to sRGB.
+    let interpolate: GradientInterpolation | undefined;
+    const keywordAt = (k: number): string | null =>
+      args[k] && isKeywordValue(args[k])
+        ? (args[k] as { value: string }).value
+        : null;
+    const eatInterpolation = (): void => {
+      if (keywordAt(i) !== "in") return;
+      const space = keywordAt(i + 1);
+      if (space === null) return;
+      // Consume the method even when the space is one we don't realize, so the
+      // leftover `in <space>` keywords can't be misread as colour stops.
+      i += 2;
+      if (space !== "oklab" && space !== "oklch") {
+        if (keywordAt(i + 1) === "hue") i += 2;
+        return;
+      }
+      let hue: HueMethod | undefined;
+      const method = keywordAt(i);
+      if (space === "oklch" && keywordAt(i + 1) === "hue") {
+        if (
+          method === "shorter" ||
+          method === "longer" ||
+          method === "increasing" ||
+          method === "decreasing"
+        ) {
+          hue = method;
+          i += 2;
+        }
+      }
+      interpolate = { space, hue };
+    };
+    eatInterpolation();
+
     // CSS default linear direction is `to bottom` (180deg).
     let angle = 180;
     if (
       isLinear &&
+      i === 0 &&
       args.length > 0 &&
       isLengthValue(args[0]) &&
       args[0].unit === "deg"
@@ -2535,6 +2575,7 @@ export class SceneBuilder {
       angle = args[0].value;
       i = 1;
     }
+    eatInterpolation();
 
     // `at <x>px <y>px` — sweep/radial centre in local space; shared by conic and
     // radial, so it is declared before both keyword loops.
@@ -2636,10 +2677,33 @@ export class SceneBuilder {
     }
 
     if (isConic)
-      return { type: "conic-gradient", from: fromAngle, stops, at, repeating };
+      return {
+        type: "conic-gradient",
+        from: fromAngle,
+        stops,
+        at,
+        repeating,
+        interpolate,
+      };
     return isLinear
-      ? { type: "linear-gradient", angle, stops, from, to, repeating }
-      : { type: "radial-gradient", stops, radius, at, focal, repeating };
+      ? {
+          type: "linear-gradient",
+          angle,
+          stops,
+          from,
+          to,
+          repeating,
+          interpolate,
+        }
+      : {
+          type: "radial-gradient",
+          stops,
+          radius,
+          at,
+          focal,
+          repeating,
+          interpolate,
+        };
   }
 
   private colorArgToString(value: Value): string | null {
