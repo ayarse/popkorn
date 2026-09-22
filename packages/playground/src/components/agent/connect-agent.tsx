@@ -119,7 +119,7 @@ export function ConnectAgent({
             <>
               <CommandRow
                 label="Claude Code"
-                command={`claude mcp add --transport http popkorn ${mcpUrl}`}
+                command={`claude mcp add --scope user --transport http popkorn ${mcpUrl}`}
               />
               <CommandRow
                 label="Codex"

@@ -136,6 +136,9 @@ Locally: `bunx wrangler d1 migrations apply popkorn --local` once, then
 Durable Object relay). The playground tab holds `/mcp/<uuid>/tab` as a
 WebSocket (`use-own-agent.ts`) and executes relayed tool calls against the
 live editor buffer via the same `executeTool` path as the BYOK Copilot.
+The session id lives in localStorage and, when signed in, on the Clerk
+account (`unsafeMetadata.mcpSession`, account wins), so one MCP URL serves
+every browser and device. `read_docs` is answered in the DO without a relay.
 The worker entry is custom (`src/server/entry.ts`) because DO classes must
 be exported from `main`. Tool defs + system prompt live import-light in
 `lib/agent-defs.ts` so the DO bundle never pulls in parser/player.

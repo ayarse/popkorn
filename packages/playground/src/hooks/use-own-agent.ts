@@ -1,3 +1,4 @@
+import { useUser } from "@clerk/tanstack-react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { executeTool, isToolError, type ToolContext } from "@/lib/agent-tools";
 import { track } from "@/lib/analytics";
@@ -30,8 +31,9 @@ function writeStoredId(id: string) {
 
 /** Bring-your-own-agent session: holds the tab side of the CopilotSession
  * WebSocket and executes relayed tool calls against the live editor buffer.
- * The session id is minted client-side and persisted in localStorage, so the
- * capability URL (the pairing) stays stable across reloads for this browser. */
+ * The session id is minted client-side and persisted in localStorage, and on
+ * the Clerk account when signed in, so the capability URL (the pairing) stays
+ * stable across reloads, browsers, and devices. */
 export function useOwnAgent(
   source: string,
   onApplySource: (css: string) => void,
@@ -52,6 +54,26 @@ export function useOwnAgent(
   sourceRef.current = source;
   const applyRef = useRef(onApplySource);
   applyRef.current = onApplySource;
+
+  // Signed in, the account's id wins over this browser's: one URL everywhere.
+  const { user } = useUser();
+  const accountId =
+    typeof user?.unsafeMetadata.mcpSession === "string"
+      ? user.unsafeMetadata.mcpSession
+      : null;
+  const persist = useCallback(
+    (id: string) => {
+      writeStoredId(id);
+      if (user && accountId !== id) {
+        user
+          .update({
+            unsafeMetadata: { ...user.unsafeMetadata, mcpSession: id },
+          })
+          .catch(() => {}); // this browser still has it; retried next load
+      }
+    },
+    [user, accountId],
+  );
 
   // Opens the tab socket for a given session id; shared by connect() (which
   // reuses or mints an id) and rotate() (which always mints a fresh one).
@@ -116,23 +138,23 @@ export function useOwnAgent(
     // pairs with mcp_client as the "minted a URL → an agent showed up" funnel.
     if (!sessionId) {
       track("mcp_session_start");
-      writeStoredId(id);
+      persist(id);
     }
     setSessionId(id);
     setStatus("waiting");
     openSocket(id);
-  }, [sessionId, openSocket]);
+  }, [sessionId, openSocket, persist]);
 
   // Mints a fresh session id (new capability URL) for when the old one
   // leaked or the user wants a clean break — closes the old socket first.
   const rotate = useCallback(() => {
     wsRef.current?.close();
     const id = crypto.randomUUID();
-    writeStoredId(id);
+    persist(id);
     setSessionId(id);
     setStatus("waiting");
     openSocket(id);
-  }, [openSocket]);
+  }, [openSocket, persist]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();
@@ -150,6 +172,25 @@ export function useOwnAgent(
   useEffect(() => {
     if (sessionId && !wsRef.current) connect();
   }, []);
+
+  // Account sync once Clerk loads: adopt the account's id (re-opening a live
+  // socket on it), or upload this browser's existing pairing if it has none.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the account id only
+  useEffect(() => {
+    if (!user) return;
+    if (!accountId) {
+      if (sessionId) persist(sessionId);
+      return;
+    }
+    if (accountId === sessionId) return;
+    writeStoredId(accountId);
+    setSessionId(accountId);
+    if (wsRef.current) {
+      wsRef.current.close();
+      setStatus("waiting");
+      openSocket(accountId);
+    }
+  }, [user?.id, accountId]);
 
   useEffect(
     () => () => {
