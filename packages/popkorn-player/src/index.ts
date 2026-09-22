@@ -91,7 +91,13 @@ export {
   InteractionManager,
 } from "./runtime/interaction.js";
 // Runtime
-export { RenderLoop, wrapTime } from "./runtime/loop.js";
+export {
+  type ExportLength,
+  RenderLoop,
+  readsInput,
+  sceneExportLength,
+  wrapTime,
+} from "./runtime/loop.js";
 export {
   createVariableResolver,
   VariableResolver,
@@ -118,6 +124,7 @@ export {
   computeLocalMatrix,
   computeWorldMatrix,
   lerp,
+  resolveTransformOrigin,
   setTextMeasurer,
 } from "./scene/transform.js";
 // Scene

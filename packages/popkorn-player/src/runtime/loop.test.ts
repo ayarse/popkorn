@@ -23,7 +23,12 @@ import type {
   TextAnchor,
 } from "../scene/types.js";
 import { createSceneNode, snapshotNode } from "../scene/types.js";
-import { filterToCSS, RenderLoop, sceneIsPerpetual } from "./loop.js";
+import {
+  filterToCSS,
+  RenderLoop,
+  sceneExportLength,
+  sceneIsPerpetual,
+} from "./loop.js";
 import { createVariableResolver } from "./variables.js";
 
 // A dot whose opacity ramps 0 -> 1 over a single 3s iteration, then holds
@@ -916,4 +921,60 @@ test("filter: a node reached twice in one frame plans its composite once", () =>
 
   loop.seek(16);
   expect(plans).toBe(2); // next frame re-derives; nothing carries over
+});
+
+function loadTimeScene(src: string) {
+  const ast = parse(src);
+  const root = buildSceneGraph(ast);
+  const loop = new RenderLoop(createRecordingRenderer());
+  loop.setScene(root);
+  loop.getVariableResolver().setVariables(ast.variables);
+  return { ast, root, loop };
+}
+
+test("seek drives input(time): a time-only scene samples a distinct frame per seek", () => {
+  const { root, loop } =
+    loadTimeScene(`:root { width: 100px; height: 100px; --t: input(time); }
+    #dot { type: circle; r: 5px; cx: calc(var(--t) / 100); }`);
+  const cx = () => (root.children[0].shapeData as { cx: number }).cx;
+  loop.seek(0);
+  expect(cx()).toBe(0);
+  loop.seek(1000);
+  expect(cx()).toBe(10);
+  loop.seek(250);
+  expect(cx()).toBe(2.5);
+});
+
+test("sceneExportLength: fixed, open (time / perpetual loop LCM) and none", () => {
+  const len = (src: string) => {
+    const ast = parse(`:root { width: 100px; height: 100px; } ${src}`);
+    return sceneExportLength(buildSceneGraph(ast), ast.variables);
+  };
+  const kf = "@keyframes k { to { opacity: 0; } }";
+  expect(len("#a { type: rect; width: 1px; height: 1px; }")).toEqual({
+    fixed: true,
+    ms: 0,
+  });
+  expect(len(`${kf} #a { type: rect; animation: k 2s; }`)).toEqual({
+    fixed: true,
+    ms: 2000,
+  });
+  expect(
+    len(`:root { --t: input(time); } #a { type: rect; x: var(--t); }`),
+  ).toEqual({ fixed: false, suggestedMs: 5000 });
+  expect(
+    len(
+      `${kf} #a { type: rect; animation: k 2s infinite; } #b { type: rect; animation: k 1.5s infinite alternate; }`,
+    ),
+  ).toEqual({ fixed: false, suggestedMs: 6000 });
+  expect(
+    len(
+      `${kf} #a { type: rect; animation: k 7.001s infinite; } #b { type: rect; animation: k 9.003s infinite; }`,
+    ),
+  ).toEqual({ fixed: false, suggestedMs: 9003 });
+  expect(
+    len(
+      "@machine m { initial: a; state a {} } #a { type: rect; width: 1px; height: 1px; }",
+    ),
+  ).toBeNull();
 });

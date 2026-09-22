@@ -1,4 +1,9 @@
-import { isFunctionValue, isKeywordValue, type Value } from "@popkorn/parser";
+import {
+  isFunctionValue,
+  isKeywordValue,
+  type Value,
+  type VariableDefinition,
+} from "@popkorn/parser";
 import { applyEasing, holdsAtStart } from "../animation/easing.js";
 import { getPropHandler } from "../animation/registry.js";
 import {
@@ -406,10 +411,6 @@ export class RenderLoop {
   private loop = (timestamp: number): void => {
     if (!this.isRunning) return;
 
-    // Update input state
-    this.inputTracker.update(timestamp);
-    this.variableResolver.updateInputState(this.inputTracker.getState());
-
     // Update interaction state (hover, active). `timestamp` anchors any
     // transition a state flip starts.
     this.interactionManager.update(
@@ -477,6 +478,10 @@ export class RenderLoop {
           this.completeCallback?.();
         }
       }
+
+      // input(time) reads timeline time, so seek/pause/export drive it too.
+      this.inputTracker.update(t);
+      this.variableResolver.updateInputState(this.inputTracker.getState());
 
       // Machines evaluate once per LIVE frame, BEFORE the node walk. `t` (the
       // wrapped/clamped timeline time) is the machine time base — the same value
@@ -1640,6 +1645,97 @@ export function sceneIsPerpetual(root: SceneNode): boolean {
     return true;
   };
   return visit(root) && sawAnimation;
+}
+
+/** Does `value` read an input() whose path passes `test`, directly or through var()? */
+export function readsInput(
+  value: Value,
+  variables: readonly VariableDefinition[],
+  test: (path: string) => boolean,
+): boolean {
+  const seen = new Set<string>();
+  const visit = (v: unknown): boolean => {
+    if (!v || typeof v !== "object") return false;
+    if (Array.isArray(v)) return v.some(visit);
+    const o = v as { type?: string; name?: string; args?: Value[] };
+    if (o.type === "function" && o.name === "input") {
+      const arg = o.args?.[0];
+      return !!arg && isKeywordValue(arg) && test(arg.value);
+    }
+    if (o.type === "variable" && o.name && !seen.has(o.name)) {
+      seen.add(o.name);
+      const def = variables.find((d) => d.name === o.name);
+      if (def && visit(def.value)) return true;
+    }
+    return Object.values(o).some(visit);
+  };
+  return visit(value);
+}
+
+function subtreeReadsTime(
+  node: SceneNode,
+  variables: readonly VariableDefinition[],
+): boolean {
+  for (const b of node.bindings)
+    if (readsInput(b.value, variables, (p) => p === "time")) return true;
+  for (const child of node.children)
+    if (subtreeReadsTime(child, variables)) return true;
+  return false;
+}
+
+const MAX_SEAMLESS_LOOP_MS = 30_000;
+const DEFAULT_TIME_EXPORT_MS = 5_000;
+
+/**
+ * Shortest length after which every (infinite) animation is back at its phase-0
+ * state: the LCM of the cycle periods, `alternate` counting two iterations.
+ * NOTE: a positive animation-delay's pre-delay frames never recur, so that loop isn't seamless.
+ */
+function seamlessLoopMs(root: SceneNode): number {
+  const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+  let lcm = 1;
+  const visit = (node: SceneNode): void => {
+    for (const a of node.animations) {
+      const alt =
+        a.direction === "alternate" || a.direction === "alternate-reverse";
+      const period = Math.round(a.duration) * (alt ? 2 : 1);
+      if (period > 0 && lcm <= MAX_SEAMLESS_LOOP_MS)
+        lcm = (lcm / gcd(lcm, period)) * period;
+    }
+    for (const child of node.children) visit(child);
+  };
+  visit(root);
+  return lcm;
+}
+
+export type ExportLength =
+  | { fixed: true; ms: number }
+  | { fixed: false; suggestedMs: number };
+
+/**
+ * Frame range an offline export (GIF/MP4/Lottie) should cover. `fixed`: the
+ * timeline has an honest end (0 = one static frame). Open: perpetual,
+ * state-machine or input(time)-driven scenes, where the host picks a length and
+ * `suggestedMs` is a default. null: a state machine with no timeline animation.
+ */
+export function sceneExportLength(
+  root: SceneNode,
+  variables: readonly VariableDefinition[],
+): ExportLength | null {
+  const nominal = computeSceneDuration(root);
+  const machine = sceneIsUnbounded(root);
+  if (nominal <= 0) {
+    if (subtreeReadsTime(root, variables))
+      return { fixed: false, suggestedMs: DEFAULT_TIME_EXPORT_MS };
+    return machine ? null : { fixed: true, ms: 0 };
+  }
+  const perpetual = !sceneHasTimeScoping(root) && sceneIsPerpetual(root);
+  if (!machine && !perpetual) return { fixed: true, ms: nominal };
+  const loop = perpetual ? seamlessLoopMs(root) : 0;
+  return {
+    fixed: false,
+    suggestedMs: loop > 0 && loop <= MAX_SEAMLESS_LOOP_MS ? loop : nominal,
+  };
 }
 
 /** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */
