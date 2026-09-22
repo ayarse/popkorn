@@ -26,10 +26,10 @@ export const AGENT_EXAMPLES = galleryExamples.map((e) => ({
   source: e.source,
 }));
 
-// Scenes under this many chars are inlined verbatim into the request (skips
-// read round-trips); larger scenes send an outline and let the model read on
-// demand.
-const INLINE_SCENE_MAX = 3072;
+// Scenes under this many chars (~2K tokens, most gallery scenes) are inlined
+// verbatim into the request: a read round-trip costs more than the tokens.
+// Larger scenes send an outline and let the model read on demand.
+const INLINE_SCENE_MAX = 8192;
 
 function buildUserMessage(source: string, request: string): string {
   if (source.length < INLINE_SCENE_MAX) {
@@ -51,6 +51,12 @@ export function toolLabel(ev: ToolEvent): string {
       return `read lines ${ev.args.start}–${ev.args.end}`;
     case "search":
       return `searched ${JSON.stringify(ev.args.query)}`;
+    case "read_docs": {
+      const sec = ev.args.sections;
+      return Array.isArray(sec) && sec.length
+        ? `read docs §${sec.map((s) => String(s).replace(/^§/, "")).join(", §")}`
+        : "read guide";
+    }
     case "read_example":
       return ev.args.name ? `read example ${ev.args.name}` : "listed examples";
     case "apply_edit":

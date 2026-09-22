@@ -5,7 +5,7 @@ import { PROPERTY_REGISTRY } from "./animation/registry";
 import { GRADIENT_FN } from "./scene/builder";
 
 // Two reference docs, two audiences: docs/reference.md is the public docs site,
-// .claude/skills/.../reference.md is inlined into the Copilot system prompt by
+// .claude/skills/.../reference.md is served to the Copilot (core guide inline, sections on demand) by
 // packages/playground/src/lib/agent-defs.ts. They are deliberately NOT the same
 // document, so they can't be deduped — but they must agree on the FACTS. Drift
 // here is silent and costly: a capability missing from the skill copy is a

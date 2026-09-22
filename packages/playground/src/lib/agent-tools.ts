@@ -1,4 +1,4 @@
-import { parse } from "@popkorn/parser";
+import { type Diagnostic, offsetToLineCol, parse } from "@popkorn/parser";
 import {
   buildSceneGraph,
   computeWorldMatrix,
@@ -6,6 +6,7 @@ import {
   type SceneNode,
   transformPoint,
 } from "@popkorn/player";
+import { readDocs } from "./agent-defs";
 import { applyEdits } from "./edits";
 
 export type ToolContext = {
@@ -718,9 +719,57 @@ export function placementWarning(before: string, after: string): string {
   return `\nWarning: nodes moved: ${moved.join(", ")}. If unintended, the edit broke placement — check type-gated geometry props and transform-origin.`;
 }
 
-function commitValidated(next: string, ctx: ToolContext, verb: string): string {
+const DIAGNOSTIC_CAP = 8;
+
+function diagnosticsOf(source: string): Diagnostic[] {
   try {
-    parse(next);
+    return parse(source).diagnostics;
+  } catch {
+    return [];
+  }
+}
+
+// Parser diagnostics the edit introduced (unknown/unsupported properties with
+// did-you-mean, missing @keyframes/@define refs), line-numbered. Pre-existing
+// ones are left out so an imported scene's noise doesn't drown the signal.
+// NOTE: matched by code+message, so re-adding an identical mistake elsewhere
+// in a scene that already has it goes unreported.
+function newDiagnostics(
+  before: string,
+  after: Diagnostic[],
+  next: string,
+): string {
+  const seen = new Map<string, number>();
+  for (const d of diagnosticsOf(before)) {
+    const k = `${d.code} ${d.message}`;
+    seen.set(k, (seen.get(k) ?? 0) + 1);
+  }
+  const fresh = after.filter((d) => {
+    const k = `${d.code} ${d.message}`;
+    const n = seen.get(k) ?? 0;
+    if (n > 0) seen.set(k, n - 1);
+    return n === 0;
+  });
+  if (fresh.length === 0) return "";
+  const shown = fresh.slice(0, DIAGNOSTIC_CAP).map((d) => {
+    const { line } = offsetToLineCol(next, d.start);
+    return `- L${line} ${d.severity}: ${d.message}${d.hint ? ` ${d.hint}` : ""}`;
+  });
+  if (fresh.length > shown.length) {
+    shown.push(`- …${fresh.length - shown.length} more`);
+  }
+  return `\nDiagnostics (these declarations do nothing as written; fix them):\n${shown.join("\n")}`;
+}
+
+function commitValidated(
+  next: string,
+  ctx: ToolContext,
+  verb: string,
+  before: string,
+): string {
+  let diagnostics: Diagnostic[];
+  try {
+    diagnostics = parse(next).diagnostics;
   } catch (e) {
     return `Edit rejected — resulting scene failed to parse: ${
       e instanceof Error ? e.message : String(e)
@@ -728,7 +777,7 @@ function commitValidated(next: string, ctx: ToolContext, verb: string): string {
   }
   ctx.commit(next);
   const lines = next === "" ? 0 : next.split("\n").length;
-  return `${verb}. Scene is now ${lines} lines.`;
+  return `${verb}. Scene is now ${lines} lines.${newDiagnostics(before, diagnostics, next)}`;
 }
 
 // 1-indexed line number of a character offset in `source`.
@@ -823,7 +872,7 @@ function toolApplyEdit(
   const verb = replaceAll
     ? `Edit applied (${n} occurrence${n === 1 ? "" : "s"})`
     : "Edit applied";
-  const committed = commitValidated(res.result, ctx, verb);
+  const committed = commitValidated(res.result, ctx, verb, source);
   // Only append render-truth feedback once the edit actually committed.
   if (committed.startsWith("Edit rejected")) return committed;
   return committed + placementWarning(source, res.result);
@@ -881,7 +930,8 @@ function toolRewriteScene(
   if (typeof css !== "string") {
     return "Error: rewrite_scene needs { css: string }.";
   }
-  return commitValidated(css, ctx, "Scene rewritten");
+  // A rewrite owns every line, so all its diagnostics are new.
+  return commitValidated(css, ctx, "Scene rewritten", "");
 }
 
 // NOTE: tool executors return plain strings, so failure is sniffed from the
@@ -918,6 +968,8 @@ export function executeTool(
         return toolReadLines(args, ctx);
       case "search":
         return toolSearch(args, ctx);
+      case "read_docs":
+        return readDocs(args);
       case "read_example":
         return toolReadExample(args, ctx);
       case "apply_edit":

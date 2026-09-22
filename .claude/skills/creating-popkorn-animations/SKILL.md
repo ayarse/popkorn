@@ -14,7 +14,9 @@ the danger isn't syntax errors; it's authoring valid-looking declarations that d
 
 Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → RenderLoop → Canvas2D`.
 
+<!-- repo-only -->
 **Full spec: [reference.md](reference.md). Read it before using any feature not shown below.**
+<!-- /repo-only -->
 
 **No box model, ever** — permanent, not a gap. No `position`/`margin`/
 `padding`/flex/grid, and no `::before`/`::after`. Workarounds:
@@ -36,7 +38,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 ## Workflow
 
-1. Start with `:root { width; height; background }` (only hex colors register here; custom `--props` live here too).
+1. Start with `:root { width; height }` (custom `--props` live here too). Leave `background` off — the stage is transparent by default, which is what embeds want; add one (a color value) only when the design needs a backdrop.
 2. Give every node an `#id` and a `type:` declaration. **No `type:` → it's a `group`.**
 3. Set geometry (props are type-gated: `r` only on circle, `cx/cy` on circle/ellipse/star/polygon…).
 4. Set paint: `fill` and `stroke` **both default to `none`** — a shape with only `stroke-width` shows nothing.
@@ -47,7 +49,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 
 | Need | Syntax |
 |---|---|
-| Stage | `:root { width: 800px; height: 600px; background: #0f0f23; }` |
+| Stage | `:root { width: 800px; height: 600px; }` — transparent; `background: #0f0f23` only if a backdrop is wanted |
 | Shapes | `type:` `rect`(x,y,width,height,rx,ry) · `circle`(cx,cy,r) · `ellipse`(cx,cy,rx,ry) · `path`(d) · `star`/`polygon`(sides,outer-radius,inner-radius) · `text` · `image` · `group` |
 | Paint | `fill`/`stroke` (hex, `rgb()`, `linear-gradient()`, named color, `none`); `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-dasharray`, `fill-rule`, `opacity` |
 | `border-radius` | 1 value → uniform `rx`/`ry`; 2–4 values → CSS corner shorthand, expands to animatable `border-top-left-radius` etc. (rect only; no elliptical `/` form) |
@@ -92,6 +94,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 - **`letter-spacing` looks fine on web but does nothing on RN/Skia** — pinned backend divergence, not a bug.
 - **fill-mode surprise** → Popkorn defaults to `forwards` (holds final frame), unlike CSS's `none`.
 
+<!-- repo-only -->
 ## Verify a scene parses
 
 ```bash
@@ -100,3 +103,4 @@ bun --filter @popkorn/parser test        # AST contract tests
 ```
 
 Live-preview a scene by loading it into a `<popkorn-player>` element (see reference.md §15) via `bun run dev`.
+<!-- /repo-only -->

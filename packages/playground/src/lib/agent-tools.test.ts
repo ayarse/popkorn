@@ -163,6 +163,7 @@ test("TOOL_DEFS has one definition per tool", () => {
     [
       "apply_edit",
       "get_outline",
+      "read_docs",
       "read_example",
       "read_lines",
       "read_rules",
@@ -501,4 +502,54 @@ test("read_example reports when no examples are wired in", () => {
 test("unknown tool returns an error string, never throws", () => {
   const ctx = ctxOf(SCENE);
   expect(executeTool("nope", {}, ctx)).toContain('unknown tool "nope"');
+});
+
+test("read_docs returns requested reference sections by number or title", () => {
+  const ctx = ctxOf(SCENE);
+  const out = executeTool("read_docs", { sections: ["12", "§13"] }, ctx);
+  expect(out).toContain("## 12. @keyframes");
+  expect(out).toContain("## 13. Easing functions");
+  expect(out).not.toContain("## 14.");
+  expect(
+    executeTool("read_docs", { sections: ["motion paths"] }, ctx),
+  ).toContain("## 10. Transforms & motion paths");
+  expect(executeTool("read_docs", { sections: ["nope"] }, ctx)).toStartWith(
+    "Error",
+  );
+});
+
+test("read_docs with no sections returns the core guide with the index", () => {
+  const out = executeTool("read_docs", {}, ctxOf(SCENE));
+  expect(out).toContain("## Quick reference");
+  expect(out).toContain("## 17. Gotchas cheat-sheet");
+  expect(out).toMatch(/^§12 @keyframes/m);
+  expect(out).not.toContain("repo-only");
+});
+
+test("apply_edit reports only diagnostics the edit introduced", () => {
+  const src = "#a { type: rect; fil: red; }\n#b { type: circle; r: 10px; }";
+  const ctx = ctxOf(src);
+  const out = executeTool(
+    "apply_edit",
+    {
+      search: "r: 10px;",
+      replace: "r: 10px; margin: 4px; animation: nope 1s;",
+    },
+    ctx,
+  );
+  expect(out).toContain("Edit applied");
+  expect(out).toContain("L2");
+  expect(out).toContain("'margin'");
+  expect(out).toContain("'nope'");
+  expect(out).not.toContain("'fil'"); // pre-existing, not the edit's
+});
+
+test("rewrite_scene reports every diagnostic, with did-you-mean hints", () => {
+  const out = executeTool(
+    "rewrite_scene",
+    { css: "#a { type: rect; fil: red; }" },
+    ctxOf(SCENE),
+  );
+  expect(out).toContain("Scene rewritten");
+  expect(out).toContain("Did you mean 'fill'?");
 });

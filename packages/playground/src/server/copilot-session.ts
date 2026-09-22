@@ -1,22 +1,15 @@
-import { SKILL_DOCS, SYSTEM_PROMPT, TOOL_DEFS } from "../lib/agent-defs";
+import { readDocs, SYSTEM_PROMPT, TOOL_DEFS } from "../lib/agent-defs";
 import { handleMcpMessage, type ToolCallResult, toMcpTools } from "./mcp";
 
-// Not in TOOL_DEFS: the in-browser BYOK copilot already has the docs in its
-// system prompt, and this tool exists only for MCP clients that ignore the
-// server `instructions` field. Answered locally (see localToolResult) — the
-// docs ship in the worker bundle, so there's nothing to relay to the tab.
-export const READ_DOCS_TOOL = {
-  name: "read_docs",
-  description:
-    "The full Popkorn DSL authoring guide (syntax reference + scene-building workflow). Call this once before authoring if you don't already have the guide from the server instructions.",
-  inputSchema: { type: "object", properties: {} },
-};
-
-/** Tool calls answered without a tab round-trip. Returns null for anything
- * that still needs to be relayed. */
-export function localToolResult(name: string): ToolCallResult | null {
-  if (name === "read_docs") return { text: SKILL_DOCS, isError: false };
-  return null;
+/** Tool calls answered without a tab round-trip (the docs ship in the worker
+ * bundle). Returns null for anything that still needs to be relayed. */
+export function localToolResult(
+  name: string,
+  args: Record<string, unknown> = {},
+): ToolCallResult | null {
+  if (name !== "read_docs") return null;
+  const text = readDocs(args);
+  return { text, isError: text.startsWith("Error") };
 }
 
 // Minimal structural types for the workerd surface this class touches.
@@ -126,10 +119,10 @@ export class CopilotSession {
     }
 
     const res = await handleMcpMessage(msg, {
-      tools: [...toMcpTools(TOOL_DEFS), READ_DOCS_TOOL],
+      tools: toMcpTools(TOOL_DEFS),
       instructions: SYSTEM_PROMPT,
       callTool: (name, args) => {
-        const local = localToolResult(name);
+        const local = localToolResult(name, args);
         return local ? Promise.resolve(local) : this.relay(name, args);
       },
     });

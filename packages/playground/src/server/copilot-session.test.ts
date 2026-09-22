@@ -10,6 +10,14 @@ describe("localToolResult", () => {
     expect(result?.text).toContain("## Quick reference");
   });
 
+  test("read_docs serves requested reference sections", () => {
+    const result = localToolResult("read_docs", { sections: ["12"] });
+    expect(result?.text).toContain("## 12. @keyframes");
+    expect(localToolResult("read_docs", { sections: ["zzz"] })?.isError).toBe(
+      true,
+    );
+  });
+
   test("anything else falls through to the tab relay", () => {
     expect(localToolResult("get_outline")).toBeNull();
   });

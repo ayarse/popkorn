@@ -264,35 +264,30 @@ describe("runAgent", () => {
     expect(calls).toBe(2);
   });
 
-  test("anthropic model sends cache_control system array; others plain string", async () => {
+  test("anthropic gets top-level cache_control; openrouter gets session_id", async () => {
     const sys = { role: "system", content: "system rules" };
 
     const anthCalls = mockFetch([sseStream(textFrames(["hi"]))]);
     await runAgent(
-      { ...CFG, model: "anthropic/claude-opus-4.8" },
+      {
+        ...CFG,
+        baseUrl: "https://openrouter.ai/api/v1",
+        model: "anthropic/claude-opus-4.8",
+      },
       [sys, { role: "user", content: "q" }],
       { ...noopOpts(), executeTool: () => "" },
     );
-    expect(anthCalls[0].body.messages[0]).toEqual({
-      role: "system",
-      content: [
-        {
-          type: "text",
-          text: "system rules",
-          cache_control: { type: "ephemeral" },
-        },
-      ],
-    });
+    expect(anthCalls[0].body.cache_control).toEqual({ type: "ephemeral" });
+    expect(typeof anthCalls[0].body.session_id).toBe("string");
+    expect(anthCalls[0].body.messages[0]).toEqual(sys);
 
     const openCalls = mockFetch([sseStream(textFrames(["hi"]))]);
     await runAgent(CFG, [sys, { role: "user", content: "q" }], {
       ...noopOpts(),
       executeTool: () => "",
     });
-    expect(openCalls[0].body.messages[0]).toEqual({
-      role: "system",
-      content: "system rules",
-    });
+    expect(openCalls[0].body.cache_control).toBeUndefined();
+    expect(openCalls[0].body.session_id).toBeUndefined();
   });
 
   test("reasoning effort sends unified reasoning param", async () => {

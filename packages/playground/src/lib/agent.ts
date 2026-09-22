@@ -114,27 +114,21 @@ type ToolCallAccum = { id: string; name: string; args: string };
 
 const MAX_ITERATIONS = 12;
 
-// Anthropic models get a prompt-cache breakpoint on the system message; the
-// content-array form is what OpenRouter passes through to Anthropic.
-function prepareMessages(
-  cfg: AgentConfig,
-  messages: { role: string; content: string }[],
-): ChatMessage[] {
-  const cache = cfg.model.startsWith("anthropic/");
-  return messages.map((m) =>
-    cache && m.role === "system"
-      ? {
-          role: "system",
-          content: [
-            {
-              type: "text",
-              text: m.content,
-              cache_control: { type: "ephemeral" },
-            },
-          ],
-        }
-      : { role: m.role, content: m.content },
-  );
+// One id per page load: OpenRouter pins a session's requests to the provider
+// endpoint that holds its prompt cache, across runs as well as loop turns.
+const SESSION_ID = crypto.randomUUID();
+
+// Provider-specific caching knobs. Anthropic caches only with a breakpoint; the
+// top-level form advances it to the last block each turn, so the loop re-reads
+// its own growing tool history from cache too. OpenAI/DeepSeek/Gemini prefix-
+// cache automatically; `session_id` keeps them on the same warm endpoint.
+function cacheParams(cfg: AgentConfig): Record<string, unknown> {
+  const params: Record<string, unknown> = {};
+  if (cfg.model.startsWith("anthropic/")) {
+    params.cache_control = { type: "ephemeral" };
+  }
+  if (cfg.baseUrl.includes("openrouter.ai")) params.session_id = SESSION_ID;
+  return params;
 }
 
 export async function runAgent(
@@ -157,7 +151,7 @@ export async function runAgent(
       : cfg.reasoning
         ? { effort: cfg.reasoning }
         : undefined;
-  const running: ChatMessage[] = prepareMessages(cfg, messages);
+  const running: ChatMessage[] = messages.map((m) => ({ ...m }));
   let finalText = "";
   // Keys (name + raw JSON args) of tool calls that already FAILED this run, so
   // an identical retry is short-circuited instead of blindly re-executed.
@@ -189,6 +183,7 @@ export async function runAgent(
         tools: opts.tools,
         tool_choice: toolChoice,
         ...(reasoning ? { reasoning } : {}),
+        ...cacheParams(cfg),
       }),
       signal: opts.signal,
     });
