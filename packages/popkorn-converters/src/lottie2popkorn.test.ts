@@ -1703,6 +1703,42 @@ test("a hold keyframe straddling comp ip holds, not lerps", () => {
   expect(xAt(css, "m", 0)).toBeCloseTo(50, 3);
   expect(xAt(css, "m", 9)).toBeCloseTo(50, 3);
   expect(xAt(css, "m", 10)).toBeCloseTo(100, 3);
+  expect(css).toMatch(/animation: m-k 0\.666s step-end 1 -0\.333s/);
+});
+
+test("a segment crossing comp ip keeps its source keyframes and easing via a negative delay", () => {
+  const css = new Converter().convert(posComp(dotKfs, 0, 30));
+  expect(css).toMatch(
+    /animation: m-k 0\.633s cubic-bezier\(0\.823, 0, 0\.833, 0\.833\) 1 -0\.1s/,
+  );
+  expect(css).toMatch(/0% \{ transform: translate\(100px, 0px\); \}/);
+  for (const f of [0, 6.5, 16]) {
+    const want = 100 - 260 * lottieEase(DOT_EASE, (f + 3) / 19);
+    expect(Math.abs(xAt(css, "m", f) - want)).toBeLessThan(0.5);
+  }
+});
+
+test("a segment spanning both comp bounds starts via delay and is cut at op", () => {
+  const kfs = [
+    { t: -10, s: [0, 0], o: { x: 0.7, y: 0 }, i: { x: 0.3, y: 1 } },
+    { t: 40, s: [100, 0] },
+  ];
+  const css = new Converter().convert(posComp(kfs, 0, 20));
+  expect(css).toMatch(/animation: m-k 1s cubic-bezier\([^)]*\) 1 -0\.333s/);
+  for (const f of [0, 10, 20]) {
+    const want = 100 * lottieEase([0.7, 0, 0.3, 1], (f + 10) / 50);
+    expect(Math.abs(xAt(css, "m", f) - want)).toBeLessThan(0.5);
+  }
+});
+
+test("a track ending at or before comp ip bakes its last value, no animation", () => {
+  const kfs = [
+    { t: -20, s: [0, 0], o: { x: 0.5, y: 0 }, i: { x: 0.5, y: 1 } },
+    { t: -5, s: [70, 0] },
+  ];
+  const css = new Converter().convert(posComp(kfs, 0, 30));
+  expect(css).not.toContain("animation:");
+  expect(xAt(css, "m", 0)).toBeCloseTo(70, 3);
 });
 
 test("a shape layer's sr does not rescale its own keyframes (lottie-web: sr is precomp time only)", () => {

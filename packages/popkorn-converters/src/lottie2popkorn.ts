@@ -2698,9 +2698,9 @@ export class Converter {
     // time t renders at comp frame t). A precomp instance's `st` shifts its whole
     // subtree and is emitted as `time-offset` on the group, never folded in here.
     // Clamp each channel to the comp's [ip, op] window; AE often leaves keyframes
-    // past the work area (op) that never play. When a track runs past a bound,
-    // keep the bound itself (sampled) so the node holds its pose there — a track
-    // entirely past op collapses to its first keyframe.
+    // outside the work area that never play. A segment crossing ip is kept whole
+    // and started part-way via a negative delay; one crossing op is cut there
+    // (sampled, eased). A track entirely outside collapses to a static pose.
     const lo = this.clampIp,
       hi = this.clampOp;
     const anims: AnimSpec[] = [];
@@ -2717,18 +2717,18 @@ export class Converter {
         Number.isFinite(hi) &&
         (times[0] < lo || times[times.length - 1] > hi)
       ) {
-        const inRange = times.filter((t) => t >= lo && t <= hi);
+        // Keep from the last keyframe at or before ip: its segment is live at ip.
+        let k = 0;
+        while (k + 1 < times.length && times[k + 1] <= lo) k++;
+        const inRange = times.slice(k).filter((t) => t <= hi);
+        // NOTE: an explicit scene length would let op keep whole segments too.
         if (
           times.some((t) => t > hi) &&
           (inRange.length === 0 || inRange[inRange.length - 1] < hi)
         )
           inRange.push(hi);
-        if (
-          times.some((t) => t < lo) &&
-          (inRange.length === 0 || inRange[0] > lo)
-        )
-          inRange.unshift(lo);
-        times = inRange;
+        times =
+          inRange.length && inRange[inRange.length - 1] <= lo ? [lo] : inRange;
       }
 
       // A single (or fully clamped-away) time = degenerate; bake it static. Its
@@ -2754,11 +2754,20 @@ export class Converter {
         }
         blocks.push(block);
       }
+      let durationSec = span / this.fr,
+        delaySec = (t0 - this.ip) / this.fr;
+      if (t0 < lo) {
+        // Emitted times are ms-rounded; anchor the end so a negative delay keeps it exact.
+        const ms = (v: number) => Math.round(v * 1000) / 1000;
+        const endSec = ms((tN - this.ip) / this.fr);
+        delaySec = ms(delaySec);
+        durationSec = endSec - delaySec;
+      }
       anims.push({
         name: this.uniqueId(rule.id + "-k"),
         blocks,
-        durationSec: span / this.fr,
-        delaySec: (t0 - this.ip) / this.fr,
+        durationSec,
+        delaySec,
         defaultEasing: modalEasing(blocks),
       });
     }
