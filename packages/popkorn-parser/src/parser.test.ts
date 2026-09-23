@@ -1245,3 +1245,51 @@ test("someValue/mapValue: descend random() operands and keep round() strategy", 
   // Nothing replaced → same object back.
   expect(mapValue(v, () => undefined)).toBe(v);
 });
+
+// Malformed input → a positioned parse error, never a garbage AST.
+const errorOf = (src: string): string => {
+  try {
+    parse(src);
+  } catch (e) {
+    return (e as Error).message;
+  }
+  throw new Error(`expected a parse error for: ${src}`);
+};
+const offsetOf = (msg: string) => Number(msg.match(/at offset (\d+)/)?.[1]);
+
+test("parse errors: var() without a --name", () => {
+  const src = "#b { r: var(foo); }";
+  const msg = errorOf(src);
+  expect(msg).toContain("var() expects a --custom-property name");
+  expect(offsetOf(msg)).toBe(src.indexOf("foo"));
+});
+
+test("parse errors: bad keyframe selector", () => {
+  const src = "@keyframes k { middle { r: 1px; } }";
+  const msg = errorOf(src);
+  expect(msg).toContain("expected a keyframe selector");
+  expect(offsetOf(msg)).toBe(src.indexOf("middle"));
+});
+
+test("parse errors: unknown machine trigger and pointer target", () => {
+  const trig = "@machine m { initial: a; state a { to: b on tap(#x); } }";
+  const msg = errorOf(trig);
+  expect(msg).toContain("unknown trigger 'tap'");
+  expect(offsetOf(msg)).toBe(trig.indexOf("tap"));
+
+  const target =
+    "@machine m { initial: a; state a { to: b on click(:host); } }";
+  expect(offsetOf(errorOf(target))).toBe(target.indexOf("host"));
+});
+
+test("parse errors: non-numeric mix duration", () => {
+  const src = "@machine m { initial: a; state a { to: b mix fast; } }";
+  const msg = errorOf(src);
+  expect(msg).toContain("expected a duration");
+  expect(offsetOf(msg)).toBe(src.indexOf("fast"));
+});
+
+test("parse errors: unknown pseudo selector is positioned", () => {
+  const src = ":host { width: 1px; }";
+  expect(offsetOf(errorOf(src))).toBe(src.indexOf("host"));
+});

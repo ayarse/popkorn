@@ -164,8 +164,14 @@ class Cursor {
     return m;
   }
 
-  errorAt(what: string): string {
-    return `${what} at offset ${this.pos}: ${JSON.stringify(this.src.slice(this.pos, this.pos + 24))}`;
+  number(what = "expected a number"): number {
+    const m = this.match(NUMBER);
+    if (m === null) throw new Error(this.errorAt(what));
+    return parseFloat(m);
+  }
+
+  errorAt(what: string, at = this.pos): string {
+    return `${what} at offset ${at}: ${JSON.stringify(this.src.slice(at, at + 24))}`;
   }
 }
 
@@ -280,9 +286,10 @@ function parseSelector(c: Cursor): Selector {
   }
   if (c.eat(".")) return { type: "class", name: c.ident() };
   if (c.eat(":")) {
+    const at = c.pos;
     const kw = c.ident();
     if (kw === "root") return { type: "root", name: "root" };
-    throw new Error(`unknown selector ':${kw}'`);
+    throw new Error(c.errorAt(`unknown selector ':${kw}'`, at));
   }
   throw new Error(c.errorAt("expected a selector"));
 }
@@ -386,16 +393,35 @@ function parseTransition(c: Cursor): MachineTransition {
   return { to, trigger, guards, mix };
 }
 
+type PointerEventName = (MachineTrigger & { kind: "pointer" })["event"];
+const POINTER_EVENTS = new Set<string>([
+  "click",
+  "pointerdown",
+  "pointerup",
+  "hoverstart",
+  "hoverend",
+]);
+
 // `click(#id)` / `pointerup(:root)` / `complete` / `event(name)`.
 function parseTrigger(c: Cursor): MachineTrigger {
+  c.ws();
+  const at = c.pos;
   const name = c.ident();
   if (name === "complete") return { kind: "complete" };
-  c.expect("(");
   if (name === "event") {
+    c.expect("(");
     const evName = c.ident();
     c.expect(")");
     return { kind: "event", name: evName };
   }
+  if (!POINTER_EVENTS.has(name))
+    throw new Error(
+      c.errorAt(
+        `unknown trigger '${name}' (want ${[...POINTER_EVENTS].join(", ")}, complete or event(...))`,
+        at,
+      ),
+    );
+  c.expect("(");
   let target: { type: "id" | "root"; name: string };
   if (c.eat("#")) {
     const start = c.pos;
@@ -403,14 +429,16 @@ function parseTrigger(c: Cursor): MachineTrigger {
     c.idRefs.push({ name: id, start: start - 1, end: c.pos });
     target = { type: "id", name: id };
   } else if (c.eat(":")) {
+    const at = c.pos;
     const kw = c.ident();
-    if (kw !== "root") throw new Error(`unknown pointer target ':${kw}'`);
+    if (kw !== "root")
+      throw new Error(c.errorAt(`unknown pointer target ':${kw}'`, at));
     target = { type: "root", name: "root" };
   } else throw new Error(c.errorAt("expected #id or :root pointer target"));
   c.expect(")");
   return {
     kind: "pointer",
-    event: name as (MachineTrigger & { kind: "pointer" })["event"],
+    event: name as PointerEventName,
     target,
   };
 }
@@ -462,7 +490,7 @@ function parseGuardValue(c: Cursor): number | boolean | string {
 
 // A number with optional time unit, in ms; unitless is returned as-is.
 function readTime(c: Cursor): number {
-  const n = parseFloat(c.match(NUMBER)!);
+  const n = c.number("expected a duration");
   if (c.src.startsWith("ms", c.pos)) {
     c.pos += 2;
     return n;
@@ -825,7 +853,9 @@ function parseValue(c: Cursor): Value {
   }
   if (name === "var" && c.peek() === "(") {
     c.expect("(");
-    const varName = c.match(CUSTOM)!;
+    const varName = c.match(CUSTOM);
+    if (varName === null)
+      throw new Error(c.errorAt("var() expects a --custom-property name"));
     let fallback: Value | undefined;
     if (c.eat(",")) {
       // NOTE: single-value fallback only (no `var(--x, 1px, 2px)`); a trailing comma is tolerated.
@@ -1161,7 +1191,7 @@ function isNumberStart(c: Cursor, ch: string | undefined): boolean {
 }
 
 function readNumber(c: Cursor): Value {
-  const value = parseFloat(c.match(NUMBER)!);
+  const value = c.number();
   if (c.src[c.pos] === "%") {
     c.pos++;
     return { type: "length", value, unit: "%" };
@@ -1202,7 +1232,9 @@ function parseKeyframe(c: Cursor): KeyframeBlock {
     if (c.eat("from")) selectors.push(0);
     else if (c.eat("to")) selectors.push(100);
     else {
-      selectors.push(parseFloat(c.match(NUMBER)!));
+      selectors.push(
+        c.number("expected a keyframe selector (from, to or <percentage>)"),
+      );
       c.eat("%");
     }
     selEnd = c.pos; // after the token, before any trailing `,`/whitespace
