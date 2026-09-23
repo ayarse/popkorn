@@ -103,6 +103,7 @@ let textMeasurer: TextMeasurer | null = null;
 // WeakMap) so no per-node field is added.
 let measurerGeneration = 0;
 const measuredGeneration = new WeakMap<SceneNode, number>();
+const measuredText = new WeakMap<SceneNode, string>();
 
 /**
  * Register (or clear, with null) the platform text measurer. Registering after
@@ -124,10 +125,13 @@ export function measureText(
   node: SceneNode,
   t: TextData,
 ): { width: number; height: number } {
+  // String inputs aren't registry-animated, so no dirty flag covers them; key on them.
+  const key = `${t.content}\0${t.fontFamily}\0${t.fontWeight}`;
   if (
     node.cachedTextBounds &&
     !node.textBoundsDirty &&
-    measuredGeneration.get(node) === measurerGeneration
+    measuredGeneration.get(node) === measurerGeneration &&
+    measuredText.get(node) === key
   )
     return node.cachedTextBounds;
 
@@ -169,6 +173,7 @@ export function measureText(
   node.cachedTextBounds = bounds;
   node.textBoundsDirty = false;
   measuredGeneration.set(node, measurerGeneration);
+  measuredText.set(node, key);
   return bounds;
 }
 

@@ -160,6 +160,16 @@ const STRUCTURAL_FOLD_PROPERTIES = new Set([
 // binding path re-applies their resolved value through the declaration switch
 // each frame. Discrete by nature (no interpolation). Numeric/color/transform
 // properties are handled by their own binding branches and stay out of this set.
+// String properties a state block can override. Limited to ones stored in
+// shapeData, which resetNodeToBase restores, so leaving the state reverts them.
+const STATE_STRING_PROPERTIES = new Set([
+  "content",
+  "font-family",
+  "font-weight",
+  "text-anchor",
+  "text-align",
+]);
+
 const STRING_BINDABLE_PROPERTIES = new Set([
   "content",
   "font-family",
@@ -1046,7 +1056,12 @@ export class SceneBuilder {
           // transition* is consumed by resolveTransitions below, so it's ignored
           // here; anything else with no registry entry is a genuine unknown.
           const value = this.resolveStaticVars(decl.value);
-          if (getPropHandler(property)) {
+          if (STATE_STRING_PROPERTIES.has(property)) {
+            styles.discrete ??= [];
+            styles.discrete.push((n) =>
+              this.applyDeclaration(n, { ...decl, value }),
+            );
+          } else if (getPropHandler(property)) {
             const parsed = this.parseAnimatableValue(property, value);
             if (parsed !== undefined) {
               styles.overrides ??= {};

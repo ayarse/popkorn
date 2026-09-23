@@ -9,7 +9,7 @@ import type {
 import { StateMachineRunner } from "./runtime/state-machine.js";
 import { createVariableResolver } from "./runtime/variables.js";
 import { buildSceneGraph } from "./scene/builder.js";
-import type { CircleData, SceneNode } from "./scene/types.js";
+import type { CircleData, SceneNode, TextData } from "./scene/types.js";
 
 const stubRenderer = new Proxy(
   {},
@@ -416,4 +416,27 @@ test("mix: an interrupting transition drops the old outgoing contribution", () =
   expect(cx(root, "dot")).toBeCloseTo(50);
   loop.seek(2000); // fully back to a
   expect(cx(root, "dot")).toBeCloseTo(0);
+});
+
+test(":state() overrides text content, and leaving the state reverts it", () => {
+  const src = `
+    :root { width: 100px; height: 100px; }
+    @machine m { initial: a; state a { to: b on event(go); } state b { to: a on event(back); } }
+    #label { type: text; content: "off"; fill: #000; &:state(b) { content: "on"; } }
+  `;
+  const { root, loop } = enterB(src);
+  const text = () =>
+    (root.children.find((c) => c.id === "label")!.shapeData as TextData)
+      .content;
+  loop.seek(600);
+  expect(text()).toBe("on");
+
+  const runner = loop.getStateMachineRunner();
+  runner.enqueueEvent("back");
+  runner.evaluate(700, {
+    variableResolver: loop.getVariableResolver(),
+    pointerEvents: [],
+  });
+  loop.seek(800);
+  expect(text()).toBe("off");
 });

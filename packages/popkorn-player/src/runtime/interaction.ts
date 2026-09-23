@@ -323,6 +323,7 @@ export function applyStateStyles(node: SceneNode, styles: StateStyles): void {
       getPropHandler(key)!.apply(node, styles.overrides[key]);
     }
   }
+  if (styles.discrete) for (const apply of styles.discrete) apply(node);
 }
 
 /**
@@ -462,6 +463,8 @@ export class InteractionManager {
     // interactionState), computed per-property against the node's current
     // underlying (pre-override) live fields.
     const styles = stateStylesFor(node, node.interactionState);
+    // Discrete strings never tween; they snap in while numeric channels blend.
+    if (styles?.discrete) for (const apply of styles.discrete) apply(node);
     let done = true;
 
     for (const [key, fromVal] of active.from) {

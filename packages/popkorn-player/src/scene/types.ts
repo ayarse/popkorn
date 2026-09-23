@@ -173,6 +173,9 @@ export interface StateStyles {
   // parsed endpoint the property's registry handler applies. Instant-snapped in
   // applyStateStyles (stage 1); replace semantics, same as fill.
   overrides?: Record<string, PropValue>;
+  // Discrete text-string overrides (content, font-family, …), each re-applied
+  // through the builder's declaration switch. Snap only; base-reset reverts them.
+  discrete?: ((node: SceneNode) => void)[];
   // Transitions declared inside this state block; when entering this state they
   // override the node-level transitions (CSS asymmetric enter/exit timing).
   transitions?: TransitionSpec[];
