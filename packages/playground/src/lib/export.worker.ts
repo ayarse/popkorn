@@ -1,3 +1,5 @@
+import type { ExportFormat } from "@/lib/export-common";
+import { exportGif } from "@/lib/gif";
 import { exportMp4 } from "@/lib/mp4";
 
 // Cast the worker global to the minimal surface we use, so the file typechecks
@@ -7,16 +9,19 @@ const ctx = self as unknown as {
   postMessage: (message: unknown, transfer?: Transferable[]) => void;
 };
 
-// NOTE: raster image nodes render blank and custom web fonts aren't registered
-// in the worker — acceptable for now, same as the GIF exporter.
+const exporters = { gif: exportGif, mp4: exportMp4 };
+
+// NOTE: raster image nodes render blank and custom web fonts aren't
+// registered in the worker — acceptable for now.
 ctx.onmessage = async (e: MessageEvent) => {
-  const { source, durationMs, scale } = e.data as {
+  const { format, source, durationMs, scale } = e.data as {
+    format: ExportFormat;
     source: string;
     durationMs?: number;
     scale?: number;
   };
   try {
-    const bytes = await exportMp4(source, {
+    const bytes = await exporters[format](source, {
       durationMs,
       scale,
       onProgress: (fraction) => ctx.postMessage({ type: "progress", fraction }),

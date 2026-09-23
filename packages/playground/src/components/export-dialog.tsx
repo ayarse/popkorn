@@ -7,8 +7,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label, labelClass } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { EXPORT_SCALES } from "@/lib/export-scale";
-import { cn } from "@/lib/utils";
 
 export const MAX_EXPORT_SECONDS = 60;
 
@@ -16,9 +18,6 @@ export interface ExportChoice {
   scale?: number;
   durationMs?: number;
 }
-
-const LABEL =
-  "block text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
 
 /** Export settings: output scale (raster formats) and a length when the scene has no fixed end. */
 export function ExportDialog({
@@ -77,43 +76,37 @@ export function ExportDialog({
           }}
         >
           {scale && (
-            <fieldset className="space-y-1.5">
-              <legend className={LABEL}>Size</legend>
-              <div className="grid grid-cols-3 gap-1.5 pt-1.5">
+            <div className="space-y-1.5">
+              <span id={`${id}-size`} className={labelClass}>
+                Size
+              </span>
+              <ToggleGroup
+                type="single"
+                aria-labelledby={`${id}-size`}
+                value={String(pickedScale)}
+                onValueChange={(v) => v && setPickedScale(Number(v))}
+                className="grid grid-cols-3"
+              >
                 {EXPORT_SCALES.filter((n) => n <= scale.max).map((n) => (
-                  <label
+                  <ToggleGroupItem
                     key={n}
-                    className={cn(
-                      "flex cursor-pointer flex-col items-center rounded-lg border px-2 py-1.5 text-[12px] transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                      pickedScale === n
-                        ? "border-primary/60 bg-primary/10 text-foreground"
-                        : "border-border text-muted-foreground hover:bg-secondary/60",
-                    )}
+                    value={String(n)}
+                    className="flex-col"
                   >
-                    <input
-                      type="radio"
-                      name={`${id}-scale`}
-                      value={n}
-                      checked={pickedScale === n}
-                      onChange={() => setPickedScale(n)}
-                      className="sr-only"
-                    />
                     <span className="font-medium">{n}×</span>
                     <span className="font-mono text-[11px]">
                       {Math.round(stage.width * n)}×
                       {Math.round(stage.height * n)}
                     </span>
-                  </label>
+                  </ToggleGroupItem>
                 ))}
-              </div>
-            </fieldset>
+              </ToggleGroup>
+            </div>
           )}
           {lengthMs !== undefined && (
             <div className="space-y-1.5">
-              <label htmlFor={`${id}-length`} className={LABEL}>
-                Length (seconds)
-              </label>
-              <input
+              <Label htmlFor={`${id}-length`}>Length (seconds)</Label>
+              <Input
                 id={`${id}-length`}
                 type="number"
                 min={0.1}
@@ -123,7 +116,7 @@ export function ExportDialog({
                 onChange={(e) => setSeconds(e.target.value)}
                 autoFocus
                 aria-invalid={!validLength}
-                className="h-9 w-full rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors focus:border-primary/50"
+                className="h-9 rounded-lg py-0 font-mono text-[13px]"
               />
               {!validLength && (
                 <p className="text-[12px] text-destructive">

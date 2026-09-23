@@ -1,24 +1,15 @@
-import { parse } from "@popkorn/parser";
-import {
-  AnimationScheduler,
-  buildSceneGraph,
-  Canvas2DRenderer,
-  computeSceneDuration,
-  RenderLoop,
-} from "@popkorn/player";
 import { GIFEncoder, type Palette, quantize } from "gifenc";
-import { scaledFrame } from "@/lib/export-scale";
+import {
+  createExportLoop,
+  downloadBytes,
+  type ExportOptions,
+  prewarmImages,
+  runExportWorker,
+  throwIfAborted,
+} from "@/lib/export-common";
 import { planGif } from "@/lib/gif-plan";
 
-export { planGif } from "@/lib/gif-plan";
-
-export interface ExportOptions {
-  onProgress?: (fraction: number) => void;
-  /** Export length in ms; overrides the scene's computed duration. */
-  durationMs?: number;
-  /** Output pixel scale over the stage size (default 1). */
-  scale?: number;
-}
+export type { ExportOptions } from "@/lib/export-common";
 
 /** Alpha at or above this (0–255) counts as opaque; below maps to transparency. */
 const ALPHA_THRESHOLD = 128;
@@ -205,89 +196,35 @@ export function quantizeFrame(
 
 /**
  * Render `source` offline to a downloadable GIF (Uint8Array of GIF bytes).
- *
- * The timeline is a pure function of time, so we spin up a throwaway player
- * over an offscreen canvas at the scene's native size (viewport identity → 1:1
- * scene px), seek frame-by-frame across [0, duration], and encode each frame.
- * No DPR/letterbox from the on-screen canvas leaks in.
+ * The timeline is a pure function of time, so a throwaway player seeks
+ * frame-by-frame across [0, duration] and each frame is encoded.
  */
 export async function exportGif(
   source: string,
-  { onProgress, durationMs, scale = 1 }: ExportOptions = {},
+  { onProgress, durationMs, scale = 1, signal }: ExportOptions = {},
 ): Promise<Uint8Array> {
-  const ast = parse(source);
-  const stageWidth = ast.canvas?.width ?? 400;
-  const stageHeight = ast.canvas?.height ?? 300;
-  const { width, height, viewport } = scaledFrame(
-    stageWidth,
-    stageHeight,
-    scale,
-  );
-
-  // Off the main thread there's no document; an OffscreenCanvas is DOM-free and
-  // Canvas2DRenderer only ever calls getContext("2d") on it (HTMLCanvasElement
-  // is a compile-time-only param type — the cast is safe at runtime).
-  const canvas =
-    typeof document === "undefined"
-      ? (new OffscreenCanvas(width, height) as unknown as HTMLCanvasElement)
-      : document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-
-  const root = buildSceneGraph(ast);
-  const renderer = new Canvas2DRenderer(canvas);
-  const scheduler = new AnimationScheduler();
-  const loop = new RenderLoop(renderer, scheduler);
-  loop.setScene(root);
-  loop.setSceneSize(stageWidth, stageHeight);
-  loop.setViewport(viewport);
-  loop.getVariableResolver().setVariables(ast.variables);
-
-  const ctx = canvas.getContext("2d")!;
-
-  // Export range, NOT `loop.duration`: an unbounded scene reports Infinity to
-  // hide the seeker, but a perpetual (all-infinite) scene still has an honest
-  // frame range — one cycle of the nominal period. Only a state machine with no
-  // timeline animations (nominal 0 yet unbounded) has nothing to export; a
-  // static scene is nominal 0 and bounded, and exports its single frame.
-  const duration = durationMs ?? computeSceneDuration(root);
-  if (
-    durationMs === undefined &&
-    duration <= 0 &&
-    !Number.isFinite(loop.duration)
-  ) {
-    throw new Error(
-      "This scene is a state machine with no timeline animation, so it has no frame range to export to GIF.",
-    );
-  }
-
+  const scene = createExportLoop(source, "gif", { durationMs, scale });
+  const { loop, width, height, duration } = scene;
+  const ctx = scene.canvas.getContext("2d")!;
   const plan = planGif(duration);
-
-  // Prewarm image decodes: image loading is fire-and-forget (the live loop
-  // repaints when a decode lands, but a seek-driven export has no "later").
-  // Seek every frame time once to kick off every load, then await them all.
-  if (renderer.whenImagesSettled) {
-    for (let i = 0; i < plan.frameCount; i++) {
-      loop.seek(Math.min(i * plan.delayMs, duration));
-    }
-    await renderer.whenImagesSettled();
-  }
+  // Sample at real wall-clock time so playback speed matches the scene.
+  const times = Array.from({ length: plan.frameCount }, (_, i) =>
+    Math.min(i * plan.delayMs, duration),
+  );
+  await prewarmImages(scene, times);
 
   const gif = GIFEncoder();
 
-  for (let i = 0; i < plan.frameCount; i++) {
-    // Sample at real wall-clock time so playback speed matches the scene.
-    const t = Math.min(i * plan.delayMs, duration);
-    loop.seek(t);
+  for (let i = 0; i < times.length; i++) {
+    throwIfAborted(signal);
+    loop.seek(times[i]);
 
     const { data } = ctx.getImageData(0, 0, width, height);
     const { index, palette, transparentIndex } = quantizeFrame(
       data,
       width,
       height,
-      {
-        transparent: true,
-      },
+      { transparent: true },
     );
 
     gif.writeFrame(index, width, height, {
@@ -311,52 +248,14 @@ export async function exportGif(
   return gif.bytes();
 }
 
-/**
- * Same as {@link exportGif}, but runs the whole render/encode pipeline in a
- * Web Worker so the main thread stays responsive. Falls back to inline
- * `exportGif` where Worker/OffscreenCanvas aren't available.
- */
+/** {@link exportGif} in a Web Worker, falling back to inline where unsupported. */
 export function exportGifInWorker(
   source: string,
-  { onProgress, durationMs, scale }: ExportOptions = {},
+  options: ExportOptions = {},
 ): Promise<Uint8Array> {
-  if (typeof Worker === "undefined" || typeof OffscreenCanvas === "undefined") {
-    return exportGif(source, { onProgress, durationMs, scale });
-  }
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./gif.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    worker.onmessage = (e: MessageEvent) => {
-      const msg = e.data;
-      if (msg.type === "progress") {
-        onProgress?.(msg.fraction);
-      } else if (msg.type === "done") {
-        worker.terminate();
-        resolve(msg.bytes);
-      } else if (msg.type === "error") {
-        worker.terminate();
-        reject(new Error(msg.message));
-      }
-    };
-    worker.onerror = (e) => {
-      worker.terminate();
-      reject(new Error(e.message));
-    };
-    worker.postMessage({ source, durationMs, scale });
-  });
+  return runExportWorker("gif", source, options, exportGif);
 }
 
-/** Trigger a browser download of `bytes` as `filename` via a temporary object URL. */
 export function downloadGif(bytes: Uint8Array, filename = "scene.gif"): void {
-  const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // Defer revoke: revoking synchronously after click() cancels the download
-  // before the browser has read the blob.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  downloadBytes(bytes, filename, "image/gif");
 }
