@@ -32,16 +32,15 @@ export function ImportStatusChip({
     { name: "Minified", size: min },
     { name: "Gzipped", size: gz },
     {
-      name: "Crushed",
+      name: "Crushed + gzip",
       size: crushGz,
       title:
-        "Gzipped with identifiers renamed. Smallest wire size, not human-readable.",
+        "Crushed (identifiers renamed, paths compacted) then gzipped, vs gzipped minified source. Smallest wire size, not human-readable.",
     },
   ];
   const delta = (p: SizePair) => pct(p.source, p.popkorn);
-  // Collapsed chip teases the gzipped delta (real wire size); until the async
-  // gzip resolves, fall back to the raw delta.
-  const chipDeltaPct = delta(gz ?? raw);
+  // Collapsed chip shows the smallest shippable delta (crushed + gzip); raw until the async gzip resolves.
+  const chipDeltaPct = delta(crushGz ?? gz ?? raw);
 
   return (
     <div className="flex items-center overflow-hidden rounded-md border border-border">
@@ -118,7 +117,7 @@ export function ImportStatusChip({
                       {title ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <span className="w-2/5 cursor-help text-muted-foreground underline decoration-dotted underline-offset-2">
+                            <span className="w-2/5 cursor-help whitespace-nowrap text-muted-foreground underline decoration-dotted underline-offset-2">
                               {name}
                             </span>
                           </TooltipTrigger>

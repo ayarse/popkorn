@@ -10,10 +10,11 @@ async function gzipBytes(s: string): Promise<number> {
   return (await new Response(stream).arrayBuffer()).byteLength;
 }
 
+// Decimal units (1 KB = 1000 B), matching browser devtools and npm.
 export function humanBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n < 1000) return `${n} B`;
+  if (n < 1e6) return `${(n / 1000).toFixed(1)} KB`;
+  return `${(n / 1e6).toFixed(1)} MB`;
 }
 
 export function pct(before: number, after: number): number {
