@@ -1,4 +1,9 @@
-import { readDocs, SYSTEM_PROMPT, TOOL_DEFS } from "../lib/agent-defs";
+import {
+  isToolError,
+  readDocs,
+  SYSTEM_PROMPT,
+  TOOL_DEFS,
+} from "../lib/agent-defs";
 import { handleMcpMessage, type ToolCallResult, toMcpTools } from "./mcp";
 
 /** Tool calls answered without a tab round-trip (the docs ship in the worker
@@ -9,7 +14,7 @@ export function localToolResult(
 ): ToolCallResult | null {
   if (name !== "read_docs") return null;
   const text = readDocs(args);
-  return { text, isError: text.startsWith("Error") };
+  return { text, isError: isToolError(text) };
 }
 
 // Minimal structural types for the workerd surface this class touches.
@@ -30,6 +35,8 @@ const NOT_CONNECTED =
   "Playground tab not connected — open usepopkorn.dev, click Connect in the Copilot panel, and keep the tab open.";
 
 const CALL_TIMEOUT_MS = 30_000;
+
+const MCP_TOOLS = toMcpTools(TOOL_DEFS);
 
 /** Correlates relayed tool calls with their tab replies. In-memory only: an
  * in-flight MCP request keeps the DO active, and anything older than the
@@ -119,7 +126,7 @@ export class CopilotSession {
     }
 
     const res = await handleMcpMessage(msg, {
-      tools: toMcpTools(TOOL_DEFS),
+      tools: MCP_TOOLS,
       instructions: SYSTEM_PROMPT,
       callTool: (name, args) => {
         const local = localToolResult(name, args);
@@ -164,7 +171,11 @@ export class CopilotSession {
     const ws = this.ctx.getWebSockets()[0];
     if (!ws) return Promise.resolve({ text: NOT_CONNECTED, isError: true });
     const { id, promise } = this.calls.create();
-    ws.send(JSON.stringify({ id, name, args }));
+    try {
+      ws.send(JSON.stringify({ id, name, args }));
+    } catch {
+      this.calls.resolve(id, { text: NOT_CONNECTED, isError: true });
+    }
     return promise;
   }
 

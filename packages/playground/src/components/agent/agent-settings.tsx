@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Eye, EyeOff, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -15,6 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { labelClass } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   type AgentConfig,
   DEFAULT_BASE_URL,
@@ -34,7 +41,6 @@ function ModelCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
   const trimmed = search.trim();
   const lower = trimmed.toLowerCase();
   const exact = presets.some((p) => p === trimmed);
@@ -43,99 +49,79 @@ function ModelCombobox({
     : presets;
   const showCustom = trimmed.length > 0 && !exact;
 
+  const setOpenAndReset = (o: boolean) => {
+    setOpen(o);
+    if (!o) setSearch("");
+  };
   const pick = (v: string) => {
     onChange(v);
-    setOpen(false);
-    setSearch("");
+    setOpenAndReset(false);
   };
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-        setSearch("");
-      }
-    };
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        role="combobox"
-        aria-expanded={open}
-        aria-controls="agent-model-listbox"
-        aria-haspopup="listbox"
-        onClick={() => setOpen((v) => !v)}
-        className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors hover:border-border focus:border-primary/50"
-      >
-        <span className={value ? "truncate" : "text-muted-foreground"}>
-          {value || "model id"}
-        </span>
-        <ChevronDown
-          className={cn(
-            "size-4 shrink-0 opacity-60 transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <div
-          id="agent-model-listbox"
-          className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-border bg-popover p-0 shadow-xl"
+    <Popover open={open} onOpenChange={setOpenAndReset}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="h-9 w-full justify-between rounded-lg bg-background px-3 font-mono text-[13px] font-normal"
         >
-          <Command shouldFilter={false} className="rounded-lg">
-            <CommandInput
-              placeholder="Search or type a model id…"
-              value={search}
-              onValueChange={setSearch}
-              autoFocus
-            />
-            <CommandList>
-              {filtered.length === 0 && !showCustom && (
-                <div className="py-6 text-center text-sm text-muted-foreground">
-                  No preset matches.
-                </div>
+          <span className={value ? "truncate" : "text-muted-foreground"}>
+            {value || "model id"}
+          </span>
+          <ChevronDown
+            className={cn(
+              "size-4 shrink-0 opacity-60 transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-[var(--radix-popover-trigger-width)]"
+      >
+        <Command shouldFilter={false} className="rounded-lg">
+          <CommandInput
+            placeholder="Search or type a model id…"
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            {filtered.length === 0 && !showCustom && (
+              <div className="py-6 text-center text-sm text-muted-foreground">
+                No preset matches.
+              </div>
+            )}
+            <CommandGroup>
+              {filtered.map((p) => (
+                <CommandItem key={p} value={p} onSelect={() => pick(p)}>
+                  <Check
+                    className={cn(
+                      "size-4 shrink-0",
+                      value === p ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {p}
+                </CommandItem>
+              ))}
+              {showCustom && (
+                <CommandItem value={trimmed} onSelect={() => pick(trimmed)}>
+                  <Sparkles className="size-4 shrink-0 text-primary" />
+                  <span className="truncate">Use “{trimmed}”</span>
+                </CommandItem>
               )}
-              <CommandGroup>
-                {filtered.map((p) => (
-                  <CommandItem key={p} value={p} onSelect={() => pick(p)}>
-                    <Check
-                      className={cn(
-                        "size-4 shrink-0",
-                        value === p ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    {p}
-                  </CommandItem>
-                ))}
-                {showCustom && (
-                  <CommandItem value={trimmed} onSelect={() => pick(trimmed)}>
-                    <Sparkles className="size-4 shrink-0 text-primary" />
-                    <span className="truncate">Use “{trimmed}”</span>
-                  </CommandItem>
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </div>
-      )}
-    </div>
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
+
+const FIELD = "h-9 flex-1 rounded-lg py-0 font-mono text-[13px]";
 
 function Field({
   label,
@@ -147,9 +133,7 @@ function Field({
   return (
     // biome-ignore lint/a11y/noLabelWithoutControl: the field control is nested inside via children; biome can't see through the prop
     <label className="block space-y-1.5">
-      <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
+      <span className={labelClass}>{label}</span>
       {children}
     </label>
   );
@@ -168,14 +152,6 @@ export function AgentSettings({
   const [apiKey, setApiKey] = useState(current?.apiKey ?? "");
   const [model, setModel] = useState(current?.model ?? DEFAULT_MODEL);
   const [showKey, setShowKey] = useState(false);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   return (
     <Dialog
@@ -198,36 +174,34 @@ export function AgentSettings({
         <div className="space-y-4">
           <Field label="API key">
             <div className="flex items-center gap-1.5">
-              <input
+              <Input
                 type={showKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="sk-or-…"
                 spellCheck={false}
-                className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50"
+                className={FIELD}
               />
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="icon"
                 onClick={() => setShowKey((v) => !v)}
                 aria-label={showKey ? "Hide key" : "Show key"}
-                className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                aria-pressed={showKey}
+                className="size-9 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
               >
-                {showKey ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
-              </button>
+                {showKey ? <EyeOff /> : <Eye />}
+              </Button>
             </div>
           </Field>
 
           <Field label="Base URL">
-            <input
+            <Input
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               spellCheck={false}
               placeholder={DEFAULT_BASE_URL}
-              className="h-9 w-full rounded-lg border border-border bg-background px-3 text-[13px] font-mono text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50"
+              className={FIELD}
             />
           </Field>
 
@@ -252,9 +226,7 @@ export function AgentSettings({
                 baseUrl: baseUrl.trim() || DEFAULT_BASE_URL,
                 apiKey: apiKey.trim(),
                 model,
-                // Preserve any reasoning mode set from the composer control;
-                // off by default.
-                reasoning: current?.reasoning ?? "off",
+                reasoning: current?.reasoning ?? "default",
               })
             }
           >

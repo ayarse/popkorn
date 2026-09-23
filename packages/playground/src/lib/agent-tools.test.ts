@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
+import { parse } from "@popkorn/parser";
 import {
   buildOutline,
   executeTool,
   placementWarning,
+  runTools,
   TOOL_DEFS,
   type ToolContext,
 } from "@/lib/agent-tools";
@@ -423,13 +425,13 @@ test("apply_edit appends no warning for a pure recolor", () => {
 test("placementWarning is empty when nothing moves and flags a moved node", () => {
   expect(
     placementWarning(
-      "#a { type: circle; cx: 10px; cy: 10px; r: 5px; }",
-      "#a { type: circle; cx: 10px; cy: 10px; r: 6px; }",
+      parse("#a { type: circle; cx: 10px; cy: 10px; r: 5px; }"),
+      parse("#a { type: circle; cx: 10px; cy: 10px; r: 6px; }"),
     ),
   ).toBe("");
   const moved = placementWarning(
-    "#a { type: circle; cx: 10px; cy: 10px; r: 5px; }",
-    "#a { type: circle; cx: 90px; cy: 10px; r: 5px; }",
+    parse("#a { type: circle; cx: 10px; cy: 10px; r: 5px; }"),
+    parse("#a { type: circle; cx: 90px; cy: 10px; r: 5px; }"),
   );
   expect(moved).toContain("nodes moved");
   expect(moved).toContain("#a (10,10)->(90,10)");
@@ -552,4 +554,27 @@ test("rewrite_scene reports every diagnostic, with did-you-mean hints", () => {
   );
   expect(out).toContain("Scene rewritten");
   expect(out).toContain("Did you mean 'fill'?");
+});
+
+test("runTools builds on a user edit made mid-run and notes it", () => {
+  const live = { current: "#a { fill: red; }\n#b { fill: blue; }" };
+  const applied: string[] = [];
+  const tools = runTools(live, (css) => applied.push(css));
+  const first = tools.execute("apply_edit", {
+    search: "fill: red;",
+    replace: "fill: green;",
+  });
+  expect(first).toStartWith("Edit applied");
+  expect(tools.execute("get_outline", {})).not.toContain("Note:");
+
+  live.current = live.current.replace("fill: blue;", "fill: gold;");
+  const second = tools.execute("apply_edit", {
+    search: "#a { fill: green; }",
+    replace: "#a { fill: pink; }",
+  });
+  expect(second).toStartWith("Note: the user edited the scene");
+  expect(second).toContain("Edit applied");
+  expect(live.current).toBe("#a { fill: pink; }\n#b { fill: gold; }");
+  expect(applied.at(-1)).toBe(live.current);
+  expect(tools.changed).toBe(true);
 });

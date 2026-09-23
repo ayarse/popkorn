@@ -1,4 +1,9 @@
-import { type Diagnostic, offsetToLineCol, parse } from "@popkorn/parser";
+import {
+  type Diagnostic,
+  offsetToLineCol,
+  parse,
+  type StyleSheet,
+} from "@popkorn/parser";
 import {
   buildSceneGraph,
   computeWorldMatrix,
@@ -6,7 +11,7 @@ import {
   type SceneNode,
   transformPoint,
 } from "@popkorn/player";
-import { readDocs } from "./agent-defs";
+import { readDocs, USER_EDIT_NOTE } from "./agent-defs";
 import { applyEdits } from "./edits";
 
 export type ToolContext = {
@@ -695,12 +700,15 @@ const MOVE_EPSILON = 0.5;
 
 // A warning line for same-id nodes whose base world placement moved, or "" when
 // nothing moved (or a scene can't be built). Appended to an apply_edit success.
-export function placementWarning(before: string, after: string): string {
+export function placementWarning(
+  before: StyleSheet,
+  after: StyleSheet,
+): string {
   let a: Map<string, Pt>;
   let b: Map<string, Pt>;
   try {
-    a = collectPlacements(buildSceneGraph(parse(before)));
-    b = collectPlacements(buildSceneGraph(parse(after)));
+    a = collectPlacements(buildSceneGraph(before));
+    b = collectPlacements(buildSceneGraph(after));
   } catch {
     return ""; // can't build one side — stay quiet rather than guess
   }
@@ -721,26 +729,18 @@ export function placementWarning(before: string, after: string): string {
 
 const DIAGNOSTIC_CAP = 8;
 
-function diagnosticsOf(source: string): Diagnostic[] {
-  try {
-    return parse(source).diagnostics;
-  } catch {
-    return [];
-  }
-}
-
 // Parser diagnostics the edit introduced (unknown/unsupported properties with
 // did-you-mean, missing @keyframes/@define refs), line-numbered. Pre-existing
 // ones are left out so an imported scene's noise doesn't drown the signal.
 // NOTE: matched by code+message, so re-adding an identical mistake elsewhere
 // in a scene that already has it goes unreported.
 function newDiagnostics(
-  before: string,
+  before: Diagnostic[],
   after: Diagnostic[],
   next: string,
 ): string {
   const seen = new Map<string, number>();
-  for (const d of diagnosticsOf(before)) {
+  for (const d of before) {
     const k = `${d.code} ${d.message}`;
     seen.set(k, (seen.get(k) ?? 0) + 1);
   }
@@ -761,15 +761,25 @@ function newDiagnostics(
   return `\nDiagnostics (these declarations do nothing as written; fix them):\n${shown.join("\n")}`;
 }
 
+function tryParse(source: string): StyleSheet | null {
+  try {
+    return parse(source);
+  } catch {
+    return null;
+  }
+}
+
+// Parses `next` once, commits it, and reports new diagnostics plus (when a
+// parsed `before` is given) nodes whose placement moved.
 function commitValidated(
   next: string,
   ctx: ToolContext,
   verb: string,
-  before: string,
+  before: StyleSheet | null,
 ): string {
-  let diagnostics: Diagnostic[];
+  let sheet: StyleSheet;
   try {
-    diagnostics = parse(next).diagnostics;
+    sheet = parse(next);
   } catch (e) {
     return `Edit rejected — resulting scene failed to parse: ${
       e instanceof Error ? e.message : String(e)
@@ -777,15 +787,13 @@ function commitValidated(
   }
   ctx.commit(next);
   const lines = next === "" ? 0 : next.split("\n").length;
-  return `${verb}. Scene is now ${lines} lines.${newDiagnostics(before, diagnostics, next)}`;
-}
-
-// 1-indexed line number of a character offset in `source`.
-function lineOf(source: string, offset: number): number {
-  let line = 1;
-  const end = Math.min(offset, source.length);
-  for (let i = 0; i < end; i++) if (source[i] === "\n") line++;
-  return line;
+  const diags = newDiagnostics(
+    before?.diagnostics ?? [],
+    sheet.diagnostics,
+    next,
+  );
+  const moved = before ? placementWarning(before, sheet) : "";
+  return `${verb}. Scene is now ${lines} lines.${diags}${moved}`;
 }
 
 function closestRegion(srcLines: string[], idx: number, span: number): string {
@@ -833,7 +841,7 @@ function applyEditDiagnostic(
       at = source.indexOf(search, at + search.length);
     }
     if (positions.length > 1) {
-      const lines = positions.map((p) => lineOf(source, p));
+      const lines = positions.map((p) => offsetToLineCol(source, p).line);
       return `Search text matched ${positions.length} times (line${lines.length === 1 ? "" : "s"} ${lines.join(", ")}). Add surrounding context to make it unique, or set replace_all to change all ${positions.length}.`;
     }
   }
@@ -872,10 +880,7 @@ function toolApplyEdit(
   const verb = replaceAll
     ? `Edit applied (${n} occurrence${n === 1 ? "" : "s"})`
     : "Edit applied";
-  const committed = commitValidated(res.result, ctx, verb, source);
-  // Only append render-truth feedback once the edit actually committed.
-  if (committed.startsWith("Edit rejected")) return committed;
-  return committed + placementWarning(source, res.result);
+  return commitValidated(res.result, ctx, verb, tryParse(source));
 }
 
 // Every gallery scene opens with an `/* Author: … */` line and then a header
@@ -931,26 +936,7 @@ function toolRewriteScene(
     return "Error: rewrite_scene needs { css: string }.";
   }
   // A rewrite owns every line, so all its diagnostics are new.
-  return commitValidated(css, ctx, "Scene rewritten", "");
-}
-
-// NOTE: tool executors return plain strings, so failure is sniffed from the
-// known error/rejection prefixes rather than a structured status. Shared by the
-// chat UI (activity-log ok flag) and runAgent's repeat-call breaker so both
-// agree on what "failed" means. Success results start with a line number,
-// source header, or an "…applied/rewritten" confirmation.
-const ERROR_PREFIXES = [
-  "Error", // Error: …, Error running …
-  "Invalid", // malformed tool arguments (from runAgent)
-  "Edit rejected", // parse-failed edit/rewrite
-  "Edit block", // applyEdits non-unique / no match
-  "Search text", // apply_edit near-miss / non-unique diagnostic
-  "No match", // search: No matches for …
-  'Rule "', // read_rules: Rule "…" not found
-];
-
-export function isToolError(result: string): boolean {
-  return ERROR_PREFIXES.some((p) => result.startsWith(p));
+  return commitValidated(css, ctx, "Scene rewritten", null);
 }
 
 export function executeTool(
@@ -982,6 +968,38 @@ export function executeTool(
   } catch (e) {
     return `Error running ${name}: ${e instanceof Error ? e.message : String(e)}`;
   }
+}
+
+// One run's tool executor over the live editor buffer. `live` mirrors the
+// editor; when it drifts from what the run last read or wrote, the user edited
+// mid-run, so the next call works on their text and leads with a note.
+export function runTools(
+  live: { current: string },
+  apply: (css: string) => void,
+  examples?: ToolContext["examples"],
+) {
+  let current = live.current;
+  let lastCommitted = current;
+  let changed = false;
+  const ctx: ToolContext = {
+    getSource: () => current,
+    commit: (next) => {
+      current = lastCommitted = live.current = next;
+      changed = true;
+      apply(next);
+    },
+    examples,
+  };
+  return {
+    execute(name: string, args: Record<string, unknown>): string {
+      if (live.current === lastCommitted) return executeTool(name, args, ctx);
+      current = lastCommitted = live.current;
+      return `${USER_EDIT_NOTE}\n${executeTool(name, args, ctx)}`;
+    },
+    get changed() {
+      return changed;
+    },
+  };
 }
 
 export { TOOL_DEFS } from "./agent-defs";

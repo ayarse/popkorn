@@ -1,5 +1,5 @@
 import { Check, Copy } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,32 +8,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { labelClass } from "@/components/ui/label";
 import type { OwnAgentStatus } from "@/hooks/use-own-agent";
 import { cn } from "@/lib/utils";
 
 function CommandRow({ label, command }: { label: string; command: string }) {
   const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+    } catch {
+      return;
+    }
+    setCopied(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), 1200);
+  };
   return (
     <div className="space-y-1.5">
-      <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
+      <span className={labelClass}>{label}</span>
       <div className="flex items-start gap-1.5">
         <code className="min-w-0 flex-1 whitespace-pre-wrap break-all rounded-lg border border-border bg-background px-3 py-2 font-mono text-[12px] leading-relaxed text-foreground">
           {command}
         </code>
-        <button
-          type="button"
-          onClick={() => {
-            navigator.clipboard.writeText(command);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
-          }}
-          aria-label={`Copy ${label} command`}
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={copy}
+          aria-label={copied ? "Copied" : `Copy ${label} command`}
+          className="size-9 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
         >
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-        </button>
+          {copied ? <Check className="text-primary" /> : <Copy />}
+        </Button>
       </div>
     </div>
   );

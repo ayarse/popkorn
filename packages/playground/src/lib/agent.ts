@@ -1,4 +1,4 @@
-import { isToolError } from "./agent-tools";
+import { isToolError } from "./agent-defs";
 
 export { SYSTEM_PROMPT } from "./agent-defs";
 
@@ -8,6 +8,8 @@ export type Message = {
   id: number;
   role: Role;
   text: string;
+  // Creation time (ms epoch), for interleaving with own-agent tool events.
+  at: number;
   // Compact activity log rendered inside the agent bubble; `ok: false` = a
   // rejected/failed tool result.
   toolEvents?: { label: string; ok: boolean }[];
@@ -16,15 +18,15 @@ export type Message = {
   revertTo?: string;
 };
 
-export type ReasoningEffort = "off" | "low" | "medium" | "high";
+export type ReasoningEffort = "default" | "off" | "low" | "medium" | "high";
 
 export type AgentConfig = {
   baseUrl: string;
   apiKey: string;
   model: string;
-  // OpenRouter's unified reasoning knob; absent = model default. "off"
-  // disables reasoning; low/medium/high sets effort (enables thinking for
-  // Anthropic models, which is the intended user-facing behavior).
+  // OpenRouter's unified reasoning knob; "default"/absent = model default.
+  // "off" disables reasoning; low/medium/high sets effort (enables thinking
+  // for Anthropic models, which is the intended user-facing behavior).
   reasoning?: ReasoningEffort;
 };
 
@@ -48,6 +50,7 @@ export const MODEL_PRESETS = [
 export const GREETING: Message = {
   id: 0,
   role: "agent",
+  at: 0,
   text: "I'm your Popkorn Copilot. Describe a new animation and I'll build it from scratch, or ask for a change and I'll edit the live scene. Questions about the Popkorn format welcome too.",
 };
 
@@ -67,8 +70,7 @@ export function loadConfig(): AgentConfig | null {
       baseUrl: parsed.baseUrl,
       apiKey: parsed.apiKey,
       model: parsed.model ?? DEFAULT_MODEL,
-      // Reasoning is off by default; absent stored value falls back to "off".
-      reasoning: parsed.reasoning ?? "off",
+      reasoning: parsed.reasoning ?? "default",
     };
   } catch {
     return null;
@@ -88,17 +90,22 @@ async function readSSE(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      onData(trimmed.slice(5).trim());
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        onData(trimmed.slice(5).trim());
+      }
     }
+  } catch (e) {
+    reader.cancel().catch(() => {});
+    throw e;
   }
 }
 
@@ -107,6 +114,36 @@ export type ToolEvent = {
   args: Record<string, unknown>;
   result: string;
 };
+
+// A compact human label for a tool call, shown as a status row in the bubble.
+export function toolLabel(ev: ToolEvent): string {
+  switch (ev.name) {
+    case "get_outline":
+      return "outline";
+    case "read_rules": {
+      const sel = ev.args.selectors;
+      return Array.isArray(sel) ? `read ${sel.join(", ")}` : "read rules";
+    }
+    case "read_lines":
+      return `read lines ${ev.args.start}–${ev.args.end}`;
+    case "search":
+      return `searched ${JSON.stringify(ev.args.query)}`;
+    case "read_docs": {
+      const sec = ev.args.sections;
+      return Array.isArray(sec) && sec.length
+        ? `read docs §${sec.map((s) => String(s).replace(/^§/, "")).join(", §")}`
+        : "read guide";
+    }
+    case "read_example":
+      return ev.args.name ? `read example ${ev.args.name}` : "listed examples";
+    case "apply_edit":
+      return "edited scene";
+    case "rewrite_scene":
+      return "rewrote scene";
+    default:
+      return ev.name;
+  }
+}
 
 type ChatMessage = Record<string, unknown>;
 
@@ -144,13 +181,14 @@ export async function runAgent(
   },
 ): Promise<string> {
   // Maps AgentConfig.reasoning → OpenRouter's unified `reasoning` param.
-  // Omitted entirely when unset so the model's default applies.
+  // Omitted entirely for the model default.
   const reasoning =
     cfg.reasoning === "off"
       ? { enabled: false }
-      : cfg.reasoning
+      : cfg.reasoning && cfg.reasoning !== "default"
         ? { effort: cfg.reasoning }
         : undefined;
+  const baseUrl = cfg.baseUrl.replace(/\/+$/, "");
   const running: ChatMessage[] = messages.map((m) => ({ ...m }));
   let finalText = "";
   // Keys (name + raw JSON args) of tool calls that already FAILED this run, so
@@ -170,7 +208,7 @@ export async function runAgent(
       });
     }
 
-    const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -201,6 +239,9 @@ export async function runAgent(
         parsed = JSON.parse(data);
       } catch {
         return; // keepalive or partial frame
+      }
+      if (parsed.error) {
+        throw new Error(parsed.error.message ?? JSON.stringify(parsed.error));
       }
       const delta = parsed.choices?.[0]?.delta;
       if (!delta) return;

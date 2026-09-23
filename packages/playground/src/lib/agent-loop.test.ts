@@ -319,6 +319,41 @@ describe("runAgent", () => {
     expect("reasoning" in calls[0].body).toBe(false);
   });
 
+  test('reasoning "default" sends no reasoning key', async () => {
+    const calls = mockFetch([sseStream(textFrames(["hi"]))]);
+    await runAgent(
+      { ...CFG, reasoning: "default" },
+      [{ role: "user", content: "q" }],
+      { ...noopOpts(), executeTool: () => "" },
+    );
+    expect("reasoning" in calls[0].body).toBe(false);
+  });
+
+  test("trailing slashes on the base URL are stripped", async () => {
+    const calls = mockFetch([sseStream(textFrames(["hi"]))]);
+    await runAgent(
+      { ...CFG, baseUrl: "https://example.test/api/v1//" },
+      [{ role: "user", content: "q" }],
+      { ...noopOpts(), executeTool: () => "" },
+    );
+    expect(calls[0].url).toBe("https://example.test/api/v1/chat/completions");
+  });
+
+  test("an in-stream error payload rejects the run", async () => {
+    mockFetch([
+      sseStream([
+        ...textFrames(["par"]),
+        JSON.stringify({ error: { message: "upstream overloaded" } }),
+      ]),
+    ]);
+    await expect(
+      runAgent(CFG, [{ role: "user", content: "q" }], {
+        ...noopOpts(),
+        executeTool: () => "",
+      }),
+    ).rejects.toThrow("upstream overloaded");
+  });
+
   test("delta.reasoning fires onReasoning and stays out of the text", async () => {
     mockFetch([
       sseStream([

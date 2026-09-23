@@ -1,19 +1,31 @@
 import {
   AlertCircle,
   Brain,
-  LoaderCircle,
   type LucideIcon,
   Plug,
   RotateCcw,
   Send,
   Settings,
   Sparkles,
+  Square,
   X,
 } from "lucide-react";
 import { marked } from "marked";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AgentSettings } from "@/components/agent/agent-settings";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { ConnectAgent } from "@/components/agent/connect-agent";
+import { randomVerb } from "@/components/agent/working-verbs";
+import { Alert } from "@/components/ui/alert";
+import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,20 +34,50 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAgentChat } from "@/hooks/use-agent-chat";
-import { useOwnAgent } from "@/hooks/use-own-agent";
-import {
-  type AgentConfig,
-  type Message,
-  type ReasoningEffort,
-  SUGGESTIONS,
-} from "@/lib/agent";
+import { type OwnAgentEvent, useOwnAgent } from "@/hooks/use-own-agent";
+import { type Message, type ReasoningEffort, SUGGESTIONS } from "@/lib/agent";
 import { cn } from "@/lib/utils";
+
+const AgentSettings = lazy(() =>
+  import("@/components/agent/agent-settings").then((m) => ({
+    default: m.AgentSettings,
+  })),
+);
+
+// How long the own-agent log keeps its working indicator after an event.
+const OWN_AGENT_ACTIVE_MS = 4000;
+
+// Distance from the bottom (px) within which new content keeps auto-scrolling.
+const STICK_THRESHOLD = 48;
+
+type ChatItem =
+  | { kind: "message"; message: Message }
+  | { kind: "log"; key: number; events: OwnAgentEvent[] };
+
+// Messages and own-agent tool events interleaved by time; consecutive events
+// collapse into one log.
+function chatItems(messages: Message[], events: OwnAgentEvent[]): ChatItem[] {
+  const items: ChatItem[] = [];
+  let e = 0;
+  const pushEventsBefore = (t: number) => {
+    const run: OwnAgentEvent[] = [];
+    while (e < events.length && events[e].at < t) run.push(events[e++]);
+    if (run.length) items.push({ kind: "log", key: run[0].at, events: run });
+  };
+  for (const m of messages) {
+    pushEventsBefore(m.at);
+    items.push({ kind: "message", message: m });
+  }
+  pushEventsBefore(Number.POSITIVE_INFINITY);
+  return items;
+}
 
 export type AgentChatProps = {
   open: boolean;
@@ -63,26 +105,15 @@ function AgentChat({
     settingsOpen,
     setSettingsOpen,
     applyConfig,
+    setReasoning,
     send,
+    stop,
     revert,
   } = useAgentChat(source, onApplySource);
   const own = useOwnAgent(source, onApplySource);
   const [connectOpen, setConnectOpen] = useState(false);
-
-  // Set the reasoning mode without touching the rest of the config (persists
-  // through the same saveConfig round trip as the settings dialog). undefined
-  // = model default, so the key is dropped rather than stored.
-  const setReasoning = useCallback(
-    (r: ReasoningEffort | undefined) => {
-      if (!config) return;
-      const next: AgentConfig = { ...config };
-      if (r) next.reasoning = r;
-      else delete next.reasoning;
-      applyConfig(next);
-    },
-    [config, applyConfig],
-  );
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stickRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const fitInput = useCallback(() => {
@@ -97,17 +128,35 @@ function AgentChat({
     fitInput();
   }, [input, fitInput]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: these are re-run triggers — scroll to bottom when content/state changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these are re-run triggers — follow new content while pinned to the bottom
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const el = scrollRef.current;
+    if (el && stickRef.current) el.scrollTop = el.scrollHeight;
   }, [messages, typing, open, error, own.events, own.status]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (el) {
+      stickRef.current =
+        el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD;
+    }
+  };
+
+  const submit = (text: string) => {
+    stickRef.current = true;
+    send(text);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    send(input);
+    submit(input);
   };
+
+  const items = useMemo(
+    () => chatItems(messages, own.events),
+    [messages, own.events],
+  );
+  const lastEventAt = own.events[own.events.length - 1]?.at;
 
   if (!open) return null;
 
@@ -126,9 +175,7 @@ function AgentChat({
         )}
       >
         <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
-            <Sparkles className="size-4" />
-          </div>
+          <AgentAvatar large />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-[13px] font-semibold">
               Popkorn Copilot
@@ -156,34 +203,35 @@ function AgentChat({
 
         <div
           ref={scrollRef}
+          onScroll={onScroll}
           className="flex flex-1 flex-col gap-3 overflow-y-auto p-3"
         >
-          {messages.map((m) => (
-            <Bubble
-              key={m.id}
-              message={m}
-              onRevert={revert}
-              streaming={typing && streamingId === m.id}
-            />
-          ))}
-          {own.events.length > 0 && (
-            <Bubble
-              message={{
-                id: -1,
-                role: "agent",
-                text: "",
-                toolEvents: own.events,
-              }}
-              onRevert={() => {}}
-              streaming={own.status === "connected"}
-            />
+          {items.map((item) =>
+            item.kind === "message" ? (
+              <Bubble
+                key={item.message.id}
+                message={item.message}
+                onRevert={revert}
+                streaming={typing && streamingId === item.message.id}
+              />
+            ) : (
+              <ToolLog
+                key={`log-${item.key}`}
+                events={item.events}
+                activeSince={
+                  item.events[item.events.length - 1].at === lastEventAt
+                    ? lastEventAt
+                    : undefined
+                }
+              />
+            ),
           )}
           {typing && streamingId === null && <TypingBubble />}
           {error && (
-            <div className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-2 text-[11px] leading-relaxed text-destructive">
-              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+            <Alert variant="destructive" className="text-[11px]">
+              <AlertCircle />
               <span>{error}</span>
-            </div>
+            </Alert>
           )}
           {messages.length <= 1 &&
             !typing &&
@@ -199,8 +247,11 @@ function AgentChat({
                   <button
                     type="button"
                     key={s}
-                    onClick={() => send(s)}
-                    className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-secondary hover:text-foreground"
+                    onClick={() => submit(s)}
+                    className={cn(
+                      badgeVariants({ variant: "outline" }),
+                      "py-1 font-normal hover:border-primary/40 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    )}
                   >
                     {s}
                   </button>
@@ -218,7 +269,7 @@ function AgentChat({
             onChange={setReasoning}
             disabled={!config}
           />
-          <textarea
+          <Textarea
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -229,36 +280,44 @@ function AgentChat({
                 !e.nativeEvent.isComposing
               ) {
                 e.preventDefault();
-                send(input);
+                submit(input);
               }
             }}
             rows={1}
             placeholder="Edit the live scene…"
             spellCheck={false}
             disabled={typing}
-            className="max-h-40 min-h-9 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-[13px] leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring disabled:opacity-50"
+            className="max-h-40 min-h-9 w-auto flex-1 resize-none py-2 font-sans text-[13px] transition-colors focus:border-primary/50 disabled:opacity-50"
           />
-          <button
-            type="button"
-            onClick={() => send(input)}
-            disabled={typing || !input.trim()}
-            aria-label="Send message"
-            className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-40"
-          >
-            {typing ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Send className="size-4" />
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                onClick={typing ? stop : () => submit(input)}
+                disabled={!typing && !input.trim()}
+                aria-label={typing ? "Stop" : "Send message"}
+                className="size-9 shrink-0 rounded-lg disabled:opacity-40"
+              >
+                {typing ? (
+                  <Square className="size-3.5 fill-current" />
+                ) : (
+                  <Send />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{typing ? "Stop" : "Send (Enter)"}</TooltipContent>
+          </Tooltip>
         </form>
 
         {settingsOpen && (
-          <AgentSettings
-            current={config}
-            onSave={applyConfig}
-            onClose={() => setSettingsOpen(false)}
-          />
+          <Suspense fallback={null}>
+            <AgentSettings
+              current={config}
+              onSave={applyConfig}
+              onClose={() => setSettingsOpen(false)}
+            />
+          </Suspense>
         )}
         {connectOpen && (
           <ConnectAgent
@@ -275,193 +334,6 @@ function AgentChat({
     </div>
   );
 }
-
-// Claude Code-style whimsical working verbs, shown while a run is waiting on
-// the model (reasoning streaming, or just slow first-token latency).
-const WORKING_VERBS = [
-  "Accomplishing",
-  "Actioning",
-  "Actualizing",
-  "Architecting",
-  "Baking",
-  "Beaming",
-  "Beboppin'",
-  "Befuddling",
-  "Billowing",
-  "Blanching",
-  "Bloviating",
-  "Boogieing",
-  "Boondoggling",
-  "Booping",
-  "Bootstrapping",
-  "Brewing",
-  "Bunning",
-  "Burrowing",
-  "Calculating",
-  "Canoodling",
-  "Caramelizing",
-  "Cascading",
-  "Catapulting",
-  "Cerebrating",
-  "Channeling",
-  "Channelling",
-  "Choreographing",
-  "Churning",
-  "Clauding",
-  "Coalescing",
-  "Cogitating",
-  "Combobulating",
-  "Composing",
-  "Computing",
-  "Concocting",
-  "Considering",
-  "Contemplating",
-  "Cooking",
-  "Crafting",
-  "Creating",
-  "Crunching",
-  "Crystallizing",
-  "Cultivating",
-  "Deciphering",
-  "Deliberating",
-  "Determining",
-  "Dilly-dallying",
-  "Discombobulating",
-  "Doing",
-  "Doodling",
-  "Drizzling",
-  "Ebbing",
-  "Effecting",
-  "Elucidating",
-  "Embellishing",
-  "Enchanting",
-  "Envisioning",
-  "Evaporating",
-  "Fermenting",
-  "Fiddle-faddling",
-  "Finagling",
-  "Flambéing",
-  "Flibbertigibbeting",
-  "Flowing",
-  "Flummoxing",
-  "Fluttering",
-  "Forging",
-  "Forming",
-  "Frolicking",
-  "Frosting",
-  "Gallivanting",
-  "Galloping",
-  "Garnishing",
-  "Generating",
-  "Gesticulating",
-  "Germinating",
-  "Gitifying",
-  "Grooving",
-  "Gusting",
-  "Harmonizing",
-  "Hashing",
-  "Hatching",
-  "Herding",
-  "Honking",
-  "Hullaballooing",
-  "Hyperspacing",
-  "Ideating",
-  "Imagining",
-  "Improvising",
-  "Incubating",
-  "Inferring",
-  "Infusing",
-  "Ionizing",
-  "Jitterbugging",
-  "Levitating",
-  "Lollygagging",
-  "Manifesting",
-  "Marinating",
-  "Meandering",
-  "Metamorphosing",
-  "Misting",
-  "Moonwalking",
-  "Moseying",
-  "Mulling",
-  "Mustering",
-  "Musing",
-  "Nebulizing",
-  "Nesting",
-  "Newspapering",
-  "Noodling",
-  "Nucleating",
-  "Orbiting",
-  "Orchestrating",
-  "Osmosing",
-  "Perambulating",
-  "Percolating",
-  "Perusing",
-  "Philosophising",
-  "Photosynthesizing",
-  "Pollinating",
-  "Pondering",
-  "Pontificating",
-  "Pouncing",
-  "Precipitating",
-  "Prestidigitating",
-  "Processing",
-  "Proofing",
-  "Propagating",
-  "Puttering",
-  "Puzzling",
-  "Quantumizing",
-  "Razzle-dazzling",
-  "Razzmatazzing",
-  "Recombobulating",
-  "Reticulating",
-  "Roosting",
-  "Ruminating",
-  "Sautéing",
-  "Scampering",
-  "Schlepping",
-  "Scurrying",
-  "Sketching",
-  "Slithering",
-  "Smooshing",
-  "Sock-hopping",
-  "Spelunking",
-  "Spinning",
-  "Sprouting",
-  "Stewing",
-  "Sublimating",
-  "Swirling",
-  "Swooping",
-  "Symbioting",
-  "Synthesizing",
-  "Tempering",
-  "Thinking",
-  "Thundering",
-  "Tinkering",
-  "Tomfoolering",
-  "Topsy-turvying",
-  "Transfiguring",
-  "Transmuting",
-  "Twisting",
-  "Undulating",
-  "Unfurling",
-  "Unravelling",
-  "Vibing",
-  "Waddling",
-  "Wandering",
-  "Warping",
-  "Whatchamacalliting",
-  "Whirlpooling",
-  "Whirring",
-  "Whisking",
-  "Wibbling",
-  "Working",
-  "Wrangling",
-  "Zesting",
-  "Zigzagging",
-];
-
-const randomVerb = () =>
-  WORKING_VERBS[Math.floor(Math.random() * WORKING_VERBS.length)];
 
 // A quiet muted "<Verb>…" row: one random verb per mount, rerolled every 5–10s
 // while it stays on screen. Reuses the tool-status-row look.
@@ -491,7 +363,7 @@ function WorkingIndicator() {
   );
 }
 
-const REASONING_MODES: { value: string; label: string }[] = [
+const REASONING_MODES: { value: ReasoningEffort; label: string }[] = [
   { value: "default", label: "Model default" },
   { value: "off", label: "Off" },
   { value: "low", label: "Low" },
@@ -509,7 +381,7 @@ function ReasoningControl({
   disabled,
 }: {
   value: ReasoningEffort | undefined;
-  onChange: (r: ReasoningEffort | undefined) => void;
+  onChange: (r: ReasoningEffort) => void;
   disabled?: boolean;
 }) {
   return (
@@ -522,7 +394,10 @@ function ReasoningControl({
               size="icon"
               disabled={disabled}
               aria-label="Reasoning effort"
-              className={cn("size-9 shrink-0", value && "text-primary")}
+              className={cn(
+                "size-9 shrink-0",
+                value && value !== "default" && "text-primary",
+              )}
             >
               <Brain className="size-4" />
             </Button>
@@ -533,9 +408,7 @@ function ReasoningControl({
       <DropdownMenuContent align="start" side="top" className="w-40">
         <DropdownMenuRadioGroup
           value={value ?? "default"}
-          onValueChange={(v) =>
-            onChange(v === "default" ? undefined : (v as ReasoningEffort))
-          }
+          onValueChange={(v) => onChange(v as ReasoningEffort)}
         >
           {REASONING_MODES.map((m) => (
             <DropdownMenuRadioItem key={m.value} value={m.value}>
@@ -590,17 +463,17 @@ function SetupOption({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="outline"
       onClick={onClick}
-      className="flex items-start gap-2 rounded-lg border border-border bg-secondary/40 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary"
+      className="h-auto items-start justify-start gap-2 whitespace-normal rounded-lg bg-secondary/40 px-2.5 py-2 text-left font-normal hover:border-primary/40 hover:bg-secondary [&_svg]:size-3.5"
     >
-      <Icon className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <Icon className="mt-0.5 text-muted-foreground" />
       <div className="min-w-0">
         <div className="text-[13px] text-foreground">{label}</div>
         <div className="text-[11px] text-muted-foreground">{caption}</div>
       </div>
-    </button>
+    </Button>
   );
 }
 
@@ -614,15 +487,20 @@ function HeaderIconButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
-    >
-      <Icon className="size-4" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClick}
+          aria-label={label}
+          className="size-7"
+        >
+          <Icon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -660,7 +538,96 @@ function MessageBody({ text }: { text: string }) {
   );
 }
 
-function Bubble({
+function AgentAvatar({ large }: { large?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground",
+        large ? "size-7" : "size-6",
+      )}
+    >
+      <Sparkles className={large ? "size-4" : "size-3.5"} />
+    </div>
+  );
+}
+
+function ToolEventRows({
+  events,
+  divided,
+}: {
+  events: { label: string; ok: boolean }[];
+  divided?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-0.5",
+        divided && "mb-1.5 border-b border-border/60 pb-1.5",
+      )}
+    >
+      {events.map((ev, i) => (
+        <div
+          // biome-ignore lint/suspicious/noArrayIndexKey: append-only log, index is stable
+          key={i}
+          className={cn(
+            "flex min-w-0 items-center gap-1.5 text-[11px] leading-snug",
+            ev.ok ? "text-muted-foreground" : "text-destructive",
+          )}
+        >
+          <span
+            className={cn(
+              "size-1 shrink-0 rounded-full",
+              ev.ok ? "bg-muted-foreground/50" : "bg-destructive",
+            )}
+          />
+          <span className="min-w-0 truncate" title={ev.label}>
+            {ev.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// True until `ms` after `since`; re-renders once when the window lapses.
+function useRecent(since: number | undefined, ms: number): boolean {
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (since === undefined) return;
+    const left = since + ms - Date.now();
+    if (left <= 0) return;
+    const t = setTimeout(rerender, left);
+    return () => clearTimeout(t);
+  }, [since, ms]);
+  return since !== undefined && Date.now() - since < ms;
+}
+
+// The external agent's tool activity, with a working indicator shortly after
+// its latest event.
+function ToolLog({
+  events,
+  activeSince,
+}: {
+  events: OwnAgentEvent[];
+  activeSince: number | undefined;
+}) {
+  const active = useRecent(activeSince, OWN_AGENT_ACTIVE_MS);
+  return (
+    <div className="flex w-full min-w-0 items-end gap-2">
+      <AgentAvatar />
+      <div className="min-w-0 max-w-[85%] rounded-2xl rounded-bl-sm bg-secondary px-3 py-2 text-[13px] leading-relaxed text-secondary-foreground">
+        <ToolEventRows events={events} />
+        {active && (
+          <div className="mt-1.5">
+            <WorkingIndicator />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const Bubble = memo(function Bubble({
   message,
   onRevert,
   streaming,
@@ -685,11 +652,7 @@ function Bubble({
           isUser && "flex-row-reverse",
         )}
       >
-        {!isUser && (
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
-            <Sparkles className="size-3.5" />
-          </div>
-        )}
+        {!isUser && <AgentAvatar />}
         <div
           className={cn(
             "min-w-0 max-w-[85%] break-words rounded-2xl px-3 py-2 text-[13px] leading-relaxed",
@@ -699,33 +662,7 @@ function Bubble({
           )}
         >
           {toolEvents.length > 0 && (
-            <div
-              className={cn(
-                "flex flex-col gap-0.5",
-                hasText && "mb-1.5 border-b border-border/60 pb-1.5",
-              )}
-            >
-              {toolEvents.map((ev, i) => (
-                <div
-                  // biome-ignore lint/suspicious/noArrayIndexKey: append-only log, index is stable
-                  key={i}
-                  className={cn(
-                    "flex min-w-0 items-center gap-1.5 text-[11px] leading-snug",
-                    ev.ok ? "text-muted-foreground" : "text-destructive",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "size-1 shrink-0 rounded-full",
-                      ev.ok ? "bg-muted-foreground/50" : "bg-destructive",
-                    )}
-                  />
-                  <span className="min-w-0 truncate" title={ev.label}>
-                    {ev.label}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <ToolEventRows events={toolEvents} divided={hasText} />
           )}
           {isUser ? message.text : <MessageBody text={message.text} />}
           {streaming && (
@@ -736,25 +673,24 @@ function Bubble({
         </div>
       </div>
       {!isUser && message.revertTo !== undefined && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => onRevert(message.id)}
-          className="ml-8 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+          className="ml-8 h-6 gap-1 px-1.5 text-[11px] [&_svg]:size-3"
         >
-          <RotateCcw className="size-3" />
-          <span>Revert</span>
-        </button>
+          <RotateCcw />
+          Revert
+        </Button>
       )}
     </div>
   );
-}
+});
 
 function TypingBubble() {
   return (
     <div className="flex items-end gap-2">
-      <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary to-accent text-primary-foreground">
-        <Sparkles className="size-3.5" />
-      </div>
+      <AgentAvatar />
       <div className="flex items-center rounded-2xl rounded-bl-sm bg-secondary px-3 py-2.5">
         <WorkingIndicator />
       </div>

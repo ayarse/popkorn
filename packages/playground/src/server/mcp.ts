@@ -6,10 +6,7 @@
 // responses are all Claude Code's http transport requires; extend here if a
 // client ever demands the stream.
 
-export type OpenAiToolDef = {
-  type: "function";
-  function: { name: string; description: string; parameters: object };
-};
+import type { ToolDef } from "../lib/agent-defs";
 
 export type McpTool = {
   name: string;
@@ -31,7 +28,7 @@ export type McpDeps = {
 // Newest first; initialize echoes the client's version when we know it.
 const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
-export function toMcpTools(defs: OpenAiToolDef[]): McpTool[] {
+export function toMcpTools(defs: ToolDef[]): McpTool[] {
   return defs.map((d) => ({
     name: d.function.name,
     description: d.function.description,

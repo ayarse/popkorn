@@ -1,30 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { examples as galleryExamples } from "@/examples";
 import {
   type AgentConfig,
   GREETING,
   loadConfig,
   type Message,
+  type ReasoningEffort,
   runAgent,
   SYSTEM_PROMPT,
   saveConfig,
   type ToolEvent,
+  toolLabel,
 } from "@/lib/agent";
-import {
-  buildOutline,
-  executeTool,
-  isToolError,
-  TOOL_DEFS,
-  type ToolContext,
-} from "@/lib/agent-tools";
+import { isToolError } from "@/lib/agent-defs";
+import { loadAgentExamples } from "@/lib/agent-examples";
+import { buildOutline, runTools, TOOL_DEFS } from "@/lib/agent-tools";
 import { track } from "@/lib/analytics";
-
-// The gallery scenes, exposed to the read_example tool for from-scratch few-shot.
-// Keyed by the human label ("State machine: Pip") the loader already derives.
-export const AGENT_EXAMPLES = galleryExamples.map((e) => ({
-  name: e.label,
-  source: e.source,
-}));
 
 // Scenes under this many chars (~2K tokens, most gallery scenes) are inlined
 // verbatim into the request: a read round-trip costs more than the tokens.
@@ -36,36 +26,6 @@ function buildUserMessage(source: string, request: string): string {
     return `Current scene (full source):\n\`\`\`css\n${source}\n\`\`\`\n\nRequest: ${request}`;
   }
   return `Current scene outline:\n${buildOutline(source)}\n(Use the read/search tools for the source itself.)\n\nRequest: ${request}`;
-}
-
-// A compact human label for a tool call, shown as a status row in the bubble.
-export function toolLabel(ev: ToolEvent): string {
-  switch (ev.name) {
-    case "get_outline":
-      return "outline";
-    case "read_rules": {
-      const sel = ev.args.selectors;
-      return Array.isArray(sel) ? `read ${sel.join(", ")}` : "read rules";
-    }
-    case "read_lines":
-      return `read lines ${ev.args.start}–${ev.args.end}`;
-    case "search":
-      return `searched ${JSON.stringify(ev.args.query)}`;
-    case "read_docs": {
-      const sec = ev.args.sections;
-      return Array.isArray(sec) && sec.length
-        ? `read docs §${sec.map((s) => String(s).replace(/^§/, "")).join(", §")}`
-        : "read guide";
-    }
-    case "read_example":
-      return ev.args.name ? `read example ${ev.args.name}` : "listed examples";
-    case "apply_edit":
-      return "edited scene";
-    case "rewrite_scene":
-      return "rewrote scene";
-    default:
-      return ev.name;
-  }
 }
 
 // The Copilot chat state machine: message log, the streaming agent tool-loop,
@@ -83,6 +43,12 @@ export function useAgentChat(
   const [settingsOpen, setSettingsOpen] = useState(false);
   const idRef = useRef(1);
   const abortRef = useRef<AbortController | null>(null);
+  // Latest render values, so send/revert stay referentially stable.
+  const latest = useRef({ onApplySource, messages, config });
+  latest.current = { onApplySource, messages, config };
+  // The live editor source; the run's commits write it too, ahead of re-render.
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
 
   useEffect(() => {
     return () => abortRef.current?.abort();
@@ -97,142 +63,148 @@ export function useAgentChat(
     setSettingsOpen(false);
   }, []);
 
-  const revert = useCallback(
-    (messageId: number) => {
-      const msg = messages.find((m) => m.id === messageId);
-      if (msg?.revertTo !== undefined) {
-        track("copilot_revert");
-        onApplySource(msg.revertTo);
-      }
-    },
-    [messages, onApplySource],
-  );
+  const setReasoning = useCallback((reasoning: ReasoningEffort) => {
+    const cfg = latest.current.config;
+    if (!cfg) return;
+    const next = { ...cfg, reasoning };
+    saveConfig(next);
+    setConfig(next);
+  }, []);
 
-  const send = useCallback(
-    async (text: string) => {
-      const body = text.trim();
-      if (!body || typing) return;
-      setError(null);
+  const revert = useCallback((messageId: number) => {
+    const msg = latest.current.messages.find((m) => m.id === messageId);
+    if (msg?.revertTo !== undefined) {
+      track("copilot_revert");
+      latest.current.onApplySource(msg.revertTo);
+    }
+  }, []);
 
-      // History carries only bare request/summary text — never outlines or
-      // source dumps — so prior turns stay compact.
-      const history = messages.map((m) => ({
+  const stop = useCallback(() => abortRef.current?.abort(), []);
+
+  const send = useCallback(async (text: string) => {
+    const body = text.trim();
+    if (!body || abortRef.current) return;
+    const { config, messages } = latest.current;
+    const source = sourceRef.current;
+    if (!config) {
+      setError("Connect your own agent or add an API key to start chatting.");
+      setSettingsOpen(true);
+      return;
+    }
+    setError(null);
+
+    // History carries only bare request/summary text — never outlines or
+    // source dumps — so prior turns stay compact.
+    const history = messages
+      .filter((m) => m.id !== GREETING.id && m.text !== "")
+      .map((m) => ({
         role: m.role === "user" ? "user" : "assistant",
         content: m.text,
       }));
-      setMessages((m) => [
-        ...m,
-        { id: idRef.current++, role: "user", text: body },
-      ]);
-      setInput("");
-      setTyping(true);
+    setMessages((m) => [
+      ...m,
+      { id: idRef.current++, role: "user", text: body, at: Date.now() },
+    ]);
+    setInput("");
+    setTyping(true);
+    setStreamingId(null);
+
+    track("copilot_send", { model: config.model });
+
+    const apiMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...history,
+      { role: "user", content: buildUserMessage(source, body) },
+    ];
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    // Live apply: every committed edit lands in the editor immediately and
+    // the next tool call sees it, as do the user's own mid-run edits.
+    const snapshot = source;
+    const examples = await loadAgentExamples();
+    const tools = runTools(
+      sourceRef,
+      (next) => latest.current.onApplySource(next),
+      examples,
+    );
+
+    const patch = (id: number, fn: (msg: Message) => Message) =>
+      setMessages((m) => m.map((msg) => (msg.id === id ? fn(msg) : msg)));
+
+    // The streaming agent bubble is created lazily by the first token or
+    // tool event, whichever comes first.
+    let agentId = -1;
+    const ensureAgent = () => {
+      if (agentId === -1) {
+        agentId = idRef.current++;
+        const id = agentId;
+        setStreamingId(id);
+        setMessages((m) => [
+          ...m,
+          { id, role: "agent", text: "", at: Date.now() },
+        ]);
+      }
+      return agentId;
+    };
+
+    // Token deltas are coalesced into one state update per animation frame.
+    let pending = "";
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      if (!pending) return;
+      const delta = pending;
+      pending = "";
+      patch(agentId, (msg) => ({ ...msg, text: msg.text + delta }));
+    };
+    const onToken = (delta: string) => {
+      ensureAgent();
+      pending += delta;
+      frame ||= requestAnimationFrame(flush);
+    };
+    // Reasoning deltas carry no text worth showing, but their arrival lazily
+    // creates the streaming bubble during a reasoning-only lull.
+    const onReasoning = () => {
+      ensureAgent();
+    };
+    const onToolEvent = (ev: ToolEvent) => {
+      const id = ensureAgent();
+      const entry = { label: toolLabel(ev), ok: !isToolError(ev.result) };
+      patch(id, (msg) => ({
+        ...msg,
+        toolEvents: [...(msg.toolEvents ?? []), entry],
+      }));
+    };
+
+    try {
+      await runAgent(config, apiMessages, {
+        tools: TOOL_DEFS,
+        executeTool: tools.execute,
+        signal: ac.signal,
+        onToken,
+        onReasoning,
+        onToolEvent,
+      });
+    } catch (e: any) {
+      if (!ac.signal.aborted) {
+        track("copilot_error", { model: config.model });
+        setError(e?.message ?? String(e));
+      }
+    } finally {
+      cancelAnimationFrame(frame);
+      flush();
+      // If the run changed the scene, hang the pre-run snapshot off the
+      // final agent message so the user can revert the whole run.
+      if (tools.changed && agentId !== -1) {
+        patch(agentId, (msg) => ({ ...msg, revertTo: snapshot }));
+      }
+      abortRef.current = null;
+      setTyping(false);
       setStreamingId(null);
-
-      if (!config) {
-        setTyping(false);
-        setError("Connect your own agent or add an API key to start chatting.");
-        setSettingsOpen(true);
-        return;
-      }
-
-      track("copilot_send", { model: config.model });
-
-      const apiMessages = [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...history,
-        { role: "user", content: buildUserMessage(source, body) },
-      ];
-
-      const ac = new AbortController();
-      abortRef.current = ac;
-
-      // Live apply: every committed edit lands in the editor immediately and
-      // the next tool call sees it. `changed` gates the revert affordance.
-      const snapshot = source;
-      let current = source;
-      let changed = false;
-      const ctx: ToolContext = {
-        getSource: () => current,
-        commit: (next) => {
-          current = next;
-          changed = true;
-          onApplySource(next);
-        },
-        examples: AGENT_EXAMPLES,
-      };
-
-      // The streaming agent bubble is created lazily by the first token or
-      // tool event, whichever comes first.
-      let agentId = -1;
-      const ensureAgent = () => {
-        if (agentId === -1) {
-          agentId = idRef.current++;
-          const id = agentId;
-          setStreamingId(id);
-          setMessages((m) => [...m, { id, role: "agent", text: "" }]);
-        }
-        return agentId;
-      };
-      const onToken = (delta: string) => {
-        const id = ensureAgent();
-        setMessages((m) =>
-          m.map((msg) =>
-            msg.id === id ? { ...msg, text: msg.text + delta } : msg,
-          ),
-        );
-      };
-      // Reasoning deltas carry no text worth showing (see agent.ts), but their
-      // arrival is what lazily creates the streaming bubble during a
-      // reasoning-only lull — the bubble's persistent WorkingIndicator (see
-      // agent-chat.tsx Bubble) covers the rest.
-      const onReasoning = () => {
-        ensureAgent();
-      };
-      const onToolEvent = (ev: ToolEvent) => {
-        const id = ensureAgent();
-        const entry = { label: toolLabel(ev), ok: !isToolError(ev.result) };
-        setMessages((m) =>
-          m.map((msg) =>
-            msg.id === id
-              ? { ...msg, toolEvents: [...(msg.toolEvents ?? []), entry] }
-              : msg,
-          ),
-        );
-      };
-
-      try {
-        await runAgent(config, apiMessages, {
-          tools: TOOL_DEFS,
-          executeTool: (name, args) => executeTool(name, args, ctx),
-          signal: ac.signal,
-          onToken,
-          onReasoning,
-          onToolEvent,
-        });
-      } catch (e: any) {
-        if (!ac.signal.aborted) {
-          track("copilot_error", { model: config.model });
-          setError(e?.message ?? String(e));
-        }
-      } finally {
-        if (!ac.signal.aborted) {
-          // If the run changed the scene, hang the pre-run snapshot off the
-          // final agent message so the user can revert the whole run.
-          if (changed && agentId !== -1) {
-            const id = agentId;
-            setMessages((m) =>
-              m.map((msg) =>
-                msg.id === id ? { ...msg, revertTo: snapshot } : msg,
-              ),
-            );
-          }
-          setTyping(false);
-          setStreamingId(null);
-        }
-      }
-    },
-    [typing, messages, config, source, onApplySource],
-  );
+    }
+  }, []);
 
   return {
     messages,
@@ -245,7 +217,9 @@ export function useAgentChat(
     settingsOpen,
     setSettingsOpen,
     applyConfig,
+    setReasoning,
     send,
+    stop,
     revert,
   };
 }

@@ -100,10 +100,35 @@ export const SYSTEM_PROMPT = [
 // OpenAI chat-completions tool definitions.
 // ----------------------------------------------------------------------------
 
-export const TOOL_DEFS: Array<{
+export type ToolDef = {
   type: "function";
   function: { name: string; description: string; parameters: object };
-}> = [
+};
+
+// NOTE: tool results are plain strings, so failure is sniffed from known
+// error/rejection prefixes rather than a structured status.
+const ERROR_PREFIXES = [
+  "Error", // Error: …, Error running …
+  "Invalid", // malformed tool arguments (from runAgent)
+  "Edit rejected", // parse-failed edit/rewrite
+  "Edit block", // applyEdits non-unique / no match
+  "Search text", // apply_edit near-miss / non-unique diagnostic
+  "No match", // search: No matches for …
+  'Rule "', // read_rules: Rule "…" not found
+];
+
+// Leads a tool result when the user edited the scene since the run last read it.
+export const USER_EDIT_NOTE =
+  "Note: the user edited the scene since your last read; re-read the affected rules before further edits.";
+
+export function isToolError(result: string): boolean {
+  const body = result.startsWith(USER_EDIT_NOTE)
+    ? result.slice(USER_EDIT_NOTE.length + 1)
+    : result;
+  return ERROR_PREFIXES.some((p) => body.startsWith(p));
+}
+
+export const TOOL_DEFS: ToolDef[] = [
   {
     type: "function",
     function: {

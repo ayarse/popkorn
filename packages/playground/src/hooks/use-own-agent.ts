@@ -1,15 +1,21 @@
 import { useUser } from "@clerk/tanstack-react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { executeTool, isToolError, type ToolContext } from "@/lib/agent-tools";
+import { toolLabel } from "@/lib/agent";
+import { isToolError } from "@/lib/agent-defs";
+import { loadAgentExamples } from "@/lib/agent-examples";
+import { executeTool, type ToolContext } from "@/lib/agent-tools";
 import { track } from "@/lib/analytics";
 import { handleTabFrame } from "./tab-frame";
-import { AGENT_EXAMPLES, toolLabel } from "./use-agent-chat";
 
 export type OwnAgentStatus = "idle" | "waiting" | "connected" | "disconnected";
 
-export type OwnAgentEvent = { label: string; ok: boolean };
+// `at` is the event's arrival time (ms epoch).
+export type OwnAgentEvent = { label: string; ok: boolean; at: number };
 
 const MAX_EVENTS = 20;
+
+const RECONNECT_BASE_MS = 1000;
+const RECONNECT_MAX_MS = 30_000;
 
 const STORAGE_KEY = "popkorn.agent.mcp-session";
 
@@ -47,6 +53,10 @@ export function useOwnAgent(
   const [clientName, setClientName] = useState<string | null>(null);
   const [events, setEvents] = useState<OwnAgentEvent[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+  const retryRef = useRef<{
+    attempt: number;
+    timer?: ReturnType<typeof setTimeout>;
+  }>({ attempt: 0 });
   // Refs so the long-lived socket handler always sees the current buffer and
   // apply callback; commit() also writes the ref directly because two tool
   // calls can land between React renders.
@@ -78,23 +88,29 @@ export function useOwnAgent(
   // Opens the tab socket for a given session id; shared by connect() (which
   // reuses or mints an id) and rotate() (which always mints a fresh one).
   const openSocket = useCallback((id: string) => {
+    clearTimeout(retryRef.current.timer);
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${proto}://${location.host}/mcp/${id}/tab`);
     wsRef.current = ws;
 
-    ws.onmessage = (e) => {
+    ws.onopen = () => {
+      retryRef.current.attempt = 0;
+    };
+
+    ws.onmessage = async (e) => {
       if (typeof e.data !== "string") return;
+      const examples = await loadAgentExamples();
       const ctx: ToolContext = {
         getSource: () => sourceRef.current,
         commit: (next) => {
           sourceRef.current = next;
           applyRef.current(next);
         },
-        examples: AGENT_EXAMPLES,
+        examples,
       };
       const frame = handleTabFrame(e.data, {
         execute: (name, args) => executeTool(name, args, ctx),
-        isError: (result) => isToolError(result),
+        isError: isToolError,
       });
       if (frame === null) return;
       if (frame.kind === "client") {
@@ -115,6 +131,7 @@ export function useOwnAgent(
             result: frame.result,
           }),
           ok: !frame.isError,
+          at: Date.now(),
         },
       ]);
       ws.send(
@@ -126,8 +143,22 @@ export function useOwnAgent(
       );
     };
 
-    ws.onclose = () => {
-      if (wsRef.current === ws) setStatus("disconnected");
+    // Reconnects with exponential backoff unless another tab took over the
+    // session (server close reason "replaced").
+    ws.onclose = (e) => {
+      if (wsRef.current !== ws) return;
+      setStatus("disconnected");
+      if (e.reason === "replaced") return;
+      const retry = retryRef.current;
+      const delay = Math.min(
+        RECONNECT_MAX_MS,
+        RECONNECT_BASE_MS * 2 ** retry.attempt++,
+      );
+      retry.timer = setTimeout(() => {
+        if (wsRef.current !== ws) return;
+        setStatus("waiting");
+        openSocket(id);
+      }, delay);
     };
   }, []);
 
@@ -157,6 +188,7 @@ export function useOwnAgent(
   }, [openSocket, persist]);
 
   const disconnect = useCallback(() => {
+    clearTimeout(retryRef.current.timer);
     wsRef.current?.close();
     wsRef.current = null;
     setStatus("idle");
@@ -194,6 +226,7 @@ export function useOwnAgent(
 
   useEffect(
     () => () => {
+      clearTimeout(retryRef.current.timer);
       wsRef.current?.close();
       wsRef.current = null;
     },
