@@ -58,6 +58,8 @@ export interface ConformanceTrace {
   masks: MaskObs[];
   clips: ClipObs[];
   filters: string[];
+  // Straight-segment endpoints [x, y] on the main surface, in draw order.
+  lines: number[][];
   width: number;
   height: number;
 }
@@ -656,6 +658,32 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       expect(t.filters).toEqual([]);
       expect(t.paints.map((p) => p.kind)).toEqual(["fill"]);
+    },
+  },
+
+  // --- post-Z current point: H/V after Z start from the subpath start --------
+  {
+    name: "a segment after Z starts from the subpath start",
+    ops: (r) => {
+      r.setFill(null);
+      r.setStroke("#000000", 1);
+      r.drawPath([
+        { type: "M", x: 2, y: 3 },
+        { type: "L", x: 10, y: 10 },
+        { type: "Z" },
+        { type: "H", x: 5 },
+        { type: "V", y: 7 },
+        { type: "Z" },
+        { type: "V", y: 8 },
+      ]);
+    },
+    assert: (t, expect) => {
+      expect(t.lines).toEqual([
+        [10, 10],
+        [5, 3],
+        [5, 7],
+        [2, 8],
+      ]);
     },
   },
 

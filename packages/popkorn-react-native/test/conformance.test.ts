@@ -33,6 +33,7 @@ function mockSkia() {
   const draws: DrawRecord[] = [];
   const layers: LayerRecord[] = [];
   const clips: ClipObs[] = [];
+  const lines: number[][] = [];
 
   const makePaint = () => {
     const p: any = {};
@@ -54,7 +55,8 @@ function mockSkia() {
 
   const makePath = () => {
     const path: any = { setFillType: () => path };
-    for (const m of ['moveTo', 'lineTo', 'cubicTo', 'quadTo', 'close', 'addCircle', 'ellipse']) path[m] = () => path;
+    for (const m of ['moveTo', 'cubicTo', 'quadTo', 'close', 'addCircle', 'ellipse']) path[m] = () => path;
+    path.lineTo = (x: number, y: number) => { lines.push([x, y]); return path; };
     return path;
   };
 
@@ -109,7 +111,7 @@ function mockSkia() {
     Image: { MakeImageFromEncoded: (_data: unknown) => ({ width: () => 4, height: () => 4 }) },
   };
 
-  return { Skia, canvas, draws, layers, clips };
+  return { Skia, canvas, draws, layers, clips, lines };
 }
 
 function skiaMode(blend: number, hasFilter: boolean): MaskMode {
@@ -118,7 +120,7 @@ function skiaMode(blend: number, hasFilter: boolean): MaskMode {
   return invert ? 'alpha-invert' : 'alpha';
 }
 
-function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], clips: ClipObs[], width: number, height: number): ConformanceTrace {
+function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], clips: ClipObs[], lines: number[][], width: number, height: number): ConformanceTrace {
   const paints: PaintObs[] = draws.map((d) => {
     const kind = d.style === 1 ? 'stroke' : 'fill';
     const base: PaintObs = d.shader ? { kind, gradient: d.shader } : { kind, color: d.colorCss };
@@ -131,19 +133,19 @@ function skiaTrace(draws: DrawRecord[], layers: LayerRecord[], clips: ClipObs[],
   const masks: MaskObs[] = layers.filter((l) => l.blend !== undefined).map((l) => ({ mode: skiaMode(l.blend!, l.filter != null) }));
   // Skia realizes no CSS filter (the pinned no-filter divergence), so a
   // composite never contributes a filter string.
-  return { paints, masks, clips, filters: [], width, height };
+  return { paints, masks, clips, filters: [], lines, width, height };
 }
 
 const skiaHarness: ConformanceHarness = {
   backend: 'skia',
   run(ops) {
-    const { Skia, canvas, draws, layers, clips } = mockSkia();
+    const { Skia, canvas, draws, layers, clips, lines } = mockSkia();
     const r = new SkiaRenderer(Skia, { width: 20, height: 20 });
     r.setCanvas(canvas);
     r.beginFrame();
     ops(r);
     r.endFrame();
-    return skiaTrace(draws, layers, clips, r.getWidth(), r.getHeight());
+    return skiaTrace(draws, layers, clips, lines, r.getWidth(), r.getHeight());
   },
 };
 

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { parsePath } from "../scene/path-parser.js";
 import type { BlendMode, MaskMode } from "../scene/types.js";
 import { Canvas2DRenderer } from "./canvas2d.js";
 
@@ -43,7 +44,8 @@ type CanvasEvent =
       gco: string;
       filter: string;
     }
-  | { type: "luma"; index: number };
+  | { type: "luma"; index: number }
+  | { type: "line"; index: string | number; pt: number[] };
 
 // Path2D is absent under bun, so Canvas2DRenderer.clip (which does `new Path2D()`)
 // needs a stand-in that records the region it builds. Rect is all the artboard
@@ -116,7 +118,9 @@ function recCtx(
     arc() {},
     ellipse() {},
     moveTo() {},
-    lineTo() {},
+    lineTo(x: number, y: number) {
+      log.push({ type: "line", index, pt: [x, y] });
+    },
     bezierCurveTo() {},
     quadraticCurveTo() {},
     closePath() {},
@@ -272,7 +276,13 @@ function canvasTrace(
         e.type === "blit" && e.dstIndex === "main" && e.filter !== "none",
     )
     .map((e) => e.filter);
-  return { paints, masks, clips, filters, width, height };
+  const lines = log
+    .filter(
+      (e): e is Extract<CanvasEvent, { type: "line" }> =>
+        e.type === "line" && e.index === "main",
+    )
+    .map((e) => e.pt);
+  return { paints, masks, clips, filters, lines, width, height };
 }
 
 function canvasMode(luma: boolean, invert: boolean): MaskMode {
@@ -524,14 +534,37 @@ function svgTrace(svg: FakeElement, r: SVGRenderer): ConformanceTrace {
   const filters = findAll(rootG, (e) =>
     (e.getAttribute("style") ?? "").includes("filter:"),
   ).map((e) => (e.getAttribute("style") as string).replace(/^filter:\s*/, ""));
+  const lines = findAll(rootG, (e) => e.tagName === "path").flatMap((e) =>
+    svgLineEnds(e.getAttribute("d") ?? ""),
+  );
   return {
     paints,
     masks,
     clips,
     filters,
+    lines,
     width: r.getWidth(),
     height: r.getHeight(),
   };
+}
+
+// SVG-spec current point for the absolute line commands pathToD emits (Z returns to the subpath start).
+function svgLineEnds(d: string): number[][] {
+  const out: number[][] = [];
+  let x = 0;
+  let y = 0;
+  let sx = 0;
+  let sy = 0;
+  for (const c of parsePath(d)) {
+    if (c.type === "M") [x, y, sx, sy] = [c.x, c.y, c.x, c.y];
+    else if (c.type === "Z") [x, y] = [sx, sy];
+    else if (c.type === "L" || c.type === "H" || c.type === "V") {
+      if (c.type !== "V") x = c.x;
+      if (c.type !== "H") y = c.y;
+      out.push([x, y]);
+    }
+  }
+  return out;
 }
 
 function svgMaskMode(defs: FakeElement, mask: FakeElement): MaskMode {
