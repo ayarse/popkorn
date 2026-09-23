@@ -25,12 +25,12 @@ jobs:
       - run: bun install --frozen-lockfile
       # With pending changesets: opens/updates a "Version Packages" PR (runs `version`).
       # On merge of that PR (no changesets left): runs `publish`.
-      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v1
+      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2
         with:
-          version: bun run version-packages
-          publish: bun run release
-          title: "chore: update versions"
-          commit: "chore: update versions"
+          version-script: bun run version-packages
+          publish-script: bun run release
+          pr-title: "chore: update versions"
+          commit-message: "chore: update versions"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Fallback only: npm uses OIDC when the package has a trusted
