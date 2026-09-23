@@ -10,6 +10,11 @@ export const DOCS = [
     file: "getting-started.md",
   },
   { key: "prompting", label: "Prompting with AI", file: "prompting.md" },
+  {
+    key: "coming-from-lottie-and-rive",
+    label: "Coming from Lottie or Rive",
+    file: "coming-from-lottie-and-rive.md",
+  },
   { key: "importing", label: "Importing Lottie and SVG", file: "importing.md" },
   { key: "state-machines", label: "State Machines", file: "state-machines.md" },
   {
@@ -19,6 +24,7 @@ export const DOCS = [
   },
   { key: "player-api", label: "Player API", file: "player-api.md" },
   { key: "reference", label: "Reference", file: "reference.md" },
+  { key: "limitations", label: "Limitations", file: "limitations.md" },
   { key: "architecture", label: "Architecture", file: "architecture.md" },
 ] as const;
 

@@ -44,7 +44,7 @@ and `sibling-count()` (a node's 1-based position among all its siblings, and the
 total), resolved to a constant at build time per node — see [Repeat & sibling
 math](#repeat--sibling-math). Each argument is a full `calc()` expression; they
 nest in and out of `calc()`, and re-evaluate per frame with reactive operands. Colors accept hex 3–8 digits (`#rgb` …
-`#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, and CSS named colors — for
+`#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, `oklab()`/`oklch()`, and CSS named colors, for
 both solid colors and gradient stops. Block comments (`/* … */`) and a trailing
 `;` before `}` are allowed.
 
@@ -963,9 +963,10 @@ Available inputs (mouse on the web; touch on React Native):
 
 Notes on bindings:
 
-- Live `input()`/`var()` bindings drive **numeric** properties only. Color,
-  gradient, and path (`d`, `clip-path`) bindings resolve once statically — a
-  color can't be wired to a live input.
+- Live `var()` bindings drive numeric properties and solid `fill`/`stroke`
+  colors (so `setVariable` can recolor a shape). Gradient and path (`d`,
+  `clip-path`) bindings resolve once statically, and a color's channels
+  (`rgb(var(--r), ...)`) can't be bound.
 - An unknown `var(--x)` or `input()` path resolves to `0` (no error). Custom
   properties can reference other custom properties (resolved recursively).
 - The CSS `var(--x, fallback)` two-argument form is parsed: the fallback is used

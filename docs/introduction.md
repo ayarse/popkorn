@@ -1,76 +1,124 @@
 # Introduction
 
-**What if a CSS animation could leave the browser?**
+Popkorn is a format and a runtime for motion graphics. The format is a text
+file written in a close dialect of CSS. The runtime is a small player that
+draws that file in the browser (Canvas2D or SVG) and on iOS and Android through
+React Native and Skia.
 
-Popkorn is a CSS-based portable format for motion graphics, and a small runtime
-that plays it. You describe a scene in a file that looks like the CSS you already know
-(`@keyframes`, `transform`, `offset-path`, `z-index`), and the same file runs on
-the web and on mobile today, natively through React Native.
+The [README](../README.md) shows what a scene looks like. This page explains
+how a scene works, so the rest of the docs make sense.
 
-Most animation formats are made by a tool and read by a machine. Popkorn works
-the other way around: it stays in familiar, readable syntax, so a scene is never
-an opaque binary or JSON blob, however it was made.
+## A scene is a tree of shapes
 
-## A format and a runtime
+In a web page, CSS styles elements that already exist in the HTML. A Popkorn
+scene has no HTML. Each rule with an id selector creates a node, and the rule's
+`type:` says what kind:
 
-Popkorn is two things:
+```css
+:root { width: 400px; height: 300px; background: #10131c; }
 
-- **The format** is a self-contained scene file. It is the portable artifact you
-  write, commit, diff, and share.
-- **The runtime** is a small player that draws the scene. There is one for the
-  web (Canvas2D and SVG) and one for mobile (React Native via Skia), and the same
-  file plays on all of them.
+#sun {
+  type: circle;
+  cx: 200px; cy: 150px; r: 40px;
+  fill: #ffcf5c;
+}
+```
 
-Keeping those two apart is what makes a scene portable: the file isn't wed to any
-one player, so it travels wherever a runtime exists.
+`:root` is the canvas. It sets the size and background, and holds scene-wide
+custom properties.
 
-## Why CSS
+Nest one rule inside another with `>` and you get a parent and a child. A
+`type: group` node draws nothing itself. It exists to move, scale, fade or
+clip everything inside it together:
 
-Choosing CSS wasn't a shortcut. It's the whole idea, and Popkorn holds itself to
-one rule: **if CSS already has a way to express something, use it, with its real
-semantics.** Motion paths are `offset-path`. Holds are `step-end`. Staggering is
-a negative `animation-delay`. Layering is `z-index`. Popkorn never invents syntax
-that CSS already has.
+```css
+#planet {
+  type: group;
+  transform: translate(200px, 150px);
+  > #body { type: circle; r: 20px; fill: #6ec1ff; }
+  > #moon { type: circle; cx: 40px; r: 6px; fill: #ccd; }
+}
+```
 
-(It isn't _exactly_ CSS. It's a close dialect, kept as near to the real thing as
-we can, and maybe some of the good parts go upstream one day 🤞)
+The children are drawn in the parent's coordinates, so animating the group's
+`transform` moves the planet and its moon as one unit. This nesting is the
+scene graph. It works like layers and parenting in After Effects, or like
+groups in Figma.
 
-Staying this close buys something rare: one format that two very different
-audiences already read.
+There is no layout. Nothing flows or wraps, and there's no `margin` or
+`display: flex`. Every shape sits at the coordinates you give it, the same way
+it would in SVG. The geometry properties come from SVG too (`cx`, `r`, `d`,
+`fill`, `stroke`), because CSS already defines them for SVG shapes.
 
-- **People already speak it.** There's a vibrant community making genuinely
-  beautiful art in hand-written CSS. Popkorn meets them where they are, with no
-  new mental model and no editor to learn.
-- **Language models already speak it too.** Because Popkorn stays so close to
-  real CSS, a model already knows most of it from its training data. There's no
-  fine-tuned model and no bespoke format to teach. Hand it the small extra
-  vocabulary and it writes valid, working Popkorn.
+## One timeline
 
-## What it can do
+Animation works the way CSS animation does: `@keyframes` describe a track, and
+`animation` plays it on a node. Easing, delays, iteration counts, `alternate`
+and fill modes all mean the same thing as in CSS.
 
-Popkorn covers most of what people reach for in real motion graphics: vector
-shapes, gradients, strokes, and full SVG paths; text and images; `@keyframes`
-animation with per-keyframe easing; motion along a path, trim paths, and path
-morphing; typography, drop shadows, and blend modes; a real scene graph with
-parent/child transforms, symbols, `z-index` layering, clipping, and masks.
-Scenes compute, too: `calc()` and the CSS math functions run per frame, and
-`repeat:` stamps a rule into a field of copies you vary by index. And it isn't
-only playback: `:hover` and `:active` just work, state machines drive
-multi-state behavior with no scripting, and the player reports clicks and
-state changes back to your app as DOM events. See the
-[format reference](reference.md) for the full surface.
+All the animations in a scene run off a single clock. The picture at any
+moment depends only on the time, so jumping to 1.5 seconds always gives the
+same frame. That's why scrubbing, looping and export are exact, and why
+interaction can sit on top of animation without disturbing it. A `:hover`
+changes a property for as long as the pointer is there, while the keyframes
+keep running underneath.
 
-## Where it's at
+When a scene needs to remember something, like a switch that stays on after
+you let go, a `@machine` holds named states, and `:state()` rules restyle or
+start animations when the machine enters a state. See
+[State machines](state-machines.md).
 
-Popkorn is an early proof of concept. In the browser it already works well, and
-a wide range of real Lottie files convert and play faithfully. The same scenes
-run on mobile through the React Native renderer, which is still marked
-work-in-progress but holds up. The clearest frontier from here is performance.
+## Format and runtime
 
-It's a personal what-if that turned out to work. If the idea is as interesting to
-you as it was to build, dive in.
+The format and the runtime are kept separate on purpose. A scene file doesn't
+depend on the renderer that plays it: the same file runs on Canvas2D, SVG and
+Skia, and a shared conformance suite checks that all three draw it the same
+way.
+
+That separation is what makes the file the artifact you keep. You commit it,
+review it, and ship it, and the runtime is simply whatever plays it on the
+current platform.
+
+## Why a CSS dialect
+
+Popkorn uses a CSS feature whenever CSS already has one, with the same
+meaning. Motion paths are `offset-path`, holds are `step-end`, staggers are
+negative `animation-delay`, and layering is `z-index`. Where CSS has nothing
+suitable (shape types, trim paths, masks as motion designers use them),
+Popkorn adds as little as possible.
+
+Because of that, anyone who has written CSS can read a scene, and so can a
+language model: it writes working Popkorn from a short guide. Popkorn is still
+a dialect, though, not CSS itself. [Format limitations](limitations.md) lists
+where it differs.
+
+## Where scenes come from
+
+There's no dedicated authoring tool yet. Scenes come from three places today:
+
+- **Import.** Convert an existing Lottie or SVG file
+  ([Importing](importing.md)).
+- **Prompting.** Describe a scene to the playground's Copilot, or ask it to
+  change the one that's open ([Prompting with AI](prompting.md)).
+- **Writing it.** For simple scenes, or if you like writing CSS, a text editor
+  is enough.
+
+Whichever way a scene starts, you end up with the same kind of readable file.
+
+Design tools are next. A Figma plugin that exports Figma Motion timelines is in
+progress. The parser, converters and runtime are open source and published as
+separate packages, so an exporter for any design tool can be built the same
+way: it only has to write the text format.
+
+Scenes can also leave Popkorn. The playground exports any scene as a Lottie
+file, a GIF, or an MP4. The Lottie export is also available in code, as
+`convertPopkorn` in `@popkorn/converters`, so a scene made here can ship to an
+existing Lottie player. Every export is a recording of the animation alone,
+though. Interactivity, state machines and live bindings need the Popkorn
+player, so play scenes with it directly wherever you can.
 
 ## Next
 
-- [Getting Started](getting-started.md): write your first scene.
-- [Play in the browser](https://usepopkorn.dev), no install required.
+- [Getting started](getting-started.md): write a scene and put it on a page.
+- [Coming from Lottie or Rive](coming-from-lottie-and-rive.md).
+- [The playground](https://usepopkorn.dev): no install needed.

@@ -29,9 +29,14 @@ newcomer or user reads.
   "a CSS-subset DSL played by a Canvas2D engine" — those name parts, not the whole.
 - Lead with the what-if hook: **"What if a CSS animation could leave the browser?"**
 - It's a **close CSS dialect, not CSS.** Frame it as "very close, kept as close as
-  possible — maybe some good parts go upstream one day 🤞". Never claim "it is CSS."
+  possible". Never claim "it is CSS."
 
 ## Tone
+
+- **Plain and technical.** Show code and numbers; cut adjectives. No emoji, no
+  "just works", no "genuinely", no "surprisingly capable", no "X wasn't a
+  shortcut, it's the whole idea" reversals, no "buys something rare". Make each
+  point once per page (the LLM point especially tends to repeat).
 
 - **Confident about the idea, honest that it's early.** The frame: a what-if that
   became a proof of concept and went further than expected — the bet already holds.
@@ -51,7 +56,7 @@ This is the load-bearing idea, not a side-note. Two beats:
    semantics — motion paths are `offset-path`, holds are `step-end`, staggering is
    negative `animation-delay`, layering is `z-index`. Never invent syntax CSS has.
 2. **Dual readership from that one choice.** Humans already speak it (there's a
-   vibrant community making genuinely beautiful hand-written-CSS art). LLMs already
+   community making art in hand-written CSS). LLMs already
    speak it too, for free — because the format *is* CSS-shaped, a model writes valid
    Popkorn from its existing training data with minimal guidance. No fine-tuned
    models, no special format to teach. Reframe any vague "LLM-friendly" claim into
@@ -62,23 +67,28 @@ free on GitHub, in editors, everywhere — because it stays close to CSS.
 
 ## Lottie / Rive
 
-Mention them **minimally**, and only as **evidence/proof** (e.g. "imports real
-Lottie files faithfully"), never as identity. Do not lean on "Lottie you can write
-by hand" and do not position Popkorn as "a better Lottie."
+Lottie and Rive users are a primary audience: address them directly. The README
+shows a real Lottie track next to its converted Popkorn, and
+`docs/coming-from-lottie-and-rive.md` carries concept-mapping tables, what
+converts, what's skipped, and an honest runtime comparison (theirs are mature and
+ship everywhere; say so). Name what they have that Popkorn lacks (Rive bones,
+meshes, editor). Never position Popkorn as "a better Lottie"; the pitch is the
+readable, editable source file.
 
-## The size claim (precise and humble)
+## The size claim (measured, never rounded up)
 
-Do NOT say "usually smaller than the Lottie." The true, humble version: in our tests
-it's more often than not **significantly smaller** than the Lottie or even SVG source;
-sometimes equal; in rare cases slightly larger by a couple of KB. Phrase as an
-observation ("often slightly smaller"), not a benchmarked guarantee. Offer a real
-measured number only if asked.
+Measured 2026-09 over `examples/lottie/` (17 files) and `examples/svg/`:
+uncompressed, converted scenes are usually smaller than the Lottie JSON
+(median ~0.75x); **gzipped they're about equal** (8 smaller / 9 larger, median
+~1.0x). SVG converts ~20% smaller gzipped. Full web player is ~63 KB gzipped.
+Never claim Popkorn is "significantly smaller" than Lottie. Re-measure before
+quoting new numbers.
 
 ## How scenes get made (what's available *today*)
 
 - Frame around *today*: it's so early there are no authoring tools yet, but even now
   you can do this. Two practical paths today — **prompting (Copilot)** and **import** —
-  plus **hand-authoring** as an always-open, genuinely pleasant door. Nod at a
+  plus **hand-authoring** as an always-open door. Nod at a
   possible future creation tool. Lead with the positive ("most scenes start one of
   two ways today"), so hand-authoring reads as an option, not a disclaimer.
 - Push readers to **the playground** to explore the format first. Don't send them

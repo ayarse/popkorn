@@ -1,18 +1,14 @@
 # Prompting with AI
 
-Popkorn is built on CSS for a plain reason: a scene should be a portable,
-readable artifact, not an opaque blob. Choosing a syntax people already know
-brought a surprise we did not set out to get. Language models already know it
-too. Because a scene is ordinary CSS underneath (`@keyframes`, `transform`,
-`offset-path`, `z-index`), a model can read and write one straight from its
-existing training, with no fine-tuning and no special format to teach it.
+Popkorn scenes are written in a close dialect of CSS (`@keyframes`,
+`transform`, `offset-path`, `z-index`), and language models have read a great
+deal of CSS. So a model can write and edit Popkorn from a short guide, with no
+fine-tuning. Every scene in the playground gallery was made this way.
 
-That surprise turned out to be genuinely useful, so the playground ships a
-**Popkorn Copilot**: a chat panel that builds a scene from a description or edits
-the live one on request. It's **bring-your-own-key**, so you point it at your own
-model and play with it as much as you like. Since a scene is just CSS text, the
-Copilot isn't the only door either: you can paste a scene into any assistant you
-already use and ask for changes there too.
+The playground includes **Popkorn Copilot**, a chat panel that writes a scene
+from a description or edits the one that's open. You bring your own API key.
+A scene is just text, so any other assistant works too: paste it in and ask
+for changes.
 
 ## Creating a scene from scratch
 

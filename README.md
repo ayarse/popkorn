@@ -6,41 +6,22 @@
 
 https://github.com/user-attachments/assets/7df900b1-42f8-4db8-8aec-5dd987ab1a42
 
-<sub>Cross Platform ⭐ AI Generatable ⭐ Human Readable ⭐ Converts Lottie &amp; SVG</sub>
-
-[**▶ Playground**](https://usepopkorn.dev) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Getting Started](docs/getting-started.md) &nbsp;·&nbsp; [Why CSS](#why-css)
+[**▶ Playground**](https://usepopkorn.dev) &nbsp;·&nbsp; [Docs](docs/README.md) &nbsp;·&nbsp; [Coming from Lottie or Rive](docs/coming-from-lottie-and-rive.md) &nbsp;·&nbsp; [Why CSS](#why-css)
 
 </div>
 
-Popkorn is a CSS-based portable format for motion graphics. You write a self-contained
-scene in syntax you already know (`@keyframes`, `transform`, `offset-path`, `z-index`),
-and the same file runs on the web and on mobile today, natively through React Native. It keeps the
-familiar, readable syntax of CSS, so a scene is never an opaque binary or JSON
-blob. And because it's CSS-shaped, language models already know it: no
-fine-tuning or special prompting required. You can make edits or even generate entire scenes from scratch with natural language.
+Popkorn is a format and a runtime for motion graphics. A scene is a single text
+file written in a close dialect of CSS: `@keyframes`, `transform`,
+`offset-path`, `:hover`, `z-index`. A small runtime plays that file in the
+browser (Canvas2D or SVG) and on iOS and Android through React Native and Skia.
 
-Popkorn already renders vector shapes, gradients, masks, motion paths, and
-path morphing. And it isn't only playback: the familiar CSS pseudo-classes
-`:hover` and `:active` just work ✨, and state machines drive toggles, taps, and
-app-state behavior with no scripting. It even imports real
-Lottie files and SVGs, often a touch smaller than the source they came from.
+The file is the source of truth. You can read it, review it in a pull request,
+change a color by hand, or ask a language model to rework the timing. Existing
+Lottie and SVG files import into it.
 
-Popkorn started out as a what-if experiment, but it's grown surprisingly capable.
-It's early still, but the core idea, that a CSS animation can be a portable
-artifact, is looking promising.
+## A scene
 
-Because of the familiar CSS syntax, LLMs are proving very capable at authoring
-scenes from scratch and at editing what's already there, like an imported Lottie,
-changing its colors, timing, or motion. A case in point: the playground's example
-gallery is itself entirely LLM-generated.
-
-**▶ [Try it live in the playground](https://usepopkorn.dev)**: edit
-scenes in the browser, no install.
-
-## A scene, in full
-
-This is a complete Popkorn scene: a red ball, falling and bouncing, with the
-easing an animator would reach for.
+A ball that falls, bounces, and warms up when you point at it:
 
 ```css
 :root {
@@ -77,177 +58,180 @@ easing an animator would reach for.
 }
 ```
 
-If you've written CSS, you can already read every line. So can a language model,
-which is the point (see [Why CSS](#why-css)).
+The only line that isn't standard CSS is `type: circle`. There is no box model,
+so shapes use the geometry properties CSS already defines for SVG: `cx`, `cy`,
+`r`, `fill`.
 
-Point at the ball and its color warms, smoothly tweened by the `transition`,
-while the bounce never pauses or restarts. This is one of Popkorn's nicer
-surprises: interactive states like `:hover` and `:active` compose _on top of_
-running animations rather than fighting them, because the whole scene plays on
-one continuous timeline. Dropping a small interaction onto an animating element
-just works.
+The hover and the bounce play on the same timeline, so the color change
+blends in while the ball keeps moving. The bounce doesn't restart, and you
+don't write any code to coordinate the two.
 
-## Making a scene
+## Next to Lottie
 
-It's early enough that there are no authoring tools yet, but you can already make
-scenes today. Most start one of two ways, and because the format is readable
-underneath both, you can always drop into the code to adjust:
+Here is the position track of a real Lottie file, `bouncy_ball.json`:
 
-- **From an existing animation.** Already have a Lottie or an SVG? Drop it into
-  the [playground](https://usepopkorn.dev) with the **Import** button
-  and it becomes a Popkorn scene you can read and tweak on the spot. No starting
-  from a blank file.
-- **By prompting.** The playground's **Popkorn Copilot** builds a scene from a
-  description or edits the live one on request. It works because the format stays
-  close enough to CSS that a model already knows it, no fine-tuning required. See
-  [Prompting with AI](docs/prompting.md) for what that looks like.
+```json
+"p": { "a": 1, "k": [
+  { "t": 0,  "s": [235, 106], "h": 0,
+    "o": { "x": [0.333], "y": [0] }, "i": { "x": [1], "y": [1] } },
+  { "t": 60, "s": [265, 441], "h": 0,
+    "o": { "x": [0], "y": [0] }, "i": { "x": [0.667], "y": [1] } },
+  ...
+```
 
-Hand-authoring is a first-class option too, for simple scenes or for anyone who
-enjoys writing CSS, and a visual creation tool may come in time. But whichever
-path you take, you land on the same thing: one legible file you can open and
-edit.
+And the same motion after `popkorn-convert`:
+
+```css
+@keyframes Layer-Ellipse-Group-k {
+  0% { transform: translate(31px, -63px); }
+  50% { transform: translate(61px, 272px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
+  100% { transform: translate(31px, -63px); }
+}
+```
+
+Both files hold the same information, with Lottie's anchor point folded into
+the translation. The difference is that you can read and edit the second one.
+
+Converted scenes are usually smaller than the source JSON before compression.
+Once gzipped, they come out about the same size (smaller for 8 of the 17 files
+in `examples/lottie/`, larger for the rest). Converted SVGs are about 20%
+smaller gzipped. The full web player, with the parser and all three renderers,
+is 63 KB gzipped and has no dependencies.
+
+It works in the other direction too. Popkorn can export any scene as a
+Lottie file, so you can write and edit in Popkorn and still ship to the Lottie
+players your apps already use. Nothing about your runtime has to change to try
+it. The playground also exports scenes as GIF and MP4, for places that only
+take video or images.
+
+All three exports are flat recordings of the animation. Hover states, state
+machines, and bindings to your app's data only work when the Popkorn player
+runs the scene, so use the exports where you have no choice and the player
+everywhere else.
+
+If you ship Lottie or Rive today, [Coming from Lottie or
+Rive](docs/coming-from-lottie-and-rive.md) covers what maps across, what
+doesn't, and how the runtimes compare.
+
+## Why CSS
+
+Popkorn follows one rule: **if CSS already has a way to say something, use it,
+with the same meaning.** Motion along a curve is `offset-path`. A hold is
+`step-end`. A stagger is a negative `animation-delay`. Layering is `z-index`.
+Easing is `cubic-bezier()`. Interaction states are `:hover` and `:active`, and
+tweening between them is `transition`.
+
+This matters for three groups of readers:
+
+- **People who write CSS** can already read a scene. The additions are small:
+  shape types, SVG-style geometry, and a few motion-graphics properties like
+  trim paths and masks.
+- **Language models** have seen a lot of CSS. They write working Popkorn from
+  a short guide without fine-tuning. Every scene in the playground gallery was
+  written this way.
+- **Tools** get it for free. Scenes are `.css` files, so GitHub, editors and
+  formatters highlight them, and a change shows up as a readable diff.
+
+Popkorn isn't exactly CSS. It's a dialect that stays as close as it can, and
+the gaps are listed in [Format limitations](docs/limitations.md).
+
+## Where scenes come from
+
+There's no dedicated authoring tool yet. Today a scene usually starts as an
+import (Lottie or SVG) or as a prompt to the playground's Copilot. Some people
+write them by hand, which works fine because the format is small.
+
+Design tools are next. A Figma plugin that exports Figma Motion timelines to
+Popkorn is in progress. The parser, converters and runtime are open source,
+and each is a separate package, so an exporter for any other design tool can
+build on the same pieces. A plugin only has to write the text format.
 
 ## Getting started
 
-The quickest way in is the playground. No install, it runs in your browser:
+The easiest place to start is the [playground](https://usepopkorn.dev). It
+runs in the browser with nothing to install. You can edit the gallery scenes
+live, import a Lottie or SVG with the **Import** button, or ask the Copilot to
+write a scene from a description.
 
-**▶ [usepopkorn.dev](https://usepopkorn.dev)**
-
-Edit the example scenes live, tweak values and watch them update, or import a
-Lottie or SVG to see it convert.
-
-To put a scene on your own page, the simplest way is the `<popkorn-player>` web
-component:
+To put a scene on a web page:
 
 ```html
 <script type="module">
   import "@popkorn/player";
 </script>
 
-<popkorn-player width="400" height="400"></popkorn-player>
-
-<script>
-  document.querySelector("popkorn-player").source = `
-    #dot { type: circle; cx: 200px; cy: 200px; r: 40px; fill: #e94560; }
-  `;
-</script>
+<popkorn-player src="scene.css" width="400" height="400"></popkorn-player>
 ```
 
-Driving the renderer yourself? The parser, scene builder, and renderers are all
-exported from [`@popkorn/player`](packages/popkorn-player); its README covers the
-programmatic API.
+In React Native:
 
-To run the playground or hack on Popkorn locally:
+```tsx
+import { PopkornView } from "@popkorn/react-native";
+
+<PopkornView source={scene} width={300} height={300} loop />;
+```
+
+The [Player API](docs/player-api.md) covers the playback controls (`seek`,
+`setVariable`, `fire`) and the events a scene sends back to your app.
+
+## What it can do
+
+**Drawing.** Circles, rects, ellipses, polygons, stars, and full SVG paths.
+Solid, linear and radial gradient fills. Strokes with dashes, caps and joins.
+Text and images. CSS `filter`, `box-shadow`, and `mix-blend-mode`.
+
+**Animation.** `@keyframes` with easing per keyframe, several animations
+stacked on one node, motion paths, trim paths, and morphing between path
+shapes. `calc()` and the CSS math functions work in property values. The
+timeline depends only on time: seeking to the same moment always gives the
+same frame, so scrubbing and exporting are exact.
+
+**Structure.** A real scene graph with nested transforms, reusable symbols,
+`repeat:` for generating fields of copies, clipping, masks and track mattes,
+visibility windows, and time scaling per subtree.
+
+**Interaction.** `:hover` and `:active` states with `transition`, properties
+bound to the pointer with `input(cursor.x)`, and `@machine` state machines for
+toggles, sequences, and timeouts. The host app sets variables and fires events
+into the scene, and the scene reports state changes back. None of this needs a
+scripting language ([State machines](docs/state-machines.md)).
+
+## Status
+
+Popkorn is at an early proof-of-concept stage, and the feature set is still
+growing. The web renderers are the most mature. The React Native renderer
+plays the same scenes and is marked work in progress. Lottie import is
+regression-tested against the LottieFiles conformance corpus. Performance
+tuning is the next big area of work.
+
+## Documentation
+
+- [Introduction](docs/introduction.md) and [Getting started](docs/getting-started.md)
+- [Coming from Lottie or Rive](docs/coming-from-lottie-and-rive.md) and
+  [Importing Lottie and SVG](docs/importing.md)
+- [State machines](docs/state-machines.md) and [Player API](docs/player-api.md)
+- [CSS art in Popkorn](docs/css-art-in-popkorn.md): common CSS-art tricks,
+  rewritten as a scene graph
+- [Format reference](docs/reference.md), [Format limitations](docs/limitations.md),
+  and [Architecture](docs/architecture.md)
+
+To run the playground locally:
 
 ```bash
 bun install
 bun run dev        # http://localhost:5173
 ```
 
-## What it can do
-
-Popkorn covers most of what people reach for in real motion graphics:
-
-- **Runs where you need it.** One scene file plays in the browser (Canvas2D or
-  SVG) and on native mobile through React Native and Skia. No re-export per
-  target, no runtime lock-in.
-- **Imports what you already have.** Real Lottie files and SVGs convert into
-  readable Popkorn scenes and play back faithfully, so you can bring an existing
-  library across instead of starting from a blank file.
-- **Interactivity, built into the format.** Drive multi-state behavior with
-  hand-written state machines, react to pointer with `:hover` and `:active`
-  tweened by CSS `transition`s, and bind properties to live input with `var()`
-  and `input(cursor.x)`. Because it all runs on one continuous timeline,
-  interactive states compose cleanly on top of running animations instead of
-  restarting them. And it's a two-way street with the host page or app: push live
-  values in with `setVariable`, fire named events with `fire()`, and listen for
-  `statechange` coming back out, so your app state and the scene stay in sync.
-  There's no script engine; the reactivity is part of the format
-  ([docs/state-machines.md](docs/state-machines.md)).
-- **Shapes & paint.** Circles, rects, ellipses, polygons, polystars, and full
-  SVG paths. Solid fills, linear and radial gradients, strokes with dashes and
-  caps. CSS `filter` functions (blur, drop-shadow, color adjustments),
-  `box-shadow`, and `mix-blend-mode` for compositing, all covered by the
-  cross-backend conformance suite so they render the same on every renderer.
-- **Text & images.** Laid out and transformed as first-class scene nodes.
-- **Animation.** `@keyframes` with per-keyframe easing, spring-style beziers,
-  holds (`step-end`), staggering (negative `animation-delay`), and additive
-  layering of animations on one node.
-- **Motion & morphing.** `offset-path` for motion along a curve, trim paths and
-  dashes, and path morphing between shapes.
-- **Composition.** A real scene graph with parent/child transforms, symbols
-  (reusable definitions), `z-index` layering, clipping, masks and track mattes,
-  visibility windows, and per-subtree time scaling.
-
-The [playground](packages/playground) shows each of these as a live scene, and
-the sources live in [`examples/popkorn/`](examples/popkorn).
-
-## Why CSS
-
-Choosing CSS wasn't a shortcut. It's the whole idea, and Popkorn holds itself to
-one rule: **if CSS already has a way to express something, use it, with its real
-semantics.** Motion paths are `offset-path`. Holds are `step-end`. Staggering is
-a negative `animation-delay`. Layering is `z-index`. Popkorn never invents syntax
-that CSS already has. (It isn't _exactly_ CSS. It's a close dialect, kept as near
-to the real thing as we can, and maybe some of the good parts go upstream one
-day 🤞)
-
-Staying this close buys something rare: one format that two very different
-audiences already read.
-
-- **People already speak it.** There's a vibrant community making genuinely
-  beautiful art in hand-written CSS. Popkorn meets them where they are, with no
-  new mental model and no editor to learn.
-- **Language models already speak it too.** Because Popkorn stays so close to
-  real CSS, a model already knows most of it from its training data. There's no
-  fine-tuned model and no bespoke format to teach. Hand it the small extra
-  vocabulary and it writes valid, working Popkorn. That's a property you only get
-  by refusing to invent syntax.
-
-The payoff is a format that's hand-authorable, diffable in a pull request, and
-generatable by an LLM, all at once.
-
-## Documentation
-
-The full docs live in [`docs/`](docs/README.md) and render live in the playground
-under **/docs**:
-
-- [Introduction](docs/introduction.md) and
-  [Getting Started](docs/getting-started.md)
-- [State machines](docs/state-machines.md),
-  [Importing Lottie and SVG](docs/importing.md), and the
-  [Player API](docs/player-api.md)
-- [CSS art → Popkorn](docs/css-art-in-popkorn.md): single-div CSS art tricks,
-  translated to a real scene graph
-- [Format reference](docs/reference.md) and
-  [Architecture](docs/architecture.md)
-
-## Status & what's next
-
-In the browser it already works well, with two renderers behind it (Canvas2D and
-SVG) and a wide range of real Lottie files converting and playing faithfully. The
-same scenes run on mobile through a React Native (Skia) renderer, with a demo
-Expo app in the repo; it's still marked work-in-progress but holds up just as
-well. The clearest frontier from here is performance: deeper optimization and
-benchmarking still to do.
-
-It's early enough that even the file extension is unsettled. Scenes are `.css`
-for now, mostly because it earns free syntax highlighting almost everywhere, a
-side benefit of staying so close to CSS. A custom file extension is something we may explore later.
-
-It's a personal what-if that turned out to work, shared in case the idea is as
-interesting to you as it was to build. Feedback and curiosity welcome.
-
 ## Packages
 
-| Package                                                  | What it is                                                                    |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [`@popkorn/parser`](packages/popkorn-parser)             | The format parser: source to typed AST. Zero dependencies, no build step.     |
-| [`@popkorn/player`](packages/popkorn-player)             | The `<popkorn-player>` web component and the Canvas2D + SVG runtimes.         |
-| [`@popkorn/converters`](packages/popkorn-converters)     | Lottie and SVG to Popkorn importers (CLI + library).                          |
-| [`@popkorn/react-native`](packages/popkorn-react-native) | React Native / Skia renderer, running scenes natively on mobile.              |
-| [`@popkorn/expo-demo`](packages/expo-demo)               | Expo app demoing the native renderer.                                         |
-| [`@popkorn/playground`](packages/playground)             | A live scene editor: example gallery, Lottie/SVG import, and Popkorn Copilot. |
+| Package                                                  | What it is                                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------ |
+| [`@popkorn/parser`](packages/popkorn-parser)             | Source to typed AST. Zero dependencies, no build step.       |
+| [`@popkorn/player`](packages/popkorn-player)             | The `<popkorn-player>` web component, Canvas2D and SVG.      |
+| [`@popkorn/converters`](packages/popkorn-converters)     | Lottie and SVG importers, Lottie exporter (CLI and library). |
+| [`@popkorn/react-native`](packages/popkorn-react-native) | React Native renderer on Skia.                               |
+| [`@popkorn/expo-demo`](packages/expo-demo)               | Expo app demoing the native renderer.                        |
+| [`@popkorn/playground`](packages/playground)             | Scene editor with gallery, import, and Copilot.              |
 
 ## License
 

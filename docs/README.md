@@ -15,8 +15,10 @@ New here? The fastest way to get a feel for it is the
 - [Prompting with AI](prompting.md): make and edit scenes with the Copilot, and
   why language models already speak the format.
 
-## Working with existing art
+## Coming from another format
 
+- [Coming from Lottie or Rive](coming-from-lottie-and-rive.md): how the
+  concepts map, what converts, and how the runtimes compare.
 - [Importing Lottie and SVG](importing.md): bring an existing animation or
   drawing into a scene.
 
@@ -36,7 +38,8 @@ New here? The fastest way to get a feel for it is the
 ## Reference
 
 - [Format reference](reference.md): every shape, property, and value.
+- [Format limitations](limitations.md): where the dialect differs from CSS,
+  and what to use instead.
 - [Architecture](architecture.md): how the pipeline fits together, for
   contributors.
 
-More guides are on the way: animation and interactivity.

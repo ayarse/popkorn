@@ -7,44 +7,50 @@ every entry comes with the thing to reach for instead. For worked recipes that
 translate classic CSS-art tricks into scene-graph shapes, see
 [CSS art → Popkorn](css-art-in-popkorn.md).
 
-One meta-limitation frames all the others: the parser is generic, so an
-unsupported property parses fine and is silently ignored at build time. A
-declaration that does nothing is far more likely than a syntax error. When a
-property seems dead, check it against the [format reference](reference.md)
-before debugging anything else.
+One meta-limitation frames all the others: an unknown property name gets an
+`unknown-property` warning (with a did-you-mean hint), but a known property
+with a value it can't use is dropped silently at build time. `width: 10vw`,
+`x: 1e2px`, and `fill: color-mix(...)` all parse and draw nothing. When a
+declaration seems dead, check its value against the
+[format reference](reference.md) before debugging anything else.
 
 ## No box model, no layout
 
-There is no `position`, `margin`, `padding`, `border`, flexbox, or grid. A
-scene is a scene graph: explicit shapes with coordinates, composed under groups
-with transforms. This is the foundational trade, and it's permanent.
+There is no `position`, `margin`, `padding`, flexbox, or grid; the box-model
+properties are rejected with a warning. A scene is a scene graph: explicit
+shapes with coordinates, composed under groups with transforms. This is the
+foundational trade, and it's permanent.
 
-Instead: `left`/`top` placement becomes `x`/`y` (or `cx`/`cy`, or a
-`transform: translate(...)` on a group), `border` becomes `stroke`, and
-`padding` becomes arithmetic on the child's coordinates.
+Instead: `left`/`top` are accepted as aliases for `x`/`y` (`right`/`bottom`
+are rejected, since there is no containing box), `border: <w> solid <c>`
+rewrites to `stroke-width` + `stroke`, and `padding` becomes arithmetic on the
+child's coordinates.
 
-## No `box-shadow`
+## `box-shadow`: spread and inset need a basic shape
 
-Neither inset nor outset, and no multi-shadow lists.
+`box-shadow` works with CSS syntax: offsets, blur, spread, color, `inset`, and
+comma-separated lists, all animatable. Spread is realized only on `rect`,
+`circle`, and `ellipse`; on a `path`, `star`, or `polygon` an outer shadow's
+spread is ignored. `inset` needs a shape outline, so it is dropped on text,
+images, and groups.
 
-Instead: an inset ring (`box-shadow: inset 0 0 0 6px ...`) is a stroked rect
-nested inside the outer one. A soft outer shadow is `filter: drop-shadow(...)`
-(static, one per node). The multi-shadow stamping trick (one element, fifty
-shadows) becomes a `@define` symbol instantiated per copy, which also unlocks
-per-copy overrides and animation.
+Instead: for a spread shadow on free-form geometry, draw a second, larger copy
+of the path behind it with `filter: blur(...)`. An inset ring on a group is a
+stroked shape nested inside it.
 
-## One radius per rect
+## Circular corners only
 
-`rx`/`ry` round all four corners of a rect equally. There is no per-corner
-`border-radius`, and no eight-value elliptical form.
+`border-radius` takes one value or the 2 to 4 value per-corner form (and the
+four `border-*-radius` longhands), but every corner is circular. The eight-value
+elliptical form (`10px / 20px`) is rejected.
 
-Instead: draw a `path`. A rect with only its bottom corners rounded is four
-lines and two quadratic curves.
+Instead: draw a `path`. An elliptical corner is one arc or quadratic curve.
 
 ## No pseudo-elements
 
-No `::before`/`::after`, and no `content` boxes to decorate. Every visible
-layer is a real node with an id.
+No `::before`/`::after`: a pseudo-element selector is a parse error, and there
+are no `content` boxes to decorate. Every visible layer is a real node with an
+id.
 
 Instead: promote each pseudo-element to a named child shape. Scenes read better
 for it: the notch, the speaker, and the camera each get a name instead of
@@ -52,36 +58,41 @@ hiding inside one selector.
 
 ## Colors are values, not expressions
 
-Hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, and named colors all work, and all
-fold to a concrete color at build time. There are no color *functions*: no
-`color-mix()`, and nothing like Sass `darken()`/`lighten()`.
+Hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, `oklab()`/`oklch()`, and named colors
+all work. There are no color *functions*: no `color-mix()`, no relative color
+syntax, and nothing like Sass `darken()`/`lighten()`.
 
-`var()` and `input()` bind numbers only, so a color can't be driven through a
-custom property or a runtime input either.
+A whole color can ride a custom property: `fill: var(--brand)` binds live, so a
+host `setVariable` recolors the node at runtime. A color's channels can't be
+computed, though: `input()` yields numbers, and `rgb(var(--r), 0, 0)` does not
+resolve its arguments. Gradients through `var()` are not live either.
 
 Instead: precompute derived colors to literals (a comment noting the recipe,
 like `/* darken(#272C31, 10%) */`, keeps the intent). To change color over
 time, animate `fill`/`stroke` in `@keyframes`; solid colors, gradient stops,
-and compatible gradients all interpolate there.
+and compatible gradients all interpolate there, in Oklab when either endpoint
+is an `oklab()`/`oklch()` color.
 
-## Transforms: 2D, no skew
+## Transforms: 2D only
 
-`translate`, `rotate`, and `scale` only. No `skew`/`skewX`/`skewY`, no 3D, no
-`perspective`, no camera. One related behavior is deliberate rather than
-missing: rotation interpolates linearly with no shortest-arc logic, so
-`rotate(0deg)` to `rotate(360deg)` spins a full turn.
+`translate`, `rotate`, `scale`, and `skew`/`skewX`/`skewY`, all animatable. No
+3D, no `perspective`, no camera. Transform angles are degrees: `rad`, `grad`,
+and `turn` convert inside the trig functions and `oklch()` hues, but
+`rotate(0.5turn)` reads as half a degree. Rotation interpolates linearly with no
+shortest-arc logic, deliberately, so `rotate(0deg)` to `rotate(360deg)` spins a
+full turn.
 
-Instead: skew-shaped geometry is authored as a `path`; faux-3D reads (flips,
-tilts) are `scaleX`/`scaleY` animations.
+Instead: write angles in `deg`. Faux-3D reads (flips, tilts) are
+`scaleX`/`scaleY` animations, or a `skew` for a cheap perspective fake.
 
-## Text is one line, one unit
+## Text animates as a whole node
 
-No `text-align`, `line-height`, or `letter-spacing`, and no per-glyph
-animators: text draws and animates as a whole node.
+Text supports `\n` multi-line content, `text-align`, `line-height`, and
+`letter-spacing`, but there are no per-glyph animators: a text node draws and
+animates as one unit.
 
-Instead: multi-line copy is one text node per line; per-character motion is one
-text node per character, usually stamped from a `@define` symbol with a
-negative `animation-delay` stagger.
+Instead: per-character motion is one text node per character, usually stamped
+from a `@define` symbol with a negative `animation-delay` stagger.
 
 ## No scripting
 
@@ -90,16 +101,28 @@ declarative: `var()`/`input()` bindings, `calc()` and the math functions,
 `transition`, and `@machine` state machines. When a use case outgrows those,
 the answer is a richer binding vocabulary, not an embedded script engine.
 
-## No blend modes
+## Blend modes don't isolate a group
 
-No `mix-blend-mode` equivalent. Compositing is `clip-path`, `mask` (alpha and
-luminance, plus inverts), and group `opacity` (which cascades down the
-subtree).
+`mix-blend-mode` takes the full CSS keyword set, but the blend applies to each
+shape's own paint. A group's blend mode is not an isolated composite: its
+children blend individually, including against each other.
 
-## Filters: two functions
+Instead: put `mix-blend-mode` on the shapes that should blend. Where
+overlapping children must blend as one unit, merge them into a single `path`.
 
-`filter` supports `blur(...)` (radius animatable in `@keyframes`) and
-`drop-shadow(...)` (static). Anything else in a filter list is dropped.
+## Filters: the CSS function set
+
+`filter` takes the CSS functions: `blur`, `drop-shadow`, `brightness`,
+`contrast`, `saturate`, `grayscale`, `sepia`, `invert`, `opacity`, and
+`hue-rotate`. There are no `url(#...)` SVG filter references. A filter list
+animates only between keyframes with the same function sequence; a mismatch
+holds instead of interpolating. The React Native/Skia backend draws filters
+unfiltered, and that includes outer `box-shadow`s without spread, which render
+through the same path.
+
+Instead: keep keyframe filter lists structurally identical (use `blur(0px)` as a
+placeholder). For shadows that must show on Skia, use a spread shadow on a basic
+shape, or a blurred copy of the shape.
 
 ## Shape modifiers: union only
 
@@ -112,13 +135,15 @@ as an `evenodd` fill or an inverted mask.
 
 ## Grammar strictness
 
-A few CSS habits don't parse: `//` line comments (use `/* */`), leading-dot
-numbers (`0.5`, never `.5`), and exponent notation. Units are `px`, `deg`,
-`em`, `rem`, `ms`, `s`, and `%`; there is no `vw`/`vh`/`pt`/`turn`.
+A few CSS habits don't parse: `//` line comments are a parse error (use
+`/* */`), and exponent notation (`1e2`) is not a number. Units are `px`, `em`,
+`rem`, `%`, `s`, `ms`, and the angles `deg`, `rad`, `grad`, `turn`; there is no
+`vw`/`vh`/`pt`. `em`/`rem` parse but have no font-relative effect, and the
+parser warns when they're used.
 
 ## Which of these might change
 
 The box model, scripting, and 3D are settled scope: they define what Popkorn
-is. Blend modes and per-glyph text animation are gaps that may close as real
-scenes demand them. If a scene needs one today, precompute by hand rather than
-waiting.
+is. Per-glyph text animation and group-isolated blending are gaps that may
+close as real scenes demand them. If a scene needs one today, precompute by
+hand rather than waiting.
