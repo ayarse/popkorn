@@ -151,7 +151,7 @@ interface Batched {
 }
 
 /** Build a scene, plan its calc batches, and hand back the per-node bindings. */
-function batchedScene(src: string): Batched {
+function batchedScene(src: string, plan = true): Batched {
   const sheet = parse(src);
   const root = buildSceneGraph(sheet);
   const resolver = new VariableResolver();
@@ -163,9 +163,11 @@ function batchedScene(src: string): Batched {
     for (const c of n.children) walk(c);
   })(root);
 
-  const batched = resolver.planCalcBatches(
-    nodes.flatMap((n) => n.bindings.map((b) => b.value)),
-  );
+  const batched = plan
+    ? resolver.planCalcBatches(
+        nodes.flatMap((n) => n.bindings.map((b) => b.value)),
+      )
+    : 0;
 
   let now = 0;
   const env: Env = {
@@ -273,6 +275,36 @@ test("batched lanes degrade on a unit conflict exactly like the scalar path", ()
       12,
     );
   });
+});
+
+test("batched lanes are bit-identical to the scalar VM on mixed-unit binops", () => {
+  const exprs = [
+    "sibling-index() * 1px + var(--t) * 2px",
+    "sibling-index() * 3deg - var(--t)",
+    "(sibling-index() - 8) * 0.1px / 3 + var(--t) * 1.7px",
+    "sibling-index() * 1px / (var(--t) + 1)",
+    "var(--t) / (sibling-index() * 1px)",
+    "sibling-index() * 1px * var(--t) * 1px",
+    "sibling-index() * 1px + var(--t) * 1deg",
+    "(var(--t) - sibling-index()) / 0 * 1px",
+  ];
+  for (const expr of exprs) {
+    const src = `:root { width: 100px; height: 100px; --t: input(time); }
+       #f { type: circle; repeat: 16; r: 1px; cx: calc(${expr}); }`;
+    // Separate parses compile separate programs, so only `batched` runs as lanes.
+    const batched = batchedScene(src);
+    const scalar = batchedScene(src, false);
+    expect(batched.batched).toBe(16);
+    for (const t of [0, 0.37, 3.5, 1000 / 3]) {
+      batched.setTime(t);
+      scalar.setTime(t);
+      batched.nodes.forEach((node, i) => {
+        expect(batched.resolver.resolveValue(node.bindings[0].value)).toEqual(
+          scalar.resolver.resolveValue(scalar.nodes[i].bindings[0].value),
+        );
+      });
+    }
+  }
 });
 
 test("a per-copy override keeps its copy on the scalar path", () => {

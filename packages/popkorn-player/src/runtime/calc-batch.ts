@@ -1,6 +1,8 @@
 import type { CalcFunction, CalcNumeric } from "@popkorn/parser";
 import { evalCalcFunction } from "@popkorn/parser";
 import {
+  binScalar,
+  binUnit,
   type CalcEvalContext,
   type CompiledCalc,
   OP_BIN,
@@ -213,12 +215,7 @@ function runBatch(b: CalcBatch, ctx: CalcEvalContext): void {
         sp -= 2;
         const lu = sUnit[sp];
         const ru = sUnit[sp + 1];
-        let ou = -1;
-        if (sValid[sp] && sValid[sp + 1]) {
-          if (arg === 3) ou = ru ? -1 : lu;
-          else if (arg === 2) ou = lu && ru ? -1 : lu || ru;
-          else ou = lu && ru && lu !== ru ? -1 : lu || ru;
-        }
+        const ou = sValid[sp] && sValid[sp + 1] ? binUnit(arg, lu, ru) : -1;
         if (ou < 0) {
           sValid[sp] = 0;
           sIsVec[sp] = 0;
@@ -306,19 +303,6 @@ function runBatch(b: CalcBatch, ctx: CalcEvalContext): void {
   b.outIsVec = sIsVec[0] === 1;
   b.outRef = sRef[0];
   b.outScalar = sVal[0];
-}
-
-function binScalar(op: number, l: number, r: number): number {
-  switch (op) {
-    case 0:
-      return l + r;
-    case 1:
-      return l - r;
-    case 2:
-      return l * r;
-    default:
-      return l / r;
-  }
 }
 
 // Loop-invariant `av`/`bv` broadcast a scalar operand without materializing it.

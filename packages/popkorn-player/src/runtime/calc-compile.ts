@@ -96,6 +96,26 @@ export function compileCalc(expr: CalcExpr): CompiledCalc {
   return c.build(undefined);
 }
 
+/** Result unit id of binop `op` (0:+ 1:- 2:* 3:/) on unit ids, or -1 on a unit conflict. */
+export function binUnit(op: number, lu: number, ru: number): number {
+  if (op === 3) return ru ? -1 : lu;
+  if (op === 2) return lu && ru ? -1 : lu || ru;
+  return lu && ru && lu !== ru ? -1 : lu || ru;
+}
+
+export function binScalar(op: number, l: number, r: number): number {
+  switch (op) {
+    case 0:
+      return l + r;
+    case 1:
+      return l - r;
+    case 2:
+      return l * r;
+    default:
+      return l / r;
+  }
+}
+
 export function runCalc(
   p: CompiledCalc,
   ctx: CalcEvalContext,
@@ -131,37 +151,13 @@ export function runCalc(
           sp++;
           break;
         }
-        // Inline evalCalcBinary; the compiled-vs-interpreter parity test keeps them in lockstep.
-        const lv = vs[sp];
-        const lu = us[sp];
-        const rv = vs[sp + 1];
-        const ru = us[sp + 1];
-        switch (arg) {
-          case 0: // +
-          case 1: // -
-            if (lu && ru && lu !== ru) {
-              valid[sp] = 0;
-            } else {
-              vs[sp] = arg === 0 ? lv + rv : lv - rv;
-              us[sp] = lu || ru;
-            }
-            break;
-          case 2: // *
-            if (lu && ru) {
-              valid[sp] = 0;
-            } else {
-              vs[sp] = lv * rv;
-              us[sp] = lu || ru;
-            }
-            break;
-          default: // /
-            if (ru) {
-              valid[sp] = 0;
-            } else {
-              vs[sp] = lv / rv;
-              us[sp] = lu;
-            }
-            break;
+        // Mirrors evalCalcBinary; the compiled-vs-interpreter parity test keeps them in lockstep.
+        const u = binUnit(arg, us[sp], us[sp + 1]);
+        if (u < 0) {
+          valid[sp] = 0;
+        } else {
+          vs[sp] = binScalar(arg, vs[sp], vs[sp + 1]);
+          us[sp] = u;
         }
         sp++;
         break;
