@@ -464,6 +464,25 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
   {
+    // Odd dash repeats once to an even period on every backend (Canvas/SVG spec; Skia MakeDash needs it).
+    name: "odd-length authored dash realizes as its doubled even period",
+    ops: (r) => {
+      r.setFill(null);
+      r.setStroke("#000000", 2);
+      r.setDash([5, 3, 2], 1);
+      r.drawPath([
+        { type: "M", x: 0, y: 0 },
+        { type: "L", x: 40, y: 0 },
+      ]);
+    },
+    assert: (t, expect) => {
+      const stroke = t.paints.find((p) => p.kind === "stroke");
+      expect(stroke !== undefined).toBe(true);
+      expect(stroke!.dashArray).toEqual([5, 3, 2, 5, 3, 2]);
+      expect(stroke!.dashOffset).toBe(1);
+    },
+  },
+  {
     // Trim offset + dash: window 40, arc [10,30]; [5,5] ON at [10,15],[20,25] -> [5,5,5,25] offset -10.
     name: "trim offset composes with a dash",
     ops: (r) => {

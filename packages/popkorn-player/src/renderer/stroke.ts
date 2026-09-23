@@ -28,8 +28,13 @@ export function resolveStrokeDash(
     };
   }
   if (!trim && dashArray.length > 0)
-    return { stroke: true, dashArray, dashOffset };
+    return { stroke: true, dashArray: evenDash(dashArray), dashOffset };
   return { stroke: true, dashArray: [], dashOffset: 0 };
+}
+
+// An odd-length dash repeats once to an even period, as SVG/Canvas specify (Skia MakeDash needs it explicit).
+function evenDash(dashArray: number[]): number[] {
+  return dashArray.length % 2 === 1 ? dashArray.concat(dashArray) : dashArray;
 }
 
 const EPS = 1e-6;
@@ -61,9 +66,7 @@ function composeDashInTrim(
   if (!(total > 0) || !(visibleLen > 0))
     return { stroke: false, dashArray: [], dashOffset: 0 };
 
-  // Canvas duplicates an odd-length dash array to make the period even.
-  const pattern =
-    dashArray.length % 2 === 1 ? dashArray.concat(dashArray) : dashArray;
+  const pattern = evenDash(dashArray);
   const period = pattern.reduce((a, b) => a + b, 0);
   if (!(period > 0))
     return {

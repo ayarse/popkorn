@@ -438,9 +438,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   // --- Style -----------------------------------------------------------------
 
   setDash(dashArray: number[], dashOffset: number): void {
-    // MakeDash needs an even-length array; duplicate an odd one as Canvas2D setLineDash does.
-    this.dashArray =
-      dashArray.length % 2 ? dashArray.concat(dashArray) : dashArray;
+    this.dashArray = dashArray;
     this.dashOffset = dashOffset;
   }
 
