@@ -19,6 +19,8 @@ export function SceneByline({
   const author = community ? community.author : meta.Author;
   const authorUrl = community ? undefined : meta["Author URL"];
   const tags = community?.tags ?? [];
+  // "AI Generated" is a credit, not a name: no "by" in front of it.
+  const aiCredit = author?.match(/^AI Generated\b(.*)$/i);
   if (!title && !author) return null;
 
   return (
@@ -28,8 +30,10 @@ export function SceneByline({
       )}
       {author && (
         <span className="shrink-0 truncate text-muted-foreground">
-          by{" "}
-          {authorUrl ? (
+          {aiCredit ? "AI-generated" : "by "}
+          {aiCredit ? (
+            aiCredit[1]
+          ) : authorUrl ? (
             <a
               href={authorUrl}
               target="_blank"
