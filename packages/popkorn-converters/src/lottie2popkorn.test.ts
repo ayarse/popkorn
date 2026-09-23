@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
+import {
+  buildSceneGraph,
+  computeLocalMatrix,
+  type SceneNode,
+} from "@popkorn/player";
 import { Converter, validate } from "./lottie2popkorn.js";
 
 const IDENTITY_TR = {
@@ -1193,4 +1198,223 @@ test("filled + stroked text keeps both", () => {
   expect(css).toContain("fill: #ff0000");
   expect(css).toContain("stroke: #0000ff");
   expect(css).toContain("stroke-width: 2px");
+});
+
+// --- 3D layers (ddd) flatten orthographically, as camera-less players render them.
+
+/** A ddd layer with a 10x10 rect; `ks` extends a 3D transform at (50, 50). */
+function layer3d(ks: any, extraLayers: any[] = []) {
+  const doc: any = shapeLayer([
+    {
+      ty: "gr",
+      it: [
+        {
+          ty: "rc",
+          p: { a: 0, k: [0, 0] },
+          s: { a: 0, k: [10, 10] },
+          r: { a: 0, k: 0 },
+        },
+        { ty: "fl", c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+        IDENTITY_TR,
+      ],
+    },
+  ]);
+  const l = doc.layers[0];
+  l.ddd = 1;
+  delete l.ks.r;
+  l.ks = {
+    ...l.ks,
+    rx: { a: 0, k: 0 },
+    ry: { a: 0, k: 0 },
+    rz: { a: 0, k: 0 },
+    or: { a: 0, k: [0, 0, 0] },
+    ...ks,
+  };
+  doc.layers.push(...extraLayers);
+  return doc;
+}
+
+const layerTransform = (css: string) =>
+  css.match(/#m \{[^}]*?transform: ([^;]*);/)?.[1];
+
+test("3D rx-only folds into scaleY·cos(rx)", () => {
+  const c = new Converter();
+  const css = c.convert(
+    layer3d({ rx: { a: 0, k: 60 }, s: { a: 0, k: [80, 50, 100] } }),
+  );
+  expect(layerTransform(css)).toBe("translate(50px, 50px) scale(0.8, 0.25)");
+  expect(c.warnings).toEqual([]);
+});
+
+test("3D ry-only folds into scaleX·cos(ry)", () => {
+  const css = new Converter().convert(layer3d({ ry: { a: 0, k: 60 } }));
+  expect(layerTransform(css)).toBe("translate(50px, 50px) scale(0.5, 1)");
+});
+
+test("3D rz maps to rotate (static and animated)", () => {
+  expect(
+    layerTransform(new Converter().convert(layer3d({ rz: { a: 0, k: 30 } }))),
+  ).toBe("translate(50px, 50px) rotate(30deg)");
+  const css = new Converter().convert(
+    layer3d({
+      rz: {
+        a: 1,
+        k: [
+          { t: 0, s: [0], o: { x: [0.3], y: [0] }, i: { x: [0.7], y: [1] } },
+          { t: 30, s: [90] },
+        ],
+      },
+    }),
+  );
+  expect(css).toContain("0% { transform: rotate(0deg); }");
+  expect(css).toContain("100% { transform: rotate(90deg); }");
+  expect(css).toContain("m-k 1s cubic-bezier(0.3, 0, 0.7, 1)");
+});
+
+test("3D animated rx emits per-keyframe scale", () => {
+  const c = new Converter();
+  const css = c.convert(
+    layer3d({
+      rx: {
+        a: 1,
+        k: [
+          { t: 0, s: [0], o: { x: [0], y: [0] }, i: { x: [1], y: [1] } },
+          { t: 30, s: [60] },
+        ],
+      },
+    }),
+  );
+  expect(css).toContain("0% { transform: scale(1, 1); }");
+  expect(css).toContain("100% { transform: scale(1, 0.5); }");
+  expect(c.warnings).toEqual([]);
+});
+
+test("3D animated rx+ry (non-axis-aligned) bakes its first value with a warning", () => {
+  const c = new Converter();
+  c.convert(
+    layer3d({
+      ry: { a: 0, k: 30 },
+      rx: {
+        a: 1,
+        k: [
+          { t: 0, s: [20] },
+          { t: 30, s: [60] },
+        ],
+      },
+    }),
+  );
+  expect(c.warnings).toContain(
+    "3D layer rotation X/Y animation not supported; using first value",
+  );
+});
+
+test("3D general static transform matches lottie-web's projected matrix", () => {
+  const ks = {
+    rx: { a: 0, k: 30 },
+    ry: { a: 0, k: 40 },
+    rz: { a: 0, k: 25 },
+    or: { a: 0, k: [10, 20, 15] },
+    s: { a: 0, k: [80, 120, 100] },
+    a: { a: 0, k: [5, 7, 0] },
+  };
+  const css = new Converter().convert(layer3d(ks));
+  expect(css).toContain("skewX(");
+  const find = (n: SceneNode): SceneNode | undefined =>
+    n.id === "m" ? n : n.children.map(find).find(Boolean);
+  const got = computeLocalMatrix(find(buildSceneGraph(parse(css)))!);
+
+  // lottie-web Matrix: row-major 4x4, each op post-multiplied (row-vector points).
+  let m = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const t = (b: number[]) => {
+    const o = new Array(16).fill(0);
+    for (let i = 0; i < 4; i++)
+      for (let j = 0; j < 4; j++)
+        for (let k = 0; k < 4; k++) o[i * 4 + j] += m[i * 4 + k] * b[k * 4 + j];
+    m = o;
+  };
+  const d = Math.PI / 180;
+  const rX = (a: number) =>
+    t([
+      1,
+      0,
+      0,
+      0,
+      0,
+      Math.cos(a),
+      -Math.sin(a),
+      0,
+      0,
+      Math.sin(a),
+      Math.cos(a),
+      0,
+      0,
+      0,
+      0,
+      1,
+    ]);
+  const rY = (a: number) =>
+    t([
+      Math.cos(a),
+      0,
+      Math.sin(a),
+      0,
+      0,
+      1,
+      0,
+      0,
+      -Math.sin(a),
+      0,
+      Math.cos(a),
+      0,
+      0,
+      0,
+      0,
+      1,
+    ]);
+  const rZ = (a: number) =>
+    t([
+      Math.cos(a),
+      -Math.sin(a),
+      0,
+      0,
+      Math.sin(a),
+      Math.cos(a),
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+    ]);
+  t([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -5, -7, 0, 1]);
+  t([0.8, 0, 0, 0, 0, 1.2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  rZ(-25 * d);
+  rY(40 * d);
+  rX(30 * d);
+  rZ(-15 * d);
+  rY(20 * d);
+  rX(10 * d);
+  t([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 50, 50, 0, 1]);
+  // Popkorn Matrix3x3 is row-major column-vector: [a c tx; b d ty].
+  const want = [m[0], m[4], m[12], m[1], m[5], m[13]];
+  const have = [got[0], got[1], got[2], got[3], got[4], got[5]];
+  for (let i = 0; i < 6; i++) expect(have[i]).toBeCloseTo(want[i], 1);
+});
+
+test("3D layers with a camera warn that perspective is ignored", () => {
+  const c = new Converter();
+  const res = c.convert(
+    layer3d({ rx: { a: 0, k: 30 } }, [
+      { ty: 13, ind: 2, nm: "Camera", ip: 0, op: 30, st: 0, ks: {} },
+    ]),
+  );
+  expect(res).toContain("scale(1, 0.87)");
+  expect(c.warnings).toContain(
+    "camera layer ignored; 3D layers rendered orthographically",
+  );
+  expect([...c.blocked]).toEqual([]);
 });

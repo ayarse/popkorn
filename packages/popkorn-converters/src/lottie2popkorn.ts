@@ -376,22 +376,77 @@ function colorOpacityChannel(
   o: ReturnType<typeof prop>,
   key: "fill" | "stroke",
 ): { base: string; ch: (t: number) => Sample; kfs: Kf[] } {
-  const tracks: Kf[][] = [];
-  if (c && c.animated && c.kfs) tracks.push(c.kfs);
-  if (o && o.animated && o.kfs) tracks.push(o.kfs);
-  const times = [...new Set(tracks.flatMap((k) => k.map((kf) => kf.t)))].sort(
-    (a, b) => a - b,
-  );
-  const kfs: Kf[] = times.map((t) => {
-    const src = tracks.map((tk) => tk.find((kf) => kf.t === t)).find(Boolean);
-    return { t, i: src?.i, o: src?.o, h: src?.h };
-  });
+  const kfs = unionKfs([c, o]);
   const opAt = (t: number) => (o ? (o.at(t)[0] ?? 100) / 100 : 1);
   const colorAt = (t: number) => (c ? c.at(t) : [0, 0, 0]);
   const swatch = (t: number) => lottieColor(colorAt(t), opAt(t));
   const ch = (t: number): Sample =>
     key === "fill" ? { fill: swatch(t) } : { stroke: swatch(t) };
-  return { base: swatch(times[0]), ch, kfs };
+  return { base: swatch(kfs[0].t), ch, kfs };
+}
+
+/** Union of the animated props' keyframe times, each carrying the first source keyframe's easing. */
+function unionKfs(props: (Prop | null)[]): Kf[] {
+  const tracks = props.flatMap((p) => (p?.animated && p.kfs ? [p.kfs] : []));
+  const times = [...new Set(tracks.flatMap((k) => k.map((kf) => kf.t)))].sort(
+    (a, b) => a - b,
+  );
+  return times.map((t) => {
+    const src = tracks.map((tk) => tk.find((kf) => kf.t === t)).find(Boolean);
+    return { t, i: src?.i, o: src?.o, h: src?.h };
+  });
+}
+
+/**
+ * Orthographic 2x2 [a, b, c, d] (x' = a·x + c·y, y' = b·x + d·y) of a 3D layer's
+ * X/Y rotation chain (degrees), mirroring lottie-web's TransformProperty order
+ * rotateY(ry)·rotateX(rx)·rotateZ(-or.z)·rotateY(or.y)·rotateX(or.x) on z=0 points.
+ */
+function project3d(rx: number, ry: number, or: number[]): number[] {
+  const rad = Math.PI / 180;
+  const img = (x: number, y: number) => {
+    let z = 0;
+    const rotX = (deg: number) => {
+      const c = Math.cos(deg * rad),
+        s = Math.sin(deg * rad);
+      [y, z] = [y * c + z * s, -y * s + z * c];
+    };
+    const rotY = (deg: number) => {
+      const c = Math.cos(deg * rad),
+        s = Math.sin(deg * rad);
+      [x, z] = [x * c - z * s, x * s + z * c];
+    };
+    const c = Math.cos(-(or[2] || 0) * rad),
+      s = Math.sin(-(or[2] || 0) * rad);
+    rotY(ry);
+    rotX(rx);
+    [x, y] = [x * c + y * s, -x * s + y * c];
+    rotY(or[1] || 0);
+    rotX(or[0] || 0);
+    return [x, y];
+  };
+  return [...img(1, 0), ...img(0, 1)];
+}
+
+/**
+ * Decompose a 2x2 [a, b, c, d] into Popkorn's rotate(θ)·scale(sx, sy)·skewX(k)
+ * (degrees). NOTE: a collapsed x axis (sx = 0) keeps θ = k = 0.
+ */
+function decompose2x2(m: number[]): {
+  rot: number;
+  sx: number;
+  sy: number;
+  skew: number;
+} {
+  const [a, b, c, d] = m;
+  const sx = Math.hypot(a, b);
+  if (sx < 1e-9) return { rot: 0, sx: 0, sy: d, skew: 0 };
+  const th = Math.atan2(b, a),
+    cos = Math.cos(th),
+    sin = Math.sin(th);
+  const sy = -c * sin + d * cos;
+  const skew = Math.atan((c * cos + d * sin) / sx);
+  return { rot: th * (180 / Math.PI), sx, sy, skew: skew * (180 / Math.PI) };
 }
 
 /** One emitted @keyframes + its animation-shorthand timing, for a single channel. */
@@ -649,7 +704,11 @@ export class Converter {
     // Record blocked non-convertible layer types.
     for (const l of layers) {
       if (this.isConvertible(l)) continue;
-      this.blocked.add(`layer type ${l.ty}`);
+      if (l?.ty === 13)
+        this.warnOnce(
+          "camera layer ignored; 3D layers rendered orthographically",
+        );
+      else this.blocked.add(`layer type ${l.ty}`);
     }
 
     // Layer effects (`ef`): Gaussian Blur (ty 29) and Drop Shadow (ty 25) map to
@@ -1371,10 +1430,13 @@ export class Converter {
   ) {
     if (!ks) return;
     const o = opts.skipOpacity ? null : prop(ks.o);
-    const r = prop(ks.r);
+    // lottie-web keys 3D on `rx`: Z rotation then lives in `rz` and `r` is ignored.
+    const is3d = ks.rx !== undefined;
+    const r = prop(is3d ? ks.rz : ks.r);
     const p = prop(ks.p);
     const a = prop(ks.a);
     const s = prop(ks.s);
+    const flat = is3d ? this.flatten3d(ks, rule, r, s) : null;
 
     if (a && a.animated)
       this.warnOnce(`animated anchor on '${rule.id}' baked to its first value`);
@@ -1439,19 +1501,23 @@ export class Converter {
       if (tx !== 0 || ty !== 0)
         tf.push(`translate(${num(tx)}px, ${num(ty)}px)`);
     }
-    if (r && !r.animated) {
-      const rv = r.at(0)[0] || 0;
-      if (rv !== 0) tf.push(`rotate(${num(rv)}deg)`);
-    }
-    if (s && !s.animated) {
-      const sv = s.at(0);
-      const sx = (sv[0] ?? 100) / 100,
-        sy = (sv[1] ?? 100) / 100;
+    const rot = flat?.rot ?? (r && !r.animated ? r.at(0)[0] || 0 : 0);
+    if (rot !== 0) tf.push(`rotate(${num(rot)}deg)`);
+    const scaleAt =
+      flat?.scaleAt ??
+      ((t: number) => {
+        const v = s ? s.at(t) : [];
+        return [(v[0] ?? 100) / 100, (v[1] ?? 100) / 100];
+      });
+    const scaleKfs = flat ? flat.scaleKfs : s?.animated ? s.kfs : null;
+    if (!scaleKfs) {
+      const [sx, sy] = scaleAt(0);
       if (sx !== 1 || sy !== 1)
         tf.push(
           sx === sy ? `scale(${num(sx)})` : `scale(${num(sx)}, ${num(sy)})`,
         );
     }
+    if (flat?.skew) tf.push(`skewX(${num(flat.skew)}deg)`);
     if (tf.length) rule.decls.push(`transform: ${tf.join(" ")}`);
 
     if (o && !o.animated) {
@@ -1470,20 +1536,20 @@ export class Converter {
         },
       });
     }
-    if (r && r.animated && r.kfs) {
+    if (r && r.animated && r.kfs && flat?.rot === undefined) {
       rule.channels.push({
         priority: 3,
         kfs: r.kfs,
         sample: (t) => ({ rot: r.at(t)[0] || 0 }),
       });
     }
-    if (s && s.animated && s.kfs) {
+    if (scaleKfs) {
       rule.channels.push({
         priority: 4,
-        kfs: s.kfs,
+        kfs: scaleKfs,
         sample: (t) => {
-          const v = s.at(t);
-          return { sx: (v[0] ?? 100) / 100, sy: (v[1] ?? 100) / 100 };
+          const [sx, sy] = scaleAt(t);
+          return { sx, sy };
         },
       });
     }
@@ -1494,6 +1560,103 @@ export class Converter {
         sample: (t) => ({ opacity: (o.at(t)[0] ?? 100) / 100 }),
       });
     }
+  }
+
+  /**
+   * Fold a 3D layer's X/Y rotation + orientation into its 2D transform the way
+   * camera-less Lottie players render it: orthographically (z dropped). Returns
+   * null when the projection is the identity, so the plain 2D path applies.
+   * NOTE: projected per layer, so a child's z never feeds a 3D parent's X/Y rotation.
+   */
+  private flatten3d(
+    ks: any,
+    rule: Rule,
+    r: Prop | null,
+    s: Prop | null,
+  ): {
+    rot?: number;
+    skew?: number;
+    scaleAt: (t: number) => number[];
+    scaleKfs: Kf[] | null;
+  } | null {
+    const rx = prop(ks.rx),
+      ry = prop(ks.ry),
+      or = prop(ks.or);
+    const projAt = (t: number) =>
+      project3d(
+        rx?.at(t)[0] || 0,
+        ry?.at(t)[0] || 0,
+        or ? or.at(t) : [0, 0, 0],
+      );
+    const scaleAt = (t: number) => {
+      const v = s ? s.at(t) : [];
+      return [(v[0] ?? 100) / 100, (v[1] ?? 100) / 100];
+    };
+    const near = (v: number, w: number) => Math.abs(v - w) < 1e-9;
+    const isDiag = (m: number[]) => near(m[1], 0) && near(m[2], 0);
+    const kfs3d = unionKfs([rx, ry, or]);
+    const times = [0, ...kfs3d.map((k) => k.t)];
+    const noZRot = !r || (!r.animated && near(r.at(0)[0] || 0, 0));
+
+    const m0 = projAt(0);
+    if (!kfs3d.length && isDiag(m0) && near(m0[0], 1) && near(m0[3], 1))
+      return null;
+    if (ks.a && (prop(ks.a)!.at(0)[2] || 0) !== 0)
+      this.warnOnce(`3D anchor z on '${rule.id}' ignored`);
+
+    // Axis-aligned projection with no Z rotation: pure extra scale, animatable.
+    // NOTE: between keyframes scale lerps rather than following cos(angle).
+    if (noZRot && times.every((t) => isDiag(projAt(t)))) {
+      const kfs = unionKfs([s, rx, ry, or]);
+      return {
+        scaleAt: (t) => {
+          const [sx, sy] = scaleAt(t),
+            m = projAt(t);
+          return [sx * m[0], sy * m[3]];
+        },
+        scaleKfs: kfs.length ? kfs : null,
+      };
+    }
+    if (kfs3d.length)
+      this.warnOnce(
+        "3D layer rotation X/Y animation not supported; using first value",
+      );
+    // Static rotation + scale: exact rotate/scale/skewX decomposition.
+    if (!r?.animated && !s?.animated) {
+      const rz = ((r?.at(0)[0] || 0) * Math.PI) / 180;
+      const [sx, sy] = scaleAt(0),
+        c = Math.cos(rz),
+        sn = Math.sin(rz);
+      const [a, b, cc, d] = m0;
+      // m0 · Rz · diag(sx, sy)
+      const m = [
+        (a * c + cc * sn) * sx,
+        (b * c + d * sn) * sx,
+        (-a * sn + cc * c) * sy,
+        (-b * sn + d * c) * sy,
+      ];
+      const dec = decompose2x2(m);
+      return {
+        rot: dec.rot,
+        skew: Math.abs(dec.skew) < 1e-6 ? 0 : dec.skew,
+        scaleAt: () => [dec.sx, dec.sy],
+        scaleKfs: null,
+      };
+    }
+    // NOTE: animated Z rotation/scale under a non-axis-aligned projection would
+    // need per-frame decomposition; approximate with the projected axis lengths.
+    this.warnOnce(
+      `3D rotation on '${rule.id}' approximated as scale (animated rotation/scale)`,
+    );
+    const ax = Math.hypot(m0[0], m0[1]),
+      ay = Math.hypot(m0[2], m0[3]);
+    return {
+      scaleAt: (t) => {
+        const [sx, sy] = scaleAt(t);
+        return [sx * ax, sy * ay];
+      },
+      scaleKfs: s?.animated ? s.kfs : null,
+    };
   }
 
   private nonZeroStatic(p: any): boolean {
