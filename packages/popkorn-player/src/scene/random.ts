@@ -1,8 +1,12 @@
 // random() rolls once at build time; seed = source hash + call-site key (+ node id for per-element).
 
 import type { LengthValue, RandomValue, Value } from "@popkorn/parser";
-import { getNumericValue, isLengthValue } from "@popkorn/parser";
-import { rewriteValue, someValue } from "./sibling.js";
+import {
+  getNumericValue,
+  isLengthValue,
+  mapValue,
+  someValue,
+} from "@popkorn/parser";
 
 export function hashString(s: string): number {
   let h = 0x811c9dc5;
@@ -77,9 +81,9 @@ function rollRandom(
 /** Returns the same object when nothing was frozen. */
 export function freezeRandom(value: Value, ctx: RandomContext): Value {
   let n = 0;
-  return rewriteValue(value, {
-    value: (v) => (v.type === "random" ? rollRandom(v, ctx, n++) : undefined),
-  });
+  return mapValue(value, (v) =>
+    v.type === "random" ? rollRandom(v, ctx, n++) : undefined,
+  );
 }
 
 export function valueHasRandom(v: Value): boolean {

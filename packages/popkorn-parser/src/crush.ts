@@ -2,7 +2,6 @@
 // Host-visible names (input() paths, @machine/state/emit/event names) are preserved.
 
 import type {
-  CalcExpr,
   ColorValue,
   Declaration,
   DefinitionRule,
@@ -20,6 +19,7 @@ import type {
   Value,
   VariableDefinition,
 } from "./ast.js";
+import { mapValue, someValue } from "./ast.js";
 import {
   isKeyframeNameToken,
   isReservedAnimationKeyword,
@@ -138,31 +138,10 @@ function collectDeclSites(decls: Declaration[], maps: Maps): void {
 
 // Registers var() names so uses of host-declared vars still crush consistently.
 function collectVarUses(v: Value, maps: Maps): void {
-  switch (v.type) {
-    case "variable":
-      maps.vars.add(v.name);
-      if (v.fallback) collectVarUses(v.fallback, maps);
-      break;
-    case "function":
-      for (const a of v.args) collectVarUses(a, maps);
-      break;
-    case "list":
-      for (const a of v.values) collectVarUses(a, maps);
-      break;
-    case "calc":
-      collectCalcVarUses(v.expr, maps);
-      break;
-  }
-}
-
-function collectCalcVarUses(expr: CalcExpr, maps: Maps): void {
-  if (expr.type === "calc-operand") collectVarUses(expr.value, maps);
-  else if (expr.type === "calc-function")
-    for (const a of expr.args) collectCalcVarUses(a, maps);
-  else {
-    collectCalcVarUses(expr.left, maps);
-    collectCalcVarUses(expr.right, maps);
-  }
+  someValue(v, (x) => {
+    if (x.type === "variable") maps.vars.add(x.name);
+    return false;
+  });
 }
 
 function collectMachineSites(m: MachineRule, maps: Maps): void {
@@ -238,34 +217,18 @@ function renameDecl(d: Declaration, maps: Maps): Declaration {
 }
 
 // Rewrites var() names and `#id` refs, incl. hex-shaped ids the parser lexed as colors.
+// A random() `ident` is a sharing key, not a declared --var: left as-is.
 function renameValue(v: Value, maps: Maps): Value {
-  switch (v.type) {
-    case "variable":
+  return mapValue(v, (x) => {
+    if (x.type === "variable")
       return {
-        ...v,
-        name: maps.vars.get(v.name),
-        fallback: v.fallback ? renameValue(v.fallback, maps) : undefined,
+        ...x,
+        name: maps.vars.get(x.name),
+        fallback: x.fallback && renameValue(x.fallback, maps),
       };
-    case "keyword":
-    case "color":
-      return renameIdRef(v, maps);
-    case "function":
-      return { ...v, args: v.args.map((a) => renameValue(a, maps)) };
-    case "list":
-      return { ...v, values: v.values.map((a) => renameValue(a, maps)) };
-    case "calc":
-      return { ...v, expr: renameCalc(v.expr, maps) };
-    case "random":
-      // `ident` is a random() sharing key, not a declared --var: left as-is.
-      return {
-        ...v,
-        min: renameValue(v.min, maps),
-        max: renameValue(v.max, maps),
-        step: v.step ? renameValue(v.step, maps) : undefined,
-      };
-    default:
-      return v;
-  }
+    if (x.type === "keyword" || x.type === "color") return renameIdRef(x, maps);
+    return undefined;
+  });
 }
 
 // A known `#id` → its crushed name; real colors and keywords unchanged.
@@ -274,18 +237,6 @@ function renameIdRef(v: KeywordValue | ColorValue, maps: Maps): Value {
   if (raw.startsWith("#") && maps.ids.has(raw.slice(1)))
     return { ...v, value: "#" + maps.ids.get(raw.slice(1)) };
   return v;
-}
-
-function renameCalc(expr: CalcExpr, maps: Maps): CalcExpr {
-  if (expr.type === "calc-operand")
-    return { type: "calc-operand", value: renameValue(expr.value, maps) };
-  if (expr.type === "calc-function")
-    return { ...expr, args: expr.args.map((a) => renameCalc(a, maps)) };
-  return {
-    ...expr,
-    left: renameCalc(expr.left, maps),
-    right: renameCalc(expr.right, maps),
-  };
 }
 
 // Rewrites only tokens naming a known @keyframes.

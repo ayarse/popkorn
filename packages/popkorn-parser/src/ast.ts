@@ -318,6 +318,116 @@ export function isRandomValue(value: Value): value is RandomValue {
   return value.type === "random";
 }
 
+// --- Value tree walking -----------------------------------------------------
+
+// Children: list items, function args, var() fallback, random() operands, calc() leaves.
+
+/** True when `pred` (or `calcFn`, on calc functions) matches anywhere in the tree, root included. */
+export function someValue(
+  v: Value,
+  pred: (v: Value) => boolean,
+  calcFn?: (e: CalcFunction) => boolean,
+): boolean {
+  const calc = (e: CalcExpr): boolean =>
+    e.type === "calc-operand"
+      ? someValue(e.value, pred, calcFn)
+      : e.type === "calc-function"
+        ? calcFn?.(e) === true || e.args.some(calc)
+        : calc(e.left) || calc(e.right);
+  if (pred(v)) return true;
+  switch (v.type) {
+    case "list":
+      return v.values.some((a) => someValue(a, pred, calcFn));
+    case "function":
+      return v.args.some((a) => someValue(a, pred, calcFn));
+    case "variable":
+      return v.fallback ? someValue(v.fallback, pred, calcFn) : false;
+    case "random":
+      return (
+        someValue(v.min, pred, calcFn) ||
+        someValue(v.max, pred, calcFn) ||
+        (v.step ? someValue(v.step, pred, calcFn) : false)
+      );
+    case "calc":
+      return calc(v.expr);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Pre-order rewrite: `leaf`/`calcFn` return a replacement (not descended) or undefined to recurse.
+ * Unchanged subtrees keep their identity.
+ */
+export function mapValue(
+  v: Value,
+  leaf: (v: Value) => Value | undefined,
+  calcFn?: (e: CalcFunction) => CalcExpr | undefined,
+): Value {
+  const hit = leaf(v);
+  if (hit) return hit;
+  const map = (x: Value): Value => mapValue(x, leaf, calcFn);
+  switch (v.type) {
+    case "list": {
+      const values = mapAll(v.values, map);
+      return values === v.values ? v : { ...v, values };
+    }
+    case "function": {
+      const args = mapAll(v.args, map);
+      return args === v.args ? v : { ...v, args };
+    }
+    case "variable": {
+      const fallback = v.fallback && map(v.fallback);
+      return fallback === v.fallback ? v : { ...v, fallback };
+    }
+    case "random": {
+      const min = map(v.min);
+      const max = map(v.max);
+      const step = v.step && map(v.step);
+      return min === v.min && max === v.max && step === v.step
+        ? v
+        : { ...v, min, max, step };
+    }
+    case "calc": {
+      const expr = mapCalc(v.expr, map, calcFn);
+      return expr === v.expr ? v : { ...v, expr };
+    }
+    default:
+      return v;
+  }
+}
+
+function mapCalc(
+  e: CalcExpr,
+  map: (v: Value) => Value,
+  calcFn?: (e: CalcFunction) => CalcExpr | undefined,
+): CalcExpr {
+  if (e.type === "calc-operand") {
+    const value = map(e.value);
+    return value === e.value ? e : { type: "calc-operand", value };
+  }
+  if (e.type === "calc-function") {
+    const hit = calcFn?.(e);
+    if (hit) return hit;
+    const args = mapAll(e.args, (a) => mapCalc(a, map, calcFn));
+    return args === e.args ? e : { ...e, args };
+  }
+  const left = mapCalc(e.left, map, calcFn);
+  const right = mapCalc(e.right, map, calcFn);
+  return left === e.left && right === e.right ? e : { ...e, left, right };
+}
+
+// Same array when every element maps to itself.
+function mapAll<T>(xs: T[], fn: (x: T) => T): T[] {
+  let out: T[] | undefined;
+  for (let i = 0; i < xs.length; i++) {
+    const y = fn(xs[i]);
+    if (!out && y !== xs[i]) out = xs.slice(0, i);
+    if (out) out.push(y);
+  }
+  return out ?? xs;
+}
+
 // --- calc() evaluation ----------------------------------------------------
 
 // A numeric result carrying its unit; unit "" means a plain (unitless) number.

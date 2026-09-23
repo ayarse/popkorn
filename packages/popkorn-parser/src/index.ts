@@ -21,6 +21,7 @@ export type {
   StyleSheet,
   Value,
   VariableDefinition,
+  VariableRefValue,
 } from "./ast.js";
 export {
   calcConstant,
@@ -41,6 +42,8 @@ export {
   isRandomValue,
   isStringValue,
   isVariableRefValue,
+  mapValue,
+  someValue,
 } from "./ast.js";
 export type { Diagnostic, Severity } from "./diagnostics.js";
 export { offsetToLineCol } from "./diagnostics.js";

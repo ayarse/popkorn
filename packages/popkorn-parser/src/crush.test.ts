@@ -119,3 +119,12 @@ test("crush output re-parses without errors", () => {
     [],
   );
 });
+
+test("crush renames var() uses inside random() operands", () => {
+  const out = crush(`
+    :root { --lo: 1px; }
+    #x { type: circle; r: random(var(--lo), var(--host-hi)); }
+  `);
+  expect(out).not.toContain("--lo");
+  expect(out).not.toContain("--host-hi");
+});

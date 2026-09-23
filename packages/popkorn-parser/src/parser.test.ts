@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { getNumericValue, isRandomValue } from "./ast.js";
+import { getNumericValue, isRandomValue, mapValue, someValue } from "./ast.js";
 import { parse } from "./parser.js";
 import { serialize } from "./serializer.js";
 
@@ -1226,4 +1226,22 @@ test("random(): diagnoses incompatible units, empty range, unknown keyword", () 
   // A clean call emits no random diagnostic.
   const ok = parse("#b { r: random(0px, 10px); }").diagnostics;
   expect(ok.some((d) => d.code === "invalid-random")).toBe(false);
+});
+
+test("unit-has-no-effect: em/rem inside random() operands is detected", () => {
+  const d = parse("#b { r: random(1em, 4em); }").diagnostics;
+  expect(d.some((x) => x.code === "unit-has-no-effect")).toBe(true);
+});
+
+test("someValue/mapValue: descend random() operands and keep round() strategy", () => {
+  const v = parse("#b { r: calc(round(up, random(var(--a), 10), 5)); }")
+    .rules[0].declarations[0].value;
+  expect(someValue(v, (x) => x.type === "variable")).toBe(true);
+  const out = mapValue(v, (x) =>
+    x.type === "variable" ? { type: "number", value: 2 } : undefined,
+  );
+  expect(someValue(out, (x) => x.type === "variable")).toBe(false);
+  expect(JSON.stringify(out)).toContain('"strategy":"up"');
+  // Nothing replaced → same object back.
+  expect(mapValue(v, () => undefined)).toBe(v);
 });

@@ -35,6 +35,7 @@ import {
   isLengthValue,
   isListValue,
   isNumberValue,
+  someValue,
 } from "./ast.js";
 import type { Diagnostic, Severity } from "./diagnostics.js";
 import {
@@ -619,48 +620,15 @@ function lintDeclaration(
   }
 }
 
-// First `em`/`rem` anywhere in a value, descending into lists, function args and calc().
+// First `em`/`rem` anywhere in a value (lists, function args, var() fallback, random(), calc()).
 function findFontRelativeUnit(v: Value): "em" | "rem" | undefined {
-  switch (v.type) {
-    case "length":
-      return v.unit === "em" || v.unit === "rem" ? v.unit : undefined;
-    case "list":
-      for (const item of v.values) {
-        const found = findFontRelativeUnit(item);
-        if (found) return found;
-      }
-      return undefined;
-    case "function":
-      for (const arg of v.args) {
-        const found = findFontRelativeUnit(arg);
-        if (found) return found;
-      }
-      return undefined;
-    case "variable":
-      return v.fallback ? findFontRelativeUnit(v.fallback) : undefined;
-    case "calc":
-      return findFontRelativeUnitInCalc(v.expr);
-    default:
-      return undefined;
-  }
-}
-
-function findFontRelativeUnitInCalc(expr: CalcExpr): "em" | "rem" | undefined {
-  switch (expr.type) {
-    case "calc-operand":
-      return findFontRelativeUnit(expr.value);
-    case "calc-binary":
-      return (
-        findFontRelativeUnitInCalc(expr.left) ??
-        findFontRelativeUnitInCalc(expr.right)
-      );
-    case "calc-function":
-      for (const arg of expr.args) {
-        const found = findFontRelativeUnitInCalc(arg);
-        if (found) return found;
-      }
-      return undefined;
-  }
+  let found: "em" | "rem" | undefined;
+  someValue(v, (x) => {
+    if (x.type === "length" && (x.unit === "em" || x.unit === "rem"))
+      found = x.unit;
+    return found !== undefined;
+  });
+  return found;
 }
 
 // Bare keywords at any list depth; function args are not descended into.
