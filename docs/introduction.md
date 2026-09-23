@@ -5,6 +5,13 @@ file written in a close dialect of CSS. The runtime is a small player that
 draws that file in the browser (Canvas2D or SVG) and on iOS and Android through
 React Native and Skia.
 
+The CSS-like syntax can make it look like Popkorn is ordinary CSS running on
+the DOM, or inside a WebView on mobile. It isn't. The browser's CSS engine
+never sees a scene. Popkorn's own parser reads the file, and its own renderer
+draws every frame: to a canvas (or an SVG element) on the web, and natively
+through Skia on iOS and Android. That's why the same file looks the same on
+every platform, and why it runs where there is no browser at all.
+
 The [README](../README.md) shows what a scene looks like. This page explains
 how a scene works, so the rest of the docs make sense.
 

@@ -28,6 +28,9 @@ newcomer or user reads.
   graphics**. Say "format + runtime." Do NOT call it an engine, toolkit, or
   "a CSS-subset DSL played by a Canvas2D engine" — those name parts, not the whole.
 - Lead with the what-if hook: **"What if a CSS animation could leave the browser?"**
+- Say early that it **doesn't render on the DOM** or in a WebView: the CSS is
+  only the file format; Popkorn's own parser and renderer draw it (canvas/SVG on
+  web, native Skia on mobile). Readers otherwise assume "CSS in a WebView."
 - It's a **close CSS dialect, not CSS.** Frame it as "very close, kept as close as
   possible". Never claim "it is CSS."
 

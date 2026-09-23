@@ -15,6 +15,11 @@ file written in a close dialect of CSS: `@keyframes`, `transform`,
 `offset-path`, `:hover`, `z-index`. A small runtime plays that file in the
 browser (Canvas2D or SVG) and on iOS and Android through React Native and Skia.
 
+The CSS is only the file format. Scenes don't run on the DOM, and the
+browser's CSS engine never sees them. Popkorn has its own parser and renderer,
+which draw to a canvas (or an SVG element) on the web and render natively
+through Skia on mobile, with no WebView involved.
+
 The file is the source of truth. You can read it, review it in a pull request,
 change a color by hand, or ask a language model to rework the timing. Existing
 Lottie and SVG files import into it.

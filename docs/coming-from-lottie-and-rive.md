@@ -18,6 +18,7 @@ other formats today.
 | Edit after export | Back to the source project    | Back to the editor            | Edit the file                                  |
 | Interactivity     | Player API, some expressions  | State machines, listeners     | `:hover`/`:active`, `@machine`, input bindings |
 | Runtimes          | Web, iOS, Android, many more  | Web, iOS, Android, many more  | Web (Canvas2D, SVG), React Native (Skia)       |
+| Rendering         | Own renderer per platform     | Own renderer per platform     | Own renderer per platform, no DOM or WebView   |
 | Maturity          | Industry standard             | Production                    | Early proof of concept                         |
 
 Popkorn is the youngest of the three by far, and its runtime list is shorter.
