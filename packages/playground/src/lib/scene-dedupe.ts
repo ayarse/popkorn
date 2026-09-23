@@ -29,7 +29,7 @@ const trigrams = (s: string): Set<string> => {
  * Jaccard similarity over character trigrams, in [0, 1]. Catches the
  * one-character-edit resubmission that an exact hash misses.
  *
- * ponytail: trigram overlap, not edit distance — Levenshtein over 100KB scenes
+ * NOTE: trigram overlap, not edit distance — Levenshtein over 100KB scenes
  * is quadratic and this only has to separate "same scene, nudged" from "new
  * scene". Swap in a proper diff if the threshold ever needs to be fine-grained.
  */

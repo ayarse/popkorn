@@ -1,6 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Save, Tag as TagIcon, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  Save,
+  Tag as TagIcon,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { TagInput } from "@/components/tag-input";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { CommunityScene } from "@/hooks/use-scene";
 import { deleteScene, updateScene } from "@/lib/scenes";
+import { cn } from "@/lib/utils";
 
 /** Save/retag/delete for a scene you published, in the player toolbar beside
  *  the other things you do to a scene. Every write re-checks ownership
@@ -28,8 +36,14 @@ export function OwnerActions({
   source: string;
 }) {
   const navigate = useNavigate();
-  const [state, setState] = useState<"idle" | "busy" | "saved">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "saved" | "failed">(
+    "idle",
+  );
   const [armed, setArmed] = useState(false);
+  const fail = (what: string) => (e: unknown) =>
+    toast.error(what, {
+      description: e instanceof Error ? e.message : String(e),
+    });
   const [tags, setTags] = useState(community.tags);
 
   return (
@@ -57,23 +71,32 @@ export function OwnerActions({
       <Button
         variant="ghost"
         size="sm"
-        className="gap-1.5"
+        className={cn("gap-1.5", state === "failed" && "text-destructive")}
         disabled={state === "busy"}
         onClick={() => {
           setState("busy");
-          void updateScene({
+          updateScene({
             data: { id: community.id, css: source, tags: tags.join(" ") },
           })
             .then(() => setState("saved"))
-            .catch(() => setState("idle"));
+            .catch((e) => {
+              setState("failed");
+              fail("Couldn't save the scene")(e);
+            });
         }}
       >
         {state === "busy" ? (
           <Loader2 className="size-3.5 animate-spin" />
+        ) : state === "failed" ? (
+          <AlertCircle className="size-3.5" />
         ) : (
           <Save className="size-3.5" />
         )}
-        {state === "saved" ? "Saved" : "Save changes"}
+        {state === "saved"
+          ? "Saved"
+          : state === "failed"
+            ? "Retry save"
+            : "Save changes"}
       </Button>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -87,9 +110,10 @@ export function OwnerActions({
                 setArmed(true);
                 return;
               }
-              void deleteScene({ data: community.id }).then(() =>
-                navigate({ to: "/community" }),
-              );
+              setArmed(false);
+              deleteScene({ data: community.id })
+                .then(() => navigate({ to: "/community" }))
+                .catch(fail("Couldn't delete the scene"));
             }}
           >
             <Trash2 className="size-4" />

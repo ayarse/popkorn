@@ -3,7 +3,7 @@ import { auth, clerkClient } from "@clerk/tanstack-react-start/server";
 import { parse } from "@popkorn/parser";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestIP } from "@tanstack/react-start/server";
-import { examples } from "@/examples";
+import { loadExamples } from "@/examples";
 import { sceneAspect } from "@/lib/scene-aspect";
 import { normalize, sha256, similarity } from "@/lib/scene-dedupe";
 
@@ -50,7 +50,7 @@ interface D1 {
     bind(...values: unknown[]): {
       first<T>(): Promise<T | null>;
       all<T>(): Promise<{ results: T[] }>;
-      run(): Promise<unknown>;
+      run(): Promise<{ meta: { changes: number } }>;
     };
     first<T>(): Promise<T | null>;
     all<T>(): Promise<{ results: T[] }>;
@@ -65,6 +65,16 @@ interface Bindings {
 
 const bindings = () => env as unknown as Bindings;
 const db = () => bindings().DB;
+
+let exampleNormals: Promise<string[]> | undefined;
+
+/** Normalized example sources, computed once per isolate for the dedupe gate. */
+function normalizedExamples(): Promise<string[]> {
+  exampleNormals ??= loadExamples().then((xs) =>
+    xs.map((e) => normalize(e.source)),
+  );
+  return exampleNormals;
+}
 
 /** 16 URL-safe chars, 64 bits of entropy — unguessable enough, short enough. */
 function newId(): string {
@@ -137,10 +147,10 @@ export const submitScene = createServerFn({ method: "POST" })
       .bind(userId)
       .all<{ css: string }>();
     for (const prior of [
-      ...examples.map((e) => e.source),
-      ...mine.map((r) => r.css),
+      ...(await normalizedExamples()),
+      ...mine.map((r) => normalize(r.css)),
     ]) {
-      if (similarity(normal, normalize(prior)) >= NEAR_DUPLICATE)
+      if (similarity(normal, prior) >= NEAR_DUPLICATE)
         throw new Error(
           "That's too close to a scene that's already here — change it up before publishing.",
         );
@@ -150,7 +160,7 @@ export const submitScene = createServerFn({ method: "POST" })
     try {
       await db()
         .prepare(
-          "INSERT INTO scenes (id, title, css, ip_hash, created_at, content_hash, user_id, author, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO scenes (id, title, css, ip_hash, created_at, content_hash, user_id, author, tags, aspect) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(
           id,
@@ -162,6 +172,7 @@ export const submitScene = createServerFn({ method: "POST" })
           userId,
           await displayName(userId),
           data.tags,
+          sceneAspect(data.css),
         )
         .run();
     } catch (e: unknown) {
@@ -211,18 +222,20 @@ export const updateScene = createServerFn({ method: "POST" })
 
     // No rate limit or dedupe here: editing your own scene doesn't grow the
     // gallery, and the near-duplicate check would flag every small revision.
-    await db()
+    const { meta } = await db()
       .prepare(
-        "UPDATE scenes SET css = ?, content_hash = ?, tags = ? WHERE id = ? AND user_id = ?",
+        "UPDATE scenes SET css = ?, content_hash = ?, tags = ?, aspect = ? WHERE id = ? AND user_id = ?",
       )
       .bind(
         data.css,
         await sha256(normalize(data.css)),
         data.tags,
+        sceneAspect(data.css),
         data.id,
         userId,
       )
       .run();
+    if (!meta.changes) throw new Error("That scene isn't yours to edit.");
     return { ok: true };
   });
 
@@ -231,41 +244,70 @@ export const deleteScene = createServerFn({ method: "POST" })
   .handler(async ({ data: id }) => {
     const { userId } = await auth();
     if (!userId) throw new Error("Sign in to delete a scene.");
-    await db()
+    const { meta } = await db()
       .prepare("DELETE FROM scenes WHERE id = ? AND user_id = ?")
       .bind(id, userId)
       .run();
+    if (!meta.changes) throw new Error("That scene isn't yours to delete.");
     return { ok: true };
   });
 
 export const listScenes = createServerFn()
   .validator((limit?: number) => Math.min(Math.max(limit ?? 60, 1), 60))
   .handler(async ({ data: limit }): Promise<SceneSummary[]> => {
+    // css rides along only for rows predating the aspect column.
     const { results } = await db()
       .prepare(
-        "SELECT id, title, created_at, author, tags, css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
+        "SELECT id, title, created_at, author, tags, aspect, CASE WHEN aspect IS NULL THEN css END AS css FROM scenes WHERE hidden = 0 ORDER BY created_at DESC LIMIT ?",
       )
       .bind(limit)
-      .all<SceneRow>();
+      .all<
+        Omit<SceneRow, "css"> & { aspect: number | null; css: string | null }
+      >();
     // NOTE: the page ships every scene and the community page filters in the
     // browser. Move search and the tag facet into SQL once the gallery outgrows
     // a single page of results.
-    return results.map(({ css, tags, ...row }) => ({
-      ...row,
-      tags: tags ? tags.split(" ") : [],
-      aspect: sceneAspect(css),
-    }));
+    return Promise.all(
+      results.map(async ({ css, tags, aspect, ...row }) => {
+        if (aspect === null) {
+          aspect = sceneAspect(css ?? "");
+          await db()
+            .prepare("UPDATE scenes SET aspect = ? WHERE id = ?")
+            .bind(aspect, row.id)
+            .run();
+        }
+        return { ...row, tags: tags ? tags.split(" ") : [], aspect };
+      }),
+    );
   });
 
-/** No moderation queue: N reports hides the scene, and that's the whole policy. */
+let exampleAspects: Promise<Record<string, number>> | undefined;
+
+/** Built-in examples' aspect ratios, so gallery cards size before their CSS loads. */
+export const listExampleAspects = createServerFn().handler(() => {
+  exampleAspects ??= loadExamples().then((xs) =>
+    Object.fromEntries(xs.map((e) => [e.key, sceneAspect(e.source)])),
+  );
+  return exampleAspects;
+});
+
+/** No moderation queue: N distinct signed-in reporters hide the scene. */
 export const reportScene = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data: id }) => {
+    const { userId } = await auth();
+    if (!userId) throw new Error("Sign in to report a scene.");
     await db()
       .prepare(
-        "UPDATE scenes SET reports = reports + 1, hidden = (reports + 1 >= ?) WHERE id = ?",
+        "INSERT OR IGNORE INTO scene_reports (scene_id, reporter, created_at) VALUES (?, ?, ?)",
       )
-      .bind(REPORTS_TO_HIDE, id)
+      .bind(id, userId, Date.now())
+      .run();
+    await db()
+      .prepare(
+        "UPDATE scenes SET reports = (SELECT COUNT(*) FROM scene_reports WHERE scene_id = ?1), hidden = MAX(hidden, (SELECT COUNT(*) FROM scene_reports WHERE scene_id = ?1) >= ?2) WHERE id = ?1",
+      )
+      .bind(id, REPORTS_TO_HIDE)
       .run();
     return { ok: true };
   });

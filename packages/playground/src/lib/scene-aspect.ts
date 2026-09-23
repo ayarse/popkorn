@@ -1,4 +1,4 @@
-// ponytail: regex over the `:root` canvas box instead of a full parse() — the
+// NOTE: regex over the `:root` canvas box instead of a full parse() — the
 // gallery only needs a width/height ratio to reserve the right card height, and
 // parsing every scene on each render (server included) buys nothing else here.
 // If a scene ever declares its canvas some other way, upgrade this to
