@@ -25,6 +25,7 @@ export function ScenePreview(props: {
   source?: string;
   sceneId?: string;
   aspect?: number;
+  onError?: (error: Error) => void;
 }) {
   return (
     <ClientOnly fallback={<Box aspect={placeholderAspect(props)} />}>
@@ -68,13 +69,17 @@ function Preview({
   source,
   sceneId,
   aspect,
+  onError,
 }: {
   source?: string;
   sceneId?: string;
   aspect?: number;
+  onError?: (error: Error) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [css, setCss] = useState<string | null>(source ?? null);
+  const [fetched, setCss] = useState<string | null>(null);
+  // An inline `source` stays live (docs edit it in place); a fetched one loads once.
+  const css = source ?? fetched;
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -107,6 +112,7 @@ function Preview({
         <Suspense fallback={null}>
           <MotionCanvas
             source={css}
+            onError={onError}
             controls={false}
             loop
             fit="contain"

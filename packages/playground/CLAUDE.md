@@ -26,8 +26,13 @@ agent *can't* infer from the code.
   `vite build && tsc -b` in that order — tsc needs the generated tree to exist.
 - **Docs render on the server** — `src/lib/docs.ts` owns the section list and
   the `docs/*.md` raw glob; `src/routes/-docs-head.ts` derives each page's
-  title/description (leading `-` = not a route). Prism highlighting still runs
-  client-side in an effect.
+  title/description (leading `-` = not a route). `src/lib/docs-render.ts`
+  renders markdown to segments with Prism highlighting done at render time
+  (a new fence language needs its `prismjs/components` import there), rewrites
+  repo-relative `.md` links to `/docs/<key>`, and turns any css fence with a
+  `:root` block into an editable live scene (`components/docs-scene-block.tsx`).
+  The docs token palette in `globals.css` is deliberately unlayered: the
+  editor's Prism theme is unlayered too and would beat anything in `@layer`.
 - **`/`, `/examples/$key` and `/s/$id` are all the same playground**, sharing
   `-playground.tsx`; each route server-renders only its head. `useScene` reads
   the params and syncs on them, so picking an example is a `navigate()` and the

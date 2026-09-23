@@ -44,7 +44,7 @@ export function useToc(
       const base = slugify(h.textContent || "") || `heading-${i}`;
       const n = (counts.get(base) ?? 0) + 1;
       counts.set(base, n);
-      const id = n === 1 ? base : `${base}-${n}`;
+      const id = h.id || (n === 1 ? base : `${base}-${n}`);
       h.id = id;
       const level = Number(h.tagName.slice(1));
       items.push({

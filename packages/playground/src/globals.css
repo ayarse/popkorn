@@ -193,6 +193,103 @@
   .docs-prose :is(h2, h3, h4) {
     scroll-margin-top: 1rem;
   }
+  .docs-prose .heading-anchor {
+    margin-left: 0.4em;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  .docs-prose .heading-anchor::before {
+    content: "#";
+  }
+  .docs-prose :is(h2, h3, h4):hover .heading-anchor,
+  .docs-prose .heading-anchor:focus-visible {
+    opacity: 1;
+  }
+
+  /* Code block: language label + copy button above the <pre>. */
+  .docs-prose .code-block {
+    margin: 1rem 0;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: #1b1b28;
+  }
+  .docs-prose .code-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding: 0.3rem 0.5rem 0.3rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted-foreground);
+  }
+  .docs-prose .code-copy {
+    border-radius: 0.25rem;
+    padding: 0.15rem 0.5rem;
+    font-family: var(--font-sans, inherit);
+    transition:
+      background 120ms,
+      color 120ms;
+  }
+  .docs-prose .code-copy:hover {
+    background: color-mix(in oklch, var(--secondary) 70%, transparent);
+    color: var(--foreground);
+  }
+
+  /* Live scene: the running scene above its source. */
+  .docs-prose .scene-block {
+    margin: 1.25rem 0;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+  }
+  .docs-prose .scene-block-preview {
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in oklch, var(--secondary) 35%, transparent);
+    padding: 1.25rem;
+  }
+  .docs-prose .scene-block .code-block {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  /* GitHub-style `> [!NOTE]` callouts. */
+  .docs-prose .callout {
+    margin: 1.25rem 0;
+    border-left: 3px solid var(--callout, var(--primary));
+    border-radius: 0 0.5rem 0.5rem 0;
+    background: color-mix(
+      in oklch,
+      var(--callout, var(--primary)) 9%,
+      transparent
+    );
+    padding: 0.75rem 1rem;
+  }
+  .docs-prose .callout > :first-child,
+  .docs-prose .callout > .callout-title + * {
+    margin-top: 0;
+  }
+  .docs-prose .callout > :last-child {
+    margin-bottom: 0;
+  }
+  .docs-prose .callout-title {
+    margin: 0 0 0.25rem;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+    color: var(--callout, var(--primary));
+  }
+  .docs-prose .callout-tip {
+    --callout: oklch(0.72 0.15 150);
+  }
+  .docs-prose .callout-warning,
+  .docs-prose .callout-caution {
+    --callout: oklch(0.78 0.14 75);
+  }
 
   /* Agent chat markdown — same idiom as .docs-prose, scaled down for a
      chat bubble: no heading/table styling (agent replies don't use them),
@@ -378,4 +475,123 @@
 }
 .driver-popover.popkorn-tour .driver-popover-arrow-side-bottom {
   border-bottom-color: var(--popover);
+}
+
+/* Docs code: unlayered so it beats the Prism theme the playground editor
+   loads (also unlayered). Palette tuned to the site's indigo. */
+.docs-prose .code-block pre,
+.docs-prose .scene-editor {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 1rem;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  text-shadow: none;
+  color: oklch(0.86 0.012 264);
+}
+.docs-prose .scene-editor {
+  padding: 0;
+}
+.docs-prose .scene-editor-input {
+  outline: none;
+  caret-color: var(--primary);
+}
+.docs-prose .scene-error {
+  margin: 0;
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: oklch(0.72 0.16 25);
+}
+.docs-prose .token {
+  background: none;
+  font-style: normal;
+}
+.docs-prose .token.comment,
+.docs-prose .token.prolog,
+.docs-prose .token.doctype {
+  color: oklch(0.56 0.02 264);
+  font-style: italic;
+}
+.docs-prose .token.punctuation,
+.docs-prose .token.operator {
+  color: oklch(0.62 0.02 264);
+}
+.docs-prose .token.selector,
+.docs-prose .token.atrule,
+.docs-prose .token.rule,
+.docs-prose .token.keyword,
+.docs-prose .token.important,
+.docs-prose .token.tag {
+  color: oklch(0.78 0.12 290);
+}
+.docs-prose .token.property,
+.docs-prose .token.attr-name,
+.docs-prose .token.class-name,
+.docs-prose .token.builtin {
+  color: oklch(0.8 0.08 240);
+}
+.docs-prose .token.function {
+  color: oklch(0.83 0.09 195);
+}
+.docs-prose .token.string,
+.docs-prose .token.url,
+.docs-prose .token.attr-value,
+.docs-prose .token.template-string {
+  color: oklch(0.8 0.1 150);
+}
+.docs-prose .token.number,
+.docs-prose .token.unit,
+.docs-prose .token.hexcode,
+.docs-prose .token.color,
+.docs-prose .token.boolean,
+.docs-prose .token.constant {
+  color: oklch(0.82 0.1 65);
+}
+.docs-prose .token.variable {
+  color: oklch(0.86 0.012 264);
+}
+.docs-prose .token.parameter {
+  color: oklch(0.8 0.08 240);
+}
+
+/* Docs diagrams (docs/diagrams/*.svg), inlined: follow the site palette, not
+   the SVG's own light/dark media query. */
+.docs-prose .diagram {
+  margin: 1.5rem 0;
+}
+.docs-prose .diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.docs-prose .diagram .pkd .box {
+  fill: color-mix(in oklch, var(--secondary) 45%, transparent);
+  stroke: var(--border);
+}
+.docs-prose .diagram .pkd .key {
+  fill: color-mix(in oklch, var(--primary) 14%, transparent);
+  stroke: var(--primary);
+}
+.docs-prose .diagram .pkd .group {
+  stroke: color-mix(in oklch, var(--primary) 70%, transparent);
+}
+.docs-prose .diagram .pkd .t {
+  fill: var(--foreground);
+}
+.docs-prose .diagram .pkd .s {
+  fill: var(--muted-foreground);
+}
+.docs-prose .diagram .pkd :is(.label, .n) {
+  fill: var(--primary);
+}
+.docs-prose .diagram .pkd .wire {
+  stroke: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+}
+.docs-prose .diagram .pkd .head {
+  fill: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
 }

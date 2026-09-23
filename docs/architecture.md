@@ -4,34 +4,7 @@ How the pipeline fits together. See the [README](../README.md) for setup and the
 
 ## Pipeline
 
-```
-┌─────────────────────────┐  ┌─────────────────────────┐
-│  Lottie JSON / SVG      │  │  @popkorn/converters     │  Lottie + SVG import
-└───────────┬─────────────┘  │  (browser-safe core, CLI)│
-            │                └───────────┬─────────────┘
-            └──────────────┬─────────────┘
-                            ▼
-┌─────────────────────────┐
-│  @popkorn/parser        │  parse(source) → AST
-│  (zero deps, sync)      │
-└───────────┬─────────────┘
-            │
-            ▼
-┌─────────────────────────┐
-│  @popkorn/player        │  Rendering engine
-│  <popkorn-player>       │
-│  Canvas2DRenderer       │
-│  AnimationScheduler     │
-│  RenderLoop             │
-└───────────┬─────────────┘
-            │
-     ┌──────┴──────┐
-     ▼             ▼
-┌───────────┐  ┌──────────────────────┐
-│ playground│  │ @popkorn/react-native│  Skia backend
-│ React app │  │                      │
-└───────────┘  └──────────────────────┘
-```
+![Popkorn pipeline: Lottie and SVG files go through @popkorn/converters to become a Popkorn scene, as do scenes written by hand or by an LLM. @popkorn/parser turns the scene into a typed AST. @popkorn/player builds a scene graph and drives a render loop through one Renderer interface, realized by Canvas2D, SVG, and Skia via @popkorn/react-native. Scenes also export to Lottie, GIF, and MP4.](diagrams/pipeline.svg)
 
 ### Parser
 
@@ -62,14 +35,17 @@ out (`runtime/loop.ts`, `clipToScene`).
 **@popkorn/playground** is a React app that:
 
 - Uses the `<popkorn-player>` web component via a thin React wrapper
-- Provides example scenes to demonstrate features (curated in
-  `packages/playground/src/examples.ts`, kept in sync with `examples/popkorn/*.css`)
+- Provides example scenes to demonstrate features (loaded from
+  `examples/popkorn/*.css` by `packages/playground/src/examples.ts`)
 - Shows the scene source alongside the rendered output
 - Imports real Lottie JSON via the browser-safe converter core
 
 ### Engine principles
 
-The player's correctness rests on a few structural rules:
+The player's correctness rests on a few structural rules. The most important
+is the order in which every frame resolves node values:
+
+![Per-frame value resolution, in order: reset to the node's base snapshot, apply var() and input() bindings, sample animations at time t, apply :hover and :active overrides, then run the render walk that both paints and hit-tests.](diagrams/frame.svg)
 
 - One transform implementation: render and hit-testing both consume the
   matrices in `scene/transform.ts` (transform-origin and motion-path placement
@@ -117,5 +93,5 @@ dependency-free XML reader lives beside it in `svg-xml.ts`). It maps CSS
 `<popkorn-player>` against lottie-web and ThorVG at the same paused frame, with
 per-region pixel diffing (see its README). It's how rendering changes get
 checked visually. The goal is matching the intended After Effects motion, not
-matching any one reference renderer byte-for-byte — the references sometimes
+matching any one reference renderer byte-for-byte, since the references sometimes
 disagree with each other.

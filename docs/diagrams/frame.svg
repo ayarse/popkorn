@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 128" width="720" height="128" class="pkd" role="img" aria-labelledby="pkd-frame-title">
+  <title id="pkd-frame-title">Per-frame value resolution: base snapshot, then bindings, then animation at time t, then hover and active overrides, then the render walk</title>
+  <style>
+    .pkd { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .pkd .box { fill: #f6f7fb; stroke: #d3d7e5; stroke-width: 1; }
+    .pkd .key { fill: #eef0ff; stroke: #7479d6; stroke-width: 1.25; }
+    .pkd .t { fill: #1f2330; font-size: 13px; font-weight: 600; }
+    .pkd .s { fill: #5d6477; font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .pkd .n { fill: #7479d6; font-size: 11px; font-weight: 600; }
+    .pkd .wire { fill: none; stroke: #8a90a6; stroke-width: 1.25; }
+    .pkd .head { fill: #8a90a6; }
+    @media (prefers-color-scheme: dark) {
+      .pkd .box { fill: #1c1f2e; stroke: #353a50; }
+      .pkd .key { fill: #23264a; stroke: #8b8ff0; }
+      .pkd .t { fill: #e6e8f0; }
+      .pkd .s { fill: #9aa0b5; }
+      .pkd .n { fill: #8b8ff0; }
+      .pkd .wire { stroke: #6b7086; }
+      .pkd .head { fill: #6b7086; }
+    }
+  </style>
+  <defs>
+    <marker id="pkd-frame-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" orient="auto">
+      <path class="head" d="M0 0 L8 4 L0 8 z"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="10" y="24" width="120" height="68" rx="8"/>
+  <text class="n" x="22" y="44">1</text>
+  <text class="t" x="70" y="62" text-anchor="middle">Reset to base</text>
+  <text class="s" x="70" y="80" text-anchor="middle">node.base</text>
+  <path class="wire" d="M130 58 H152" marker-end="url(#pkd-frame-arrow)"/>
+
+  <rect class="box" x="152" y="24" width="120" height="68" rx="8"/>
+  <text class="n" x="164" y="44">2</text>
+  <text class="t" x="212" y="62" text-anchor="middle">Bindings</text>
+  <text class="s" x="212" y="80" text-anchor="middle">var() · input()</text>
+  <path class="wire" d="M272 58 H294" marker-end="url(#pkd-frame-arrow)"/>
+
+  <rect class="key" x="294" y="24" width="120" height="68" rx="8"/>
+  <text class="n" x="306" y="44">3</text>
+  <text class="t" x="354" y="62" text-anchor="middle">Animation</text>
+  <text class="s" x="354" y="80" text-anchor="middle">sampled at t</text>
+  <path class="wire" d="M414 58 H436" marker-end="url(#pkd-frame-arrow)"/>
+
+  <rect class="box" x="436" y="24" width="120" height="68" rx="8"/>
+  <text class="n" x="448" y="44">4</text>
+  <text class="t" x="496" y="62" text-anchor="middle">Pointer states</text>
+  <text class="s" x="496" y="80" text-anchor="middle">:hover · :active</text>
+  <path class="wire" d="M556 58 H578" marker-end="url(#pkd-frame-arrow)"/>
+
+  <rect class="box" x="578" y="24" width="132" height="68" rx="8"/>
+  <text class="n" x="590" y="44">5</text>
+  <text class="t" x="644" y="62" text-anchor="middle">Render walk</text>
+  <text class="s" x="644" y="80" text-anchor="middle">paint · hit-test</text>
+
+  <text class="s" x="360" y="118" text-anchor="middle">nothing carries over between frames, so seek(t) always draws the same picture</text>
+</svg>
