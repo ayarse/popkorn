@@ -85,3 +85,15 @@ test("Z returns the pen to the subpath start for render and flatten alike", () =
   expect(lines.at(-1)).toEqual([5, 0]);
   expect(flattenToSubpaths(cmds)[0].at(-1)).toEqual({ x: 5, y: 0 });
 });
+
+test("truncated commands end the path at the last complete command", () => {
+  const m = { type: "M", x: 0, y: 0 };
+  const l = { type: "L", x: 1, y: 1 };
+  expect(parsePath("M0 0a1 1 0 0")).toEqual([m]);
+  expect(parsePath("M0 0 a5 5 0 1.5 5 5")).toEqual([m]);
+  expect(parsePath("M0 0 L1 1 C1 2 3 4 5")).toEqual([m, l]);
+  expect(parsePath("M0 0 L1 1 Q1 2 3")).toEqual([m, l]);
+  expect(parsePath("M0 0 L1 1 L2")).toEqual([m, l]);
+  expect(parsePath("M0 0 L1 1 L2 Z")).toEqual([m, l]);
+  expect(parsePath("M0")).toEqual([]);
+});

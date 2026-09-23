@@ -122,8 +122,11 @@ export function parsePath(d: string): PathCommand[] {
     else i++;
     return flag;
   };
+  const hasNumber = (): boolean =>
+    i < tokens.length && !Number.isNaN(parseFloat(tokens[i]));
 
-  while (i < tokens.length) {
+  // SVG error handling: an incomplete command ends the path; everything before it renders.
+  parse: while (i < tokens.length) {
     const cmd = tokens[i];
     i++;
 
@@ -142,13 +145,13 @@ export function parsePath(d: string): PathCommand[] {
     // M's first pair is unconditional; extra pairs are implicit lineto.
     let type = command;
     let first = command === "M";
-    while (
-      first ||
-      (i < tokens.length && !Number.isNaN(parseFloat(tokens[i])))
-    ) {
+    while (first || hasNumber()) {
       for (let k = 0; k < slots.length; k++) {
         const slot = slots[k];
+        if (!hasNumber()) break parse;
         if (slot === "f") {
+          const c = tokens[i][0];
+          if (c !== "0" && c !== "1") break parse;
           args[k] = readFlag() ? 1 : 0;
           continue;
         }
