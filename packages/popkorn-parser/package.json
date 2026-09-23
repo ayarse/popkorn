@@ -1,6 +1,6 @@
 {
   "name": "@popkorn/parser",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Parser for the Popkorn DSL",
   "license": "MIT",
   "repository": {
