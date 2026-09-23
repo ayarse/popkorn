@@ -14,8 +14,8 @@ import {
   pathsCompatible,
 } from "./animation/registry.js";
 import { parseColor } from "./renderer/color.js";
+import { computeTrim } from "./renderer/stroke.js";
 import type { GradientData } from "./renderer/types.js";
-import { computeTrim } from "./runtime/loop.js";
 import { buildSceneGraph } from "./scene/builder.js";
 import {
   createSceneNode,

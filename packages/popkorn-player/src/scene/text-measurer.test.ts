@@ -1,11 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
 import { buildSceneGraph } from "./builder.js";
-import {
-  getShapeBounds,
-  resolveTransformOrigin,
-  setTextMeasurer,
-} from "./transform.js";
+import { getShapeBounds, setTextMeasurer } from "./shape-bounds.js";
+import { resolveTransformOrigin } from "./transform.js";
 import type { TextData } from "./types.js";
 
 // A fake platform measurer: fixed advance per character, distinct from the

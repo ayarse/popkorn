@@ -80,3 +80,17 @@ export function transformPoint(
     y: m[3] * x + m[4] * y + m[5],
   };
 }
+
+/** Uniform scale of an affine matrix: √|det|, the geometric mean of its axis scales. */
+export function matrixScale(m: Matrix3x3): number {
+  const det = m[0] * m[4] - m[1] * m[3];
+  return Math.sqrt(Math.abs(det));
+}
+
+export function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}

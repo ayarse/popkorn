@@ -1,6 +1,6 @@
 import type { CornerRadii, PathCommand } from "../renderer/types.js";
+import { clamp01 } from "./matrix.js";
 import { polystarToCommands } from "./polystar.js";
-import { clamp01 } from "./transform.js";
 import type { SceneNode, ShapeData } from "./types.js";
 
 // Per-corner rect outline ([tl, tr, br, bl], clockwise), shared by SVG and Skia so corners can't drift.

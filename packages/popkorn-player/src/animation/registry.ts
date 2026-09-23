@@ -11,7 +11,7 @@ import type {
   RadialGradientData,
 } from "../renderer/types.js";
 import { isGradientData } from "../renderer/types.js";
-import { lerp } from "../scene/transform.js";
+import { lerp } from "../scene/matrix.js";
 import type {
   FilterOp,
   ImageViewBox,

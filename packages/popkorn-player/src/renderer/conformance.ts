@@ -1,4 +1,3 @@
-import { filterToCSS } from "../runtime/loop.js";
 import { insetShadowCommands, shapeClip } from "../scene/box-shadow.js";
 import type {
   BlendMode,
@@ -8,6 +7,7 @@ import type {
   PathData,
   RectData,
 } from "../scene/types.js";
+import { filterToCSS } from "./filter-css.js";
 import { resolveGradient } from "./gradient-geometry.js";
 import type { Renderer } from "./interface.js";
 import type { GradientData } from "./types.js";

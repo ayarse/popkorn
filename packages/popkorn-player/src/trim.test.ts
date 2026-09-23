@@ -5,7 +5,7 @@ import {
   interpolateKeyframes,
 } from "./animation/keyframes.js";
 import { getPropHandler } from "./animation/registry.js";
-import { computeTrim } from "./runtime/loop.js";
+import { computeTrim } from "./renderer/stroke.js";
 import { buildSceneGraph } from "./scene/builder.js";
 import {
   createSceneNode,

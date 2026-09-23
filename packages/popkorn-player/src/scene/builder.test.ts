@@ -10,7 +10,7 @@ import {
 import { VariableResolver } from "../runtime/variables.js";
 import { buildSceneGraph } from "./builder.js";
 import { resetNodeToBase } from "./node.js";
-import { getShapeBounds } from "./transform.js";
+import { getShapeBounds } from "./shape-bounds.js";
 import { extractTransform } from "./transform-values.js";
 import type {
   CircleData,

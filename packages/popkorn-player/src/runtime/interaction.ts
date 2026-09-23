@@ -13,8 +13,8 @@ import {
   pathsCompatible,
 } from "../animation/registry.js";
 import { isGradientData } from "../renderer/types.js";
+import { clamp01 } from "../scene/matrix.js";
 import { cloneGradient } from "../scene/node.js";
-import { clamp01 } from "../scene/transform.js";
 import type {
   InteractionState,
   NodeStateStyle,

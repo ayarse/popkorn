@@ -53,7 +53,8 @@ export { hitTest } from "./runtime/hit-test.js";
 export type { InputState } from "./runtime/inputs.js";
 export { InputTracker } from "./runtime/inputs.js";
 export { InteractionManager } from "./runtime/interaction.js";
-export { RenderLoop, readsInput, sceneExportLength } from "./runtime/loop.js";
+export { RenderLoop } from "./runtime/loop.js";
+export { readsInput, sceneExportLength } from "./runtime/scene-analysis.js";
 export type {
   TimelineAnimation,
   TimelineAnimationProperty,
@@ -70,6 +71,7 @@ export { buildSceneGraph } from "./scene/builder.js";
 export type { Matrix3x3 } from "./scene/matrix.js";
 export {
   IDENTITY_MATRIX,
+  lerp,
   multiplyMatrices,
   transformPoint,
 } from "./scene/matrix.js";
@@ -83,14 +85,12 @@ export {
   roundedRectPath,
 } from "./scene/path-parser.js";
 export { polystarToCommands } from "./scene/polystar.js";
-export type { TextMeasurer } from "./scene/transform.js";
+export type { TextMeasurer } from "./scene/shape-bounds.js";
+export { anchorX, setTextMeasurer } from "./scene/shape-bounds.js";
 export {
-  anchorX,
   computeLocalMatrix,
   computeWorldMatrix,
-  lerp,
   resolveTransformOrigin,
-  setTextMeasurer,
 } from "./scene/transform.js";
 export type {
   MaskMode,

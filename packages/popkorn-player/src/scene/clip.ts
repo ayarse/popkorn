@@ -1,5 +1,5 @@
 import type { ResolvedClip } from "../renderer/types.js";
-import { getShapeBounds } from "./transform.js";
+import { getShapeBounds } from "./shape-bounds.js";
 import type { SceneNode } from "./types.js";
 
 // Local-space clip geometry (inset against the bbox), shared by renderer and hit-testing.

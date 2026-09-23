@@ -1,11 +1,8 @@
 import type { Matrix3x3 } from "./matrix.js";
-import { multiplyMatrices, transformPoint } from "./matrix.js";
+import { matrixScale, multiplyMatrices, transformPoint } from "./matrix.js";
 import { computePathBounds } from "./path-parser.js";
-import {
-  computeLocalMatrix,
-  getShapeBounds,
-  matrixScale,
-} from "./transform.js";
+import { getShapeBounds } from "./shape-bounds.js";
+import { computeLocalMatrix } from "./transform.js";
 import type { FilterOp, SceneNode } from "./types.js";
 
 /** Device (backing-buffer) pixels. */

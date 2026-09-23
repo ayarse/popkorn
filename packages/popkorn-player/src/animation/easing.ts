@@ -1,8 +1,9 @@
-import { clamp01 } from "../scene/transform.js";
+import { clamp01 } from "../scene/matrix.js";
 import type {
   CubicBezier,
   LinearEasingPoint,
   StepPosition,
+  TimeRemapStop,
   TimingFunction,
 } from "../scene/types.js";
 
@@ -167,4 +168,24 @@ function bezierAxis(t: number, p1: number, p2: number): number {
 
 function sampleCurveDerivativeX(t: number, x1: number, x2: number): number {
   return (3 * (1 - 3 * x2 + 3 * x1) * t + 2 * (3 * x2 - 6 * x1)) * t + 3 * x1;
+}
+
+/** Inherited → local ms via the departing stop's easing; endpoints hold; `stops` sorted by input. */
+export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
+  const n = stops.length;
+  if (n === 0) return t;
+  if (t <= stops[0].input) return stops[0].output;
+  if (t >= stops[n - 1].input) return stops[n - 1].output;
+  for (let i = 0; i < n - 1; i++) {
+    const a = stops[i],
+      b = stops[i + 1];
+    if (t >= a.input && t <= b.input) {
+      const range = b.input - a.input;
+      let f = range > 0 ? (t - a.input) / range : 0;
+      if (holdsAtStart(a.easing)) f = 0;
+      else if (a.easing) f = applyEasing(f, a.easing);
+      return a.output + (b.output - a.output) * f;
+    }
+  }
+  return stops[n - 1].output;
 }

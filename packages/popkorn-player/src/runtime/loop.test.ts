@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
 import { buildKeyframeTracks } from "../animation/keyframes.js";
+import { filterToCSS } from "../renderer/filter-css.js";
 import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
@@ -23,12 +24,8 @@ import type {
   StrokeLineCap,
   TextAnchor,
 } from "../scene/types.js";
-import {
-  filterToCSS,
-  RenderLoop,
-  sceneExportLength,
-  sceneIsPerpetual,
-} from "./loop.js";
+import { RenderLoop } from "./loop.js";
+import { sceneExportLength, sceneIsPerpetual } from "./scene-analysis.js";
 
 // A dot whose opacity ramps 0 -> 1 over a single 3s iteration, then holds
 // (fill: forwards). sceneDuration is that iteration (3000). A FINITE clip — it

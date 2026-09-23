@@ -1,4 +1,6 @@
-import type { PaintOrder } from "../scene/types.js";
+import { clamp01 } from "../scene/matrix.js";
+import { outlineLength } from "../scene/path-parser.js";
+import type { PaintOrder, SceneNode } from "../scene/types.js";
 import type { TrimDescriptor } from "./types.js";
 
 // Dash for a stroke: authored dash composes inside the trim window; `stroke: false` = nothing visible.
@@ -154,4 +156,39 @@ export function paintOrderSequence(
   order: PaintOrder,
 ): readonly ("fill" | "stroke")[] {
   return order === "stroke" ? ["stroke", "fill"] : ["fill", "stroke"];
+}
+
+/** trim-* → dash descriptor; null when untrimmed. Negative dashOffset handles seam wrap on closed shapes. */
+export function computeTrim(node: SceneNode): TrimDescriptor | null {
+  const start = clamp01(node.trimStart);
+  const end = clamp01(node.trimEnd);
+  const offset = clamp01(node.trimOffset);
+
+  if (start <= 0 && end >= 1 && offset === 0) return null;
+
+  const total = outlineLength(node);
+  if (total <= 0) return null;
+
+  if (end <= start) return { visible: false, dashArray: [], dashOffset: 0 };
+
+  if (start <= 0 && end >= 1)
+    return { visible: true, dashArray: [], dashOffset: 0 };
+
+  const visible = (end - start) * total;
+  const startPos = start + offset;
+
+  // Non-wrapping window: 2x gap, since an exact period leaves a round-cap dot at either end.
+  if (end + offset <= 1) {
+    return {
+      visible: true,
+      dashArray: [visible, 2 * total],
+      dashOffset: -startPos * total,
+    };
+  }
+
+  return {
+    visible: true,
+    dashArray: [visible, total - visible],
+    dashOffset: -startPos * total,
+  };
 }

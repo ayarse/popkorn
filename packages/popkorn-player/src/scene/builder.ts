@@ -29,6 +29,7 @@ import {
 } from "../animation/registry.js";
 import type { PathCommand } from "../renderer/types.js";
 import { isGradientData } from "../renderer/types.js";
+import { clamp01 } from "./matrix.js";
 import { createSceneNode, snapshotNode } from "./node.js";
 import { buildMotionPath, parsePath } from "./path-parser.js";
 import type { PendingMask } from "./post-build.js";
@@ -60,7 +61,6 @@ import {
   timeMs,
   timingFromValue,
 } from "./timing.js";
-import { clamp01 } from "./transform.js";
 import {
   extractImageViewBox,
   extractIndividualTransform,

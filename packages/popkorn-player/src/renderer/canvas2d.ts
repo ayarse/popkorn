@@ -4,7 +4,7 @@ import {
   applyCommandsToPath,
   computePathBounds,
 } from "../scene/path-parser.js";
-import { anchorX } from "../scene/transform.js";
+import { anchorX } from "../scene/shape-bounds.js";
 import type { BlendMode, MaskMode, TextAnchor } from "../scene/types.js";
 import type { PaintBox } from "./gradient-geometry.js";
 import { ellipseBox, resolveGradient } from "./gradient-geometry.js";

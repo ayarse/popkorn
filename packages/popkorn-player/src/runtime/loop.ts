@@ -1,18 +1,18 @@
-import {
-  isFunctionValue,
-  isKeywordValue,
-  type Value,
-  type VariableDefinition,
-} from "@popkorn/parser";
-import { applyEasing, holdsAtStart } from "../animation/easing.js";
+import { isKeywordValue, type Value } from "@popkorn/parser";
+import { sampleTimeRemap } from "../animation/easing.js";
 import { getPropHandler, type PropValue } from "../animation/registry.js";
 import {
   AnimationScheduler,
   computeSceneDuration,
   sampleNodeAtProgress,
 } from "../animation/scheduler.js";
+import {
+  effectiveFilterOps,
+  filterToCSS,
+  isGeometricShadow,
+} from "../renderer/filter-css.js";
 import type { Renderer } from "../renderer/interface.js";
-import type { TrimDescriptor } from "../renderer/types.js";
+import { computeTrim } from "../renderer/stroke.js";
 import type { DeviceRect } from "../scene/bounds.js";
 import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds.js";
 import {
@@ -23,33 +23,28 @@ import {
 import { resolveClip } from "../scene/clip.js";
 import { colorStringFromValue } from "../scene/color.js";
 import type { Matrix3x3 } from "../scene/matrix.js";
-import { IDENTITY_MATRIX, multiplyMatrices } from "../scene/matrix.js";
+import {
+  clamp01,
+  IDENTITY_MATRIX,
+  matrixScale,
+  multiplyMatrices,
+} from "../scene/matrix.js";
 import {
   childrenInPaintOrder,
   refreshSortedChildren,
   resetNodeToBase,
 } from "../scene/node.js";
-import { outlineLength } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
 import {
-  clamp01,
   computeLocalMatrix,
   computeWorldMatrixFromRoot,
-  matrixScale,
 } from "../scene/transform.js";
 import {
   extractImageViewBox,
   extractIndividualTransform,
   extractTransform,
 } from "../scene/transform-values.js";
-import type {
-  ColorFilterFn,
-  FilterOp,
-  NodeStateStyle,
-  SceneNode,
-  TimeRemapStop,
-} from "../scene/types.js";
-import { forEachNode, someNode } from "../scene/walk.js";
+import type { FilterOp, NodeStateStyle, SceneNode } from "../scene/types.js";
 import { subtreeToken } from "./content-hash.js";
 import { hitTest, hitTestClick } from "./hit-test.js";
 import { InputTracker, inputPathOf } from "./inputs.js";
@@ -61,6 +56,13 @@ import {
   readLiveProp,
   writeProp,
 } from "./interaction.js";
+import {
+  collectBindingValues,
+  sceneHasDynamicContent,
+  sceneHasTimeScoping,
+  sceneIsPerpetual,
+  sceneIsUnbounded,
+} from "./scene-analysis.js";
 import {
   type MachineOutput,
   type PointerTriggerEvent,
@@ -1047,239 +1049,6 @@ export class RenderLoop {
   }
 }
 
-// Inset (any outlined shape) or spread-on-rect/circle/ellipse shadows draw geometrically; others ride the filter.
-function isGeometricShadow(node: SceneNode, s: FilterOp): boolean {
-  if (s.type !== "drop-shadow") return false;
-  const t = node.shapeData.type;
-  const hasOutline =
-    t === "rect" ||
-    t === "circle" ||
-    t === "ellipse" ||
-    t === "path" ||
-    t === "star" ||
-    t === "polygon";
-  const inflatable = t === "rect" || t === "circle" || t === "ellipse";
-  if (s.inset ?? false) return hasOutline;
-  return inflatable && (s.spread ?? 0) !== 0;
-}
-
-// Authored `filter` plus non-geometric shadows. NOTE: non-geometric inset shadows are dropped.
-function effectiveFilterOps(node: SceneNode): FilterOp[] | null {
-  const authored = node.filter ?? [];
-  const shadows: FilterOp[] = [];
-  if (node.boxShadow) {
-    for (const s of node.boxShadow) {
-      if (s.type !== "drop-shadow" || isGeometricShadow(node, s)) continue;
-      if (s.inset) continue;
-      shadows.push(s);
-    }
-  }
-  const ops = [...authored, ...shadows];
-  return ops.length > 0 ? ops : null;
-}
-
-/** Sub-half-pixel device blur is invisible, so it counts as identity. */
-const MIN_DEVICE_BLUR_PX = 0.5;
-
-/** The amount at which each single-scalar color function is a no-op. */
-const COLOR_FN_IDENTITY: Record<ColorFilterFn, number> = {
-  brightness: 1,
-  contrast: 1,
-  saturate: 1,
-  opacity: 1,
-  grayscale: 0,
-  sepia: 0,
-  invert: 0,
-  "hue-rotate": 0,
-};
-
-function isTransparentColor(color: string): boolean {
-  if (color === "transparent") return true;
-  const rgba = color.match(/^rgba?\(([^)]*)\)$/);
-  if (rgba) {
-    const parts = rgba[1].split(/[,/]/);
-    return parts.length === 4 && Number(parts[3].trim()) === 0;
-  }
-  if (/^#[0-9a-f]{4}$/i.test(color)) return color[4] === "0";
-  if (/^#[0-9a-f]{8}$/i.test(color)) return color.slice(7) === "00";
-  return false;
-}
-
-// A zero-offset shadow still paints under translucent content, so only a transparent one is identity.
-function isIdentityOp(op: FilterOp, scale: number): boolean {
-  if (op.type === "blur") return op.radius * scale < MIN_DEVICE_BLUR_PX;
-  if (op.type === "drop-shadow") return isTransparentColor(op.color);
-  if (op.type === "hue-rotate") return op.amount % 360 === 0;
-  return op.amount === COLOR_FN_IDENTITY[op.type];
-}
-
-/** Device-px filter string or null if all identity; adjacent blurs merge (σ = √Σσᵢ²), safe as bounds.ts pads 3σ per blur. */
-export function filterToCSS(ops: FilterOp[], scale: number): string | null {
-  const parts: string[] = [];
-  let blurSigmaSq = 0;
-  const flushBlur = (): void => {
-    const sigma = Math.sqrt(blurSigmaSq);
-    if (sigma >= MIN_DEVICE_BLUR_PX) parts.push(`blur(${sigma}px)`);
-    blurSigmaSq = 0;
-  };
-  for (const op of ops) {
-    if (op.type === "blur") {
-      const radius = op.radius * scale;
-      blurSigmaSq += radius * radius;
-      continue;
-    }
-    flushBlur();
-    if (isIdentityOp(op, scale)) continue;
-    if (op.type === "drop-shadow") {
-      parts.push(
-        `drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`,
-      );
-    } else if (op.type === "hue-rotate") {
-      parts.push(`hue-rotate(${op.amount}deg)`);
-    } else {
-      parts.push(`${op.type}(${op.amount})`);
-    }
-  }
-  flushBlur();
-  return parts.length > 0 ? parts.join(" ") : null;
-}
-
-/** Every binding value and nested operand, flattened for the calc() batch planner. */
-function collectBindingValues(root: SceneNode): Value[] {
-  const out: Value[] = [];
-  const push = (v: Value): void => {
-    out.push(v);
-    if (isFunctionValue(v)) for (const a of v.args) push(a);
-    else if (v.type === "list") for (const a of v.values) push(a);
-  };
-  forEachNode(root, (node) => {
-    for (const b of node.bindings) push(b.value);
-  });
-  return out;
-}
-
-/** Anything that changes beyond a one-shot timeline; scanned once so `isStatic` is O(1). */
-function sceneHasDynamicContent(root: SceneNode): boolean {
-  return someNode(
-    root,
-    (n) =>
-      n.machines.length > 0 ||
-      n.bindings.length > 0 ||
-      !!(n.hoverStyles || n.activeStyles || n.interactive) ||
-      n.stateStyles.length > 0 ||
-      !!n.animationTimeline ||
-      n.animations.some((a) => a.iterationCount === Infinity),
-  );
-}
-
-/** Any time-remap/offset/scale, which makes `computeSceneDuration` a local-time max, not a root bound. */
-function sceneHasTimeScoping(root: SceneNode): boolean {
-  return someNode(
-    root,
-    (n) =>
-      !!n.timeRemap ||
-      n.timeRemapValue !== null ||
-      n.timeOffset !== 0 ||
-      n.timeScale !== 1,
-  );
-}
-
-/** A `@machine` or any `:state()` set (legal without a machine): no clip end to hold, wrap or finish at. */
-function sceneIsUnbounded(root: SceneNode): boolean {
-  if (root.machines.length > 0) return true;
-  return someNode(root, (n) => n.stateStyles.length > 0);
-}
-
-/** All animations `infinite` and no visibility windows: free-runs rather than snapping to phase 0 at a nominal wrap. */
-export function sceneIsPerpetual(root: SceneNode): boolean {
-  const finite = someNode(
-    root,
-    (n) =>
-      n.visibleFrom !== -Infinity ||
-      n.visibleUntil !== Infinity ||
-      n.animations.some((a) => a.iterationCount !== Infinity),
-  );
-  return !finite && someNode(root, (n) => n.animations.length > 0);
-}
-
-/** Does `value` read an input() whose path passes `test`, directly or through var()? */
-export function readsInput(
-  value: Value,
-  variables: readonly VariableDefinition[],
-  test: (path: string) => boolean,
-): boolean {
-  const seen = new Set<string>();
-  const visit = (v: unknown): boolean => {
-    if (!v || typeof v !== "object") return false;
-    if (Array.isArray(v)) return v.some(visit);
-    const o = v as { type?: string; name?: string; args?: Value[] };
-    if (o.type === "function" && o.name === "input") {
-      const path = inputPathOf(v as Value);
-      return path !== null && test(path);
-    }
-    if (o.type === "variable" && o.name && !seen.has(o.name)) {
-      seen.add(o.name);
-      const def = variables.find((d) => d.name === o.name);
-      if (def && visit(def.value)) return true;
-    }
-    return Object.values(o).some(visit);
-  };
-  return visit(value);
-}
-
-function subtreeReadsTime(
-  root: SceneNode,
-  variables: readonly VariableDefinition[],
-): boolean {
-  return someNode(root, (n) =>
-    n.bindings.some((b) => readsInput(b.value, variables, (p) => p === "time")),
-  );
-}
-
-const MAX_SEAMLESS_LOOP_MS = 30_000;
-const DEFAULT_TIME_EXPORT_MS = 5_000;
-
-/** LCM of cycle periods (`alternate` counts two). NOTE: positive delays make this not seamless. */
-function seamlessLoopMs(root: SceneNode): number {
-  const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
-  let lcm = 1;
-  forEachNode(root, (node) => {
-    for (const a of node.animations) {
-      const alt =
-        a.direction === "alternate" || a.direction === "alternate-reverse";
-      const period = Math.round(a.duration) * (alt ? 2 : 1);
-      if (period > 0 && lcm <= MAX_SEAMLESS_LOOP_MS)
-        lcm = (lcm / gcd(lcm, period)) * period;
-    }
-  });
-  return lcm;
-}
-
-export type ExportLength =
-  | { fixed: true; ms: number }
-  | { fixed: false; suggestedMs: number };
-
-/** Offline export range: `fixed` has an honest end (0 = one frame); open suggests a length; null = machine without timeline animation. */
-export function sceneExportLength(
-  root: SceneNode,
-  variables: readonly VariableDefinition[],
-): ExportLength | null {
-  const nominal = computeSceneDuration(root);
-  const machine = sceneIsUnbounded(root);
-  if (nominal <= 0) {
-    if (subtreeReadsTime(root, variables))
-      return { fixed: false, suggestedMs: DEFAULT_TIME_EXPORT_MS };
-    return machine ? null : { fixed: true, ms: 0 };
-  }
-  const perpetual = !sceneHasTimeScoping(root) && sceneIsPerpetual(root);
-  if (!machine && !perpetual) return { fixed: true, ms: nominal };
-  const loop = perpetual ? seamlessLoopMs(root) : 0;
-  return {
-    fixed: false,
-    suggestedMs: loop > 0 && loop <= MAX_SEAMLESS_LOOP_MS ? loop : nominal,
-  };
-}
-
 function regionKey(r: DeviceRect): string {
   return `${r.x},${r.y},${r.width},${r.height}`;
 }
@@ -1294,59 +1063,4 @@ function worldAlpha(node: SceneNode | null): number {
 export function wrapTime(t: number, duration: number): number {
   if (duration > 0 && t >= duration) return t % duration;
   return t;
-}
-
-/** Inherited → local ms via the departing stop's easing; endpoints hold; `stops` sorted by input. */
-export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
-  const n = stops.length;
-  if (n === 0) return t;
-  if (t <= stops[0].input) return stops[0].output;
-  if (t >= stops[n - 1].input) return stops[n - 1].output;
-  for (let i = 0; i < n - 1; i++) {
-    const a = stops[i],
-      b = stops[i + 1];
-    if (t >= a.input && t <= b.input) {
-      const range = b.input - a.input;
-      let f = range > 0 ? (t - a.input) / range : 0;
-      if (holdsAtStart(a.easing)) f = 0;
-      else if (a.easing) f = applyEasing(f, a.easing);
-      return a.output + (b.output - a.output) * f;
-    }
-  }
-  return stops[n - 1].output;
-}
-
-/** trim-* → dash descriptor; null when untrimmed. Negative dashOffset handles seam wrap on closed shapes. */
-export function computeTrim(node: SceneNode): TrimDescriptor | null {
-  const start = clamp01(node.trimStart);
-  const end = clamp01(node.trimEnd);
-  const offset = clamp01(node.trimOffset);
-
-  if (start <= 0 && end >= 1 && offset === 0) return null;
-
-  const total = outlineLength(node);
-  if (total <= 0) return null;
-
-  if (end <= start) return { visible: false, dashArray: [], dashOffset: 0 };
-
-  if (start <= 0 && end >= 1)
-    return { visible: true, dashArray: [], dashOffset: 0 };
-
-  const visible = (end - start) * total;
-  const startPos = start + offset;
-
-  // Non-wrapping window: 2x gap, since an exact period leaves a round-cap dot at either end.
-  if (end + offset <= 1) {
-    return {
-      visible: true,
-      dashArray: [visible, 2 * total],
-      dashOffset: -startPos * total,
-    };
-  }
-
-  return {
-    visible: true,
-    dashArray: [visible, total - visible],
-    dashOffset: -startPos * total,
-  };
 }

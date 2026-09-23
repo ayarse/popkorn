@@ -5,7 +5,7 @@ import {
   multiplyMatrices,
 } from "../scene/matrix.js";
 import { computePathBounds, roundedRectPath } from "../scene/path-parser.js";
-import { anchorX } from "../scene/transform.js";
+import { anchorX } from "../scene/shape-bounds.js";
 import type { MaskMode, TextAnchor } from "../scene/types.js";
 import { parseColor } from "./color.js";
 import type { PaintBox } from "./gradient-geometry.js";

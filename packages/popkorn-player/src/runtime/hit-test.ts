@@ -11,7 +11,8 @@ import {
 import { childrenInPaintOrder } from "../scene/node.js";
 import { flattenToSubpaths } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
-import { computeWorldMatrix, getShapeBounds } from "../scene/transform.js";
+import { getShapeBounds } from "../scene/shape-bounds.js";
+import { computeWorldMatrix } from "../scene/transform.js";
 import type { EllipseData, FillRule, SceneNode } from "../scene/types.js";
 
 export interface Point {

@@ -1,4 +1,4 @@
-import { clamp01 } from "../scene/transform.js";
+import { clamp01 } from "../scene/matrix.js";
 import type {
   CompositeOperation,
   KeyframeData,
