@@ -18,6 +18,7 @@ import {
   isListValue,
   isNumberValue,
   isStringValue,
+  mapValue,
   serialize,
 } from "@popkorn/parser";
 import { buildKeyframeTracks } from "../animation/keyframes.js";
@@ -292,18 +293,17 @@ class SceneBuilder {
     rule = expandUse(rule, this.definitionsMap);
 
     const id = rule.selector.name;
-    // Freeze random() now; keyframes freeze per-node in buildKeyframes.
+    // Fold sibling fns, then freeze random() over static-resolved operands (as buildKeyframes).
     // NOTE: `&:hover > #c` blocks freeze/fold against the parent, not #c.
+    rule = mapRuleDecls(rule, valueHasSiblingFn, (d) =>
+      foldSiblingFns(d.value, sib),
+    );
     rule = mapRuleDecls(rule, valueHasRandom, (d) =>
-      freezeRandom(d.value, {
+      freezeRandom(this.resolveRandomOperands(d.value), {
         documentSeed: this.documentSeed(),
         nodeId: id,
         property: d.property,
       }),
-    );
-    // Fold sibling-index()/sibling-count() the same way.
-    rule = mapRuleDecls(rule, valueHasSiblingFn, (d) =>
-      foldSiblingFns(d.value, sib),
     );
 
     const typeDecl = rule.declarations.find((d) => d.property === "type");
@@ -422,6 +422,13 @@ class SceneBuilder {
     node.base = snapshotNode(node);
 
     return node;
+  }
+
+  // Inline static var()/calc() inside random() operands only; the rest of the value keeps its bindings.
+  private resolveRandomOperands(value: Value): Value {
+    return mapValue(value, (v) =>
+      v.type === "random" ? resolveStaticVars(v, this.variablesMap) : undefined,
+    );
   }
 
   private documentSeed(): number {

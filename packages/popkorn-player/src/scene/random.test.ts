@@ -127,3 +127,46 @@ test("random(): frozen inside a reactive calc(), constant across frames", () => 
   resolver.setVariable("--t", 40);
   expect(resolver.resolveNumeric(binding.value)).toBe(43);
 });
+
+test("random(): static :root var() operands resolve on rule declarations", () => {
+  const src = `
+    :root { --x: 5px; }
+    #a { type: circle; r: random(var(--x), var(--x)); }
+    #b { type: circle; r: random(var(--x), 10px); }
+  `;
+  expect(radiusOf(src, "a")).toBe(5);
+  const b = radiusOf(src, "b");
+  expect(b).toBeGreaterThanOrEqual(5);
+  expect(b).toBeLessThanOrEqual(10);
+  expect(radiusOf(src, "b")).toBe(b);
+});
+
+test("random(): sibling-index() operands fold per sibling", () => {
+  const dot =
+    "{ type: circle; r: random(calc(sibling-index() * 10px), calc(sibling-index() * 10px)); }";
+  const src = `#a ${dot} #b ${dot} #c ${dot}`;
+  expect(radii(src, ["a", "b", "c"])).toEqual([10, 20, 30]);
+});
+
+test("random(): a reactive var() operand stays unbound (reads 0) and is stable", () => {
+  const src = `
+    :root { --t: input(cursor.x); }
+    #a { type: circle; r: random(var(--t), 10px); }
+  `;
+  const node = build(src).children[0];
+  expect(node.bindings).toEqual([]);
+  const r = (node.shapeData as CircleData).r;
+  expect(r).toBeGreaterThanOrEqual(0);
+  expect(r).toBeLessThanOrEqual(10);
+  expect(radiusOf(src, "a")).toBe(r);
+});
+
+test("random(): keyframe path resolves static var() operands", () => {
+  const src = `
+    :root { --x: 5px; }
+    @keyframes k { to { r: random(var(--x), var(--x)); } }
+    #a { type: circle; animation: k 1s; }
+  `;
+  const stop = build(src).children[0].animations[0].tracks[0].stops[0];
+  expect(stop.value).toBe(5);
+});
