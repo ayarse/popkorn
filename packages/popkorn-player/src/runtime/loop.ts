@@ -1074,13 +1074,14 @@ export class RenderLoop {
     switch (node.shapeData.type) {
       case "rect": {
         const r = node.shapeData as RectData;
+        // An unset radius follows the other one, as in SVG (rx alone rounds both axes).
         this.renderer.drawRect(
           r.x,
           r.y,
           r.width,
           r.height,
-          r.rx,
-          r.ry,
+          r.rx || r.ry,
+          r.ry || r.rx,
           r.cornerRadii,
         );
         break;

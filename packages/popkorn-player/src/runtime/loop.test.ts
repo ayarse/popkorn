@@ -978,3 +978,23 @@ test("sceneExportLength: fixed, open (time / perpetual loop LCM) and none", () =
     ),
   ).toBeNull();
 });
+
+test("rect with only rx (or only ry) rounds both axes, as in SVG", () => {
+  const radii: [number?, number?][] = [];
+  const renderer = createRecordingRenderer();
+  renderer.drawRect = (_x, _y, _w, _h, rx, ry) => radii.push([rx, ry]);
+  const loop = new RenderLoop(renderer);
+  loop.setScene(
+    buildSceneGraph(
+      parse(`
+        #a { type: rect; width: 40px; height: 20px; rx: 6px; fill: #000; }
+        #b { type: rect; width: 40px; height: 20px; ry: 4px; fill: #000; }
+      `),
+    ),
+  );
+  loop.seek(0);
+  expect(radii).toEqual([
+    [6, 6],
+    [4, 4],
+  ]);
+});

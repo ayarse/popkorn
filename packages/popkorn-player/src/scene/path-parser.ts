@@ -910,8 +910,8 @@ export function shapeOutlineLength(sd: ShapeData): number {
         const arcs = (Math.PI / 2) * (tl + tr + br + bl);
         return straight + arcs;
       }
-      const rx = Math.min(Math.abs(sd.rx), sd.width / 2);
-      const ry = Math.min(Math.abs(sd.ry), sd.height / 2);
+      const rx = Math.min(Math.abs(sd.rx || sd.ry), sd.width / 2);
+      const ry = Math.min(Math.abs(sd.ry || sd.rx), sd.height / 2);
       const straight = 2 * (sd.width - 2 * rx) + 2 * (sd.height - 2 * ry);
       return straight + ellipsePerimeter(rx, ry);
     }
