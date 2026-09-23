@@ -10,6 +10,7 @@ import {
   type ImportResult,
   type SizeDelta,
 } from "@/lib/import-size";
+import { PENDING_SVG_KEY } from "@/routes/svg-to-lottie";
 
 // Detects pasted SVG markup (vs Lottie JSON) — leading xml decl / comments then <svg.
 const SVG_RE =
@@ -100,6 +101,19 @@ export function useScene() {
       return;
     loadExample(routeKey, exampleSource);
   }, [routeKey]);
+
+  // A file handed over by the /svg-to-lottie page opens through the normal SVG import.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once, on mount
+  useEffect(() => {
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem(PENDING_SVG_KEY);
+      sessionStorage.removeItem(PENDING_SVG_KEY);
+    } catch {}
+    if (!pending) return;
+    const { name, text } = JSON.parse(pending);
+    void importSvg(text, `"${name}"`);
+  }, []);
 
   // Typing: the byte-delta badge only means something right after a
   // minify/format, and the player reload waits for a pause.

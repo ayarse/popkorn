@@ -18,7 +18,7 @@ export const Route = createFileRoute("/examples/$key")({
   head: ({ loaderData, params }) => {
     if (!loaderData) return {};
     const title = `${loaderData.label} | Popkorn`;
-    const description = `${loaderData.label}, a hand-authored Popkorn scene. Open it in the playground to read and edit its CSS.`;
+    const description = `${loaderData.label}, a vector animation written in CSS with Popkorn. Edit it in the playground, generate your own with AI, or export it as Lottie.`;
     return {
       meta: [
         { title },

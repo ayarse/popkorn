@@ -42,7 +42,7 @@ export const DOCS = [
     file: "importing.md",
     group: "Migrating",
     description:
-      "You don't have to start from a blank file. Popkorn can read existing Lottie animations and SVG artwork and turn them into scenes you can read and edit.",
+      "You don't have to start from a blank file. Convert Lottie JSON and SVG files, including CSS and SMIL SVG animations, into Popkorn scenes you can edit as CSS, then export back to Lottie.",
   },
   {
     key: "state-machines",

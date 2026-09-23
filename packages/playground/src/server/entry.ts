@@ -1,4 +1,23 @@
 import startHandler from "@tanstack/react-start/server-entry";
+import { exampleIndex } from "@/examples";
+import { DOCS } from "@/lib/docs";
+
+const SITE = "https://usepopkorn.dev";
+
+// NOTE: community scenes (/s/:id) aren't listed; add them from the DB if they should rank.
+const SITEMAP = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${[
+  "/",
+  "/community",
+  ...DOCS.map((d) => `/docs/${d.key}`),
+  ...exampleIndex.map((e) => `/examples/${e.key}`),
+]
+  .map((p) => `<url><loc>${SITE}${p}</loc></url>`)
+  .join("\n")}
+</urlset>`;
+
+const ROBOTS = `User-agent: *\nDisallow: /mcp/\nDisallow: /pk/\nSitemap: ${SITE}/sitemap.xml\n`;
 
 export { CopilotSession } from "./copilot-session";
 
@@ -34,6 +53,16 @@ type Env = Record<string, unknown> & {
 export default {
   fetch(request: Request, env: Env, ctx: unknown): Promise<Response> {
     const { pathname } = new URL(request.url);
+    if (pathname === "/sitemap.xml") {
+      return Promise.resolve(
+        new Response(SITEMAP, {
+          headers: { "content-type": "application/xml" },
+        }),
+      );
+    }
+    if (pathname === "/robots.txt") {
+      return Promise.resolve(new Response(ROBOTS));
+    }
     if (pathname === "/pk/s.js" || pathname === "/pk/api/send") {
       return proxyUmami(request, pathname);
     }

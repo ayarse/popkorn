@@ -10,7 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AiLottieGeneratorRouteImport } from './routes/ai-lottie-generator'
 import { Route as CommunityRouteImport } from './routes/community'
+import { Route as SvgToLottieRouteImport } from './routes/svg-to-lottie'
 import { Route as DocsChar123SectionChar125RouteImport } from './routes/docs.{-$section}'
 import { Route as ExamplesKeyRouteImport } from './routes/examples.$key'
 import { Route as SIdRouteImport } from './routes/s.$id'
@@ -20,9 +22,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AiLottieGeneratorRoute = AiLottieGeneratorRouteImport.update({
+  id: '/ai-lottie-generator',
+  path: '/ai-lottie-generator',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CommunityRoute = CommunityRouteImport.update({
   id: '/community',
   path: '/community',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SvgToLottieRoute = SvgToLottieRouteImport.update({
+  id: '/svg-to-lottie',
+  path: '/svg-to-lottie',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsChar123SectionChar125Route =
@@ -44,14 +56,18 @@ const SIdRoute = SIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai-lottie-generator': typeof AiLottieGeneratorRoute
   '/community': typeof CommunityRoute
+  '/svg-to-lottie': typeof SvgToLottieRoute
   '/docs/{-$section}': typeof DocsChar123SectionChar125Route
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-lottie-generator': typeof AiLottieGeneratorRoute
   '/community': typeof CommunityRoute
+  '/svg-to-lottie': typeof SvgToLottieRoute
   '/docs/{-$section}': typeof DocsChar123SectionChar125Route
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
@@ -59,7 +75,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai-lottie-generator': typeof AiLottieGeneratorRoute
   '/community': typeof CommunityRoute
+  '/svg-to-lottie': typeof SvgToLottieRoute
   '/docs/{-$section}': typeof DocsChar123SectionChar125Route
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
@@ -67,13 +85,28 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/community' | '/docs/{-$section}' | '/examples/$key' | '/s/$id'
+    | '/'
+    | '/ai-lottie-generator'
+    | '/community'
+    | '/svg-to-lottie'
+    | '/docs/{-$section}'
+    | '/examples/$key'
+    | '/s/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/community' | '/docs/{-$section}' | '/examples/$key' | '/s/$id'
+  to:
+    | '/'
+    | '/ai-lottie-generator'
+    | '/community'
+    | '/svg-to-lottie'
+    | '/docs/{-$section}'
+    | '/examples/$key'
+    | '/s/$id'
   id:
     | '__root__'
     | '/'
+    | '/ai-lottie-generator'
     | '/community'
+    | '/svg-to-lottie'
     | '/docs/{-$section}'
     | '/examples/$key'
     | '/s/$id'
@@ -81,7 +114,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiLottieGeneratorRoute: typeof AiLottieGeneratorRoute
   CommunityRoute: typeof CommunityRoute
+  SvgToLottieRoute: typeof SvgToLottieRoute
   DocsChar123SectionChar125Route: typeof DocsChar123SectionChar125Route
   ExamplesKeyRoute: typeof ExamplesKeyRoute
   SIdRoute: typeof SIdRoute
@@ -96,11 +131,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ai-lottie-generator': {
+      id: '/ai-lottie-generator'
+      path: '/ai-lottie-generator'
+      fullPath: '/ai-lottie-generator'
+      preLoaderRoute: typeof AiLottieGeneratorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/community': {
       id: '/community'
       path: '/community'
       fullPath: '/community'
       preLoaderRoute: typeof CommunityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/svg-to-lottie': {
+      id: '/svg-to-lottie'
+      path: '/svg-to-lottie'
+      fullPath: '/svg-to-lottie'
+      preLoaderRoute: typeof SvgToLottieRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs/{-$section}': {
@@ -129,7 +178,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiLottieGeneratorRoute: AiLottieGeneratorRoute,
   CommunityRoute: CommunityRoute,
+  SvgToLottieRoute: SvgToLottieRoute,
   DocsChar123SectionChar125Route: DocsChar123SectionChar125Route,
   ExamplesKeyRoute: ExamplesKeyRoute,
   SIdRoute: SIdRoute,
