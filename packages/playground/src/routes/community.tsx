@@ -1,16 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Search, Send, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
-import {
-  SCENE_GRID,
-  SceneCard,
-  SectionHeading,
-  shortDate,
-} from "@/components/scene-cards";
+import { Masonry, SceneCard, shortDate } from "@/components/scene-cards";
 import { ShareModal } from "@/components/share-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { exampleIndex } from "@/examples";
 import {
   listExampleAspects,
@@ -43,25 +39,29 @@ export const Route = createFileRoute("/community")({
   component: Community,
 });
 
-/** Search box shared by the scene list and the sidebar's tag filter. */
+// Tag chips shown before "more"; the search box also matches tag names.
+const TAG_LIMIT = 12;
+
+type Example = (typeof exampleIndex)[number];
+
+const sceneAspectOf = (s: SceneSummary) => s.aspect;
+
 function SearchInput({
   value,
   onChange,
-  placeholder,
 }: {
   value: string;
   onChange: (v: string) => void;
-  placeholder: string;
 }) {
   return (
-    <div className="relative">
+    <div className="relative w-full sm:w-72">
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-label={placeholder}
-        className="py-1.5 pl-8 pr-7"
+        placeholder="Search scenes, authors, tags"
+        aria-label="Search scenes, authors, tags"
+        className="h-8 py-1.5 pl-8 pr-7"
       />
       {value && (
         <Button
@@ -69,7 +69,7 @@ function SearchInput({
           size="icon"
           onClick={() => onChange("")}
           aria-label="Clear search"
-          className="absolute right-1 top-1/2 size-6 -translate-y-1/2 [&_svg]:size-3.5"
+          className="absolute right-1 top-1/2 size-6 -translate-y-1/2"
         >
           <X />
         </Button>
@@ -78,30 +78,36 @@ function SearchInput({
   );
 }
 
+function Empty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border px-6 py-16 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
 function Community() {
   const { scenes, exampleAspects } = Route.useLoaderData();
-  const [showAll, setShowAll] = useState(false);
+  const [tab, setTab] = useState<"community" | "examples">(
+    scenes.length > 0 ? "community" : "examples",
+  );
   const [showShare, setShowShare] = useState(false);
   const [query, setQuery] = useState("");
-  const [tagQuery, setTagQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [allTags, setAllTags] = useState(false);
 
-  // Tag facet, most-used first — the sidebar's own search is what makes a long
-  // tail navigable, so the list isn't truncated.
-  const tagCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const s of scenes)
-      for (const t of s.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
-    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  }, [scenes]);
-
-  const shownTags = tagCounts.filter(([t]) =>
-    t.includes(tagQuery.trim().toLowerCase()),
+  // Most-used first.
+  const counts = new Map<string, number>();
+  for (const s of scenes)
+    for (const t of s.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+  const tags = [...counts].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
   );
+  const shownTags = allTags ? tags : tags.slice(0, TAG_LIMIT);
 
   // One tag filters at a time; free text matches title, author or tag.
   const q = query.trim().toLowerCase();
-  const visible = scenes.filter(
+  const visibleScenes = scenes.filter(
     (s: SceneSummary) =>
       (!selected || s.tags.includes(selected)) &&
       (!q ||
@@ -109,10 +115,10 @@ function Community() {
         s.author?.toLowerCase().includes(q) ||
         s.tags.some((t) => t.includes(q))),
   );
-  const filtering = Boolean(q) || selected !== null;
-
-  const toggleTag = (tag: string) =>
-    setSelected((prev) => (prev === tag ? null : tag));
+  const visibleExamples = exampleIndex.filter(
+    (ex) => !q || ex.label.toLowerCase().includes(q),
+  );
+  const exampleAspectOf = (ex: Example) => exampleAspects[ex.key];
 
   return (
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -126,129 +132,112 @@ function Community() {
         />
         <Button
           size="sm"
-          className="ml-auto gap-1.5"
+          className="ml-auto"
           onClick={() => setShowShare(true)}
         >
-          <Send className="size-3.5" />
+          <Send />
           Publish an animation
         </Button>
       </header>
-      <main className="flex min-h-0 flex-1">
-        {/* Tags are desktop-only furniture; the search box covers them on
-            mobile, since it matches tag names too. */}
-        <aside className="hidden w-56 shrink-0 flex-col gap-3 overflow-y-auto border-r border-border p-4 md:flex">
-          <SearchInput
-            value={tagQuery}
-            onChange={setTagQuery}
-            placeholder="Search tags"
-          />
-          {selected && (
-            <Button
-              variant="link"
-              size="sm"
-              onClick={() => setSelected(null)}
-              className="h-auto self-start px-0 text-xs"
+
+      <main className="flex-1 overflow-auto">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-8">
+          <h1 className="text-2xl font-semibold tracking-tight">Community</h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            {DESCRIPTION}
+          </p>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <ToggleGroup
+              type="single"
+              value={tab}
+              onValueChange={(v) => v && setTab(v as typeof tab)}
+              aria-label="Gallery"
             >
-              Clear filter
-            </Button>
-          )}
-          <div className="flex flex-col gap-0.5">
-            {shownTags.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {tagCounts.length === 0 ? "No tags yet." : "No matching tags."}
-              </p>
-            ) : (
-              shownTags.map(([tag, count]) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => toggleTag(tag)}
-                  aria-pressed={selected === tag}
-                  className={`flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                    selected === tag
-                      ? "bg-primary/15 text-primary"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <span className="truncate">{tag}</span>
-                  <span className="shrink-0 text-[11px] tabular-nums opacity-60">
-                    {count}
-                  </span>
-                </button>
-              ))
-            )}
+              <ToggleGroupItem value="community" className="gap-1.5 px-3">
+                Community
+                <span className="tabular-nums opacity-60">{scenes.length}</span>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="examples" className="gap-1.5 px-3">
+                Examples
+                <span className="tabular-nums opacity-60">
+                  {exampleIndex.length}
+                </span>
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <SearchInput value={query} onChange={setQuery} />
           </div>
-        </aside>
 
-        <div className="flex-1 overflow-auto">
-          <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
-            <p className="mb-6 max-w-2xl text-sm text-muted-foreground">
-              {DESCRIPTION}
-            </p>
-
-            <div className="mb-8 max-w-sm">
-              <SearchInput
-                value={query}
-                onChange={setQuery}
-                placeholder="Search scenes, authors, tags"
-              />
-            </div>
-
-            <SectionHeading>Community submissions</SectionHeading>
-            {scenes.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing published yet.{" "}
-                <Link to="/" className="text-primary underline">
-                  Make the first one
-                </Link>
-                .
-              </p>
-            ) : visible.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No scenes match that.
-              </p>
-            ) : (
-              <div className={SCENE_GRID}>
-                {visible.map((s: SceneSummary) => (
-                  <SceneCard
-                    key={s.id}
-                    title={s.title}
-                    meta={s.author ?? shortDate(s.created_at)}
-                    sceneId={s.id}
-                    aspect={s.aspect}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Examples are noise while you're looking for something specific. */}
-            <div className={`mt-10 ${filtering ? "hidden" : ""}`}>
-              <SectionHeading>Official examples</SectionHeading>
-              {/* Community submissions are the point of this page, so the examples
-                stay clamped to about two and a half rows until asked for. */}
-              <div className="relative">
-                <div
-                  className={`${SCENE_GRID} ${showAll ? "" : "max-h-[580px] overflow-hidden"}`}
+          {tab === "community" && tags.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              {shownTags.map(([tag, count]) => (
+                <Button
+                  key={tag}
+                  variant="outline"
+                  size="sm"
+                  aria-pressed={selected === tag}
+                  onClick={() =>
+                    setSelected((prev) => (prev === tag ? null : tag))
+                  }
+                  className="h-6 rounded-full px-2.5 text-[12px] font-normal text-muted-foreground"
                 >
-                  {exampleIndex.map((ex) => (
-                    // Examples open straight in the editor, not on a share page.
-                    <SceneCard
-                      key={ex.key}
-                      title={ex.label}
-                      exampleKey={ex.key}
-                      aspect={exampleAspects[ex.key]}
-                    />
-                  ))}
-                </div>
-                {!showAll && (
-                  <div className="absolute inset-x-0 bottom-0 flex h-40 items-end justify-center bg-gradient-to-t from-background via-background/80 to-transparent">
-                    <Button size="lg" onClick={() => setShowAll(true)}>
-                      Show all official examples
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  {tag}
+                  <span className="tabular-nums opacity-60">{count}</span>
+                </Button>
+              ))}
+              {tags.length > TAG_LIMIT && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAllTags((v) => !v)}
+                  className="h-6 px-2 text-[12px] font-normal"
+                >
+                  {allTags ? "Fewer" : `+${tags.length - TAG_LIMIT} more`}
+                </Button>
+              )}
             </div>
+          )}
+
+          <div className="mt-6">
+            {tab === "community" ? (
+              scenes.length === 0 ? (
+                <Empty>
+                  Nothing published yet.{" "}
+                  <Link to="/" className="text-foreground underline">
+                    Make the first one
+                  </Link>
+                  .
+                </Empty>
+              ) : visibleScenes.length === 0 ? (
+                <Empty>No scenes match that.</Empty>
+              ) : (
+                <Masonry items={visibleScenes} aspect={sceneAspectOf}>
+                  {(s) => (
+                    <SceneCard
+                      key={s.id}
+                      title={s.title}
+                      meta={s.author ?? shortDate(s.created_at)}
+                      sceneId={s.id}
+                      aspect={s.aspect}
+                    />
+                  )}
+                </Masonry>
+              )
+            ) : visibleExamples.length === 0 ? (
+              <Empty>No examples match that.</Empty>
+            ) : (
+              <Masonry items={visibleExamples} aspect={exampleAspectOf}>
+                {(ex) => (
+                  // Examples open straight in the editor, not on a share page.
+                  <SceneCard
+                    key={ex.key}
+                    title={ex.label}
+                    exampleKey={ex.key}
+                    aspect={exampleAspects[ex.key]}
+                  />
+                )}
+              </Masonry>
+            )}
           </div>
         </div>
       </main>
