@@ -199,7 +199,7 @@ test("computeTrim: partial window becomes a dash pattern plus offset", () => {
   const trim = computeTrim(n)!;
   expect(trim.visible).toBe(true);
   expect(trim.dashArray[0]).toBeCloseTo(0.5 * total, 6); // visible = 50%
-  expect(trim.dashArray[1]).toBeCloseTo(0.5 * total, 6); // hidden = 50%
+  expect(trim.dashArray[1]).toBeCloseTo(2 * total, 6); // non-wrapping -> padded gap
   expect(trim.dashOffset).toBeCloseTo(-0.35 * total, 6); // -(start + offset)
 });
 
@@ -215,17 +215,31 @@ test("computeTrim: a start-anchored reveal pads the gap so the dash cannot wrap"
   const trim = computeTrim(n)!;
   expect(trim.visible).toBe(true);
   expect(trim.dashArray[0]).toBeCloseTo(0.6 * total, 6); // visible arc
-  expect(trim.dashArray[1]).toBeCloseTo(total, 6); // gap == full length -> no wrap
-  expect(trim.dashOffset).toBe(0);
+  expect(trim.dashArray[1]).toBeCloseTo(2 * total, 6); // padded gap -> no wrap
+  expect(trim.dashOffset).toBeCloseTo(0, 6);
 });
 
 test("computeTrim: a near-full reveal never emits a degenerate sub-pixel gap", () => {
   const n = circle(50);
   const total = 2 * Math.PI * 50;
   n.trimStart = 0;
-  n.trimEnd = 0.999; // gap would be ~0.001*total; must be padded to a full total
+  n.trimEnd = 0.999; // gap would be ~0.001*total; must be padded
   const trim = computeTrim(n)!;
-  expect(trim.dashArray[1]).toBeCloseTo(total, 6);
+  expect(trim.dashArray[1]).toBeCloseTo(2 * total, 6);
+});
+
+test("computeTrim: an end-anchored wipe leaves no zero-length dash at the path start", () => {
+  // Regression: with period == total the previous repeat ended exactly at x=0, and
+  // its round cap painted a dot at the path start while trim-start retracted.
+  const n = circle(50);
+  const total = 2 * Math.PI * 50;
+  n.trimStart = 0.9;
+  n.trimEnd = 1;
+  const trim = computeTrim(n)!;
+  const period = trim.dashArray[0] + trim.dashArray[1];
+  const phaseAtZero = ((-trim.dashOffset % period) + period) % period;
+  expect(period - phaseAtZero).toBeGreaterThan(trim.dashArray[0]);
+  expect(trim.dashOffset).toBeCloseTo(-0.9 * total, 6);
 });
 
 test("computeTrim: full window with a nonzero offset still strokes solid", () => {
