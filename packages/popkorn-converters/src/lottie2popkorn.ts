@@ -333,6 +333,11 @@ interface LayerCtx {
   compOp: number; // containing comp's out-point (frames)
   byInd: Map<number, any>;
   indexByInd: Map<number, number>; // ind -> global stack index (array order)
+  // Lifted layers: ind -> host ind (null = comp top level); see planHosting.
+  hostOf: Map<number, number | null>;
+  origParent: Map<number, number>; // ind -> Lottie parent ind (tree edges only)
+  outerByInd: Map<number, Rule>; // ind -> the layer's outermost rule
+  ghosts: { rule: Rule; of: number; for: number }[];
 }
 
 /** Paint style inherited from an enclosing group down to descendant shapes. */
@@ -588,9 +593,15 @@ export class Converter {
     // copies of a large token. Runs on the assembled text so static geometry and
     // keyframe morph targets dedupe together (same spirit as image dedup above).
     const keyframeBlocks: string[] = [];
+    // Ghost rules share their ancestor's AnimSpecs; emit each @keyframes once.
+    const seenAnims = new Set<AnimSpec>();
     const collectKf = (r: Rule) => {
       if (r.anims)
-        for (const a of r.anims) keyframeBlocks.push(serializeKeyframes(a));
+        for (const a of r.anims)
+          if (!seenAnims.has(a)) {
+            seenAnims.add(a);
+            keyframeBlocks.push(serializeKeyframes(a));
+          }
       r.children.forEach(collectKf);
     };
     topRules.forEach(collectKf);
@@ -777,6 +788,22 @@ export class Converter {
       }
     }
 
+    const origParent = new Map<number, number>();
+    for (const [p, cs] of childrenOf)
+      for (const c of cs) origParent.set(c.ind, p);
+    const hostOf = this.planHosting(layers, childrenOf, roots, compIp, compOp);
+    for (const [ind, host] of hostOf) {
+      const l = byInd.get(ind);
+      const sib = childrenOf.get(origParent.get(ind)!)!;
+      sib.splice(sib.indexOf(l), 1);
+      const dest =
+        host === null
+          ? roots
+          : (childrenOf.get(host) ?? childrenOf.set(host, []).get(host)!);
+      dest.push(l);
+      dest.sort((a, b) => indexByInd.get(a.ind)! - indexByInd.get(b.ind)!);
+    }
+
     const ruleByInd = new Map<number, Rule>();
     const ctx: LayerCtx = {
       childrenOf,
@@ -786,6 +813,10 @@ export class Converter {
       compOp,
       byInd,
       indexByInd,
+      hostOf,
+      origParent,
+      outerByInd: new Map(),
+      ghosts: [],
     };
     const buildLayer = (l: any): Rule | null => {
       try {
@@ -800,7 +831,7 @@ export class Converter {
     const topRules: Rule[] = [];
     for (const l of [...roots].reverse()) {
       const r = buildLayer(l);
-      if (r) topRules.push(r);
+      if (r) topRules.push(hostOf.has(l.ind) ? this.ghostWrap(l, r, ctx) : r);
     }
 
     // Track masks: a layer with `tt` is masked by its mask source (the layer
@@ -823,6 +854,7 @@ export class Converter {
       }
       content.decls.push(`mask: #${source.id} ${mode}`);
     }
+    this.fillGhosts(ctx);
 
     this.clampIp = prevClampIp;
     this.clampOp = prevClampOp;
@@ -885,7 +917,15 @@ export class Converter {
   }
 
   private buildLayerRule(l: any, ctx: LayerCtx): Rule {
-    const { childrenOf, prefix, ruleByInd, compIp, compOp, indexByInd } = ctx;
+    const {
+      childrenOf,
+      prefix,
+      ruleByInd,
+      compIp,
+      compOp,
+      indexByInd,
+      hostOf,
+    } = ctx;
     const id = this.uniqueId(
       prefix
         ? `${prefix}-${l.nm || `layer-${l.ind}`}`
@@ -900,20 +940,32 @@ export class Converter {
     // (scene-local seconds) so the player skips the node outside it. Sticker
     // exports swap a different layer in per time slice; rendering them all
     // full-time is what left frozen duplicate copies on screen.
-    const visFrom = typeof l.ip === "number" && l.ip > compIp ? l.ip : null;
-    const visUntil = typeof l.op === "number" && l.op < compOp ? l.op : null;
+    // A null draws nothing, so its window could only wrongly hide its children.
+    const windowed = l.ty !== 3;
+    const visFrom =
+      windowed && typeof l.ip === "number" && l.ip > compIp ? l.ip : null;
+    const visUntil =
+      windowed && typeof l.op === "number" && l.op < compOp ? l.op : null;
     // `maskTarget` is the rule a post-hoc track matte (buildLayerList :576-580)
     // and clip must land on. It is the outer `rule` unless the layer isolates its
     // clip/mask scope from transform-parented children in an inner wrapper, in
     // which case the matte must follow the clip onto that inner content rule.
-    const record = (rule: Rule, maskTarget: Rule = rule): Rule => {
+    // `own` takes the window so a wrapper's window never hides parented children.
+    const record = (
+      rule: Rule,
+      maskTarget: Rule = rule,
+      own: Rule = rule,
+    ): Rule => {
       if (visFrom != null)
-        rule.decls.push(`visible-from: ${num(visFrom / this.fr, 3)}s`);
+        own.decls.push(`visible-from: ${num(visFrom / this.fr, 3)}s`);
       if (visUntil != null)
-        rule.decls.push(`visible-until: ${num(visUntil / this.fr, 3)}s`);
+        own.decls.push(`visible-until: ${num(visUntil / this.fr, 3)}s`);
       const filterDecl = this.effectFilterDecl(l);
       if (filterDecl) rule.decls.push(filterDecl);
-      if (typeof l.ind === "number") ruleByInd.set(l.ind, maskTarget);
+      if (typeof l.ind === "number") {
+        ruleByInd.set(l.ind, maskTarget);
+        ctx.outerByInd.set(l.ind, rule);
+      }
       return rule;
     };
 
@@ -922,7 +974,8 @@ export class Converter {
     const parentIdx = indexByInd.get(l.ind) ?? 0;
     for (const cl of childLayers) {
       try {
-        const cr = this.buildLayerRule(cl, ctx);
+        const built = this.buildLayerRule(cl, ctx);
+        const cr = hostOf.has(cl.ind) ? this.ghostWrap(cl, built, ctx) : built;
         // Lottie parenting is transform-only: the child keeps its own global
         // stack slot. Nesting it under the parent would force it above the
         // parent's siblings, so restore the original order with a z-index
@@ -935,7 +988,6 @@ export class Converter {
         this.warnOnce(`child layer ${cl.ind} skipped: ${e.message}`);
       }
     }
-    if (childLayers.length) this.checkStackRepresentable(l, ctx);
 
     if (l.ty === 0) {
       // Precomp layer: a group carrying the layer transform, with the referenced
@@ -1062,11 +1114,38 @@ export class Converter {
       this.imageUses.push({ decls: img.decls, assetId: l.refId, uri });
       if (asset.w) img.decls.push(`width: ${num(asset.w)}px`);
       if (asset.h) img.decls.push(`height: ${num(asset.h)}px`);
-      this.applyTransform(l.ks, img, st);
-      if (mask) this.applyMask(img, mask);
-      img.children.push(...childRules);
+      if (childRules.length === 0) {
+        this.applyTransform(l.ks, img, st);
+        if (mask) this.applyMask(img, mask);
+        this.finalizeAnim(img);
+        return record(img);
+      }
+      // Image as parent: a group carries the transform (a node paints before its children).
+      const group: Rule = {
+        id,
+        type: "group",
+        decls: [],
+        channels: [],
+        children: [],
+      };
+      this.applyTransform(l.ks, group, st, { skipOpacity: true });
+      if (mask) this.applyMask(group, mask);
+      // The image keeps only its own opacity (parenting never inherits it).
+      const own: Rule = {
+        id,
+        type: "image",
+        decls: [],
+        channels: [],
+        children: [],
+      };
+      this.applyTransform(l.ks, own, st);
+      img.decls.push(...own.decls.filter((d) => d.startsWith("opacity:")));
+      img.channels = own.channels.filter((c) => c.priority === 2);
+      img.id = this.uniqueId(id + "-image");
       this.finalizeAnim(img);
-      return record(img);
+      group.children.push(img, ...childRules);
+      this.finalizeAnim(group);
+      return record(group, group, img);
     }
 
     if (l.ty === 1) {
@@ -1109,7 +1188,7 @@ export class Converter {
       rect.channels = [];
       group.children.push(rect, ...childRules);
       this.finalizeAnim(group);
-      return record(group);
+      return record(group, group, rect);
     }
 
     if (l.ty === 5) {
@@ -1137,7 +1216,7 @@ export class Converter {
       text.channels = [];
       wrap.children.push(text, ...childRules);
       this.finalizeAnim(wrap);
-      return record(wrap);
+      return record(wrap, wrap, text);
     }
 
     // Null (ty 3) and shape (ty 4) are both groups.
@@ -1256,42 +1335,133 @@ export class Converter {
     return rule;
   }
 
-  /**
-   * We reproduce a parent's stack order by nesting its parented children and
-   * z-indexing them, which can order everything WITHIN the parent's subtree
-   * exactly. It fails only when the subtree isn't contiguous in the global paint
-   * stack: a real, non-descendant drawable falling inside the subtree's index
-   * span paints outside the subtree block, so exact order is unrepresentable.
-   * Warn once (naming the parent + interleaver) and keep the nearest z order.
-   */
-  private checkStackRepresentable(parent: any, ctx: LayerCtx) {
-    const { childrenOf, byInd, indexByInd } = ctx;
-    const subtree = new Set<number>();
-    const collect = (ind: number) => {
-      subtree.add(ind);
-      for (const c of childrenOf.get(ind) ?? []) collect(c.ind);
-    };
-    collect(parent.ind);
-    let lo = Infinity,
-      hi = -Infinity;
-    for (const ind of subtree) {
-      const i = indexByInd.get(ind);
-      if (i !== undefined) {
-        lo = Math.min(lo, i);
-        hi = Math.max(hi, i);
-      }
-    }
-    for (const m of byInd.values()) {
-      const mi = indexByInd.get(m.ind);
-      if (mi === undefined || mi <= lo || mi >= hi) continue;
-      if (subtree.has(m.ind)) continue;
-      // Nulls (ty 3) paint nothing, so they can't visually interleave.
-      if (m.ty === 3) continue;
-      this.warnOnce(
-        `layer '${parent.nm || parent.ind}' subtree stack order is approximate ` +
-          `(unrelated layer '${m.nm || m.ind}' interleaves it; nearest z-index used)`,
+  /** Lifted layers (ind -> host ind, null = top): children nesting can't stack or window exactly. */
+  private planHosting(
+    layers: any[],
+    childrenOf: Map<number, any[]>,
+    roots: any[],
+    compIp: number,
+    compOp: number,
+  ): Map<number, number | null> {
+    const idx = new Map<number, number>();
+    for (let i = 0; i < layers.length; i++) idx.set(layers[i].ind, i);
+    const host = new Map<number, number>();
+    const kids = new Map<number, number[]>();
+    for (const [p, cs] of childrenOf) {
+      kids.set(
+        p,
+        cs.map((c) => c.ind),
       );
-      return;
+      for (const c of cs) host.set(c.ind, p);
+    }
+    const moved = new Map<number, number | null>();
+    // Paints nothing at its own slot: null, non-drawable, or a track-matte source.
+    const neutral = (l: any) => !this.isConvertible(l) || l.ty === 3 || !!l.td;
+    const win = (l: any): [number, number] => [
+      Math.max(typeof l.ip === "number" ? l.ip : compIp, compIp),
+      Math.min(typeof l.op === "number" ? l.op : compOp, compOp),
+    ];
+    const subtree = (ind: number, out: number[] = []): number[] => {
+      out.push(ind);
+      for (const k of kids.get(ind) ?? []) subtree(k, out);
+      return out;
+    };
+    const visit = (ind: number): boolean => {
+      let changed = false;
+      for (const k of [...(kids.get(ind) ?? [])]) changed = visit(k) || changed;
+      const cs = kids.get(ind);
+      if (!cs?.length) return changed;
+      const p = idx.get(ind)!;
+      const members = new Set(subtree(ind));
+      const ok = (i: number) =>
+        members.has(layers[i].ind) || neutral(layers[i]);
+      let lo = p,
+        hi = p;
+      while (lo > 0 && ok(lo - 1)) lo--;
+      while (hi < layers.length - 1 && ok(hi + 1)) hi++;
+      // Solid/image/text parents window only their own content; nulls carry none.
+      const pl = layers[p];
+      const pWin = pl.ty === 0 || pl.ty === 4 ? win(pl) : null;
+      for (const c of [...cs]) {
+        const sub = subtree(c);
+        const paints = sub.some((x) => !neutral(layers[idx.get(x)!]));
+        const bad = sub.some((x) => {
+          const i = idx.get(x)!;
+          // A neutral layer's slot matters only as its block's sort key.
+          if (
+            (i < lo || i > hi) &&
+            (!neutral(layers[i]) || (x === c && paints))
+          )
+            return true;
+          if (!pWin || layers[i].ty === 3) return false;
+          const [f, u] = win(layers[i]);
+          return f < pWin[0] || u > pWin[1];
+        });
+        if (!bad) continue;
+        cs.splice(cs.indexOf(c), 1);
+        const h = host.get(ind);
+        if (h === undefined) host.delete(c);
+        else {
+          host.set(c, h);
+          kids.get(h)!.push(c);
+        }
+        moved.set(c, h ?? null);
+        changed = true;
+      }
+      return changed;
+    };
+    const tops = () => [
+      ...roots.map((r) => r.ind),
+      ...[...moved].filter(([, h]) => h === null).map(([c]) => c),
+    ];
+    for (let pass = 0; pass <= layers.length; pass++) {
+      let changed = false;
+      for (const t of tops()) changed = visit(t) || changed;
+      if (!changed) break;
+    }
+    return moved;
+  }
+
+  /** Wrap a lifted layer's rule in placeholder ghosts of its skipped ancestors. */
+  private ghostWrap(l: any, rule: Rule, ctx: LayerCtx): Rule {
+    const host = ctx.hostOf.get(l.ind);
+    let node = rule;
+    for (
+      let a = ctx.origParent.get(l.ind);
+      a !== undefined && a !== host;
+      a = ctx.origParent.get(a)
+    ) {
+      const g: Rule = {
+        id: "",
+        type: "group",
+        decls: [],
+        channels: [],
+        children: [node],
+      };
+      ctx.ghosts.push({ rule: g, of: a, for: l.ind });
+      node = g;
+    }
+    return node;
+  }
+
+  /** Ghosts copy their ancestor's transform/time decls and share its transform anims. */
+  private fillGhosts(ctx: LayerCtx) {
+    const isXf = (d: string) =>
+      /^(transform|transform-origin|offset-[a-z]+|time-offset|time-scale|time-remap):/.test(
+        d,
+      );
+    for (const { rule, of, for: forInd } of ctx.ghosts) {
+      const real = ctx.outerByInd.get(of);
+      const target = ctx.outerByInd.get(forInd);
+      rule.id = this.uniqueId(
+        `${real?.id ?? `layer-${of}`}--xf-${target?.id ?? `layer-${forInd}`}`,
+      );
+      if (!real) continue;
+      rule.decls = [...real.decls.filter(isXf), ...rule.decls];
+      const anims = real.anims?.filter((a) =>
+        a.blocks.every((b) => b.decls.every(isXf)),
+      );
+      if (anims?.length) rule.anims = anims;
     }
   }
 

@@ -941,9 +941,9 @@ test("parenting: a child stacked below its parent nests with a negative z-index"
   expect(buildSceneGraph(parse(css))).toBeTruthy();
 });
 
-test("parenting: an unrelated drawable interleaving the subtree warns (unrepresentable)", () => {
-  // Shape 2 is parented to Shape 4, but Shape 3 (unrelated) sits between them
-  // in the global stack -> exact order cannot be reproduced while nested.
+test("parenting: an unrelated drawable interleaving the subtree lifts the child into a ghost", () => {
+  // Shape 1 is parented to Shape 4 with unrelated layers between them: the child
+  // paints at its own top-level slot inside a transform-only ghost of the parent.
   const doc = {
     fr: 30,
     ip: 0,
@@ -958,10 +958,11 @@ test("parenting: an unrelated drawable interleaving the subtree warns (unreprese
     ],
   };
   const c = new Converter();
-  c.convert(doc);
-  expect(
-    c.warnings.some((w) => /subtree stack order is approximate/.test(w)),
-  ).toBe(true);
+  const css = c.convert(doc);
+  expect(c.warnings).toEqual([]);
+  expect(css).toMatch(
+    /^#parent \{[\s\S]*^#other \{[\s\S]*^#unrelated \{[\s\S]*^#parent--xf-child \{\n[^}]*\n {2}> #child \{/m,
+  );
 });
 
 test("parenting: a null interleaver does NOT warn (nulls paint nothing)", () => {

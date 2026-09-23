@@ -1,10 +1,13 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { parse } from "@popkorn/parser";
 import {
   buildSceneGraph,
   computeLocalMatrix,
   type SceneNode,
 } from "@popkorn/player";
+import { childrenInPaintOrder } from "../../popkorn-player/src/scene/node.js";
 import { Converter, validate } from "./lottie2popkorn.js";
 
 const IDENTITY_TR = {
@@ -1417,4 +1420,189 @@ test("3D layers with a camera warn that perspective is ignored", () => {
     "camera layer ignored; 3D layers rendered orthographically",
   );
   expect([...c.blocked]).toEqual([]);
+});
+
+// --- transform-only parenting: exact stack order via ghost ancestors ---------
+
+function stackLayer(ind: number, nm: string, parent?: number, extra = {}) {
+  return {
+    ty: 4,
+    ind,
+    nm,
+    ...(parent !== undefined ? { parent } : {}),
+    ip: 0,
+    op: 30,
+    st: 0,
+    ks: { p: { a: 0, k: [ind * 10, 0] } },
+    shapes: [
+      {
+        ty: "gr",
+        it: [
+          {
+            ty: "rc",
+            p: { a: 0, k: [0, 0] },
+            s: { a: 0, k: [10, 10] },
+            r: { a: 0, k: 0 },
+          },
+          { ty: "fl", c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+          IDENTITY_TR,
+        ],
+      },
+    ],
+    ...extra,
+  };
+}
+
+const stackComp = (layers: any[]) => ({
+  fr: 30,
+  ip: 0,
+  op: 30,
+  w: 100,
+  h: 100,
+  layers,
+});
+
+/** Layer ids in effective paint order (bottom first), one entry per run of leaves. */
+function leafLayerOrder(css: string, ids: Set<string>): string[] {
+  const out: string[] = [];
+  const walk = (n: SceneNode, owner: string | null) => {
+    const o = ids.has(n.id) ? n.id : owner;
+    const kids = childrenInPaintOrder(n);
+    if (kids.length === 0) {
+      if (o && out[out.length - 1] !== o) out.push(o);
+      return;
+    }
+    for (const k of kids) walk(k, o);
+  };
+  walk(buildSceneGraph(parse(css)), null);
+  return out;
+}
+
+test("grandchild below its grandparent's content paints at its Lottie slot", () => {
+  const rot = {
+    a: 1,
+    k: [
+      { t: 0, s: [0], o: { x: [0.3], y: [0] }, i: { x: [0.7], y: [1] } },
+      { t: 30, s: [90] },
+    ],
+  };
+  // Lottie stack top->bottom: C, G, X. X's parent C paints above G.
+  const c = new Converter();
+  const css = c.convert(
+    stackComp([
+      stackLayer(2, "C", 1, { ks: { p: { a: 0, k: [20, 0] }, r: rot } }),
+      stackLayer(1, "G"),
+      stackLayer(3, "X", 2),
+    ]),
+  );
+  expect(leafLayerOrder(css, new Set(["G", "C", "X"]))).toEqual([
+    "X",
+    "G",
+    "C",
+  ]);
+  expect(c.warnings.filter((w) => w.includes("approximate"))).toEqual([]);
+  // The ghost of C reuses C's rotation @keyframes (declared once).
+  expect(css).toContain("#C--xf-X {");
+  expect(css.match(/@keyframes C-k /g)?.length).toBe(1);
+  expect(css.match(/animation: C-k /g)?.length).toBe(2);
+  const find = (n: SceneNode, id: string): SceneNode | undefined =>
+    n.id === id ? n : n.children.map((k) => find(k, id)).find(Boolean);
+  const root = buildSceneGraph(parse(css));
+  const ghost = find(root, "C--xf-X")!;
+  expect(ghost.children.map((k) => k.id)).toEqual(["X"]);
+  expect(computeLocalMatrix(ghost)).toEqual(
+    computeLocalMatrix(find(root, "C")!),
+  );
+});
+
+test("a drawn parent's ip/op does not hide its transform-parented child", () => {
+  const c = new Converter();
+  const css = c.convert(
+    stackComp([
+      stackLayer(2, "C", 1),
+      stackLayer(1, "P", undefined, { op: 10 }),
+    ]),
+  );
+  const find = (n: SceneNode, id: string): SceneNode | undefined =>
+    n.id === id ? n : n.children.map((k) => find(k, id)).find(Boolean);
+  const root = buildSceneGraph(parse(css));
+  expect(find(root, "P")!.visibleUntil).toBe(333); // ms
+  for (let n: SceneNode | null = find(root, "C")!; n; n = n.parent)
+    expect(n.visibleUntil).toBe(Number.POSITIVE_INFINITY);
+  expect(leafLayerOrder(css, new Set(["P", "C"]))).toEqual(["P", "C"]);
+});
+
+test("a null parent's ip/op is not emitted (it would only hide children)", () => {
+  const css = new Converter().convert(
+    stackComp([
+      stackLayer(2, "C", 1),
+      { ty: 3, ind: 1, nm: "N", ip: 0, op: 10, st: 0, ks: {} },
+    ]),
+  );
+  expect(css).not.toContain("visible-until");
+  expect(css).not.toContain("--xf-");
+});
+
+test("contiguous parenting keeps plain nesting (no ghosts)", () => {
+  const c = new Converter();
+  const css = c.convert(
+    stackComp([
+      stackLayer(2, "C", 1),
+      stackLayer(1, "G"),
+      stackLayer(3, "X", 1),
+    ]),
+  );
+  expect(css).not.toContain("--xf-");
+  expect(leafLayerOrder(css, new Set(["G", "C", "X"]))).toEqual([
+    "X",
+    "G",
+    "C",
+  ]);
+});
+
+test("boxer: leaf paint order matches Lottie's layer stack", () => {
+  const lottie = JSON.parse(
+    readFileSync(
+      join(import.meta.dir, "../../../examples/lottie/boxer lottie.json"),
+      "utf8",
+    ),
+  );
+  const names = lottie.layers.map((l: any) =>
+    l.nm.replace(/[^a-zA-Z0-9_-]+/g, "-"),
+  );
+  const c = new Converter();
+  const css = c.convert(lottie);
+  expect(c.warnings.filter((w) => w.includes("approximate"))).toEqual([]);
+  expect(leafLayerOrder(css, new Set(names))).toEqual([...names].reverse());
+});
+
+test("an image parent stacks a child behind the image", () => {
+  const img = (ind: number, nm: string, parent?: number) => ({
+    ty: 2,
+    ind,
+    nm,
+    refId: "img",
+    ...(parent !== undefined ? { parent } : {}),
+    ip: 0,
+    op: 30,
+    st: 0,
+    ks: { p: { a: 0, k: [ind * 10, 0] }, o: { a: 0, k: 50 } },
+  });
+  const css = new Converter().convert({
+    ...stackComp([img(1, "P"), img(2, "C", 1)]),
+    assets: [
+      { id: "img", w: 10, h: 10, u: "", p: "data:image/png;base64,AA==" },
+    ],
+  });
+  expect(css).toContain("#P-image {");
+  const order: string[] = [];
+  const walk = (n: SceneNode) => {
+    if (n.type === "image") order.push(n.id);
+    for (const k of childrenInPaintOrder(n)) walk(k);
+  };
+  walk(buildSceneGraph(parse(css)));
+  expect(order).toEqual(["C", "P-image"]);
+  // The image keeps its own opacity; the transform group doesn't pass it on.
+  expect(css).toMatch(/#P-image \{[^}]*opacity: 0\.5/);
+  expect(css).not.toMatch(/#P \{[^>]*opacity/);
 });
