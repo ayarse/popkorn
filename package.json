@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
-    "@changesets/cli": "^2.31.0",
+    "@changesets/cli": "^3.0.3",
     "typescript": "~5.6.2"
   },
   "//": "Single @types/react across the workspace. TanStack Start SSRs React-19-only head semantics (<link precedence>), so the playground needs 19 and hoisting would otherwise hand it 18. react-native/skia type-check fine against 19.",
