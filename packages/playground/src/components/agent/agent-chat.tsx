@@ -195,7 +195,7 @@ function AgentChat({
           />
           <HeaderIconButton
             icon={Settings}
-            label="Agent settings"
+            label="Copilot settings"
             onClick={() => setSettingsOpen(true)}
           />
           <HeaderIconButton icon={X} label="Close chat" onClick={onClose} />

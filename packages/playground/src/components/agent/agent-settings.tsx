@@ -1,4 +1,11 @@
-import { Check, ChevronDown, Eye, EyeOff, Sparkles } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Sparkles,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,10 +38,12 @@ import {
 import { cn } from "@/lib/utils";
 
 function ModelCombobox({
+  id,
   value,
   onChange,
   presets,
 }: {
+  id: string;
   value: string;
   onChange: (v: string) => void;
   presets: string[];
@@ -59,17 +68,22 @@ function ModelCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpenAndReset}>
+    // modal: the portaled list sits outside the Dialog, whose scroll lock would eat its wheel events
+    <Popover modal open={open} onOpenChange={setOpenAndReset}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
+          type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
           className="h-9 w-full justify-between rounded-lg bg-background px-3 font-mono text-[13px] font-normal"
         >
-          <span className={value ? "truncate" : "text-muted-foreground"}>
-            {value || "model id"}
-          </span>
+          {value ? (
+            <ModelLabel id={value} />
+          ) : (
+            <span className="text-muted-foreground">Choose a model</span>
+          )}
           <ChevronDown
             className={cn(
               "size-4 shrink-0 opacity-60 transition-transform",
@@ -81,18 +95,18 @@ function ModelCombobox({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-[var(--radix-popover-trigger-width)]"
+        className="w-[var(--radix-popover-trigger-width)] overflow-hidden"
       >
         <Command shouldFilter={false} className="rounded-lg">
           <CommandInput
-            placeholder="Search or type a model id…"
+            placeholder="Search, or paste any model id…"
             value={search}
             onValueChange={setSearch}
           />
           <CommandList>
             {filtered.length === 0 && !showCustom && (
               <div className="py-6 text-center text-sm text-muted-foreground">
-                No preset matches.
+                No matches.
               </div>
             )}
             <CommandGroup>
@@ -104,7 +118,7 @@ function ModelCombobox({
                       value === p ? "opacity-100" : "opacity-0",
                     )}
                   />
-                  {p}
+                  <ModelLabel id={p} />
                 </CommandItem>
               ))}
               {showCustom && (
@@ -121,21 +135,40 @@ function ModelCombobox({
   );
 }
 
+// Dims the provider prefix so the model name reads first.
+function ModelLabel({ id }: { id: string }) {
+  const slash = id.indexOf("/");
+  return (
+    <span className="truncate">
+      {slash > 0 && (
+        <span className="text-muted-foreground">{id.slice(0, slash + 1)}</span>
+      )}
+      {id.slice(slash + 1)}
+    </span>
+  );
+}
+
 const FIELD = "h-9 flex-1 rounded-lg py-0 font-mono text-[13px]";
 
 function Field({
   label,
+  htmlFor,
+  hint,
   children,
 }: {
   label: string;
+  htmlFor: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    // biome-ignore lint/a11y/noLabelWithoutControl: the field control is nested inside via children; biome can't see through the prop
-    <label className="block space-y-1.5">
-      <span className={labelClass}>{label}</span>
+    <div className="space-y-1.5">
+      <label htmlFor={htmlFor} className={labelClass}>
+        {label}
+      </label>
       {children}
-    </label>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
   );
 }
 
@@ -152,6 +185,17 @@ export function AgentSettings({
   const [apiKey, setApiKey] = useState(current?.apiKey ?? "");
   const [model, setModel] = useState(current?.model ?? DEFAULT_MODEL);
   const [showKey, setShowKey] = useState(false);
+  const isOpenRouter =
+    (baseUrl.trim() || DEFAULT_BASE_URL) === DEFAULT_BASE_URL;
+  const canSave = apiKey.trim().length > 0 && model.trim().length > 0;
+
+  const save = () =>
+    onSave({
+      baseUrl: baseUrl.trim() || DEFAULT_BASE_URL,
+      apiKey: apiKey.trim(),
+      model,
+      reasoning: current?.reasoning ?? "default",
+    });
 
   return (
     <Dialog
@@ -160,29 +204,58 @@ export function AgentSettings({
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-sm">
+      <DialogContent className="w-[calc(100%-2rem)] max-w-md gap-6 rounded-xl">
         <DialogHeader>
-          <DialogTitle>Agent settings</DialogTitle>
+          <DialogTitle>Copilot settings</DialogTitle>
           <DialogDescription>
-            Bring your own key. Stored locally in your browser, never sent
-            anywhere except the endpoint. Any OpenAI-compatible chat completions
-            endpoint works; defaults to OpenRouter, switch the base URL for
-            OpenAI or others.
+            Copilot runs on your own API key. It works with OpenRouter out of
+            the box, or any OpenAI-compatible endpoint.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <Field label="API key">
+        <form
+          className="space-y-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSave) save();
+          }}
+        >
+          <Field
+            label="API key"
+            htmlFor="copilot-key"
+            hint={
+              isOpenRouter ? (
+                <>
+                  Stays in this browser.{" "}
+                  <a
+                    href="https://openrouter.ai/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-0.5 text-foreground underline-offset-2 hover:underline"
+                  >
+                    Get an OpenRouter key
+                    <ExternalLink className="size-3" />
+                  </a>
+                </>
+              ) : (
+                "Stays in this browser and is only sent to the endpoint below."
+              )
+            }
+          >
             <div className="flex items-center gap-1.5">
               <Input
+                id="copilot-key"
                 type={showKey ? "text" : "password"}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                placeholder="sk-or-…"
+                placeholder={isOpenRouter ? "sk-or-v1-…" : "sk-…"}
+                autoComplete="off"
                 spellCheck={false}
+                autoFocus={!apiKey}
                 className={FIELD}
               />
               <Button
+                type="button"
                 variant="outline"
                 size="icon"
                 onClick={() => setShowKey((v) => !v)}
@@ -195,8 +268,26 @@ export function AgentSettings({
             </div>
           </Field>
 
-          <Field label="Base URL">
+          <Field
+            label="Model"
+            htmlFor="copilot-model"
+            hint="Pick a preset, or paste any model id your endpoint serves."
+          >
+            <ModelCombobox
+              id="copilot-model"
+              value={model}
+              onChange={setModel}
+              presets={MODEL_PRESETS}
+            />
+          </Field>
+
+          <Field
+            label="Endpoint"
+            htmlFor="copilot-url"
+            hint="Base URL of an OpenAI-compatible chat completions API."
+          >
             <Input
+              id="copilot-url"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               spellCheck={false}
@@ -205,34 +296,15 @@ export function AgentSettings({
             />
           </Field>
 
-          <Field label="Model">
-            <ModelCombobox
-              value={model}
-              onChange={setModel}
-              presets={MODEL_PRESETS}
-            />
-          </Field>
-        </div>
-
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            disabled={!apiKey.trim()}
-            onClick={() =>
-              onSave({
-                baseUrl: baseUrl.trim() || DEFAULT_BASE_URL,
-                apiKey: apiKey.trim(),
-                model,
-                reasoning: current?.reasoning ?? "default",
-              })
-            }
-          >
-            Save
-          </Button>
-        </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={!canSave}>
+              Save
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

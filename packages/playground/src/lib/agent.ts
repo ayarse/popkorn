@@ -34,17 +34,20 @@ const STORAGE_KEY = "popkorn.agent.config";
 
 export const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
 
-export const DEFAULT_MODEL = "openai/gpt-5.5";
+export const DEFAULT_MODEL = "anthropic/claude-opus-5.5";
 
 export const MODEL_PRESETS = [
-  "openai/gpt-5.5",
+  "anthropic/claude-opus-5.5",
+  "openai/gpt-5.6-sol",
+  "anthropic/claude-fable-5.1",
   "anthropic/claude-sonnet-5",
-  "anthropic/claude-opus-4.8",
-  "anthropic/claude-sonnet-4.6",
-  "z-ai/glm-5.2",
-  "deepseek/deepseek-v4-pro",
-  "minimax/m3",
-  "xiaomi/mimo-v2.5",
+  "google/gemini-3.8-flash",
+  "x-ai/grok-4.7",
+  "moonshotai/kimi-k3",
+  "z-ai/glm-5.3",
+  "z-ai/glm-5.3-flash",
+  "deepseek/deepseek-v4-pro-0813",
+  "deepseek/deepseek-v4.1-flash",
 ];
 
 export const GREETING: Message = {
