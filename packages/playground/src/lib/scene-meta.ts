@@ -1,7 +1,7 @@
 /**
  * Playground-only convention, NOT part of the Popkorn format: WordPress-style
  * `Key: Value` lines in the *first* comment block of a scene file (currently
- * just `Author` / `Author URL`, shown as the player's attribution badge).
+ * just `Author` / `Author URL`, shown in the player toolbar's byline).
  */
 export function parseSceneMeta(source: string): Record<string, string> {
   const meta: Record<string, string> = {};

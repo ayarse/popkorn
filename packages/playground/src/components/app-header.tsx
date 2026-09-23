@@ -102,10 +102,8 @@ export function AppHeader({
     <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
       <BrandMark
         suffix={
-          <span className="ml-1.5 hidden max-w-[22ch] truncate text-[13px] font-normal text-muted-foreground sm:inline">
-            {community
-              ? `${community.title}${community.author ? ` by ${community.author}` : ""}`
-              : "Playground"}
+          <span className="ml-1.5 hidden text-[13px] font-normal text-muted-foreground sm:inline">
+            Playground
           </span>
         }
       />

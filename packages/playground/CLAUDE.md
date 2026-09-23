@@ -112,7 +112,7 @@ agent *can't* infer from the code.
   `components/player/use-export.ts`. `gifenc.d.ts` shims `gifenc`.
 - **Player panel** — `components/player-panel.tsx` composes
   `components/player/*` (view controls, export menu + `use-export`, event
-  badge, attribution); background swatches live in `bg-context-menu.tsx`.
+  badge, scene byline); background swatches live in `bg-context-menu.tsx`.
 - **Timeline** — `components/timeline-panel.tsx` composes `components/timeline/*`
   (`scale.ts` time↔pixel, `geometry.ts` pure span math, `use-player-timeline`,
   `use-timeline-zoom`, memoized rows) + `lib/timeline-edits.ts`; edits write

@@ -8,8 +8,8 @@ import {
 import { ExportDialog } from "@/components/export-dialog";
 import { MotionCanvas } from "@/components/motion-canvas";
 import { OwnerActions } from "@/components/owner-actions";
-import { Attribution } from "@/components/player/attribution";
 import { ExportMenu } from "@/components/player/export-menu";
+import { SceneByline } from "@/components/player/scene-byline";
 import { useEventBadge } from "@/components/player/use-event-badge";
 import { useExport } from "@/components/player/use-export";
 import {
@@ -21,7 +21,6 @@ import {
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import type { CommunityScene } from "@/hooks/use-scene";
-import { parseSceneMeta } from "@/lib/scene-meta";
 
 export function PlayerPanel({
   source,
@@ -32,7 +31,7 @@ export function PlayerPanel({
   player,
   onPlayerReady,
 }: {
-  /** Latest editor text (save, export, attribution). */
+  /** Latest editor text (save, export, byline). */
   source: string;
   /** What the player renders — trails `source` while typing. */
   playerSource: string;
@@ -55,8 +54,6 @@ export function PlayerPanel({
     useExport(source);
 
   const activeBg = PLAYER_BACKGROUNDS[bgIndex];
-  const meta = parseSceneMeta(source);
-  const author = meta.Author;
 
   return (
     <div className="flex flex-1 flex-col bg-background overflow-hidden">
@@ -64,6 +61,7 @@ export function PlayerPanel({
       {/* Scrolls sideways rather than clipping: on a phone the owner controls
           and the view controls together outrun the width. */}
       <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <SceneByline community={community} source={source} />
         {community?.mine && (
           <div className="flex shrink-0 items-center gap-1">
             <OwnerActions
@@ -124,15 +122,6 @@ export function PlayerPanel({
             onPlayerReady={onPlayerReady}
           />
         </div>
-        {/* Attribution badge — icon-only until hovered, so it stays out of the
-            way of the scene. Fed by the example file's `Author:` header. */}
-        {author && (
-          <Attribution
-            className="absolute top-9 right-9 z-20"
-            author={author}
-            url={meta["Author URL"]}
-          />
-        )}
         {/* Event badge — flashes the latest player DOM event (click / machine).
             Non-interactive so it never intercepts the pointer. */}
         {eventBadge && (
