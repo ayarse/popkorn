@@ -1,10 +1,10 @@
+import { colorToCSS, parseColor } from "./color.js";
 import { mixOklab, mixOklch, oklabToRgba, rgbaToOklab } from "./oklab.js";
 import type {
   GradientData,
   GradientInterpolation,
   GradientStop,
 } from "./types.js";
-import { colorToCSS, parseColor } from "./types.js";
 
 // The shape's local bounding box a gradient is realized against.
 export interface PaintBox {

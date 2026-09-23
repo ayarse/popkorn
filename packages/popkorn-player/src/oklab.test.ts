@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
 
 import { gradientsCompatible, interpolateColor } from "./animation/registry";
+import { parseColor } from "./renderer/color";
 import { resolveGradient } from "./renderer/gradient-geometry";
 import {
   mixOklch,
@@ -11,7 +12,6 @@ import {
   rgbaToOklab,
   tryParseOklabColor,
 } from "./renderer/oklab";
-import { parseColor } from "./renderer/types";
 import { buildSceneGraph } from "./scene/builder";
 
 const rgb = (css: string) => {

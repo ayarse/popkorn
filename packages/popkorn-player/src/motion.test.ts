@@ -9,6 +9,11 @@ import { hitTest } from "./runtime/hit-test.js";
 import { buildSceneGraph } from "./scene/builder.js";
 import { transformPoint } from "./scene/matrix.js";
 import {
+  createSceneNode,
+  resetNodeToBase,
+  snapshotNode,
+} from "./scene/node.js";
+import {
   buildMotionPath,
   parsePath,
   samplePathAt,
@@ -19,11 +24,6 @@ import type {
   CircleData,
   KeyframeData,
   SceneNode,
-} from "./scene/types.js";
-import {
-  createSceneNode,
-  resetNodeToBase,
-  snapshotNode,
 } from "./scene/types.js";
 
 // --- helpers -----------------------------------------------------------------

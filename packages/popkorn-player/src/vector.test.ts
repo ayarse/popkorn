@@ -6,9 +6,9 @@ import type {
 } from "./renderer/types.js";
 import { hitTest } from "./runtime/hit-test.js";
 import { buildSceneGraph } from "./scene/builder.js";
+import { createSceneNode } from "./scene/node.js";
 import { arcToEllipse } from "./scene/path-parser.js";
 import type { SceneNode } from "./scene/types.js";
-import { createSceneNode } from "./scene/types.js";
 
 // --- helpers -----------------------------------------------------------------
 

@@ -7,6 +7,7 @@ import {
 import { computePathBounds, roundedRectPath } from "../scene/path-parser.js";
 import { anchorX } from "../scene/transform.js";
 import type { MaskMode, TextAnchor } from "../scene/types.js";
+import { parseColor } from "./color.js";
 import type { PaintBox } from "./gradient-geometry.js";
 import { ellipseBox, resolveGradient } from "./gradient-geometry.js";
 import { newImageDest, PendingImages, resolveImageDest } from "./images.js";
@@ -19,7 +20,6 @@ import type {
   PathCommand,
   ResolvedClip,
 } from "./types.js";
-import { parseColor } from "./types.js";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 

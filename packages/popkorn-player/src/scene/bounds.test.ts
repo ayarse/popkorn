@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { maskDeviceBounds, subtreeDeviceBounds } from "./bounds.js";
 import { IDENTITY_MATRIX } from "./matrix.js";
+import { createSceneNode } from "./node.js";
 import type { SceneNode } from "./types.js";
-import { createSceneNode } from "./types.js";
 
 const BUF = 1000;
 // subtreeDeviceBounds pads the region by ANTIALIAS_SLOP device px per side so a

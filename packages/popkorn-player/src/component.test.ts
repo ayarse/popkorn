@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
-import { formatAnimatableValue, PopkornPlayer } from "./component.js";
+import { PopkornPlayer } from "./component.js";
 import type { Renderer } from "./renderer/interface.js";
 import { RenderLoop } from "./runtime/loop.js";
-import { createDefaultTransform } from "./scene/types.js";
+import { formatAnimatableValue } from "./runtime/timeline.js";
+import { createDefaultTransform } from "./scene/node.js";
 
 /** Minimal canvas/window doubles: just enough surface for InputTracker.attach/
  * detach to record listener churn, without a real DOM (this suite is DOM-free). */

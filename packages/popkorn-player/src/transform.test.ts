@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { hitTest } from "./runtime/hit-test.js";
 import { transformPoint } from "./scene/matrix.js";
+import { createSceneNode } from "./scene/node.js";
 import { computeLocalMatrix, computeWorldMatrix } from "./scene/transform.js";
 import type { SceneNode } from "./scene/types.js";
-import { createSceneNode } from "./scene/types.js";
 
 // --- helpers -----------------------------------------------------------------
 

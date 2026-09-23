@@ -1,3 +1,4 @@
+import { parseColor } from "../renderer/color.js";
 import {
   isOklabSpelling,
   mixOklab,
@@ -9,7 +10,7 @@ import type {
   PathCommand,
   RadialGradientData,
 } from "../renderer/types.js";
-import { isGradientData, parseColor } from "../renderer/types.js";
+import { isGradientData } from "../renderer/types.js";
 import { lerp } from "../scene/transform.js";
 import type {
   FilterOp,

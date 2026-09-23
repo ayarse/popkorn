@@ -12,13 +12,9 @@ export {
   AnimationScheduler,
   computeSceneDuration,
 } from "./animation/scheduler.js";
-export type {
-  TimelineAnimation,
-  TimelineAnimationProperty,
-  TimelineTrack,
-} from "./component.js";
 export { PopkornPlayer, registerPopkornPlayer } from "./component.js";
 export { Canvas2DRenderer } from "./renderer/canvas2d.js";
+export { parseColor } from "./renderer/color.js";
 export type {
   ClipObs,
   ConformanceHarness,
@@ -51,13 +47,18 @@ export type {
   PathCommand,
   ResolvedClip,
 } from "./renderer/types.js";
-export { LUMA_COEFFICIENTS, parseColor } from "./renderer/types.js";
+export { LUMA_COEFFICIENTS } from "./renderer/types.js";
 export type { Point } from "./runtime/hit-test.js";
 export { hitTest } from "./runtime/hit-test.js";
 export type { InputState } from "./runtime/inputs.js";
 export { InputTracker } from "./runtime/inputs.js";
 export { InteractionManager } from "./runtime/interaction.js";
 export { RenderLoop, readsInput, sceneExportLength } from "./runtime/loop.js";
+export type {
+  TimelineAnimation,
+  TimelineAnimationProperty,
+  TimelineTrack,
+} from "./runtime/timeline.js";
 export { VariableResolver } from "./runtime/variables.js";
 export type { FitMode, Viewport } from "./runtime/viewport.js";
 export {
@@ -72,6 +73,7 @@ export {
   multiplyMatrices,
   transformPoint,
 } from "./scene/matrix.js";
+export { resetNodeToBase } from "./scene/node.js";
 export type { PathSink } from "./scene/path-parser.js";
 export {
   applyCommandsToPath,
@@ -98,4 +100,3 @@ export type {
   TimingFunction,
   Transform,
 } from "./scene/types.js";
-export { resetNodeToBase } from "./scene/types.js";

@@ -8,8 +8,10 @@ import {
   InteractionManager,
 } from "../runtime/interaction.js";
 import { VariableResolver } from "../runtime/variables.js";
-import { buildSceneGraph, extractTransform } from "./builder.js";
+import { buildSceneGraph } from "./builder.js";
+import { resetNodeToBase } from "./node.js";
 import { getShapeBounds } from "./transform.js";
+import { extractTransform } from "./transform-values.js";
 import type {
   CircleData,
   EllipseData,
@@ -19,7 +21,6 @@ import type {
   RectData,
   TextData,
 } from "./types.js";
-import { resetNodeToBase } from "./types.js";
 
 const build = (src: string) => buildSceneGraph(parse(src));
 

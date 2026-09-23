@@ -13,17 +13,17 @@ import {
   interpolateProp,
   pathsCompatible,
 } from "./animation/registry.js";
+import { parseColor } from "./renderer/color.js";
 import type { GradientData } from "./renderer/types.js";
-import { parseColor } from "./renderer/types.js";
 import { computeTrim } from "./runtime/loop.js";
 import { buildSceneGraph } from "./scene/builder.js";
-import { outlineLength, parsePath } from "./scene/path-parser.js";
-import type { PathData, SceneNode } from "./scene/types.js";
 import {
   createSceneNode,
   resetNodeToBase,
   snapshotNode,
-} from "./scene/types.js";
+} from "./scene/node.js";
+import { outlineLength, parsePath } from "./scene/path-parser.js";
+import type { PathData, SceneNode } from "./scene/types.js";
 
 function firstNode(css: string): SceneNode {
   return buildSceneGraph(parse(css)).children[0];

@@ -1,14 +1,14 @@
 import { expect, test } from "bun:test";
 import { applyInteractionOverrides } from "../runtime/interaction.js";
-import type {
-  AnimationInstance,
-  CircleData,
-  SceneNode,
-} from "../scene/types.js";
 import {
   createSceneNode,
   resetNodeToBase,
   snapshotNode,
+} from "../scene/node.js";
+import type {
+  AnimationInstance,
+  CircleData,
+  SceneNode,
 } from "../scene/types.js";
 import { buildKeyframeTracks, interpolateKeyframes } from "./keyframes.js";
 import { AnimationScheduler } from "./scheduler.js";

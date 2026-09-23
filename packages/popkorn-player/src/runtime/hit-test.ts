@@ -8,11 +8,11 @@ import {
   invertMatrix,
   transformPoint,
 } from "../scene/matrix.js";
+import { childrenInPaintOrder } from "../scene/node.js";
 import { flattenToSubpaths } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
 import { computeWorldMatrix, getShapeBounds } from "../scene/transform.js";
 import type { EllipseData, FillRule, SceneNode } from "../scene/types.js";
-import { childrenInPaintOrder } from "../scene/types.js";
 
 export interface Point {
   x: number;

@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { RenderLoop } from "../runtime/loop.js";
 import type { Matrix3x3 } from "../scene/matrix.js";
+import { createSceneNode, snapshotNode } from "../scene/node.js";
 import type { SceneNode } from "../scene/types.js";
-import { createSceneNode, snapshotNode } from "../scene/types.js";
 import type { Renderer } from "./interface.js";
 import {
   deviceRegionInUserSpace,

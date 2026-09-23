@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
 
 import { PROPERTY_REGISTRY } from "./animation/registry";
-import { GRADIENT_FN } from "./scene/builder";
+import { GRADIENT_FN } from "./scene/value-parsers";
 
 // Two reference docs, two audiences: docs/reference.md is the public docs site,
 // .claude/skills/.../reference.md is served to the Copilot (core guide inline, sections on demand) by

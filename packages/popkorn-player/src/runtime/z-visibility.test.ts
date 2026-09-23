@@ -11,6 +11,7 @@ import type {
 } from "../renderer/types.js";
 import { buildSceneGraph } from "../scene/builder.js";
 import type { Matrix3x3 } from "../scene/matrix.js";
+import { createSceneNode, snapshotNode } from "../scene/node.js";
 import type {
   FillRule,
   MaskMode,
@@ -18,7 +19,6 @@ import type {
   StrokeLineCap,
   TextAnchor,
 } from "../scene/types.js";
-import { createSceneNode, snapshotNode } from "../scene/types.js";
 import { hitTest } from "./hit-test.js";
 import { RenderLoop } from "./loop.js";
 

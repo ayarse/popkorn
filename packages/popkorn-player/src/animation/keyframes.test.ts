@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
-import type { CircleData, SceneNode } from "../scene/types.js";
 import {
   createSceneNode,
   resetNodeToBase,
   snapshotNode,
-} from "../scene/types.js";
+} from "../scene/node.js";
+import type { CircleData, SceneNode } from "../scene/types.js";
 import { buildKeyframeTracks, interpolateKeyframes } from "./keyframes.js";
 
 function circleNode(): SceneNode {

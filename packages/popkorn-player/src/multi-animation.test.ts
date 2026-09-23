@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
 import { AnimationScheduler } from "./animation/scheduler.js";
 import { buildSceneGraph } from "./scene/builder.js";
+import { resetNodeToBase } from "./scene/node.js";
 import type { SceneNode } from "./scene/types.js";
-import { resetNodeToBase } from "./scene/types.js";
 
 // A comma-separated `animation` shorthand must build one AnimationInstance per
 // group, each with its own keyframes/timing. This is the converter's per-channel

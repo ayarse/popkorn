@@ -12,6 +12,7 @@ import type {
 import { buildSceneGraph } from "../scene/builder.js";
 import type { Matrix3x3 } from "../scene/matrix.js";
 import { IDENTITY_MATRIX } from "../scene/matrix.js";
+import { createSceneNode, snapshotNode } from "../scene/node.js";
 import type {
   AnimationInstance,
   BlendMode,
@@ -22,7 +23,6 @@ import type {
   StrokeLineCap,
   TextAnchor,
 } from "../scene/types.js";
-import { createSceneNode, snapshotNode } from "../scene/types.js";
 import {
   filterToCSS,
   RenderLoop,

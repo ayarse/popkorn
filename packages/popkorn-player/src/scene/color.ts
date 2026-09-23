@@ -6,8 +6,8 @@ import {
   isKeywordValue,
   isStringValue,
 } from "@popkorn/parser";
+import { tryParseColor } from "../renderer/color.js";
 import { oklabToString, tryParseOklabColor } from "../renderer/oklab.js";
-import { tryParseColor } from "../renderer/types.js";
 
 // Canonical hex/rgba or null; folds hsl()/named colors at build time so the hot path only parses hex/rgb.
 function canonicalColor(raw: string): string | null {

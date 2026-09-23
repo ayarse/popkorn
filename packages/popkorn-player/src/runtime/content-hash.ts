@@ -1,8 +1,5 @@
-import {
-  childrenInPaintOrder,
-  type SceneNode,
-  type Transform,
-} from "../scene/types.js";
+import { childrenInPaintOrder } from "../scene/node.js";
+import type { SceneNode, Transform } from "../scene/types.js";
 
 /** Pure hash of a composite subtree's resolved render state (mirrors `resetNodeToBase` + paint fields) for the raster cache. */
 // NOTE: re-hashes every frame; a per-node dirty bit at resolve-walk write sites would avoid it.

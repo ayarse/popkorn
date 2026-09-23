@@ -8,17 +8,17 @@ import { getPropHandler } from "./animation/registry.js";
 import { computeTrim } from "./runtime/loop.js";
 import { buildSceneGraph } from "./scene/builder.js";
 import {
+  createSceneNode,
+  resetNodeToBase,
+  snapshotNode,
+} from "./scene/node.js";
+import {
   computePathLength,
   outlineLength,
   parsePath,
   shapeOutlineLength,
 } from "./scene/path-parser.js";
 import type { CircleData, SceneNode } from "./scene/types.js";
-import {
-  createSceneNode,
-  resetNodeToBase,
-  snapshotNode,
-} from "./scene/types.js";
 
 function firstNode(css: string): SceneNode {
   return buildSceneGraph(parse(css)).children[0];

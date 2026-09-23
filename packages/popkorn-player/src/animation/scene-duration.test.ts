@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
+import { createSceneNode } from "../scene/node.js";
 import type { AnimationInstance, SceneNode } from "../scene/types.js";
-import { createSceneNode } from "../scene/types.js";
 import { computeSceneDuration } from "./scheduler.js";
 
 function anim(partial: Partial<AnimationInstance>): AnimationInstance {

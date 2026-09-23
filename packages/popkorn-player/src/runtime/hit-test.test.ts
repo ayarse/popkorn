@@ -4,9 +4,9 @@ import type { Renderer } from "../renderer/interface.js";
 import type { PathCommand, ResolvedClip } from "../renderer/types.js";
 import { buildSceneGraph } from "../scene/builder.js";
 import type { Matrix3x3 } from "../scene/matrix.js";
+import { createSceneNode, snapshotNode } from "../scene/node.js";
 import { parsePath } from "../scene/path-parser.js";
 import type { FillRule, MaskMode, SceneNode } from "../scene/types.js";
-import { createSceneNode, snapshotNode } from "../scene/types.js";
 import { hitTest, hitTestClick } from "./hit-test.js";
 import { type ClickDetail, RenderLoop } from "./loop.js";
 

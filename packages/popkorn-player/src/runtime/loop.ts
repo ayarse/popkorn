@@ -20,15 +20,15 @@ import {
   shapeClip,
   shapeOutline,
 } from "../scene/box-shadow.js";
-import {
-  extractImageViewBox,
-  extractIndividualTransform,
-  extractTransform,
-} from "../scene/builder.js";
 import { resolveClip } from "../scene/clip.js";
 import { colorStringFromValue } from "../scene/color.js";
 import type { Matrix3x3 } from "../scene/matrix.js";
 import { IDENTITY_MATRIX, multiplyMatrices } from "../scene/matrix.js";
+import {
+  childrenInPaintOrder,
+  refreshSortedChildren,
+  resetNodeToBase,
+} from "../scene/node.js";
 import { outlineLength } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
 import {
@@ -37,17 +37,17 @@ import {
   computeWorldMatrixFromRoot,
   matrixScale,
 } from "../scene/transform.js";
+import {
+  extractImageViewBox,
+  extractIndividualTransform,
+  extractTransform,
+} from "../scene/transform-values.js";
 import type {
   ColorFilterFn,
   FilterOp,
   NodeStateStyle,
   SceneNode,
   TimeRemapStop,
-} from "../scene/types.js";
-import {
-  childrenInPaintOrder,
-  refreshSortedChildren,
-  resetNodeToBase,
 } from "../scene/types.js";
 import { forEachNode, someNode } from "../scene/walk.js";
 import { subtreeToken } from "./content-hash.js";

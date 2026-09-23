@@ -12,7 +12,8 @@ import {
   type PropValue,
   pathsCompatible,
 } from "../animation/registry.js";
-import { cloneGradient, isGradientData } from "../renderer/types.js";
+import { isGradientData } from "../renderer/types.js";
+import { cloneGradient } from "../scene/node.js";
 import { clamp01 } from "../scene/transform.js";
 import type {
   InteractionState,

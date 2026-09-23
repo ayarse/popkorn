@@ -12,8 +12,8 @@ import type {
   StrokeLineCap,
   StrokeLineJoin,
 } from "../scene/types.js";
+import { colorToCSS } from "./color.js";
 import type { Color, GradientData, TrimDescriptor } from "./types.js";
-import { colorToCSS } from "./types.js";
 
 // Track-matte mode decoded into its luminance/invert axes (shared constants, no per-call allocation).
 export interface MaskModeParts {
