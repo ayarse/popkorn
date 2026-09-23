@@ -75,14 +75,14 @@
 }
 
 /* ---- on: the steady look. Static opacity holds where the surge landed, and
-   the loops own channels the surge never touched (scale, rotate). ---- */
+   the loops own a channel the surge never touched (scale). ---- */
 @keyframes haloBreathe {
   0%, 100% { transform: scale(1);    }
   50%      { transform: scale(1.09); }
 }
-@keyframes raySpin {
-  0%   { transform: rotate(0deg);   }
-  100% { transform: rotate(360deg); }
+@keyframes rayPulse {
+  0%, 100% { transform: scale(1);    }
+  50%      { transform: scale(1.06); }
 }
 
 /* ---- pull: a damped swing that plays once and settles ---- */
@@ -95,10 +95,16 @@
   100% { transform: rotate(0deg);  }
 }
 
+/* ---- wall ---- a dim night-time backdrop so the light has something to land on */
+#wall {
+  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  fill: radial-gradient(circle 560px at 400px 260px, #25283a 0%, #161826 60%, #0d0e17 100%);
+}
+
 /* ---- room ---- warm wash that only exists while the lamp is lit ---- */
 #room {
   type: rect; x: 0; y: 0; width: 800px; height: 600px;
-  fill: radial-gradient(circle 430px at 400px 232px, #ffce8a 0%, #ffce8a00 72%);
+  fill: radial-gradient(circle 460px at 400px 232px, #ffc978 0%, #ffb35c55 40%, #ffb35c00 78%);
   opacity: 0;
   &:state(lamp.warmup) { animation: roomSurge 460ms ease-out; }
   &:state(lamp.on)     { opacity: 0.55; }
@@ -118,18 +124,16 @@
     &:state(lamp.on)     { opacity: 1; animation: haloBreathe 3.2s ease-in-out infinite; }
   }
 
-  /* 2. rays — a spoke burst that scales in, then turns forever ---- */
+  /* 2. rays — a fan of spokes over the crown that scales in, then pulses ---- */
   > #rays {
     type: group; transform-origin: 100px 98px; opacity: 0;
     &:state(lamp.warmup) { animation: raysIn 380ms ease-out; }
-    &:state(lamp.on)     { opacity: 1; animation: raySpin 24s linear infinite; }
-    > #ry1 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; }
-    > #ry2 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(45deg);   }
-    > #ry3 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-45deg);  }
-    > #ry4 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(80deg);   }
-    > #ry5 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-80deg);  }
-    > #ry6 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(135deg);  }
-    > #ry7 { type: path; d: 'M 100 6 L 100 -16'; stroke: #ffd873; stroke-width: 6px; stroke-linecap: round; transform-origin: 100px 98px; transform: rotate(-135deg); }
+    &:state(lamp.on)     { opacity: 1; animation: rayPulse 3.2s ease-in-out infinite; }
+    > #ray {
+      repeat: 7;
+      type: path; d: 'M 100 10 L 100 -14'; stroke: #ffe29a; stroke-width: 5px; stroke-linecap: round;
+      transform-origin: 100px 98px; rotate: calc((sibling-index() - 4) * 30deg); opacity: 0.85;
+    }
   }
 
   /* 3. inner glow — the bright core inside the glass ---- */
@@ -147,38 +151,38 @@
      list, so a look that spans two states is written out per state — the metal
      must already be warm while the glow is coming up, or it reads as a cold
      base under a lit bulb. ---- */
-  > #collar {
-    type: rect; x: 80px; y: 186px; width: 40px; height: 9px; rx: 3px; fill: #6e7684;
-    &:state(lamp.warmup) { fill: #7d6f52; }
-    &:state(lamp.on) { fill: #7d6f52; }
-  }
-  > #thread1 {
-    type: rect; x: 76px; y: 197px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-4deg);
-    fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
-    &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-    &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-  }
-  > #thread2 {
-    type: rect; x: 76px; y: 208px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-6.5deg);
-    fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
-    &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-    &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-  }
-  > #thread3 {
-    type: rect; x: 76px; y: 219px; width: 48px; height: 9px; rx: 4.5px; transform-origin: center; transform: rotate(-9deg);
-    fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
-    &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-    &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-  }
-  > #taper {
-    type: path; d: 'M 82 228 L 118 228 L 110 240 L 90 240 Z'; fill: #6e7684;
-    &:state(lamp.warmup) { fill: #7d6f52; }
-    &:state(lamp.on) { fill: #7d6f52; }
-  }
   > #tip {
-    type: ellipse; cx: 100px; cy: 243px; rx: 9px; ry: 6px; fill: #4d5563;
+    type: ellipse; cx: 100px; cy: 241px; rx: 8px; ry: 5px; fill: #4d5563;
     &:state(lamp.warmup) { fill: #5c5138; }
     &:state(lamp.on) { fill: #5c5138; }
+  }
+  > #taper {
+    type: path; d: 'M 82 226 L 118 226 L 109 240 L 91 240 Z'; fill: #5d6573;
+    &:state(lamp.warmup) { fill: #6e5f43; }
+    &:state(lamp.on) { fill: #6e5f43; }
+  }
+  > #collar {
+    type: rect; x: 80px; y: 186px; width: 40px; height: 10px; rx: 3px; fill: #6e7684;
+    &:state(lamp.warmup) { fill: #7d6f52; }
+    &:state(lamp.on) { fill: #7d6f52; }
+  }
+  /* the shell the threads wrap around, so the gaps between them read as metal */
+  > #shell {
+    type: rect; x: 82px; y: 195px; width: 36px; height: 32px; fill: #5d6573;
+    &:state(lamp.warmup) { fill: #6e5f43; }
+    &:state(lamp.on) { fill: #6e5f43; }
+  }
+  /* three threads at one shared slant; own group so sibling-index() counts only them */
+  > #threads {
+    type: group;
+    > #thread {
+      repeat: 3;
+      type: rect; x: 78px; y: calc(187px + sibling-index() * 10.5px); width: 44px; height: 8px; rx: 4px;
+      transform-origin: center; rotate: -5deg;
+      fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
+      &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+      &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+    }
   }
 
   /* ---- glass silhouette ---- cold frosted gradient always; #hotGlass fades
@@ -187,6 +191,7 @@
     type: path;
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
     fill: linear-gradient(135deg, #eef2f7 0%, #d7dee8 55%, #b9c4d4 100%);
+    stroke: #ffffff59; stroke-width: 1.2px;
     opacity: 0.9;
   }
 
@@ -204,8 +209,8 @@
      brightens the whole squiggle while lit ---- */
   > #filamentGlow {
     type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
-    fill: none; stroke: #ff9d2e; stroke-width: 7px; stroke-linecap: round; stroke-linejoin: round;
-    opacity: 0; pointer-events: none;
+    fill: none; stroke: #ffb347; stroke-width: 8px; stroke-linecap: round; stroke-linejoin: round;
+    filter: blur(3px); opacity: 0; pointer-events: none;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
@@ -237,27 +242,41 @@
    `:state(swing)` goes unqualified because no other machine has that state. */
 #chain {
   type: group;
-  transform-origin: 620px 40px;
+  transform-origin: 660px 34px;
   &:state(swing) { animation: chainPull 1.15s ease-out; }
 
   > #cord {
-    type: path; d: 'M 620 40 L 620 288';
-    fill: none; stroke: #8d8574; stroke-width: 4px; stroke-linecap: round;
-    stroke-dasharray: 6px 4px;
+    type: path; d: 'M 660 36 L 660 292';
+    fill: none; stroke: #b8ad92; stroke-width: 4.5px; stroke-linecap: round;
+    stroke-dasharray: 0.1px 7px;
   }
-  /* The knob is the hit area, so it is drawn at a size you can actually aim
+  /* The pull is the hit area, so it is drawn at a size you can actually aim
      at — a hairline cord makes a miserable click target. */
   > #knob {
-    type: rect; x: 606px; y: 288px; width: 28px; height: 52px; rx: 14px;
-    fill: linear-gradient(135deg, #f0e4c4 0%, #b9a678 55%, #8d7d55 100%);
+    type: rect; x: 646px; y: 290px; width: 28px; height: 52px; border-radius: 14px;
+    fill: linear-gradient(135deg, #f3e7c6 0%, #c2ae7e 55%, #8d7d55 100%);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
   }
   > #knobRing {
-    type: rect; x: 606px; y: 300px; width: 28px; height: 4px;
-    fill: #7d6f52; opacity: 0.5; pointer-events: none;
+    type: rect; x: 646px; y: 302px; width: 28px; height: 3px;
+    fill: #6b5e43; opacity: 0.55; pointer-events: none;
+  }
+  > #knobShine {
+    type: rect; x: 651px; y: 296px; width: 5px; height: 40px; border-radius: 2.5px;
+    fill: #ffffff; opacity: 0.35; pointer-events: none;
   }
 }
 
+/* ceiling plate the chain hangs from; static, so it sits outside the swinging group */
+#mount {
+  type: rect; x: 644px; y: 22px; width: 32px; height: 14px; border-radius: 4px;
+  fill: linear-gradient(180deg, #5a5f70 0%, #3a3e4c 100%);
+}
+
 #hint {
-  type: text; content: "click the chain"; x: 400px; y: 565px;
-  font-size: 17px; font-family: sans-serif; text-anchor: middle; fill: #5c607a;
+  type: text; content: "PULL THE CHAIN"; x: 400px; y: 572px;
+  font-size: 13px; font-family: sans-serif; text-anchor: middle; letter-spacing: 3px;
+  fill: #7d8199;
+  &:state(lamp.on) { content: "PULL AGAIN, OR LEAVE IT 10S"; fill: #b9a37a; }
 }
