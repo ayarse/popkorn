@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse } from "@popkorn/parser";
 import {
+  AnimationScheduler,
   buildSceneGraph,
   computeLocalMatrix,
   type SceneNode,
@@ -1605,4 +1606,125 @@ test("an image parent stacks a child behind the image", () => {
   // The image keeps its own opacity; the transform group doesn't pass it on.
   expect(css).toMatch(/#P-image \{[^}]*opacity: 0\.5/);
   expect(css).not.toMatch(/#P \{[^>]*opacity/);
+});
+
+/** lottie-web's eased progress for a segment bezier at time fraction u. */
+function lottieEase(bz: number[], u: number): number {
+  const c = (p1: number, p2: number, s: number) =>
+    3 * (1 - s) ** 2 * s * p1 + 3 * (1 - s) * s * s * p2 + s ** 3;
+  let lo = 0,
+    hi = 1;
+  for (let k = 0; k < 60; k++) {
+    const m = (lo + hi) / 2;
+    if (c(bz[0], bz[2], m) < u) lo = m;
+    else hi = m;
+  }
+  return c(bz[1], bz[3], (lo + hi) / 2);
+}
+
+/** One ellipse layer whose x position keyframes are `kfs`, in a comp [ip, op]. */
+function posComp(kfs: any[], ip: number, op: number, layer: any = {}) {
+  return {
+    v: "5",
+    fr: 30,
+    ip,
+    op,
+    w: 100,
+    h: 100,
+    layers: [
+      {
+        ty: 4,
+        nm: "m",
+        ind: 1,
+        ip,
+        op,
+        st: 0,
+        ks: { p: { a: 1, k: kfs }, a: { a: 0, k: [0, 0] } },
+        shapes: [
+          { ty: "el", p: { a: 0, k: [0, 0] }, s: { a: 0, k: [5, 5] } },
+          { ty: "fl", c: { a: 0, k: [1, 1, 1] }, o: { a: 0, k: 100 } },
+        ],
+        ...layer,
+      },
+    ],
+  };
+}
+
+/** Rendered translateX of node `id` at comp frame f (30fps). */
+function xAt(css: string, id: string, f: number): number {
+  const find = (n: SceneNode): SceneNode | undefined =>
+    n.id === id ? n : n.children.map(find).find(Boolean);
+  const node = find(buildSceneGraph(parse(css)))!;
+  new AnimationScheduler().sampleNode(node, (f / 30) * 1000);
+  return node.transform.translateX;
+}
+
+const DOT_EASE = [0.823, 0, 0.833, 0.833];
+const dotKfs = [
+  {
+    t: -3,
+    s: [100, 0],
+    o: { x: DOT_EASE[0], y: DOT_EASE[1] },
+    i: { x: DOT_EASE[2], y: DOT_EASE[3] },
+  },
+  { t: 16, s: [-160, 0] },
+];
+
+test("a segment straddling comp ip keeps its value and easing (st/ip before 0)", () => {
+  // lottie-logo Dot1: st=-36, ip=-5, keyframes -3..16 in comp frames.
+  const css = new Converter().convert(
+    posComp(dotKfs, 0, 30, { st: -36, ip: -5, op: 17 }),
+  );
+  for (const f of [0, 4, 8, 12, 14, 16]) {
+    const want = 100 - 260 * lottieEase(DOT_EASE, (f + 3) / 19);
+    expect(Math.abs(xAt(css, "m", f) - want)).toBeLessThan(0.5);
+  }
+});
+
+test("a segment straddling comp op keeps its value and easing up to op", () => {
+  const kfs = [
+    { t: 10, s: [0, 0], o: { x: 0.7, y: 0 }, i: { x: 0.3, y: 1 } },
+    { t: 40, s: [90, 0] },
+  ];
+  const css = new Converter().convert(posComp(kfs, 0, 20));
+  expect(firstAnimDuration(css)).toBeCloseTo(10 / 30, 2);
+  for (const f of [12, 15, 18, 20]) {
+    const want = 90 * lottieEase([0.7, 0, 0.3, 1], (f - 10) / 30);
+    expect(Math.abs(xAt(css, "m", f) - want)).toBeLessThan(0.5);
+  }
+});
+
+test("a hold keyframe straddling comp ip holds, not lerps", () => {
+  const kfs = [
+    { t: -10, s: [50, 0], h: 1 },
+    { t: 10, s: [100, 0] },
+  ];
+  const css = new Converter().convert(posComp(kfs, 0, 30));
+  expect(xAt(css, "m", 0)).toBeCloseTo(50, 3);
+  expect(xAt(css, "m", 9)).toBeCloseTo(50, 3);
+  expect(xAt(css, "m", 10)).toBeCloseTo(100, 3);
+});
+
+test("a shape layer's sr does not rescale its own keyframes (lottie-web: sr is precomp time only)", () => {
+  const css = new Converter().convert(posComp(dotKfs, 0, 30, { sr: 2, st: 5 }));
+  const want = 100 - 260 * lottieEase(DOT_EASE, (8 + 3) / 19);
+  expect(Math.abs(xAt(css, "m", 8) - want)).toBeLessThan(0.5);
+});
+
+test("a child of an st-offset parent samples its keyframes in comp frames", () => {
+  const doc: any = posComp(dotKfs, 0, 30);
+  doc.layers[0].parent = 2;
+  doc.layers.push({
+    ty: 3,
+    nm: "P",
+    ind: 2,
+    ip: 0,
+    op: 30,
+    st: 20,
+    ks: { p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] } },
+  });
+  const css = new Converter().convert(doc);
+  expect(css).not.toContain("time-offset");
+  const want = 100 - 260 * lottieEase(DOT_EASE, (8 + 3) / 19);
+  expect(Math.abs(xAt(css, "m", 8) - want)).toBeLessThan(0.5);
 });

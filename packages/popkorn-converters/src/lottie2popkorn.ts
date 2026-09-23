@@ -2746,10 +2746,10 @@ export class Converter {
         const t = times[i];
         const block: AnimSpec["blocks"][number] = {
           offset: (span > 0 ? (t - t0) / span : 0) * 100,
-          decls: declsFromSample(ch.sample(t)),
+          decls: declsFromSample(ch.sample(easedSampleTime(ch.kfs, t))),
         };
         if (i < times.length - 1) {
-          const easing = this.segmentEasing(ch, t);
+          const easing = this.clippedSegmentEasing(ch, t, times[i + 1]);
           if (easing) block.easing = easing;
         }
         blocks.push(block);
@@ -2765,6 +2765,25 @@ export class Converter {
 
     rule.channels = [];
     if (anims.length) rule.anims = anims;
+  }
+
+  /** Easing for emitted segment [ta, tb], which may be a clamp-cut piece of a source segment. */
+  private clippedSegmentEasing(
+    ch: Channel,
+    ta: number,
+    tb: number,
+  ): string | null {
+    const kfs = ch.kfs;
+    const j = sourceSegment(kfs, ta);
+    if (j < 0) return this.segmentEasing(ch, ta);
+    const a = kfs[j],
+      b = kfs[j + 1];
+    if (a.t === ta && b.t === tb) return this.segmentEasing(ch, ta);
+    const easing = this.segmentEasing(ch, a.t);
+    const bz = kfBezier(a);
+    if (!easing || !bz) return easing;
+    const span = b.t - a.t;
+    return subBezierEasing(bz, (ta - a.t) / span, (tb - a.t) / span);
   }
 
   /** Per-segment easing from a channel's departing keyframe at time t. */
@@ -3118,6 +3137,91 @@ function assetSrc(asset: any): string {
  * 'linear'. First-seen wins on ties (deterministic given block order). This
  * value goes in the `animation:` shorthand; keyframes matching it drop their
  * own `animation-timing-function` (player: `prev.easing || defaultEasing`). */
+/** Index j of the non-empty keyframe segment [kfs[j].t, kfs[j+1].t) holding t, or -1. */
+function sourceSegment(kfs: Kf[], t: number): number {
+  for (let j = kfs.length - 2; j >= 0; j--)
+    if (kfs[j].t <= t && t < kfs[j + 1].t) return j;
+  return -1;
+}
+
+/** A keyframe's departing cubic-bezier [x1, y1, x2, y2], or null for holds/missing tangents. */
+function kfBezier(kf: Kf): number[] | null {
+  if (kf.h === 1 || !kf.o || !kf.i) return null;
+  const bz = [first(kf.o.x), first(kf.o.y), first(kf.i.x), first(kf.i.y)];
+  return bz.some((v) => v === undefined || isNaN(v)) ? null : bz;
+}
+
+function cubicAt(p1: number, p2: number, s: number): number {
+  const r = 1 - s;
+  return 3 * r * r * s * p1 + 3 * r * s * s * p2 + s * s * s;
+}
+
+/** Curve parameter s where the timing bezier's x equals u (x is monotone for x1, x2 in [0, 1]). */
+function bezierParamAtX(bz: number[], u: number): number {
+  const x1 = Math.min(Math.max(bz[0], 0), 1),
+    x2 = Math.min(Math.max(bz[2], 0), 1);
+  let lo = 0,
+    hi = 1;
+  for (let k = 0; k < 50; k++) {
+    const m = (lo + hi) / 2;
+    if (cubicAt(x1, x2, m) < u) lo = m;
+    else hi = m;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * The frame whose LINEAR sample equals the eased value at frame t: channel
+ * samplers interpolate linearly between their keyframes, so a clamp boundary
+ * cut mid-segment is sampled at the eased progress (or held, for `h` keys).
+ */
+function easedSampleTime(kfs: Kf[], t: number): number {
+  const j = sourceSegment(kfs, t);
+  if (j < 0 || kfs[j].t === t) return t;
+  const a = kfs[j],
+    span = kfs[j + 1].t - a.t;
+  if (a.h === 1) return a.t;
+  const bz = kfBezier(a);
+  if (!bz) return t;
+  // NOTE: overshooting easing (y outside [0, 1]) clamps at a cut boundary.
+  const y = cubicAt(bz[1], bz[3], bezierParamAtX(bz, (t - a.t) / span));
+  return a.t + span * Math.min(Math.max(y, 0), 1);
+}
+
+/** The [u0, u1] (time-fraction) piece of a timing bezier, renormalized to a cubic-bezier(). */
+function subBezierEasing(bz: number[], u0: number, u1: number): string {
+  const s0 = u0 <= 0 ? 0 : bezierParamAtX(bz, u0),
+    s1 = u1 >= 1 ? 1 : bezierParamAtX(bz, u1);
+  const pts = [
+    [0, 0],
+    [bz[0], bz[1]],
+    [bz[2], bz[3]],
+    [1, 1],
+  ];
+  const lerp = (p: number[], q: number[], s: number) => [
+    p[0] + (q[0] - p[0]) * s,
+    p[1] + (q[1] - p[1]) * s,
+  ];
+  // de Casteljau: keep [0, s1], then the tail of that from s0/s1.
+  const split = (p: number[][], s: number, keepLeft: boolean) => {
+    const a = lerp(p[0], p[1], s),
+      b = lerp(p[1], p[2], s),
+      c = lerp(p[2], p[3], s);
+    const d = lerp(a, b, s),
+      e = lerp(b, c, s);
+    const m = lerp(d, e, s);
+    return keepLeft ? [p[0], a, d, m] : [m, e, c, p[3]];
+  };
+  let q = s1 < 1 ? split(pts, s1, true) : pts;
+  if (s0 > 0) q = split(q, s1 > 0 ? s0 / s1 : 0, false);
+  const dx = q[3][0] - q[0][0],
+    dy = q[3][1] - q[0][1];
+  if (dx <= 1e-9 || Math.abs(dy) <= 1e-9) return "linear";
+  const nx = (p: number[]) => Math.min(Math.max((p[0] - q[0][0]) / dx, 0), 1);
+  const ny = (p: number[]) => (p[1] - q[0][1]) / dy;
+  return `cubic-bezier(${num(nx(q[1]), 3)}, ${num(ny(q[1]), 3)}, ${num(nx(q[2]), 3)}, ${num(ny(q[2]), 3)})`;
+}
+
 function modalEasing(blocks: AnimSpec["blocks"]): string {
   const votes = new Map<string, number>();
   for (let i = 0; i < blocks.length - 1; i++) {
