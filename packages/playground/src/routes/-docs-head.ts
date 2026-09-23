@@ -4,7 +4,7 @@ import { SITE } from "@/routes/__root";
 /** Per-section title/description/canonical for the docs route. */
 export function docsHead(section: string | undefined) {
   const doc = findDoc(section);
-  const title = `${doc.label} — Popkorn docs`;
+  const title = `${doc.label} | Popkorn docs`;
   const { description } = doc;
   const url = `${SITE}/docs/${doc.key}`;
   return {

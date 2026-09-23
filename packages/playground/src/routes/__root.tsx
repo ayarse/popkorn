@@ -46,11 +46,11 @@ export const Route = createRootRoute({
       {
         name: "description",
         content:
-          "A portable format for motion graphics — write scenes in CSS, run the same file on web and native mobile.",
+          "A portable format for motion graphics. Write scenes in CSS, run the same file on web and native mobile.",
       },
       {
         property: "og:title",
-        content: "Popkorn — portable CSS animations that run anywhere",
+        content: "Popkorn: portable CSS animations that run anywhere",
       },
       {
         property: "og:description",

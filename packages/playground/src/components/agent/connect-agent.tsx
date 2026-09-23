@@ -51,7 +51,7 @@ const STATUS_COPY: Record<OwnAgentStatus, string> = {
   idle: "Not connected",
   waiting: "Waiting for your agent…",
   connected: "Agent connected",
-  disconnected: "Disconnected — reconnect to keep editing",
+  disconnected: "Disconnected. Reconnect to keep editing.",
 };
 
 export function ConnectAgent({
@@ -83,8 +83,8 @@ export function ConnectAgent({
           <DialogTitle>Use your own agent</DialogTitle>
           <DialogDescription>
             Connect Claude Code, Codex, or any MCP client and edit this scene
-            from your terminal. The link below is this tab's private session —
-            anyone with it can edit the scene while the tab stays open. It stays
+            from your terminal. The link below is this tab's private session.
+            Anyone with it can edit the scene while the tab stays open. It stays
             valid for this browser until you generate a new one.
           </DialogDescription>
         </DialogHeader>

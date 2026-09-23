@@ -133,7 +133,7 @@ export const submitScene = createServerFn({ method: "POST" })
       .bind(userId, since)
       .first<{ count: number }>()) ?? { count: 0 };
     if (count >= MAX_PER_USER_PER_HOUR)
-      throw new Error("Too many submissions — try again in an hour.");
+      throw new Error("Too many submissions. Try again in an hour.");
 
     // Dedupe. Exact match is the UNIQUE index below; this catches the nudged
     // resubmission — a built-in example (or your own last upload) with a colour
@@ -152,7 +152,7 @@ export const submitScene = createServerFn({ method: "POST" })
     ]) {
       if (similarity(normal, prior) >= NEAR_DUPLICATE)
         throw new Error(
-          "That's too close to a scene that's already here — change it up before publishing.",
+          "That's too close to a scene that's already here. Change it up before publishing.",
         );
     }
 

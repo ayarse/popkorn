@@ -19,7 +19,7 @@ test("applyEdits fails when search is missing", () => {
   const r = applyEdits(SCENE, [{ search: "nope", replace: "x" }]);
   expect(r).toEqual({
     ok: false,
-    error: "Edit block 1 didn't match the scene — not applied",
+    error: "Edit block 1 didn't match the scene, so it wasn't applied",
   });
 });
 

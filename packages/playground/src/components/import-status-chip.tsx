@@ -35,7 +35,7 @@ export function ImportStatusChip({
       name: "Crushed",
       size: crushGz,
       title:
-        "Gzipped, identifiers renamed — smallest wire size (not human-readable)",
+        "Gzipped with identifiers renamed. Smallest wire size, not human-readable.",
     },
   ];
   const delta = (p: SizePair) => pct(p.source, p.popkorn);

@@ -15,7 +15,7 @@ export function applyEdits(source: string, edits: EditBlock[]): ApplyResult {
     const { search, replace, replaceAll } = edits[i];
     const miss = {
       ok: false as const,
-      error: `Edit block ${i + 1} didn't match the scene — not applied`,
+      error: `Edit block ${i + 1} didn't match the scene, so it wasn't applied`,
     };
     if (replaceAll) {
       if (search === "" || !result.includes(search)) return miss;

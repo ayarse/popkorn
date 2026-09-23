@@ -13,7 +13,7 @@ export const Route = createFileRoute("/s/$id")({
   head: ({ loaderData }) => {
     if (!loaderData) return {};
     const by = loaderData.author ? ` by ${loaderData.author}` : "";
-    const title = `${loaderData.title} — Popkorn`;
+    const title = `${loaderData.title} | Popkorn`;
     const description = `${loaderData.title}${by}, a Popkorn scene. Play it in your browser and read the CSS that draws it.`;
     return {
       meta: [

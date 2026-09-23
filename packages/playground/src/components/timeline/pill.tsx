@@ -83,7 +83,7 @@ export const Pill = memo(function Pill({
   };
 
   const title = clampedNeg
-    ? `${anim.name} — starts ${fmtSeconds(-span.start)} before 0 (clamped)`
+    ? `${anim.name}: starts ${fmtSeconds(-span.start)} before 0 (clamped)`
     : anim.name;
 
   return (

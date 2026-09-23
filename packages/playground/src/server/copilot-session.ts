@@ -32,7 +32,7 @@ type DurableCtx = {
 declare const WebSocketPair: new () => { 0: SessionSocket; 1: SessionSocket };
 
 const NOT_CONNECTED =
-  "Playground tab not connected — open usepopkorn.dev, click Connect in the Copilot panel, and keep the tab open.";
+  "Playground tab not connected. Open usepopkorn.dev, click Connect in the Copilot panel, and keep the tab open.";
 
 const CALL_TIMEOUT_MS = 30_000;
 
@@ -62,7 +62,7 @@ export class PendingCalls {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         resolve({
-          text: "Tool call timed out — the playground tab did not respond.",
+          text: "Tool call timed out: the playground tab didn't respond.",
           isError: true,
         });
       }, this.timeoutMs);

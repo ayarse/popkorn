@@ -29,7 +29,7 @@ export async function startTour() {
           popover: {
             title: "Scene source",
             description:
-              "Hand-editable CSS scene source — every edit renders live.",
+              "Hand-editable CSS scene source. Every edit renders live.",
             side: "right",
             align: "start",
           },
@@ -57,7 +57,7 @@ export async function startTour() {
           popover: {
             title: "Import",
             description:
-              "Drop in a Lottie JSON or SVG — it converts to editable source.",
+              "Drop in a Lottie JSON or SVG and it converts to editable source.",
             side: "bottom",
             align: "end",
           },
@@ -86,7 +86,7 @@ export async function startTour() {
           popover: {
             title: "Timeline",
             description:
-              "An After-Effects-style timeline — expand it to scrub keyframes.",
+              "An After Effects-style timeline. Expand it to scrub keyframes.",
             side: "top",
             align: "start",
           },

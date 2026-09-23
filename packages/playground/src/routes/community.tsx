@@ -15,9 +15,9 @@ import {
 } from "@/lib/scenes";
 import { SITE } from "@/routes/__root";
 
-const TITLE = "Community — Popkorn";
+const TITLE = "Community | Popkorn";
 const DESCRIPTION =
-  "Popkorn scenes published by the community, plus the built-in examples. Every one is a plain CSS file — open it in the playground and make it yours.";
+  "Popkorn scenes published by the community, plus the built-in examples. Every one is a plain CSS file. Open it in the playground and make it yours.";
 
 export const Route = createFileRoute("/community")({
   loader: async () => {
