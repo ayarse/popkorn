@@ -1,12 +1,9 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
 import type { Renderer } from "../renderer/interface.js";
-import type {
-  Matrix3x3,
-  PathCommand,
-  ResolvedClip,
-} from "../renderer/types.js";
+import type { PathCommand, ResolvedClip } from "../renderer/types.js";
 import { buildSceneGraph } from "../scene/builder.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import { parsePath } from "../scene/path-parser.js";
 import type { FillRule, MaskMode, SceneNode } from "../scene/types.js";
 import { createSceneNode, snapshotNode } from "../scene/types.js";

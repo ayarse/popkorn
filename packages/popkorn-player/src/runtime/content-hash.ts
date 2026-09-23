@@ -19,7 +19,7 @@ const WORDS = new Uint32Array(FLOAT.buffer);
 // Guards against cyclic mask references.
 const MAX_DEPTH = 256;
 
-export class ContentHash {
+class ContentHash {
   private a = A_BASIS;
   private b = B_BASIS;
   /** A poisoned hash must never be used as a cache key. */
@@ -63,7 +63,7 @@ export class ContentHash {
 }
 
 /** Keys hash alongside values, so differently-shaped objects can't collide. */
-export function hashValue(h: ContentHash, v: unknown, depth = 0): void {
+function hashValue(h: ContentHash, v: unknown, depth = 0): void {
   if (depth > MAX_DEPTH) {
     h.poisoned = true;
     return;
@@ -119,7 +119,7 @@ function hashTransform(h: ContentHash, t: Transform): void {
 }
 
 /** One node's own state, mirroring what `renderNode` reads before recursing. */
-export function hashNodeState(h: ContentHash, node: SceneNode): void {
+function hashNodeState(h: ContentHash, node: SceneNode): void {
   h.flag(node.hidden);
   h.flag(node.displayNone);
   // Must mirror renderNode's early return: hashing less than the walk paints is a false hit.
@@ -155,7 +155,7 @@ export function hashNodeState(h: ContentHash, node: SceneNode): void {
 }
 
 /** Paint-order subtree hash, including each mask source (it lives elsewhere but is painted here). */
-export function hashSubtree(h: ContentHash, node: SceneNode, depth = 0): void {
+function hashSubtree(h: ContentHash, node: SceneNode, depth = 0): void {
   if (depth > MAX_DEPTH) {
     h.poisoned = true;
     return;

@@ -341,14 +341,8 @@ class Compiler {
       return;
     }
     // Only a var() reaches here (any other leaf folds to a constant).
-    this.push(
-      OP_LEAF,
-      this.leaf(
-        (v as { name: string }).name,
-        (v as { fallback?: Value }).fallback,
-        null,
-      ),
-    );
+    const ref = v as Extract<Value, { type: "variable" }>;
+    this.push(OP_LEAF, this.leaf(ref.name, ref.fallback, null));
     this.grow();
   }
 

@@ -27,6 +27,7 @@ import type {
   VariableDefinition,
 } from "./ast.js";
 import {
+  getNumericValue,
   isColorValue,
   isKeywordValue,
   isLengthValue,
@@ -124,7 +125,7 @@ class Cursor {
     this.ws();
     return this.pos >= this.src.length;
   }
-  peek(): string {
+  peek(): string | undefined {
     this.ws();
     return this.src[this.pos];
   }
@@ -980,10 +981,6 @@ function randomUnit(v: Value): string | null {
   return null;
 }
 
-function numericLiteral(v: Value): number {
-  return (v as { value: number }).value;
-}
-
 // Flag incompatible units (min/max/step must agree) and an inverted range.
 function checkRandomUnits(
   c: Cursor,
@@ -1017,7 +1014,11 @@ function checkRandomUnits(
       );
     }
   }
-  if (um !== null && ux !== null && numericLiteral(min) > numericLiteral(max)) {
+  if (
+    um !== null &&
+    ux !== null &&
+    getNumericValue(min) > getNumericValue(max)
+  ) {
     c.report(
       "invalid-random",
       "warning",
@@ -1035,31 +1036,6 @@ function parseCalc(c: Cursor): CalcValue {
   c.expect(")");
   return { type: "calc", expr };
 }
-
-const CALC_FUNCTIONS = new Set<CalcFunctionName>([
-  "min",
-  "max",
-  "clamp",
-  "round",
-  "mod",
-  "rem",
-  "sin",
-  "cos",
-  "tan",
-  "asin",
-  "acos",
-  "atan",
-  "atan2",
-  "pow",
-  "sqrt",
-  "hypot",
-  "log",
-  "exp",
-  "abs",
-  "sign",
-  "sibling-index",
-  "sibling-count",
-]);
 
 // Fixed count or [min, max]; round()'s strategy is consumed separately.
 const CALC_ARITY: Record<CalcFunctionName, number | [number, number]> = {
@@ -1096,7 +1072,7 @@ const ROUND_STRATEGIES = new Set<RoundStrategy>([
 ]);
 
 function isCalcFunctionName(name: string): name is CalcFunctionName {
-  return CALC_FUNCTIONS.has(name as CalcFunctionName);
+  return Object.hasOwn(CALC_ARITY, name);
 }
 
 // Comma-separated calc sums validated against CALC_ARITY; `(` already peeked.
@@ -1236,8 +1212,8 @@ function readString(c: Cursor, quote: string): Value {
   return { type: "string", value: out };
 }
 
-function isNumberStart(c: Cursor, ch: string): boolean {
-  if (ch >= "0" && ch <= "9") return true;
+function isNumberStart(c: Cursor, ch: string | undefined): boolean {
+  if (ch !== undefined && ch >= "0" && ch <= "9") return true;
   // A leading-dot (`.5`) or signed number (`-5`, `-.5`); look one char ahead.
   if (ch === "-" || ch === ".") {
     let n = c.src[c.pos + 1];

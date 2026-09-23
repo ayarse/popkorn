@@ -1,4 +1,5 @@
 import type { DeviceRect } from "../scene/bounds.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import type {
   BlendMode,
   FillRule,
@@ -12,7 +13,6 @@ import type {
   Color,
   CornerRadii,
   GradientData,
-  Matrix3x3,
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
@@ -21,7 +21,6 @@ import type {
 /** Primitive-level paint interface implemented by the Canvas2D, SVG and Skia backends. */
 export interface Renderer {
   // Frame lifecycle
-  clear(): void;
   beginFrame(): void;
   endFrame(): void;
 
@@ -90,7 +89,6 @@ export interface Renderer {
   filtersUseUserSpace?(): boolean;
 
   // Composite raster cache: same key+signature+region blits the stored raster without running `draw`.
-  supportsRasterCache?(): boolean;
   cacheComposite?(
     key: string,
     signature: string,

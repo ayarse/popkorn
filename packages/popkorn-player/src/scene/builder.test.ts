@@ -5,9 +5,9 @@ import { AnimationScheduler } from "../animation/scheduler.js";
 import { hitTest } from "../runtime/hit-test.js";
 import {
   applyStateStyles,
-  createInteractionManager,
+  InteractionManager,
 } from "../runtime/interaction.js";
-import { createVariableResolver } from "../runtime/variables.js";
+import { VariableResolver } from "../runtime/variables.js";
 import { buildSceneGraph, extractTransform } from "./builder.js";
 import { getShapeBounds } from "./transform.js";
 import type {
@@ -129,7 +129,7 @@ test("bubbling: interactive group is hit (and flips to :hover) when a descendant
   // Point inside the child rect, which has no interactive ancestor but the group.
   expect(hitTest(root, { x: 10, y: 10 })).toBe(g);
 
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 10, y: 10, isDown: false } }, 0);
   expect(g.interactionState).toBe("hover");
@@ -583,7 +583,7 @@ test("transition tweens fill on hover enter over the duration", () => {
   const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000000; transition: fill 300ms linear; &:hover { fill: #ffffff; } }`;
   const root = build(src);
   const btn = root.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
 
   const hover = { cursor: { x: 50, y: 50, isDown: false } };
@@ -603,7 +603,7 @@ test("transition tweens back on hover exit", () => {
   const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000000; transition: fill 200ms linear; &:hover { fill: #ffffff; } }`;
   const root = build(src);
   const btn = root.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   const frame = (now: number) => {
     resetNodeToBase(btn);
@@ -622,7 +622,7 @@ test("transform transition tweens scale on hover", () => {
   const src = `#btn { type: rect; x: 0; y: 0; width: 100px; height: 100px; fill: #000; transition: transform 100ms linear; &:hover { transform: scale(2); } }`;
   const root = build(src);
   const btn = root.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0);
   resetNodeToBase(btn);
@@ -638,7 +638,7 @@ test("transition eases a registry geometry prop (r) over its duration", () => {
   const src = `#c { type: circle; cx: 50px; cy: 50px; r: 10px; transition: r 200ms linear; &:hover { r: 30px; } }`;
   const root = build(src);
   const c = root.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   const frame = (now: number) => {
     resetNodeToBase(c);
@@ -660,7 +660,7 @@ test("transition flips an unblendable paint (solid -> gradient) at the eased mid
     transition: fill 200ms linear; &:hover { fill: linear-gradient(90deg, #ff0000 0%, #0000ff 100%); } }`;
   const root = build(src);
   const c = root.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 50, y: 50, isDown: false } }, 0); // flip to hover, from = solid #000
   // Before the eased midpoint: still the source solid, no gradient.
@@ -681,7 +681,7 @@ test("transition reversal eases back from the displayed value, not the target", 
   const src = `#c { type: circle; cx: 50px; cy: 50px; r: 10px; transition: r 200ms linear; &:hover { r: 30px; } }`;
   const root = build(src);
   const c = root.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   const frame = (now: number) => {
     resetNodeToBase(c);
@@ -712,7 +712,7 @@ test("state-child: parent hover applies/unapplies the child override", () => {
   const root = build(CARD);
   const card = root.children[0];
   const icon = card.children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   const paint = (node: typeof card, now: number) => {
     resetNodeToBase(node);
@@ -746,7 +746,7 @@ test("state-child transition: own node-level transition wins over parent block",
   }`;
   const root = build(src);
   const ic = root.children[0].children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   const paint = (now: number) => {
     resetNodeToBase(ic);
@@ -767,7 +767,7 @@ test("state-child transition: falls back to the parent state block transition", 
   }`;
   const root = build(src);
   const ic = root.children[0].children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   const paint = (now: number) => {
     resetNodeToBase(ic);
@@ -788,7 +788,7 @@ test("state-child: active falls back to hover overrides", () => {
   }`;
   const root = build(src);
   const ic = root.children[0].children[0];
-  const mgr = createInteractionManager();
+  const mgr = new InteractionManager();
   mgr.setScene(root);
   mgr.update({ cursor: { x: 50, y: 50, isDown: true } }, 0); // press over the card
   resetNodeToBase(ic);
@@ -1406,7 +1406,7 @@ test("transform: translate(var()) registers a reactive binding, follows input", 
 
   // Drive it exactly as loop.applyBindings does: re-extract with a resolver
   // that reads live cursor input.
-  const resolver = createVariableResolver();
+  const resolver = new VariableResolver();
   resolver.setVariables(sheet.variables);
   resolver.updateInputState({
     cursor: { x: 300, y: 0, isDown: false },

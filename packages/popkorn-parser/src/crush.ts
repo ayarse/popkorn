@@ -251,7 +251,6 @@ function renameValue(v: Value, maps: Maps): Value {
         fallback: v.fallback ? renameValue(v.fallback, maps) : undefined,
       };
     case "keyword":
-      return renameIdRef(v, maps);
     case "color":
       return renameIdRef(v, maps);
     case "function":

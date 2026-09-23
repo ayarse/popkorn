@@ -14,7 +14,7 @@ import {
 } from "@popkorn/parser";
 import { buildSceneGraph } from "../scene/builder.js";
 import type { SceneNode } from "../scene/types.js";
-import { createVariableResolver } from "./variables.js";
+import { VariableResolver } from "./variables.js";
 
 // Parse a single `cx:` declaration into its Value (a reactive calc()).
 const cxValue = (decl: string) =>
@@ -115,7 +115,7 @@ test("compiled calc matches the interpreter across units, fallback, constants", 
       value: varValue(raw),
     }));
 
-    const r = createVariableResolver();
+    const r = new VariableResolver();
     r.setVariables(defs);
     r.updateInputState({
       cursor: { x: 100, y: 0, isDown: false, pressed: false },
@@ -144,7 +144,7 @@ test("compiled calc matches the interpreter across units, fallback, constants", 
 
 interface Batched {
   nodes: SceneNode[];
-  resolver: ReturnType<typeof createVariableResolver>;
+  resolver: VariableResolver;
   env: Env;
   batched: number;
   setTime: (ms: number) => void;
@@ -154,7 +154,7 @@ interface Batched {
 function batchedScene(src: string): Batched {
   const sheet = parse(src);
   const root = buildSceneGraph(sheet);
-  const resolver = createVariableResolver();
+  const resolver = new VariableResolver();
   resolver.setVariables(sheet.variables);
 
   const nodes: SceneNode[] = [];
@@ -313,7 +313,7 @@ test("scene 22 compiled cx/cy match the interpreter to ~1e-9 over time", () => {
   );
   const sheet = parse(src);
   const root = buildSceneGraph(sheet);
-  const resolver = createVariableResolver();
+  const resolver = new VariableResolver();
   resolver.setVariables(sheet.variables);
 
   const env: Env = {

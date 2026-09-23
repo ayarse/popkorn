@@ -10,7 +10,7 @@ import { oklabToString, tryParseOklabColor } from "../renderer/oklab.js";
 import { tryParseColor } from "../renderer/types.js";
 
 // Canonical hex/rgba or null; folds hsl()/named colors at build time so the hot path only parses hex/rgb.
-export function canonicalColor(raw: string): string | null {
+function canonicalColor(raw: string): string | null {
   const c = tryParseColor(raw);
   if (!c) return null;
   if (c.a >= 1) {

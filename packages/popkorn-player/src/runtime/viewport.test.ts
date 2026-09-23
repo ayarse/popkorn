@@ -72,16 +72,15 @@ test("pointer inverse round-trips through the viewport (all fits)", () => {
 
 // --- loop wrap ---------------------------------------------------------------
 
-test("wrapTime: folds past-duration time into [0, duration) when looping", () => {
-  expect(wrapTime(2500, 1000, true)).toBe(500);
-  expect(wrapTime(1000, 1000, true)).toBe(0); // exactly at the boundary wraps
+test("wrapTime: folds past-duration time into [0, duration)", () => {
+  expect(wrapTime(2500, 1000)).toBe(500);
+  expect(wrapTime(1000, 1000)).toBe(0); // exactly at the boundary wraps
 });
 
 test("wrapTime: within the first pass is untouched", () => {
-  expect(wrapTime(600, 1000, true)).toBe(600);
+  expect(wrapTime(600, 1000)).toBe(600);
 });
 
-test("wrapTime: no-op when looping off or duration is 0", () => {
-  expect(wrapTime(2500, 1000, false)).toBe(2500);
-  expect(wrapTime(2500, 0, true)).toBe(2500);
+test("wrapTime: no-op when duration is 0", () => {
+  expect(wrapTime(2500, 0)).toBe(2500);
 });

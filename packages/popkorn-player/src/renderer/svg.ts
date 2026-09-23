@@ -1,3 +1,9 @@
+import type { Matrix3x3 } from "../scene/matrix.js";
+import {
+  IDENTITY_MATRIX,
+  invertMatrix,
+  multiplyMatrices,
+} from "../scene/matrix.js";
 import { computePathBounds, roundedRectPath } from "../scene/path-parser.js";
 import type { MaskMode, TextAnchor } from "../scene/types.js";
 import type { PaintBox } from "./gradient-geometry.js";
@@ -8,16 +14,10 @@ import { resolveStrokeDash } from "./stroke.js";
 import type {
   CornerRadii,
   GradientData,
-  Matrix3x3,
   PathCommand,
   ResolvedClip,
 } from "./types.js";
-import {
-  IDENTITY_MATRIX,
-  invertMatrix,
-  multiplyMatrices,
-  parseColor,
-} from "./types.js";
+import { parseColor } from "./types.js";
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
@@ -281,7 +281,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     // Clear a prior renderer's defs/root on the reused <svg>, or stale same-id defs win lookups.
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     this.defs = document.createElementNS(SVGNS, "defs");
-    const rootG = document.createElementNS(SVGNS, "g") as SVGGElement;
+    const rootG = document.createElementNS(SVGNS, "g");
     svg.appendChild(this.defs);
     svg.appendChild(rootG);
     this.root = {
@@ -313,10 +313,6 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   }
 
   // --- frame lifecycle -------------------------------------------------------
-
-  clear(): void {
-    // No-op: retained mode reconciles via the mark/sweep in endFrame.
-  }
 
   beginFrame(): void {
     this.frame++;
@@ -376,7 +372,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
 
     let e = this.groups.get(fullKey);
     if (!e) {
-      const g = document.createElementNS(SVGNS, "g") as SVGGElement;
+      const g = document.createElementNS(SVGNS, "g");
       parent.g.appendChild(g);
       e = {
         key: fullKey,
@@ -532,7 +528,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       let inner = outer.firstElementChild as SVGElement | null;
       if (!inner || inner.tagName !== "image") {
         while (outer.firstChild) outer.removeChild(outer.firstChild);
-        inner = document.createElementNS(SVGNS, "image") as SVGElement;
+        inner = document.createElementNS(SVGNS, "image");
         outer.appendChild(inner);
       }
       this.setAttr(inner, "preserveAspectRatio", "none");
@@ -893,7 +889,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     const id = `${this.idp}clip_${key}`;
     let e = this.clips.get(id);
     if (!e) {
-      const el = document.createElementNS(SVGNS, "clipPath") as SVGElement;
+      const el = document.createElementNS(SVGNS, "clipPath");
       el.setAttribute("id", id);
       el.setAttribute("clipPathUnits", "userSpaceOnUse");
       this.defs.appendChild(el);
@@ -931,14 +927,14 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   private ensureMask(id: string, pw: Matrix3x3): MaskEntry {
     let m = this.masks.get(id);
     if (!m) {
-      const maskEl = document.createElementNS(SVGNS, "mask") as SVGElement;
+      const maskEl = document.createElementNS(SVGNS, "mask");
       maskEl.setAttribute("id", id);
       maskEl.setAttribute("maskUnits", "userSpaceOnUse");
       maskEl.setAttribute("maskContentUnits", "userSpaceOnUse");
-      const filterG = document.createElementNS(SVGNS, "g") as SVGElement;
+      const filterG = document.createElementNS(SVGNS, "g");
       maskEl.appendChild(filterG);
       this.defs.appendChild(maskEl);
-      const containerG = document.createElementNS(SVGNS, "g") as SVGGElement;
+      const containerG = document.createElementNS(SVGNS, "g");
       filterG.appendChild(containerG);
       const container: GroupEntry = {
         key: `${id}$c`,
@@ -974,7 +970,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   ): void {
     let f = m.filterEl;
     if (!f) {
-      f = document.createElementNS(SVGNS, "filter") as SVGElement;
+      f = document.createElementNS(SVGNS, "filter");
       f.setAttribute("id", filterId);
       f.setAttribute("filterUnits", "userSpaceOnUse");
       f.setAttribute("color-interpolation-filters", "sRGB");
@@ -1013,7 +1009,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   ): GroupEntry {
     let e = this.groups.get(key);
     if (!e) {
-      const g = document.createElementNS(SVGNS, "g") as SVGGElement;
+      const g = document.createElementNS(SVGNS, "g");
       parentG.appendChild(g);
       e = {
         key,

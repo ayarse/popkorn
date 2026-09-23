@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import { Canvas2DRenderer } from "./canvas2d.js";
-import type { Matrix3x3 } from "./types.js";
 
 // Composite buffers are region-sized: a buffer's pixel (0, 0) is its region's
 // device origin. These tests pin the coordinate translation that convention

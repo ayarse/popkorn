@@ -1,4 +1,4 @@
-import type { Matrix3x3 } from "../renderer/types.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 
 /** CSS object-fit semantics (default contain); `none` is 1:1 pinned top-left. */
 export type FitMode = "contain" | "cover" | "fill" | "none";

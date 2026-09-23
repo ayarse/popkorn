@@ -54,28 +54,22 @@ import type {
   AnimationFillMode,
   AnimationInstance,
   BlendMode,
-  CircleData,
   ClipPathData,
   CompositeOperation,
-  EllipseData,
   FilterOp,
-  ImageData,
   ImageViewBox,
   KeyframeData,
   KeyframeTrack,
   LinearEasingPoint,
   MaskMode,
-  PathData,
   PolystarData,
   PropertyBinding,
-  RectData,
   SceneNode,
   ShapeData,
   ShapeType,
   StateStyles,
   StepPosition,
   TextAnchor,
-  TextData,
   TimeRemapStop,
   TimingFunction,
   Transform,
@@ -109,16 +103,13 @@ const STATE_BLOCK_IGNORED = new Set([
 // `repeat:` copy cap — a typo'd count must not OOM. Above this is a diagnostic.
 const REPEAT_CAP = 10000;
 
-// Placeholder; buildSiblings supplies the real index/count.
-const ROOT_SIBLING: SiblingContext = { index: 1, count: 1 };
-
 const isPolystar = (sd: ShapeData): sd is PolystarData =>
   sd.type === "star" || sd.type === "polygon";
 
 // Set one corner (0=tl,1=tr,2=br,3=bl), seeding the tuple from the uniform rx.
 function setCornerRadius(node: SceneNode, index: number, value: number): void {
   if (node.shapeData.type !== "rect") return;
-  const rect = node.shapeData as RectData;
+  const rect = node.shapeData;
   const seed = rect.rx || 0;
   const c: [number, number, number, number] = rect.cornerRadii
     ? [...rect.cornerRadii]
@@ -348,7 +339,7 @@ function objectViewBoxHasVariable(value: Value): boolean {
 }
 
 // True when a transform operand is reactive; the loop re-extracts per frame.
-export function transformHasVariable(value: Value): boolean {
+function transformHasVariable(value: Value): boolean {
   const argHasVar = (v: Value): boolean =>
     isVariableRefValue(v) ||
     (isFunctionValue(v) && v.name === "input") ||
@@ -362,7 +353,7 @@ export function transformHasVariable(value: Value): boolean {
   return false;
 }
 
-export class SceneBuilder {
+class SceneBuilder {
   private keyframesMap: Map<string, KeyframeRule> = new Map();
   private definitionsMap: Map<string, DefinitionRule> = new Map();
   // Static :root custom properties for build-time var() folding.
@@ -498,7 +489,7 @@ export class SceneBuilder {
     });
   }
 
-  private buildNode(rule: Rule, sib: SiblingContext = ROOT_SIBLING): SceneNode {
+  private buildNode(rule: Rule, sib: SiblingContext): SceneNode {
     rule = this.expandUse(rule);
 
     const id = rule.selector.name;
@@ -913,7 +904,7 @@ export class SceneBuilder {
   // circle/ellipse `x`/`y` box sugar → `cx = x + r`; explicit cx/cy wins.
   private resolveCircleEllipseBoxPosition(node: SceneNode): void {
     if (node.shapeData.type === "circle") {
-      const d = node.shapeData as CircleData;
+      const d = node.shapeData;
       if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + d.r;
       if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + d.r;
       delete d.__boxX;
@@ -921,7 +912,7 @@ export class SceneBuilder {
       delete d.__cxSet;
       delete d.__cySet;
     } else if (node.shapeData.type === "ellipse") {
-      const d = node.shapeData as EllipseData;
+      const d = node.shapeData;
       if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + d.rx;
       if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + d.ry;
       delete d.__boxX;
@@ -972,9 +963,6 @@ export class SceneBuilder {
     }
 
     switch (property) {
-      case "type":
-        break;
-
       // A reactive operand registers a per-frame binding instead.
       case "transform":
         if (transformHasVariable(value)) {
@@ -1004,42 +992,40 @@ export class SceneBuilder {
       // Position/size for rect (x/y are also the text anchor point)
       case "x":
         if (node.shapeData.type === "rect") {
-          (node.shapeData as RectData).x = getNumericValue(value);
+          node.shapeData.x = getNumericValue(value);
         } else if (node.shapeData.type === "text") {
-          (node.shapeData as TextData).x = getNumericValue(value);
+          node.shapeData.x = getNumericValue(value);
         } else if (node.shapeData.type === "image") {
-          (node.shapeData as ImageData).x = getNumericValue(value);
+          node.shapeData.x = getNumericValue(value);
         } else if (
           node.shapeData.type === "circle" ||
           node.shapeData.type === "ellipse"
         ) {
           // NOTE: box sugar, see resolveCircleEllipseBoxPosition; static.
-          (node.shapeData as CircleData | EllipseData).__boxX =
-            getNumericValue(value);
+          node.shapeData.__boxX = getNumericValue(value);
         }
         break;
       case "y":
         if (node.shapeData.type === "rect") {
-          (node.shapeData as RectData).y = getNumericValue(value);
+          node.shapeData.y = getNumericValue(value);
         } else if (node.shapeData.type === "text") {
-          (node.shapeData as TextData).y = getNumericValue(value);
+          node.shapeData.y = getNumericValue(value);
         } else if (node.shapeData.type === "image") {
-          (node.shapeData as ImageData).y = getNumericValue(value);
+          node.shapeData.y = getNumericValue(value);
         } else if (
           node.shapeData.type === "circle" ||
           node.shapeData.type === "ellipse"
         ) {
-          (node.shapeData as CircleData | EllipseData).__boxY =
-            getNumericValue(value);
+          node.shapeData.__boxY = getNumericValue(value);
         }
         break;
 
       // Text content, or image source (`content: url('…')`).
       case "content":
         if (node.shapeData.type === "text") {
-          (node.shapeData as TextData).content = getStringValue(value);
+          node.shapeData.content = getStringValue(value);
         } else if (node.shapeData.type === "image") {
-          (node.shapeData as ImageData).src = this.imageSrc(value);
+          node.shapeData.src = this.imageSrc(value);
         }
         break;
 
@@ -1049,19 +1035,19 @@ export class SceneBuilder {
           if (objectViewBoxHasVariable(value)) {
             node.bindings.push({ property, value });
           } else {
-            (node.shapeData as ImageData).viewBox = extractImageViewBox(value);
+            node.shapeData.viewBox = extractImageViewBox(value);
           }
         }
         break;
       case "font-size":
         if (node.shapeData.type === "text") {
-          (node.shapeData as TextData).fontSize = getNumericValue(value);
+          node.shapeData.fontSize = getNumericValue(value);
         }
         break;
       case "font-family":
         if (node.shapeData.type === "text") {
           // Rejoin fallback stacks; an empty family invalidates ctx.font.
-          (node.shapeData as TextData).fontFamily = isListValue(value)
+          node.shapeData.fontFamily = isListValue(value)
             ? value.values.map(getStringValue).join(", ")
             : getStringValue(value);
         }
@@ -1069,7 +1055,7 @@ export class SceneBuilder {
       case "font-weight":
         if (node.shapeData.type === "text") {
           // Keyword ('bold') or numeric weight (700) — store as a string for ctx.font.
-          (node.shapeData as TextData).fontWeight = isNumberValue(value)
+          node.shapeData.fontWeight = isNumberValue(value)
             ? String(value.value)
             : getStringValue(value) || "normal";
         }
@@ -1082,7 +1068,7 @@ export class SceneBuilder {
             value.value === "middle" ||
             value.value === "end")
         ) {
-          (node.shapeData as TextData).anchor = value.value as TextAnchor;
+          node.shapeData.anchor = value.value as TextAnchor;
         }
         break;
       // text-align → anchor: center→middle, right/end→end, else start.
@@ -1094,12 +1080,12 @@ export class SceneBuilder {
               : value.value === "right" || value.value === "end"
                 ? "end"
                 : "start";
-          (node.shapeData as TextData).anchor = a;
+          node.shapeData.anchor = a;
         }
         break;
       case "letter-spacing":
         if (node.shapeData.type === "text") {
-          (node.shapeData as TextData).letterSpacing = getNumericValue(value);
+          node.shapeData.letterSpacing = getNumericValue(value);
           node.textBoundsDirty = true;
         }
         break;
@@ -1107,7 +1093,7 @@ export class SceneBuilder {
       // NOTE: resolved once; doesn't track an animated font-size.
       case "line-height":
         if (node.shapeData.type === "text") {
-          const t = node.shapeData as TextData;
+          const t = node.shapeData;
           t.lineHeight =
             isLengthValue(value) && value.unit === "%"
               ? (getNumericValue(value) / 100) * t.fontSize
@@ -1119,31 +1105,31 @@ export class SceneBuilder {
         break;
       case "width":
         if (node.shapeData.type === "rect") {
-          (node.shapeData as RectData).width = getNumericValue(value);
+          node.shapeData.width = getNumericValue(value);
         } else if (node.shapeData.type === "image") {
-          (node.shapeData as ImageData).width = getNumericValue(value);
+          node.shapeData.width = getNumericValue(value);
         }
         break;
       case "height":
         if (node.shapeData.type === "rect") {
-          (node.shapeData as RectData).height = getNumericValue(value);
+          node.shapeData.height = getNumericValue(value);
         } else if (node.shapeData.type === "image") {
-          (node.shapeData as ImageData).height = getNumericValue(value);
+          node.shapeData.height = getNumericValue(value);
         }
         break;
 
       case "rx":
         if (node.shapeData.type === "rect") {
-          (node.shapeData as RectData).rx = getNumericValue(value);
+          node.shapeData.rx = getNumericValue(value);
         } else if (node.shapeData.type === "ellipse") {
-          (node.shapeData as EllipseData).rx = getNumericValue(value);
+          node.shapeData.rx = getNumericValue(value);
         }
         break;
       case "ry":
         if (node.shapeData.type === "rect") {
-          (node.shapeData as RectData).ry = getNumericValue(value);
+          node.shapeData.ry = getNumericValue(value);
         } else if (node.shapeData.type === "ellipse") {
-          (node.shapeData as EllipseData).ry = getNumericValue(value);
+          node.shapeData.ry = getNumericValue(value);
         }
         break;
 
@@ -1163,81 +1149,77 @@ export class SceneBuilder {
 
       case "cx":
         if (node.shapeData.type === "circle") {
-          const d = node.shapeData as CircleData;
+          const d = node.shapeData;
           d.cx = getNumericValue(value);
           d.__cxSet = true;
         } else if (node.shapeData.type === "ellipse") {
-          const d = node.shapeData as EllipseData;
+          const d = node.shapeData;
           d.cx = getNumericValue(value);
           d.__cxSet = true;
         } else if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).cx = getNumericValue(value);
+          node.shapeData.cx = getNumericValue(value);
         }
         break;
       case "cy":
         if (node.shapeData.type === "circle") {
-          const d = node.shapeData as CircleData;
+          const d = node.shapeData;
           d.cy = getNumericValue(value);
           d.__cySet = true;
         } else if (node.shapeData.type === "ellipse") {
-          const d = node.shapeData as EllipseData;
+          const d = node.shapeData;
           d.cy = getNumericValue(value);
           d.__cySet = true;
         } else if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).cy = getNumericValue(value);
+          node.shapeData.cy = getNumericValue(value);
         }
         break;
       case "r":
         if (node.shapeData.type === "circle") {
-          (node.shapeData as CircleData).r = getNumericValue(value);
+          node.shapeData.r = getNumericValue(value);
         }
         break;
 
       // Star/polygon geometry (path synthesized at render); `sides` is static.
       case "sides":
         if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).sides = getNumericValue(value);
+          node.shapeData.sides = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
       case "outer-radius":
         if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).outerRadius = getNumericValue(value);
+          node.shapeData.outerRadius = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
       case "inner-radius":
         if (node.shapeData.type === "star") {
-          (node.shapeData as PolystarData).innerRadius = getNumericValue(value);
+          node.shapeData.innerRadius = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
       case "rotation":
         if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).rotation = getNumericValue(value);
+          node.shapeData.rotation = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
       case "outer-roundness":
         if (isPolystar(node.shapeData)) {
-          (node.shapeData as PolystarData).outerRoundness =
-            getNumericValue(value);
+          node.shapeData.outerRoundness = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
       case "inner-roundness":
         if (node.shapeData.type === "star") {
-          (node.shapeData as PolystarData).innerRoundness =
-            getNumericValue(value);
+          node.shapeData.innerRoundness = getNumericValue(value);
           node.polystarDirty = true;
         }
         break;
 
       case "d":
         if (node.shapeData.type === "path") {
-          const pathStr = getStringValue(value);
-          (node.shapeData as PathData).d = pathStr;
-          (node.shapeData as PathData).commands = parsePath(pathStr);
+          node.shapeData.commands = parsePath(getStringValue(value));
         }
         break;
 
@@ -1443,17 +1425,6 @@ export class SceneBuilder {
             ? value.value * 1000
             : getNumericValue(value); // ms (bare number or 'ms')
         break;
-
-      // Composed later by resolveAnimations.
-      case "animation":
-      case "animation-name":
-      case "animation-duration":
-      case "animation-timing-function":
-      case "animation-iteration-count":
-      case "animation-direction":
-      case "animation-delay":
-      case "animation-fill-mode":
-        break;
     }
 
     this.ensureShapeData(node);
@@ -1483,7 +1454,7 @@ export class SceneBuilder {
           node.shapeData = { type: "ellipse", cx: 0, cy: 0, rx: 0, ry: 0 };
           break;
         case "path":
-          node.shapeData = { type: "path", d: "", commands: [] };
+          node.shapeData = { type: "path", commands: [] };
           break;
         case "star":
         case "polygon":
@@ -1630,7 +1601,7 @@ export class SceneBuilder {
   private resolveAnimations(
     node: SceneNode,
     declarations: Declaration[],
-    sib: SiblingContext = ROOT_SIBLING,
+    sib: SiblingContext,
   ): void {
     for (const a of this.buildAnimations(declarations, false, node.id, sib))
       node.animations.push(a);
@@ -1639,9 +1610,9 @@ export class SceneBuilder {
   // `stateDefault`: unset fill-mode is `both`, so :state() one-shots hold.
   private buildAnimations(
     declarations: Declaration[],
-    stateDefault = false,
-    nodeId = "",
-    sib: SiblingContext = ROOT_SIBLING,
+    stateDefault: boolean,
+    nodeId: string,
+    sib: SiblingContext,
   ): AnimationInstance[] {
     let slots: AnimSlot[] | null = null;
     // Grow so a longhand before any shorthand still defines slots.
@@ -2002,8 +1973,8 @@ export class SceneBuilder {
 
   private buildKeyframes(
     rule: KeyframeRule,
-    nodeId = "",
-    sib: SiblingContext = ROOT_SIBLING,
+    nodeId: string,
+    sib: SiblingContext,
   ): KeyframeTrack[] {
     const frames = rule.blocks.flatMap((block) => {
       const properties = this.buildKeyframeProperties(block, nodeId, sib);
@@ -2028,8 +1999,8 @@ export class SceneBuilder {
 
   private buildKeyframeProperties(
     block: KeyframeBlock,
-    nodeId = "",
-    sib: SiblingContext = ROOT_SIBLING,
+    nodeId: string,
+    sib: SiblingContext,
   ): Record<string, AnimatableValue> {
     const props: Record<string, AnimatableValue> = {};
 

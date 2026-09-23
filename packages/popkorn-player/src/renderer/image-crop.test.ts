@@ -21,7 +21,6 @@ type ImageCall = [
 function recordingRenderer(): Renderer & { images: ImageCall[] } {
   const r: Partial<Renderer> & { images: ImageCall[] } = {
     images: [],
-    clear() {},
     beginFrame() {},
     endFrame() {},
     drawRect() {},

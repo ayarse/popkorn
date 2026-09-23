@@ -67,7 +67,6 @@ function fmtValue(v: Value, min: boolean): string {
     case "number":
       return num(v.value);
     case "color":
-      return v.value;
     case "keyword":
       return v.value;
     case "string": {
@@ -319,13 +318,12 @@ function machineBlock(m: MachineRule, min: boolean): string {
 }
 
 function machineState(s: MachineState, min: boolean): string {
-  const header = s.name === "*" ? "*" : s.name;
   const items: string[] = [];
   for (const t of s.transitions) items.push("to: " + transition(t));
   for (const e of s.emits) items.push("emit: " + e);
-  if (min) return `state ${header}{${items.join(";")}}`;
+  if (min) return `state ${s.name}{${items.join(";")}}`;
   const inner = items.map((i) => "  " + i + ";").join("\n");
-  return `state ${header} {\n${inner}\n}`;
+  return `state ${s.name} {\n${inner}\n}`;
 }
 
 // Clauses stay space-joined even minified: `to:Xon` would lex as one ident.

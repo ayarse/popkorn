@@ -15,13 +15,12 @@ import type {
   FilterOp,
   ImageViewBox,
   NodeBase,
-  RectData,
   SceneNode,
 } from "../scene/types.js";
 
 // Property registry: the only path to animatability; keyframes and bindings both dispatch through it.
 // gradient/path kinds are hints; interpolateProp dispatches object values by type.
-export type PropKind = "number" | "color" | "gradient" | "path";
+type PropKind = "number" | "color" | "gradient" | "path";
 
 export type PropValue =
   | number
@@ -97,7 +96,7 @@ function cornerRadiusNumber(index: number): PropHandler {
     readLive: (node) => read(node.shapeData as never),
     apply: (node, value) => {
       if (node.shapeData.type !== "rect") return;
-      const rect = node.shapeData as RectData;
+      const rect = node.shapeData;
       const seed = rect.rx || 0;
       const c: [number, number, number, number] = rect.cornerRadii
         ? [...rect.cornerRadii]
@@ -388,7 +387,7 @@ export function interpolateProp(
 }
 
 // Neither `stops` (gradient), `type` (filter), nor an array (path).
-export function isViewBox(v: PropValue | null): v is ImageViewBox {
+function isViewBox(v: PropValue | null): v is ImageViewBox {
   return (
     !!v &&
     typeof v === "object" &&

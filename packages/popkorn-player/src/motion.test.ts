@@ -5,9 +5,9 @@ import {
   interpolateKeyframes,
 } from "./animation/keyframes.js";
 import { AnimationScheduler } from "./animation/scheduler.js";
-import { transformPoint } from "./renderer/types.js";
 import { hitTest } from "./runtime/hit-test.js";
 import { buildSceneGraph } from "./scene/builder.js";
+import { transformPoint } from "./scene/matrix.js";
 import {
   buildMotionPath,
   parsePath,

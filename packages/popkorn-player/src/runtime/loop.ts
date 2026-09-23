@@ -5,21 +5,20 @@ import {
   type VariableDefinition,
 } from "@popkorn/parser";
 import { applyEasing, holdsAtStart } from "../animation/easing.js";
-import { getPropHandler } from "../animation/registry.js";
+import { getPropHandler, type PropValue } from "../animation/registry.js";
 import {
   AnimationScheduler,
   computeSceneDuration,
   sampleNodeAtProgress,
 } from "../animation/scheduler.js";
 import type { Renderer } from "../renderer/interface.js";
-import type { Matrix3x3, TrimDescriptor } from "../renderer/types.js";
-import { IDENTITY_MATRIX, multiplyMatrices } from "../renderer/types.js";
+import type { TrimDescriptor } from "../renderer/types.js";
 import type { DeviceRect } from "../scene/bounds.js";
 import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds.js";
 import {
   insetShadowCommands,
-  outerShadowCommands,
   shapeClip,
+  shapeOutline,
 } from "../scene/box-shadow.js";
 import {
   extractImageViewBox,
@@ -28,6 +27,8 @@ import {
 } from "../scene/builder.js";
 import { resolveClip } from "../scene/clip.js";
 import { colorStringFromValue } from "../scene/color.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
+import { IDENTITY_MATRIX, multiplyMatrices } from "../scene/matrix.js";
 import { outlineLength } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
 import {
@@ -37,15 +38,10 @@ import {
   matrixScale,
 } from "../scene/transform.js";
 import type {
-  CircleData,
   ColorFilterFn,
-  EllipseData,
   FilterOp,
-  ImageData,
-  PathData,
-  RectData,
+  NodeStateStyle,
   SceneNode,
-  TextData,
   TimeRemapStop,
 } from "../scene/types.js";
 import {
@@ -55,24 +51,22 @@ import {
 } from "../scene/types.js";
 import { subtreeToken } from "./content-hash.js";
 import { hitTest, hitTestClick } from "./hit-test.js";
-import { createInputTracker, type InputTracker } from "./inputs.js";
+import { InputTracker } from "./inputs.js";
 import {
   applyStateStyles,
   blendProp,
-  createInteractionManager,
-  type InteractionManager,
+  InteractionManager,
   involvedStateKeys,
   readLiveProp,
   writeProp,
 } from "./interaction.js";
 import {
-  createStateMachineRunner,
   type MachineOutput,
   type PointerTriggerEvent,
   type StateBlend,
-  type StateMachineRunner,
+  StateMachineRunner,
 } from "./state-machine.js";
-import { createVariableResolver, type VariableResolver } from "./variables.js";
+import { VariableResolver } from "./variables.js";
 
 /** Flags for the TOP node of a mask composite pass only; never propagated, so nested mattes resolve independently. */
 interface RenderOpts {
@@ -105,11 +99,11 @@ export class RenderLoop {
   private animationFrameId: number | null = null;
   private isRunning: boolean = false;
   private backgroundColor: string | null = null;
-  private inputTracker: InputTracker;
-  private variableResolver: VariableResolver;
-  private interactionManager: InteractionManager;
+  private inputTracker = new InputTracker();
+  private variableResolver = new VariableResolver();
+  private interactionManager = new InteractionManager();
   // Evaluated once per live frame before the walk; its state is off the timeline, so seek() never touches it.
-  private machineRunner: StateMachineRunner = createStateMachineRunner();
+  private machineRunner = new StateMachineRunner();
   private machineEventCallback: ((output: MachineOutput) => void) | null = null;
   // Pointer-edge state for machine triggers (input-driven, off the timeline).
   private prevIsDown: boolean = false;
@@ -145,21 +139,10 @@ export class RenderLoop {
   private filterPlans = new Map<SceneNode, FilterPlan>();
   // Per-frame memo of composite subtree content tokens; same lifetime as `filterPlans`.
   private contentTokens = new Map<SceneNode, string | null>();
-  // Lazily resolved renderer capability; the cache decision lives here, buffers in the backend.
-  private rasterCacheable: boolean | null = null;
 
-  constructor(
-    renderer: Renderer,
-    scheduler?: AnimationScheduler,
-    inputTracker?: InputTracker,
-    variableResolver?: VariableResolver,
-    interactionManager?: InteractionManager,
-  ) {
+  constructor(renderer: Renderer, scheduler = new AnimationScheduler()) {
     this.renderer = renderer;
-    this.scheduler = scheduler || new AnimationScheduler();
-    this.inputTracker = inputTracker || createInputTracker();
-    this.variableResolver = variableResolver || createVariableResolver();
-    this.interactionManager = interactionManager || createInteractionManager();
+    this.scheduler = scheduler;
   }
 
   getInputTracker(): InputTracker {
@@ -296,13 +279,13 @@ export class RenderLoop {
   }
 
   reset(): void {
-    this.scheduler.reset();
+    this.scheduler.start();
     if (!this.isRunning) this.drawFrame(performance.now());
   }
 
   /** Freeze the timeline; the loop keeps running so interaction stays live. */
   pause(): void {
-    this.scheduler.pause();
+    this.scheduler.stop();
   }
 
   resume(): void {
@@ -346,7 +329,7 @@ export class RenderLoop {
       if (t < this.sceneDuration) this.hasCompleted = false;
       // Wrap by re-anchoring the scheduler (keeps currentTime bounded); not while paused or unbounded.
       if (this.looping && !this.scheduler.isPaused() && !this.sceneUnbounded) {
-        const wrapped = wrapTime(t, this.sceneDuration, true);
+        const wrapped = wrapTime(t, this.sceneDuration);
         if (wrapped !== t) {
           this.scheduler.seek(wrapped, now);
           t = wrapped;
@@ -435,7 +418,7 @@ export class RenderLoop {
   /** Apply active `:state()` sets; during a `mix`, resolve both ends and blend per channel. */
   private applyMachineStates(node: SceneNode, machineTime: number): void {
     const active: {
-      entry: SceneNode["stateStyles"][number];
+      entry: NodeStateStyle;
       blend: StateBlend;
     }[] = [];
     let mixing = false;
@@ -466,13 +449,13 @@ export class RenderLoop {
     for (const { entry, blend } of active)
       if (blend.side !== "solid") involvedStateKeys(entry, keys);
 
-    const baseline = new Map<string, ReturnType<typeof readLiveProp>>();
+    const baseline = new Map<string, PropValue | null>();
     for (const key of keys) baseline.set(key, readLiveProp(node, key));
 
     for (const { entry, blend } of active)
       if (blend.side === "out")
         this.applyStateEntry(node, entry, blend.entryTime, machineTime);
-    const from = new Map<string, ReturnType<typeof readLiveProp>>();
+    const from = new Map<string, PropValue | null>();
     for (const key of keys) from.set(key, readLiveProp(node, key));
 
     for (const key of keys) writeProp(node, key, baseline.get(key) ?? null);
@@ -504,7 +487,7 @@ export class RenderLoop {
   /** Static decls, then animations anchored at `machineTime - entryTime` via a temporary `node.animations` swap. */
   private applyStateEntry(
     node: SceneNode,
-    entry: SceneNode["stateStyles"][number],
+    entry: NodeStateStyle,
     entryTime: number,
     machineTime: number,
   ): void {
@@ -662,10 +645,7 @@ export class RenderLoop {
     region: DeviceRect,
     draw: () => void,
   ): void {
-    this.rasterCacheable ??=
-      (this.renderer.supportsRasterCache?.() ?? false) &&
-      this.renderer.cacheComposite !== undefined;
-    const token = this.rasterCacheable ? this.contentToken(node) : null;
+    const token = this.renderer.cacheComposite ? this.contentToken(node) : null;
     if (token === null) {
       draw();
       return;
@@ -799,7 +779,7 @@ export class RenderLoop {
     this.renderer.setOpacity(alpha);
     switch (node.shapeData.type) {
       case "rect": {
-        const r = node.shapeData as RectData;
+        const r = node.shapeData;
         // An unset radius follows the other one, as in SVG (rx alone rounds both axes).
         this.renderer.drawRect(
           r.x,
@@ -813,17 +793,17 @@ export class RenderLoop {
         break;
       }
       case "circle": {
-        const c = node.shapeData as CircleData;
+        const c = node.shapeData;
         this.renderer.drawCircle(c.cx, c.cy, c.r);
         break;
       }
       case "ellipse": {
-        const e = node.shapeData as EllipseData;
+        const e = node.shapeData;
         this.renderer.drawEllipse(e.cx, e.cy, e.rx, e.ry);
         break;
       }
       case "path": {
-        const p = node.shapeData as PathData;
+        const p = node.shapeData;
         this.renderer.drawPath(p.commands);
         break;
       }
@@ -832,7 +812,7 @@ export class RenderLoop {
         this.renderer.drawPath(polystarCommands(node));
         break;
       case "text": {
-        const t = node.shapeData as TextData;
+        const t = node.shapeData;
         // Lines split here so backends stay single-line primitives.
         const lines = t.content.split("\n");
         const lh = t.lineHeight > 0 ? t.lineHeight : t.fontSize * 1.2;
@@ -851,7 +831,7 @@ export class RenderLoop {
         break;
       }
       case "image": {
-        const im = node.shapeData as ImageData;
+        const im = node.shapeData;
         const vb = im.viewBox;
         if (vb) {
           if (vb.width <= 0 || vb.height <= 0) break;
@@ -959,7 +939,6 @@ export class RenderLoop {
     inheritedAlpha: number,
     ops: FilterOp[],
   ): void {
-    if (!this.renderer.compositeFilter) return;
     const parentWorld = multiplyMatrices(
       this.viewport,
       computeWorldMatrixFromRoot(node.parent),
@@ -1048,7 +1027,7 @@ export class RenderLoop {
       const spread = s.spread ?? 0;
       const commands = inset
         ? insetShadowCommands(node.shapeData, s.dx, s.dy, spread)
-        : outerShadowCommands(node.shapeData, s.dx, s.dy, spread);
+        : shapeOutline(node.shapeData, s.dx, s.dy, spread);
       if (!commands) continue;
       const draw = () => {
         this.renderer.setTransform(world);
@@ -1341,8 +1320,8 @@ function worldAlpha(node: SceneNode | null): number {
   return alpha;
 }
 
-export function wrapTime(t: number, duration: number, loop: boolean): number {
-  if (loop && duration > 0 && t >= duration) return t % duration;
+export function wrapTime(t: number, duration: number): number {
+  if (duration > 0 && t >= duration) return t % duration;
   return t;
 }
 

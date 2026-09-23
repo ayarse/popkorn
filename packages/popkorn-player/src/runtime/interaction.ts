@@ -459,31 +459,12 @@ export class InteractionManager {
     return block ?? [];
   }
 
-  reset(): void {
-    if (this.hoveredNode) {
-      this.setNodeState(this.hoveredNode, "normal", performance.now());
-      this.hoveredNode = null;
-    }
-    if (this.activeNode) {
-      this.setNodeState(this.activeNode, "normal", performance.now());
-      this.activeNode = null;
-    }
-  }
-
   getHoveredNode(): SceneNode | null {
     return this.hoveredNode;
-  }
-
-  getActiveNode(): SceneNode | null {
-    return this.activeNode;
   }
 }
 
 function subtreeHasInteractive(node: SceneNode): boolean {
   if (node.interactive) return true;
   return node.children.some(subtreeHasInteractive);
-}
-
-export function createInteractionManager(): InteractionManager {
-  return new InteractionManager();
 }

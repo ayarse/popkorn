@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // Minify/format/crush a Popkorn file via parse → serialize; byte counts go to stderr.
 import { readFileSync, writeFileSync } from "node:fs";
-import { crushSource, format, minify } from "./index.js";
+import { parse } from "./parser.js";
+import { serialize } from "./serializer.js";
 
 const args = process.argv.slice(2);
 let input: string | undefined;
@@ -29,7 +30,10 @@ if (!input) {
 }
 
 const src = readFileSync(input, "utf8");
-const out = pretty ? format(src) : crushed ? crushSource(src) : minify(src);
+const out = serialize(parse(src), {
+  minify: !pretty,
+  crush: crushed && !pretty,
+});
 
 const before = Buffer.byteLength(src);
 const after = Buffer.byteLength(out);

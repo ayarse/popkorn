@@ -25,7 +25,7 @@ function rand01(seed: number): number {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-export interface RandomContext {
+interface RandomContext {
   documentSeed: number;
   nodeId: string;
   property: string;

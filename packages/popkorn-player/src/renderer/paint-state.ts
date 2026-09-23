@@ -1,3 +1,9 @@
+import type { Matrix3x3 } from "../scene/matrix.js";
+import {
+  IDENTITY_MATRIX,
+  invertMatrix,
+  multiplyMatrices,
+} from "../scene/matrix.js";
 import type {
   BlendMode,
   FillRule,
@@ -5,18 +11,8 @@ import type {
   StrokeLineCap,
   StrokeLineJoin,
 } from "../scene/types.js";
-import type {
-  Color,
-  GradientData,
-  Matrix3x3,
-  TrimDescriptor,
-} from "./types.js";
-import {
-  colorToCSS,
-  IDENTITY_MATRIX,
-  invertMatrix,
-  multiplyMatrices,
-} from "./types.js";
+import type { Color, GradientData, TrimDescriptor } from "./types.js";
+import { colorToCSS } from "./types.js";
 
 /**
  * Shared sticky paint state (set* before each draw, read at draw time) plus an

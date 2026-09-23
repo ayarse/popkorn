@@ -224,7 +224,6 @@ const INSET_ELLIPSE: EllipseData = {
 };
 const INSET_PATH: PathData = {
   type: "path",
-  d: "M0 0 L20 0 L10 18 Z",
   commands: [
     { type: "M", x: 0, y: 0 },
     { type: "L", x: 20, y: 0 },

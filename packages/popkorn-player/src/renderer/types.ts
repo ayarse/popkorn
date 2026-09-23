@@ -157,18 +157,6 @@ export type CornerRadii = readonly [number, number, number, number];
 // Rec.709 luma (sRGB) for Canvas2D and Skia luminance mattes; SVG uses luminanceToAlpha.
 export const LUMA_COEFFICIENTS = { r: 0.2126, g: 0.7152, b: 0.0722 } as const;
 
-// Re-exported from scene/matrix.ts, which owns transform math.
-export type { Matrix3x3 } from "../scene/matrix.js";
-export {
-  IDENTITY_MATRIX,
-  invertMatrix,
-  multiplyMatrices,
-  rotationMatrix,
-  scaleMatrix,
-  transformPoint,
-  translationMatrix,
-} from "../scene/matrix.js";
-
 export function colorToCSS(color: Color): string {
   if (typeof color === "string") {
     return color;

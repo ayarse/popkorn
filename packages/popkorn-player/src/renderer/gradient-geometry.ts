@@ -21,7 +21,7 @@ export interface ResolvedLinearGradient {
   y1: number;
   x2: number;
   y2: number;
-  stops: { offset: number; color: string }[];
+  stops: GradientStop[];
 }
 export interface ResolvedRadialGradient {
   type: "radial";
@@ -30,7 +30,7 @@ export interface ResolvedRadialGradient {
   r: number; // outer circle
   fx: number;
   fy: number; // focal = inner-circle centre, radius 0
-  stops: { offset: number; color: string }[];
+  stops: GradientStop[];
 }
 // `startAngle`: radians from +x, clockwise (Canvas convention); offset 0 sits there.
 export interface ResolvedConicGradient {
@@ -38,7 +38,7 @@ export interface ResolvedConicGradient {
   cx: number;
   cy: number;
   startAngle: number; // radians, +x axis, clockwise
-  stops: { offset: number; color: string }[];
+  stops: GradientStop[];
 }
 export type ResolvedGradient =
   | ResolvedLinearGradient
@@ -71,13 +71,13 @@ function lerpStopColor(a: string, b: string, t: number): string {
 const OKLAB_SEGMENTS = 16;
 
 function densifyStops(
-  stops: { offset: number; color: string }[],
+  stops: GradientStop[],
   interpolate: GradientInterpolation,
-): { offset: number; color: string }[] {
+): GradientStop[] {
   if (stops.length < 2) return stops;
   const mix = interpolate.space === "oklch" ? mixOklch : mixOklab;
 
-  const out: { offset: number; color: string }[] = [stops[0]];
+  const out: GradientStop[] = [stops[0]];
   for (let i = 1; i < stops.length; i++) {
     const a = stops[i - 1];
     const b = stops[i];
@@ -105,10 +105,8 @@ function realizeStops(
   authored: GradientStop[],
   repeating: boolean,
   interpolate?: GradientInterpolation,
-): { offset: number; color: string }[] {
-  const finish = (
-    out: { offset: number; color: string }[],
-  ): { offset: number; color: string }[] =>
+): GradientStop[] {
+  const finish = (out: GradientStop[]): GradientStop[] =>
     interpolate ? densifyStops(out, interpolate) : out;
   if (!repeating)
     return finish(
@@ -131,14 +129,14 @@ function realizeStops(
     );
 
   // Tile with slack past each edge, then clip to [0,1] interpolating the crossing colour.
-  const raw: { offset: number; color: string }[] = [];
+  const raw: GradientStop[] = [];
   const kMin = Math.floor((0 - first) / w) - 1;
   const kMax = Math.ceil((1 - first) / w) + 1;
   for (let k = kMin; k <= kMax; k++)
     for (const s of authored)
       raw.push({ offset: s.offset + k * w, color: s.color });
 
-  const out: { offset: number; color: string }[] = [];
+  const out: GradientStop[] = [];
   for (let i = 0; i < raw.length; i++) {
     const s = raw[i];
     if (s.offset < 0) {

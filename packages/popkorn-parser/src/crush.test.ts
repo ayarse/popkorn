@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { crushSource } from "./index.js";
 import { parse } from "./parser.js";
 import { serialize } from "./serializer.js";
 
@@ -108,13 +107,13 @@ test("crush renames a var() used in per-keyframe animation-timing-function", () 
   expect(undefinedVarDiags).toEqual([]);
 });
 
-test("crush output re-parses without errors (crushSource)", () => {
+test("crush output re-parses without errors", () => {
   const src = `
     :root { width: 100px; height: 100px; --c: #0f0; }
     @keyframes k { 0% { opacity: 0; } 100% { opacity: 1; } }
     #a { type: rect; width: 10px; fill: var(--c); animation: k 1s; }
   `;
-  const out = crushSource(src);
+  const out = crush(src);
   const reparsed = parse(out);
   expect(reparsed.diagnostics.filter((d) => d.severity === "error")).toEqual(
     [],

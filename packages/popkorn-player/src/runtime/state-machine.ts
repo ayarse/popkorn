@@ -8,7 +8,11 @@ import type {
 } from "@popkorn/parser";
 import { applyEasing, parseTimingString } from "../animation/easing.js";
 import { animationsEndTime } from "../animation/scheduler.js";
-import type { SceneNode, TimingFunction } from "../scene/types.js";
+import type {
+  AnimationInstance,
+  SceneNode,
+  TimingFunction,
+} from "../scene/types.js";
 import type { VariableResolver } from "./variables.js";
 
 // Credited to the nearest interactive hit node, or null for empty canvas (still a `:root` occurrence).
@@ -56,7 +60,7 @@ export class StateMachineRunner {
   setScene(root: SceneNode, now = 0): void {
     this.root = root;
     this.queuedEvents = [];
-    this.instances = (root.machines ?? []).map((def) => {
+    this.instances = root.machines.map((def) => {
       const inst: MachineInstance = {
         def,
         current: def.initial,
@@ -91,30 +95,6 @@ export class StateMachineRunner {
       state: i.current,
       entryTime: i.entryTime,
     }));
-  }
-
-  /** `machine === null` (un-namespaced `:state(name)`) matches any machine. */
-  isStateActive(machine: string | null, name: string): boolean {
-    for (const inst of this.instances) {
-      if (
-        inst.current === name &&
-        (machine === null || inst.def.name === machine)
-      )
-        return true;
-    }
-    return false;
-  }
-
-  /** Entry time (global ms) of the machine currently in `name` (first match for null). */
-  entryTimeFor(machine: string | null, name: string): number {
-    for (const inst of this.instances) {
-      if (
-        inst.current === name &&
-        (machine === null || inst.def.name === machine)
-      )
-        return inst.entryTime;
-    }
-    return 0;
   }
 
   /** A state's contribution this frame, or null if neither current nor fading out; pure in `machineTime`. */
@@ -255,7 +235,7 @@ export class StateMachineRunner {
   }
 
   private animationsForState(machine: string, state: string) {
-    const acc: import("../scene/types.js").AnimationInstance[] = [];
+    const acc: AnimationInstance[] = [];
     const visit = (n: SceneNode): void => {
       for (const e of n.stateStyles) {
         if (e.name === state && (e.machine === null || e.machine === machine))
@@ -321,8 +301,4 @@ function toNum(v: number | boolean | string | undefined): number {
   if (typeof v === "boolean") return v ? 1 : 0;
   if (typeof v === "string") return parseFloat(v);
   return NaN;
-}
-
-export function createStateMachineRunner(): StateMachineRunner {
-  return new StateMachineRunner();
 }

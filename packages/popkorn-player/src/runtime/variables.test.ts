@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { VariableDefinition } from "@popkorn/parser";
 import { parse } from "@popkorn/parser";
-import { createVariableResolver } from "./variables.js";
+import { VariableResolver } from "./variables.js";
 
 // Extract the value of `cx` from a one-declaration rule — lets these tests
 // build calc/min/max/clamp AST via the parser instead of by hand.
@@ -11,7 +11,7 @@ const cxValue = (decl: string) =>
 // --- Host-writable variables -------------------------------------------------
 
 test("setVariable overrides an authored variable", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([{ name: "--energy", value: { type: "number", value: 0 } }]);
 
   expect(r.getVariable("--energy")).toBe(0);
@@ -22,7 +22,7 @@ test("setVariable overrides an authored variable", () => {
 });
 
 test("setVariable accepts the name with or without the -- prefix", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([{ name: "--energy", value: { type: "number", value: 0 } }]);
   r.setVariable("energy", 42);
   expect(r.getVariable("energy")).toBe(42);
@@ -30,7 +30,7 @@ test("setVariable accepts the name with or without the -- prefix", () => {
 });
 
 test("getVariable returns undefined for unknown variables", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([]);
   expect(r.getVariable("--nope")).toBeUndefined();
 });
@@ -38,7 +38,7 @@ test("getVariable returns undefined for unknown variables", () => {
 // --- var() fallback -----------------------------------------------------------
 
 test("resolveVariable uses the defined value when the var is defined, ignoring fallback", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([{ name: "--o", value: { type: "number", value: 1 } }]);
   expect(
     r.resolveNumeric({
@@ -50,7 +50,7 @@ test("resolveVariable uses the defined value when the var is defined, ignoring f
 });
 
 test("resolveVariable uses the fallback when the var is undefined", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([]);
   expect(
     r.resolveNumeric({
@@ -62,13 +62,13 @@ test("resolveVariable uses the fallback when the var is undefined", () => {
 });
 
 test("undefined var without a fallback resolves to 0", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([]);
   expect(r.resolveNumeric({ type: "variable", name: "--missing" })).toBe(0);
 });
 
 test("fallback can itself be a var() reference", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([{ name: "--y", value: { type: "number", value: 7 } }]);
   expect(
     r.resolveNumeric({
@@ -82,7 +82,7 @@ test("fallback can itself be a var() reference", () => {
 // --- Boolean resolution ------------------------------------------------------
 
 test("boolean variables resolve as booleans", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([
     { name: "--pressed", value: { type: "keyword", value: "false" } },
   ]);
@@ -97,7 +97,7 @@ test("boolean variables resolve as booleans", () => {
 // --- Triggers ----------------------------------------------------------------
 
 test("trigger fires true for one frame, then endFrame resets it", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([
     { name: "--tap", value: { type: "keyword", value: "trigger" } },
   ]);
@@ -115,7 +115,7 @@ test("trigger fires true for one frame, then endFrame resets it", () => {
 });
 
 test("fire accepts the name without the -- prefix", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([
     { name: "--tap", value: { type: "keyword", value: "trigger" } },
   ]);
@@ -126,7 +126,7 @@ test("fire accepts the name without the -- prefix", () => {
 // --- Input paths -------------------------------------------------------------
 
 test("unknown input path falls back to 0", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   const defs: VariableDefinition[] = [
     {
       name: "--x",
@@ -142,7 +142,7 @@ test("unknown input path falls back to 0", () => {
 });
 
 test("scroll.progress input reads the tracked value", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([
     {
       name: "--p",
@@ -167,7 +167,7 @@ test("scroll.progress input reads the tracked value", () => {
 // --- calc() resolution -------------------------------------------------------
 
 test("calc() resolves var() operands per frame", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([{ name: "--i", value: { type: "number", value: 3 } }]);
   // calc(var(--i) * 10px + 5px) => 35px
   const calc = {
@@ -200,7 +200,7 @@ test("calc() resolves var() operands per frame", () => {
 });
 
 test("calc() re-evaluates input() operands as input state changes", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([]);
   // calc(input(cursor.x) / 2)
   const calc = {
@@ -232,7 +232,7 @@ test("calc() re-evaluates input() operands as input state changes", () => {
 });
 
 test("clamp() re-evaluates over an input-driven value (incl. MIN>MAX edge)", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([]);
   const v = cxValue("clamp(20px, input(cursor.x), 80px)");
   const setX = (x: number) =>
@@ -255,7 +255,7 @@ test("clamp() re-evaluates over an input-driven value (incl. MIN>MAX edge)", () 
 });
 
 test("min()/max() with calc sums resolve reactively", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([{ name: "--i", value: { type: "number", value: 3 } }]);
   // min(100px, var(--i) * 10px + 5px) => min(100, 35) => 35
   const v = cxValue("min(100px, var(--i) * 10px + 5px)");
@@ -265,7 +265,7 @@ test("min()/max() with calc sums resolve reactively", () => {
 });
 
 test("trig math re-evaluates over an input-driven value per frame", () => {
-  const r = createVariableResolver();
+  const r = new VariableResolver();
   r.setVariables([]);
   // cx: calc(sin(input(time) / 1000) * 100) — a live sine sweep.
   const v = cxValue("calc(sin(input(time) / 1000) * 100)");

@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { format, minify } from "./index.js";
 import { parse } from "./parser.js";
 import { serialize } from "./serializer.js";
 
@@ -150,10 +149,3 @@ for (const file of collectCss(examplesDir)) {
     });
   }
 }
-
-test("minify()/format() sugar round-trips through the same AST", () => {
-  const src = "#box { width: 100px; fill: #ff0000; }";
-  expect(sansPos(parse(minify(src)))).toEqual(sansPos(parse(src)));
-  expect(sansPos(parse(format(src)))).toEqual(sansPos(parse(src)));
-  expect(minify(src).length).toBeLessThanOrEqual(format(src).length);
-});

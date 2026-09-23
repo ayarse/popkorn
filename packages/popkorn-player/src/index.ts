@@ -1,20 +1,13 @@
 export type {
-  CanvasConfig,
   Declaration,
   KeyframeRule,
-  PseudoState,
   Rule,
-  StateRule,
   StyleSheet,
   Value,
   VariableDefinition,
 } from "@popkorn/parser";
 export { parse } from "@popkorn/parser";
 export { applyEasing } from "./animation/easing.js";
-export {
-  buildKeyframeTracks,
-  interpolateKeyframes,
-} from "./animation/keyframes.js";
 export {
   AnimationScheduler,
   computeSceneDuration,
@@ -39,12 +32,7 @@ export {
   MASK_MODES,
   registerConformance,
 } from "./renderer/conformance.js";
-export type {
-  PaintBox,
-  ResolvedGradient,
-  ResolvedLinearGradient,
-  ResolvedRadialGradient,
-} from "./renderer/gradient-geometry.js";
+export type { PaintBox } from "./renderer/gradient-geometry.js";
 export { resolveGradient } from "./renderer/gradient-geometry.js";
 export type { Renderer } from "./renderer/interface.js";
 export { PaintStateRenderer } from "./renderer/paint-state.js";
@@ -54,53 +42,30 @@ export type {
   Color,
   CornerRadii,
   GradientData,
-  LinearGradientData,
-  Matrix3x3,
   PathCommand,
-  RadialGradientData,
   ResolvedClip,
-  RGBAColor,
-  TrimDescriptor,
 } from "./renderer/types.js";
-export {
-  colorToCSS,
-  IDENTITY_MATRIX,
-  invertMatrix,
-  LUMA_COEFFICIENTS,
-  multiplyMatrices,
-  parseColor,
-  rotationMatrix,
-  scaleMatrix,
-  transformPoint,
-  translationMatrix,
-} from "./renderer/types.js";
-export type { HitTestResult, Point } from "./runtime/hit-test.js";
+export { LUMA_COEFFICIENTS, parseColor } from "./renderer/types.js";
+export type { Point } from "./runtime/hit-test.js";
 export { hitTest } from "./runtime/hit-test.js";
 export type { InputState } from "./runtime/inputs.js";
-export { createInputTracker, InputTracker } from "./runtime/inputs.js";
-export {
-  createInteractionManager,
-  InteractionManager,
-} from "./runtime/interaction.js";
-export {
-  type ExportLength,
-  RenderLoop,
-  readsInput,
-  sceneExportLength,
-  wrapTime,
-} from "./runtime/loop.js";
-export {
-  createVariableResolver,
-  VariableResolver,
-} from "./runtime/variables.js";
+export { InputTracker } from "./runtime/inputs.js";
+export { InteractionManager } from "./runtime/interaction.js";
+export { RenderLoop, readsInput, sceneExportLength } from "./runtime/loop.js";
+export { VariableResolver } from "./runtime/variables.js";
 export type { FitMode, Viewport } from "./runtime/viewport.js";
 export {
   computeViewport,
   deviceToScene,
-  IDENTITY_VIEWPORT,
   viewportMatrix,
 } from "./runtime/viewport.js";
-export { buildSceneGraph, SceneBuilder } from "./scene/builder.js";
+export { buildSceneGraph } from "./scene/builder.js";
+export type { Matrix3x3 } from "./scene/matrix.js";
+export {
+  IDENTITY_MATRIX,
+  multiplyMatrices,
+  transformPoint,
+} from "./scene/matrix.js";
 export type { PathSink } from "./scene/path-parser.js";
 export {
   applyCommandsToPath,
@@ -119,39 +84,11 @@ export {
   setTextMeasurer,
 } from "./scene/transform.js";
 export type {
-  AnimatableValue,
-  AnimationDirection,
-  AnimationFillMode,
-  AnimationInstance,
-  CircleData,
-  CubicBezier,
-  EllipseData,
-  FillRule,
-  GroupData,
-  InteractionState,
-  KeyframeData,
-  KeyframeStop,
-  KeyframeTrack,
   MaskMode,
-  NodeBase,
-  PaintOrder,
-  PathData,
-  PropertyBinding,
-  RectData,
   SceneNode,
   ShapeData,
-  ShapeType,
-  StateStyles,
-  StrokeLineCap,
-  StrokeLineJoin,
   TextAnchor,
   TimingFunction,
   Transform,
 } from "./scene/types.js";
-export {
-  cloneTransform,
-  createDefaultTransform,
-  createSceneNode,
-  resetNodeToBase,
-  snapshotNode,
-} from "./scene/types.js";
+export { resetNodeToBase } from "./scene/types.js";

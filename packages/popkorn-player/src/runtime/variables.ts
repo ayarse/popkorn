@@ -48,10 +48,6 @@ export class VariableResolver {
     resolveCalcInput: (path: string): number => this.resolveInputPath(path),
   };
 
-  constructor() {
-    this.setupBuiltinInputs();
-  }
-
   /** Invalidate the var() memo; called at the top of every draw. */
   beginFrame(): void {
     this.frameEpoch++;
@@ -227,32 +223,6 @@ export class VariableResolver {
     return 0;
   }
 
-  hasVariables(value: Value): boolean {
-    if (isVariableRefValue(value)) {
-      return true;
-    }
-    if (isFunctionValue(value) && value.name === "input") {
-      return true;
-    }
-    if (isCalcValue(value)) {
-      return this.calcHasVariables(value.expr);
-    }
-    return false;
-  }
-
-  private calcHasVariables(expr: CalcExpr): boolean {
-    if (expr.type === "calc-operand") return this.hasVariables(expr.value);
-    if (expr.type === "calc-function")
-      return expr.args.some((a) => this.calcHasVariables(a));
-    return (
-      this.calcHasVariables(expr.left) || this.calcHasVariables(expr.right)
-    );
-  }
-
-  private setupBuiltinInputs(): void {
-    // These are resolved directly without needing variable definitions
-  }
-
   /** For machine guards and animation-timeline; unknown paths resolve to 0. */
   resolveInput(path: string): number {
     return this.resolveInputPath(path);
@@ -332,8 +302,4 @@ function valueToPrimitive(v: Value): VariableValue {
   }
   if (isStringValue(v) || isColorValue(v)) return v.value;
   return 0;
-}
-
-export function createVariableResolver(): VariableResolver {
-  return new VariableResolver();
 }

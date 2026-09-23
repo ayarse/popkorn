@@ -9,7 +9,7 @@ import { cloneGradient } from "../renderer/types.js";
 import type { MotionPath } from "./path-parser.js";
 
 // `auto` follows the tangent; `angle` is an offset (auto) or fixed orientation.
-export interface OffsetRotate {
+interface OffsetRotate {
   auto: boolean;
   angle: number; // degrees
 }
@@ -99,7 +99,7 @@ export type StrokeLineJoin = "miter" | "round" | "bevel";
 export type PaintOrder = "normal" | "stroke";
 
 // `none` excludes the whole subtree from hit-testing; `auto` can't re-enable it.
-export type PointerEvents = "auto" | "none";
+type PointerEvents = "auto" | "none";
 
 export type InteractionState = "normal" | "hover" | "active";
 
@@ -136,14 +136,14 @@ export interface StateStyles {
   transitions?: TransitionSpec[];
 }
 
-export type TransformOriginUnit = "px" | "%";
+type TransformOriginUnit = "px" | "%";
 
 export interface TransformOriginValue {
   value: number;
   unit: TransformOriginUnit;
 }
 
-export interface TransformOrigin {
+interface TransformOrigin {
   x: TransformOriginValue;
   y: TransformOriginValue;
 }
@@ -417,7 +417,6 @@ export interface EllipseData {
 export interface PathData {
   type: "path";
   commands: PathCommand[];
-  d: string; // Original SVG path string
 }
 
 export interface AnimationInstance {
@@ -544,7 +543,7 @@ export function createDefaultTransform(): Transform {
   };
 }
 
-export function cloneTransform(t: Transform): Transform {
+function cloneTransform(t: Transform): Transform {
   return {
     ...t,
     transformOrigin: {
@@ -555,7 +554,7 @@ export function cloneTransform(t: Transform): Transform {
 }
 
 // Copy a transform's fields into an existing target (no allocation).
-export function copyTransform(src: Transform, dst: Transform): void {
+function copyTransform(src: Transform, dst: Transform): void {
   dst.translateX = src.translateX;
   dst.translateY = src.translateY;
   dst.rotate = src.rotate;
@@ -570,7 +569,7 @@ export function copyTransform(src: Transform, dst: Transform): void {
 }
 
 // Shallow clone (path commands shared); the image crop is deep-copied.
-export function cloneShapeData(sd: ShapeData): ShapeData {
+function cloneShapeData(sd: ShapeData): ShapeData {
   const copy = { ...sd };
   if (copy.type === "image" && copy.viewBox) copy.viewBox = { ...copy.viewBox };
   return copy;
@@ -584,7 +583,7 @@ export function cloneClipPath(clip: ClipPathData | null): ClipPathData | null {
   return { ...clip };
 }
 
-export function cloneFilter(filter: FilterOp[] | null): FilterOp[] | null {
+function cloneFilter(filter: FilterOp[] | null): FilterOp[] | null {
   return filter ? filter.map((f) => ({ ...f })) : null;
 }
 
@@ -725,7 +724,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
 }
 
 // Ascending z-index, stable for ties; returns the same array when all are 0.
-export function sortByZIndex(children: SceneNode[]): SceneNode[] {
+function sortByZIndex(children: SceneNode[]): SceneNode[] {
   for (let i = 0; i < children.length; i++) {
     if (children[i].zIndex !== 0) {
       return [...children].sort((a, b) => a.zIndex - b.zIndex);

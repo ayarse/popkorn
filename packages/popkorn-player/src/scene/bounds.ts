@@ -6,13 +6,7 @@ import {
   getShapeBounds,
   matrixScale,
 } from "./transform.js";
-import type {
-  FilterOp,
-  ImageData,
-  PathData,
-  SceneNode,
-  TextData,
-} from "./types.js";
+import type { FilterOp, SceneNode } from "./types.js";
 
 /** Device (backing-buffer) pixels. */
 export interface DeviceRect {
@@ -47,13 +41,13 @@ interface WalkState {
 function localPaintBox(node: SceneNode, state: WalkState): Box | null {
   let b: { x: number; y: number; width: number; height: number };
   if (node.shapeData.type === "path") {
-    const commands = (node.shapeData as PathData).commands;
+    const commands = node.shapeData.commands;
     if (!commands || commands.length === 0) return null;
     b = computePathBounds(commands);
   } else if (node.shapeData.type === "group") {
     return null;
   } else if (node.shapeData.type === "image") {
-    const im = node.shapeData as ImageData;
+    const im = node.shapeData;
     // 0 dest size = crop or natural size; natural is unknown before decode, so unbounded, not culled.
     const w = im.width > 0 ? im.width : (im.viewBox?.width ?? 0);
     const h = im.height > 0 ? im.height : (im.viewBox?.height ?? 0);
@@ -89,7 +83,7 @@ function strokePad(node: SceneNode): number {
 
 function textPad(node: SceneNode): number {
   return node.shapeData.type === "text"
-    ? (node.shapeData as TextData).fontSize * TEXT_INK_SLOP
+    ? node.shapeData.fontSize * TEXT_INK_SLOP
     : 0;
 }
 

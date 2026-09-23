@@ -171,8 +171,6 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   // --- Frame lifecycle -------------------------------------------------------
 
-  clear(): void {}
-
   beginFrame(): void {
     this.opacity = 1;
     this.opacityStack.length = 0;
@@ -197,15 +195,15 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     // No per-corner RRect constructor in RN Skia, so use the shared rounded-rect path.
     if (corners) {
       const path = this.buildPath(roundedRectPath(x, y, w, h, corners));
-      this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
+      this.fillAndStroke(bounds, (p, c) => c.drawPath(path, p));
       return;
     }
     const rect = this.skia.XYWHRect(x, y, w, h);
     if (rx > 0 || ry > 0) {
       const rr = this.skia.RRectXY(rect, rx, ry);
-      this.fillAndStroke(bounds, (p) => this.canvas!.drawRRect(rr, p));
+      this.fillAndStroke(bounds, (p, c) => c.drawRRect(rr, p));
     } else {
-      this.fillAndStroke(bounds, (p) => this.canvas!.drawRect(rect, p));
+      this.fillAndStroke(bounds, (p, c) => c.drawRect(rect, p));
     }
   }
 
@@ -216,7 +214,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       width: r * 2,
       height: r * 2,
     };
-    this.fillAndStroke(bounds, (p) => this.canvas!.drawCircle(cx, cy, r, p));
+    this.fillAndStroke(bounds, (p, c) => c.drawCircle(cx, cy, r, p));
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
@@ -227,7 +225,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       width: rx * 2,
       height: ry * 2,
     };
-    this.fillAndStroke(bounds, (p) => this.canvas!.drawOval(rect, p));
+    this.fillAndStroke(bounds, (p, c) => c.drawOval(rect, p));
   }
 
   drawPath(commands: PathCommand[]): void {
@@ -238,7 +236,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       this.fillGradient || this.strokeGradient
         ? computePathBounds(commands)
         : ZERO_BOUNDS;
-    this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
+    this.fillAndStroke(bounds, (p, c) => c.drawPath(path, p));
   }
 
   drawText(
@@ -268,9 +266,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       height: fontSize,
     };
 
-    this.fillAndStroke(bounds, (p) =>
-      this.canvas!.drawText(text, ax, y, p, font),
-    );
+    this.fillAndStroke(bounds, (p, c) => c.drawText(text, ax, y, p, font));
   }
 
   drawImage(
@@ -527,16 +523,17 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   /** Paint fill then stroke (or the reverse for paint-order: stroke). */
   private fillAndStroke(
     bounds: PaintBox,
-    draw: (paint: SkPaint) => void,
+    draw: (paint: SkPaint, canvas: SkCanvas) => void,
   ): void {
-    if (!this.canvas) return;
+    const canvas = this.canvas;
+    if (!canvas) return;
     const fill = () => {
       const p = this.makeFillPaint(bounds);
-      if (p) draw(p);
+      if (p) draw(p, canvas);
     };
     const stroke = () => {
       const p = this.makeStrokePaint(bounds);
-      if (p) draw(p);
+      if (p) draw(p, canvas);
     };
     for (const which of paintOrderSequence(this.paintOrder)) {
       if (which === "fill") fill();

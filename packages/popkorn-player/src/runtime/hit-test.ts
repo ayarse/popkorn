@@ -1,16 +1,13 @@
 // Uses the same world matrix as rendering (scene/transform.ts), so hit regions match paint exactly.
 
-import type {
-  Matrix3x3,
-  PathCommand,
-  ResolvedClip,
-} from "../renderer/types.js";
+import type { PathCommand, ResolvedClip } from "../renderer/types.js";
+import { resolveClip } from "../scene/clip.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import {
   IDENTITY_MATRIX,
   invertMatrix,
   transformPoint,
-} from "../renderer/types.js";
-import { resolveClip } from "../scene/clip.js";
+} from "../scene/matrix.js";
 import { flattenToSubpaths } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
 import { computeWorldMatrix, getShapeBounds } from "../scene/transform.js";
@@ -18,7 +15,6 @@ import type {
   CircleData,
   EllipseData,
   FillRule,
-  PathData,
   RectData,
   SceneNode,
 } from "../scene/types.js";
@@ -27,11 +23,6 @@ import { childrenInPaintOrder } from "../scene/types.js";
 export interface Point {
   x: number;
   y: number;
-}
-
-export interface HitTestResult {
-  node: SceneNode;
-  depth: number;
 }
 
 /** Topmost interactive node; any containing shape credits its nearest interactive ancestor-or-self (DOM bubbling). */
@@ -150,7 +141,7 @@ function clickTestNode(
 function isPointInClip(
   clip: ResolvedClip,
   point: Point,
-  fillRule: FillRule = "nonzero",
+  fillRule: FillRule,
 ): boolean {
   switch (clip.type) {
     case "rect":
@@ -171,19 +162,16 @@ function isPointInClip(
 }
 
 function isPointInShape(node: SceneNode, point: Point): boolean {
-  switch (node.shapeData.type) {
+  const sd = node.shapeData;
+  switch (sd.type) {
     case "rect":
-      return isPointInRect(node.shapeData as RectData, point);
+      return isPointInRect(sd, point);
     case "circle":
-      return isPointInCircle(node.shapeData as CircleData, point);
+      return isPointInCircle(sd, point);
     case "ellipse":
-      return isPointInEllipse(node.shapeData as EllipseData, point);
+      return isPointInEllipse(sd, point);
     case "path":
-      return isPointInCommands(
-        (node.shapeData as PathData).commands,
-        point,
-        node.fillRule,
-      );
+      return isPointInCommands(sd.commands, point, node.fillRule);
     case "star":
     case "polygon":
       return isPointInCommands(polystarCommands(node), point, node.fillRule);

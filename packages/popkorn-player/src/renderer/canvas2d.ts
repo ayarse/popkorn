@@ -1,4 +1,5 @@
 import type { DeviceRect } from "../scene/bounds.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import {
   applyCommandsToPath,
   computePathBounds,
@@ -12,7 +13,6 @@ import { paintOrderSequence, resolveStrokeDash } from "./stroke.js";
 import type {
   CornerRadii,
   GradientData,
-  Matrix3x3,
   PathCommand,
   ResolvedClip,
 } from "./types.js";
@@ -77,14 +77,10 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.main = ctx;
   }
 
-  clear(): void {
-    this.main.clearRect(0, 0, this.main.canvas.width, this.main.canvas.height);
-  }
-
   beginFrame(): void {
     // Reset to device space BEFORE clearRect, or the letterbox band keeps stale pixels.
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.clear();
+    this.main.clearRect(0, 0, this.main.canvas.width, this.main.canvas.height);
     this.ctx.globalAlpha = 1;
   }
 
@@ -441,10 +437,6 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     );
     main.filter = "none";
     main.restore();
-  }
-
-  supportsRasterCache(): boolean {
-    return true;
   }
 
   /** Composite into a dedicated raster and blit; reuse it while signature and region match. */

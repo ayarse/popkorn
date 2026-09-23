@@ -7,7 +7,7 @@ import type {
   PointerTriggerEvent,
 } from "./runtime/state-machine.js";
 import { StateMachineRunner } from "./runtime/state-machine.js";
-import { createVariableResolver } from "./runtime/variables.js";
+import { VariableResolver } from "./runtime/variables.js";
 import { buildSceneGraph } from "./scene/builder.js";
 import type { CircleData, SceneNode, TextData } from "./scene/types.js";
 
@@ -30,7 +30,7 @@ const cx = (root: SceneNode, id: string) =>
 // A runner bound to a freshly built scene, plus a helper to evaluate a frame.
 function runnerFor(src: string) {
   const root = buildSceneGraph(parse(src));
-  const resolver = createVariableResolver();
+  const resolver = new VariableResolver();
   resolver.setVariables(parse(src).variables);
   const runner = new StateMachineRunner();
   runner.setScene(root, 0);

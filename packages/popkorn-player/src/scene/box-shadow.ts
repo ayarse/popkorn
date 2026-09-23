@@ -1,14 +1,7 @@
 import type { PathCommand, ResolvedClip } from "../renderer/types.js";
 import { computePathBounds, roundedRectPath } from "./path-parser.js";
 import { polystarToCommands } from "./polystar.js";
-import type {
-  CircleData,
-  EllipseData,
-  PathData,
-  PolystarData,
-  RectData,
-  ShapeData,
-} from "./types.js";
+import type { ShapeData } from "./types.js";
 
 // Ellipse as four clockwise quarter-arcs so it composes into compound shadow paths.
 function ellipseCommands(
@@ -90,21 +83,20 @@ export function shapeOutline(
   spread: number,
 ): PathCommand[] | null {
   if (sd.type === "rect") {
-    const r = sd as RectData;
-    const x = r.x - spread + dx;
-    const y = r.y - spread + dy;
-    const w = r.width + 2 * spread;
-    const h = r.height + 2 * spread;
-    if (r.cornerRadii) {
+    const x = sd.x - spread + dx;
+    const y = sd.y - spread + dy;
+    const w = sd.width + 2 * spread;
+    const h = sd.height + 2 * spread;
+    if (sd.cornerRadii) {
       const grow = (v: number) => Math.max(0, v + spread);
       return roundedRectPath(x, y, w, h, [
-        grow(r.cornerRadii[0]),
-        grow(r.cornerRadii[1]),
-        grow(r.cornerRadii[2]),
-        grow(r.cornerRadii[3]),
+        grow(sd.cornerRadii[0]),
+        grow(sd.cornerRadii[1]),
+        grow(sd.cornerRadii[2]),
+        grow(sd.cornerRadii[3]),
       ]);
     }
-    const rx = r.rx > 0 ? Math.max(0, r.rx + spread) : 0;
+    const rx = sd.rx > 0 ? Math.max(0, sd.rx + spread) : 0;
     if (rx > 0) return roundedRectPath(x, y, w, h, [rx, rx, rx, rx]);
     return [
       { type: "M", x, y },
@@ -115,24 +107,22 @@ export function shapeOutline(
     ];
   }
   if (sd.type === "circle") {
-    const c = sd as CircleData;
-    const rr = Math.max(0, c.r + spread);
-    return ellipseCommands(c.cx + dx, c.cy + dy, rr, rr);
+    const rr = Math.max(0, sd.r + spread);
+    return ellipseCommands(sd.cx + dx, sd.cy + dy, rr, rr);
   }
   if (sd.type === "ellipse") {
-    const e = sd as EllipseData;
     return ellipseCommands(
-      e.cx + dx,
-      e.cy + dy,
-      Math.max(0, e.rx + spread),
-      Math.max(0, e.ry + spread),
+      sd.cx + dx,
+      sd.cy + dy,
+      Math.max(0, sd.rx + spread),
+      Math.max(0, sd.ry + spread),
     );
   }
   if (sd.type === "path") {
-    return translateCommands((sd as PathData).commands, dx, dy);
+    return translateCommands(sd.commands, dx, dy);
   }
   if (sd.type === "star" || sd.type === "polygon") {
-    return translateCommands(polystarToCommands(sd as PolystarData), dx, dy);
+    return translateCommands(polystarToCommands(sd), dx, dy);
   }
   return null;
 }
@@ -140,29 +130,23 @@ export function shapeOutline(
 // Shape-accurate clip for inset shadows; only sharp rect and circle use native clip primitives.
 export function shapeClip(sd: ShapeData): ResolvedClip | null {
   if (sd.type === "rect") {
-    const r = sd as RectData;
-    if (r.cornerRadii || r.rx > 0) {
+    if (sd.cornerRadii || sd.rx > 0) {
       const outline = shapeOutline(sd, 0, 0, 0);
       return outline ? { type: "path", commands: outline } : null;
     }
-    return { type: "rect", x: r.x, y: r.y, width: r.width, height: r.height };
+    return {
+      type: "rect",
+      x: sd.x,
+      y: sd.y,
+      width: sd.width,
+      height: sd.height,
+    };
   }
   if (sd.type === "circle") {
-    const c = sd as CircleData;
-    return { type: "circle", cx: c.cx, cy: c.cy, r: c.r };
+    return { type: "circle", cx: sd.cx, cy: sd.cy, r: sd.r };
   }
   const outline = shapeOutline(sd, 0, 0, 0);
   return outline ? { type: "path", commands: outline } : null;
-}
-
-// Outer shadow silhouette; null routes to the filter drop-shadow path.
-export function outerShadowCommands(
-  sd: ShapeData,
-  dx: number,
-  dy: number,
-  spread: number,
-): PathCommand[] | null {
-  return shapeOutline(sd, dx, dy, spread);
 }
 
 // Evenodd cover rect with the deflated, offset shape punched out; caller clips to the shape.
@@ -191,16 +175,13 @@ function shapeBounds(
   sd: ShapeData,
 ): { x: number; y: number; w: number; h: number } | null {
   if (sd.type === "rect") {
-    const r = sd as RectData;
-    return { x: r.x, y: r.y, w: r.width, h: r.height };
+    return { x: sd.x, y: sd.y, w: sd.width, h: sd.height };
   }
   if (sd.type === "circle") {
-    const c = sd as CircleData;
-    return { x: c.cx - c.r, y: c.cy - c.r, w: c.r * 2, h: c.r * 2 };
+    return { x: sd.cx - sd.r, y: sd.cy - sd.r, w: sd.r * 2, h: sd.r * 2 };
   }
   if (sd.type === "ellipse") {
-    const e = sd as EllipseData;
-    return { x: e.cx - e.rx, y: e.cy - e.ry, w: e.rx * 2, h: e.ry * 2 };
+    return { x: sd.cx - sd.rx, y: sd.cy - sd.ry, w: sd.rx * 2, h: sd.ry * 2 };
   }
   const outline = shapeOutline(sd, 0, 0, 0);
   if (!outline) return null;

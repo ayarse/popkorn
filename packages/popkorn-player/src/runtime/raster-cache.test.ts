@@ -117,7 +117,6 @@ any & CacheRenderer {
       drawContent();
       drawMask();
     },
-    supportsRasterCache: () => cache,
     cacheComposite(
       key: string,
       signature: string,
@@ -146,6 +145,7 @@ any & CacheRenderer {
       for (const c of cmds) sink.push(c);
     },
   };
+  if (!cache) delete r.cacheComposite;
   return r;
 }
 

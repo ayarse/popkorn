@@ -5,13 +5,13 @@ import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
   GradientData,
-  Matrix3x3,
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
 } from "../renderer/types.js";
-import { IDENTITY_MATRIX } from "../renderer/types.js";
 import { buildSceneGraph } from "../scene/builder.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
+import { IDENTITY_MATRIX } from "../scene/matrix.js";
 import type {
   AnimationInstance,
   BlendMode,
@@ -29,7 +29,6 @@ import {
   sceneExportLength,
   sceneIsPerpetual,
 } from "./loop.js";
-import { createVariableResolver } from "./variables.js";
 
 // A dot whose opacity ramps 0 -> 1 over a single 3s iteration, then holds
 // (fill: forwards). sceneDuration is that iteration (3000). A FINITE clip — it
@@ -626,10 +625,10 @@ test("tap between frames fires machine click (pressed edge latch)", () => {
 // Build a scene, wire :root vars into a fresh resolver, and drive one frame.
 function loadWithResolver(src: string) {
   const ast = parse(src);
-  const resolver = createVariableResolver();
-  resolver.setVariables(ast.variables);
   const renderer = createRecordingRenderer();
-  const loop = new RenderLoop(renderer, undefined, undefined, resolver);
+  const loop = new RenderLoop(renderer);
+  const resolver = loop.getVariableResolver();
+  resolver.setVariables(ast.variables);
   loop.setScene(buildSceneGraph(ast));
   return { loop, renderer, resolver };
 }

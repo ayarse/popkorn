@@ -52,7 +52,6 @@ test("a path resolves through its commands (getShapeBounds has no box for it)", 
   const n = createSceneNode("p", "path");
   n.shapeData = {
     type: "path",
-    d: "",
     commands: [
       { type: "M", x: 5, y: 5 },
       { type: "L", x: 25, y: 45 },
@@ -168,7 +167,6 @@ test("a miter join's spike is inside the box (miterLimit, not just width)", () =
   const n = createSceneNode("m", "path");
   n.shapeData = {
     type: "path",
-    d: "",
     commands: [
       { type: "M", x: 60, y: 150 },
       { type: "L", x: 260, y: 150 },
@@ -205,7 +203,6 @@ test("a zero-length round-cap stroke still gets a box (it paints a dot)", () => 
   const n = createSceneNode("dot", "path");
   n.shapeData = {
     type: "path",
-    d: "",
     commands: [
       { type: "M", x: 200, y: 100 },
       { type: "L", x: 200, y: 100 },

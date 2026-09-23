@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
-import { createVariableResolver } from "../runtime/variables.js";
+import { VariableResolver } from "../runtime/variables.js";
 import { buildSceneGraph } from "./builder.js";
 import type { CircleData } from "./types.js";
 
@@ -121,7 +121,7 @@ test("random(): frozen inside a reactive calc(), constant across frames", () => 
   const node = build(src).children[0];
   const binding = node.bindings.find((b) => b.property === "r");
   if (!binding) throw new Error("expected a reactive binding for r");
-  const resolver = createVariableResolver();
+  const resolver = new VariableResolver();
   resolver.setVariable("--t", 10);
   expect(resolver.resolveNumeric(binding.value)).toBe(13);
   resolver.setVariable("--t", 40);

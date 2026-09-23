@@ -406,7 +406,7 @@ export function applyCommandsToPath(
   }
 }
 
-export interface ArcSegment {
+interface ArcSegment {
   cx: number;
   cy: number;
   rx: number;
@@ -800,7 +800,7 @@ export function samplePathAt(
 }
 
 // Ramanujan II: exact for circles, ~1e-5 relative error otherwise.
-export function ellipsePerimeter(rx: number, ry: number): number {
+function ellipsePerimeter(rx: number, ry: number): number {
   const a = Math.abs(rx);
   const b = Math.abs(ry);
   if (a === 0 && b === 0) return 0;

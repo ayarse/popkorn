@@ -6,7 +6,6 @@ import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
   GradientData,
-  Matrix3x3,
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
@@ -19,6 +18,7 @@ import type {
   TextAnchor,
 } from "../scene/types.js";
 import { buildSceneGraph } from "./builder.js";
+import type { Matrix3x3 } from "./matrix.js";
 
 // A renderer that records every primitive call (name + args) as a flat trace.
 // The trace carries geometry/paint but NO identifier strings, so it is exactly

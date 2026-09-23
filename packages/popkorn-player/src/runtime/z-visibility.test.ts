@@ -5,12 +5,12 @@ import type { Renderer } from "../renderer/interface.js";
 import type {
   Color,
   GradientData,
-  Matrix3x3,
   PathCommand,
   ResolvedClip,
   TrimDescriptor,
 } from "../renderer/types.js";
 import { buildSceneGraph } from "../scene/builder.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import type {
   FillRule,
   MaskMode,
@@ -21,16 +21,15 @@ import type {
 import { createSceneNode, snapshotNode } from "../scene/types.js";
 import { hitTest } from "./hit-test.js";
 import { RenderLoop } from "./loop.js";
-import { createVariableResolver } from "./variables.js";
 
 // Build a scene from CSS, wire :root vars into a fresh resolver, and drive it
 // through a recording renderer so a test can read paint order + host var toggles.
 function loadWithResolver(src: string) {
   const ast = parse(src);
-  const resolver = createVariableResolver();
-  resolver.setVariables(ast.variables);
   const r = recordingRenderer();
-  const loop = new RenderLoop(r, undefined, undefined, resolver);
+  const loop = new RenderLoop(r);
+  const resolver = loop.getVariableResolver();
+  resolver.setVariables(ast.variables);
   const root = buildSceneGraph(ast);
   loop.setScene(root);
   return { loop, r, resolver, root };
@@ -45,7 +44,6 @@ function recordingRenderer(): Renderer & { drawn: string[] } {
   };
   const r: Renderer & { drawn: string[] } = {
     drawn: [],
-    clear() {},
     beginFrame() {},
     endFrame() {},
     drawRect() {

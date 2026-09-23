@@ -1,5 +1,4 @@
 import { parse } from "@popkorn/parser";
-import { AnimationScheduler } from "./animation/scheduler.js";
 import { Canvas2DRenderer } from "./renderer/canvas2d.js";
 import { SVGRenderer } from "./renderer/svg.js";
 import { type ClickDetail, RenderLoop } from "./runtime/loop.js";
@@ -137,7 +136,6 @@ export class PopkornPlayer extends HTMLElementBase {
   private backend: Canvas2DRenderer | SVGRenderer | null = null;
   private useSvg = false;
   private renderLoop: RenderLoop | null = null;
-  private scheduler: AnimationScheduler | null = null;
   private _source: string = "";
   // Bumped per load request; a fetch resolving with a stale token is dropped.
   private _loadToken = 0;
@@ -607,9 +605,7 @@ export class PopkornPlayer extends HTMLElementBase {
         ? new SVGRenderer(this.svg!)
         : new Canvas2DRenderer(this.canvas);
       this._lastSize = null;
-      this.scheduler = new AnimationScheduler();
-
-      this.renderLoop = new RenderLoop(this.backend, this.scheduler);
+      this.renderLoop = new RenderLoop(this.backend);
       this.renderLoop.setScene(sceneRoot);
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
       // Artboard clipping on by default; `:root { overflow: visible }` opts out.
@@ -822,7 +818,5 @@ export function registerPopkornPlayer(): void {
   }
 }
 
-// Guard `customElements` separately: RN/Hermes may polyfill `window` without it.
-if (typeof window !== "undefined" && typeof customElements !== "undefined") {
-  registerPopkornPlayer();
-}
+// No-op where `customElements` is absent (RN/Hermes may polyfill `window` without it).
+registerPopkornPlayer();

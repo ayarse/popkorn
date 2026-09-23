@@ -122,7 +122,3 @@ export function scrollProgress(
 ): number {
   return scrollY / Math.max(1, scrollHeight - innerHeight);
 }
-
-export function createInputTracker(): InputTracker {
-  return new InputTracker();
-}

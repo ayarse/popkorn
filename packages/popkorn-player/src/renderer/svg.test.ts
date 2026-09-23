@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { RenderLoop } from "../runtime/loop.js";
+import type { Matrix3x3 } from "../scene/matrix.js";
 import type { SceneNode } from "../scene/types.js";
 import { createSceneNode, snapshotNode } from "../scene/types.js";
 import type { Renderer } from "./interface.js";
@@ -12,7 +13,7 @@ import {
   realizeGradientAttrs,
   SVGRenderer,
 } from "./svg.js";
-import type { GradientData, Matrix3x3, PathCommand } from "./types.js";
+import type { GradientData, PathCommand } from "./types.js";
 
 // --- pathToD -----------------------------------------------------------------
 
@@ -516,9 +517,6 @@ test("no raster cache: the retained backend opts out of composite caching", () =
   const svg = installFakeDom();
   const { r } = makeRenderer(svg);
   expect(
-    (r as unknown as { supportsRasterCache?: unknown }).supportsRasterCache,
-  ).toBeUndefined();
-  expect(
     (r as unknown as { cacheComposite?: unknown }).cacheComposite,
   ).toBeUndefined();
 });
@@ -629,7 +627,6 @@ function bracketRecorder(): Renderer & { evs: Ev[]; keysInOrder: string[] } {
     endNode() {
       this.evs.push({ t: "end" });
     },
-    clear: noop,
     beginFrame: noop,
     endFrame: noop,
     drawRect: noop,

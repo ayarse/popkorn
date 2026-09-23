@@ -128,10 +128,6 @@ test('no raster cache: Skia opts out of composite caching', () => {
   const { Skia } = mockSkia();
   const renderer = new SkiaRenderer(Skia, { width: 100, height: 100 });
   expect(
-    (renderer as unknown as { supportsRasterCache?: unknown })
-      .supportsRasterCache
-  ).toBeUndefined();
-  expect(
     (renderer as unknown as { cacheComposite?: unknown }).cacheComposite
   ).toBeUndefined();
 });

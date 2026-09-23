@@ -8,16 +8,7 @@ import {
   translationMatrix,
 } from "./matrix.js";
 import { samplePathAt } from "./path-parser.js";
-import type {
-  CircleData,
-  EllipseData,
-  ImageData,
-  PolystarData,
-  RectData,
-  SceneNode,
-  TextData,
-  TransformOriginValue,
-} from "./types.js";
+import type { SceneNode, TextData, TransformOriginValue } from "./types.js";
 
 /** Uniform scale of an affine matrix: √|det|, the geometric mean of its axis scales. */
 export function matrixScale(m: Matrix3x3): number {
@@ -32,46 +23,42 @@ export function getShapeBounds(node: SceneNode): {
   width: number;
   height: number;
 } {
-  switch (node.shapeData.type) {
-    case "rect": {
-      const r = node.shapeData as RectData;
-      return { x: r.x, y: r.y, width: r.width, height: r.height };
-    }
-    case "circle": {
-      const c = node.shapeData as CircleData;
-      return { x: c.cx - c.r, y: c.cy - c.r, width: c.r * 2, height: c.r * 2 };
-    }
-    case "ellipse": {
-      const e = node.shapeData as EllipseData;
+  const sd = node.shapeData;
+  switch (sd.type) {
+    case "rect":
+      return { x: sd.x, y: sd.y, width: sd.width, height: sd.height };
+    case "circle":
       return {
-        x: e.cx - e.rx,
-        y: e.cy - e.ry,
-        width: e.rx * 2,
-        height: e.ry * 2,
+        x: sd.cx - sd.r,
+        y: sd.cy - sd.r,
+        width: sd.r * 2,
+        height: sd.r * 2,
       };
-    }
+    case "ellipse":
+      return {
+        x: sd.cx - sd.rx,
+        y: sd.cy - sd.ry,
+        width: sd.rx * 2,
+        height: sd.ry * 2,
+      };
     case "star":
     case "polygon": {
       // Outer-radius square around the center; exact enough for origins/clip.
-      const s = node.shapeData as PolystarData;
-      const r = s.outerRadius;
-      return { x: s.cx - r, y: s.cy - r, width: r * 2, height: r * 2 };
+      const r = sd.outerRadius;
+      return { x: sd.cx - r, y: sd.cy - r, width: r * 2, height: r * 2 };
     }
-    case "image": {
-      const i = node.shapeData as ImageData;
-      return { x: i.x, y: i.y, width: i.width, height: i.height };
-    }
+    case "image":
+      return { x: sd.x, y: sd.y, width: sd.width, height: sd.height };
     case "text": {
-      const t = node.shapeData as TextData;
-      const { width, height } = measureText(node, t);
+      const { width, height } = measureText(node, sd);
       // Anchor shifts like ctx.textAlign; alphabetic baseline, so the first line sits above y.
       const x =
-        t.anchor === "middle"
-          ? t.x - width / 2
-          : t.anchor === "end"
-            ? t.x - width
-            : t.x;
-      return { x, y: t.y - t.fontSize, width, height };
+        sd.anchor === "middle"
+          ? sd.x - width / 2
+          : sd.anchor === "end"
+            ? sd.x - width
+            : sd.x;
+      return { x, y: sd.y - sd.fontSize, width, height };
     }
     default:
       return { x: 0, y: 0, width: 0, height: 0 };
@@ -153,7 +140,7 @@ export function measureText(
 let scratchContext: CanvasRenderingContext2D | null | undefined;
 
 // Lazily-created scratch 2D context for text measurement; null when headless.
-export function getScratchContext(): CanvasRenderingContext2D | null {
+function getScratchContext(): CanvasRenderingContext2D | null {
   if (scratchContext !== undefined) return scratchContext;
   try {
     if (typeof OffscreenCanvas !== "undefined") {

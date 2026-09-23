@@ -27,10 +27,6 @@ export class AnimationScheduler {
     }
   }
 
-  pause(now: number = performance.now()): void {
-    this.stop(now);
-  }
-
   resume(now: number = performance.now()): void {
     if (this.paused) {
       this.timelineZero = now - this.pausedTime;
@@ -49,10 +45,6 @@ export class AnimationScheduler {
 
   isPaused(): boolean {
     return this.paused;
-  }
-
-  reset(now: number = performance.now()): void {
-    this.start(now);
   }
 
   // State machines sample at `t - entryTime`; pre-entry lands in the pre-start fill branch.
