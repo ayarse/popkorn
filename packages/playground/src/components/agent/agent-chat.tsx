@@ -165,7 +165,7 @@ function AgentChat({
       className={
         fullscreen
           ? "fixed inset-0 z-50 flex flex-col bg-popover/95 text-popover-foreground backdrop-blur-sm animate-in fade-in-0"
-          : "flex w-[384px] shrink-0 flex-col border-l border-border bg-popover text-popover-foreground animate-in fade-in-0 slide-in-from-right-2"
+          : "flex w-[360px] shrink-0 flex-col border-l border-border bg-popover text-popover-foreground animate-in fade-in-0 slide-in-from-right-2"
       }
     >
       <div

@@ -14,20 +14,43 @@ import { useScene } from "@/hooks/use-scene";
 import { maybeStartTour } from "@/lib/tour";
 import { cn } from "@/lib/utils";
 
+const CHAT_OPEN_KEY = "popkorn:copilot-open";
+
 function App() {
   const scene = useScene();
   const [showImport, setShowImport] = useState(false);
   const [showShare, setShowShare] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpenState] = useState(false);
   const [player, setPlayer] = useState<PopkornPlayer | null>(null);
-  // Desktop: editor left / player right. Mobile: player on top / editor
-  // below, no timeline.
+  // Desktop: editor | player | copilot. Mobile: player on top / editor below,
+  // copilot as a fullscreen drawer, no timeline.
   const isMobile = useIsMobile();
   // Arriving on a community scene (`/s/$id`) is a viewing intent, so the editor
   // starts collapsed — the source is a click away, not in the way.
-  const [sourceCollapsed, setSourceCollapsed] = useState(
-    Boolean(useParams({ strict: false }).id),
-  );
+  const viewingScene = Boolean(useParams({ strict: false }).id);
+  const [sourceCollapsed, setSourceCollapsed] = useState(viewingScene);
+
+  // Copilot opens by default on wide desktops (not when viewing a community
+  // scene); an explicit open/close is remembered per visitor.
+  const setChatOpen = (open: boolean) => {
+    setChatOpenState(open);
+    try {
+      localStorage.setItem(CHAT_OPEN_KEY, open ? "1" : "0");
+    } catch {}
+  };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: initial layout only.
+  useEffect(() => {
+    if (window.matchMedia("(max-width: 639px)").matches) return;
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(CHAT_OPEN_KEY);
+    } catch {}
+    setChatOpenState(
+      stored !== null
+        ? stored === "1"
+        : !viewingScene && window.innerWidth >= 1280,
+    );
+  }, []);
 
   // First-run onboarding tour — fire once the layout has painted so every
   // `[data-tour]` target exists to be highlighted.
@@ -48,7 +71,7 @@ function App() {
           onImport={() => setShowImport(true)}
           onShare={() => setShowShare(true)}
           chatOpen={chatOpen}
-          onToggleChat={() => setChatOpen((v) => !v)}
+          onToggleChat={() => setChatOpen(!chatOpen)}
         />
 
         {/* DOM order is fixed [editor | divider | player] so neither panel
