@@ -68,6 +68,8 @@ Aliases work everywhere a declaration does — rule bodies, `@keyframes`,
 `position`) are rejected with a warning: Popkorn has no box model. (`display` is
 supported, with a visibility meaning — see Layering & Visibility.)
 
+On a `rect`, setting only `rx` (or only `ry`) rounds both axes, as in SVG.
+
 ## Shapes
 
 ```css
@@ -1000,8 +1002,10 @@ states.
 - A state block can override any animatable property (anything with a registry
   handler) as an instant snap — `fill`, `stroke`, `stroke-width`, `opacity`, and
   `transform` (with the individual `translate`/`rotate`/`scale`) are the common
-  ones, but geometry and other animatable properties work too. Only the
-  properties listed under `transition` below actually *tween* in and out.
+  ones, but geometry and other animatable properties work too. Text strings
+  (`content`, `font-family`, `font-weight`, `text-anchor`/`text-align`) can be
+  overridden too; they always snap. Only the properties listed under
+  `transition` below actually *tween* in and out.
 - The parser accepts any `&:<ident>`, but only `hover` and `active` are driven;
   other state names parse but never activate.
 

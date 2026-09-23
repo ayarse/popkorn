@@ -285,7 +285,7 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 | `text`            | see §6                                                                                                |                                                |
 | `image`           | see §7                                                                                                |                                                |
 
-- `rect` renders rounded corners when `rx>0` or `ry>0`.
+- `rect` renders rounded corners when `rx>0` or `ry>0`; setting only one rounds both axes (SVG semantics).
 - `path` commands: `M L H V C S Q T A Z` (absolute + relative).
 - `star` vs `polygon`: polygon ignores `inner-radius`/`inner-roundness`. Vertex count is `sides` (**not `points`**), floored, min 2. Star vertices start at −90° + `rotation` (0 points up). `*-roundness` are percentages; 0 = straight edges.
 - Geometry props are **type-gated**: mismatched props (`r` on a rect) are silently ignored.
@@ -975,7 +975,7 @@ Input paths: `cursor.x`, `cursor.y` (canvas-local px), `cursor.isDown` (1/0), `s
 ```
 
 - Hit-testing uses the inverse world matrix (regions match paint exactly), respects clip regions, returns the topmost interactive node.
-- State override consumes only `fill`, `stroke`, `stroke-width`, `opacity`, `transform`.
+- A state block (`&:hover`/`&:active`/`:state()`) can override any animatable property as an instant snap, plus the text strings `content`, `font-family`, `font-weight`, `text-anchor`/`text-align` (always snap, never tween).
 - `active` falls back to `hover` styles if no `&:active` block.
 - **Transform overrides layer on top of running animations:** `translate`/`rotate` additive, `scale` multiplicative.
 
@@ -1028,9 +1028,8 @@ state block (the DSL spelling of CSS `#card:hover > #icon { … }`):
 }
 ```
 
-- Targets a **direct child** by `#id`/`.class`; consumes the same subset as any
-  state block (`fill`, `stroke`, `stroke-width`, `opacity`, `transform`, plus
-  standalone `translate`/`rotate`/`scale`). Overrides apply/unapply exactly when
+- Targets a **direct child** by `#id`/`.class`; consumes the same properties as any
+  state block. Overrides apply/unapply exactly when
   the parent's own do (same frame-walk point, same additive/multiplicative
   transform composition), and `&:active` falls back to `&:hover` for children too.
 - Being targeted does **not** make the child hit-testable — only the parent

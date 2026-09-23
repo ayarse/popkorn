@@ -198,7 +198,8 @@ The rest of the component's event surface (`popkorn:ready`, `popkorn:timeupdate`
 
 By default a transition is an instant cut. Add `mix <duration> [easing]` to a
 `to:` and the change cross-fades instead: each animatable property blends from
-its old value to its new one over the duration.
+its old value to its new one over the duration. Text strings like `content`
+switch at the start of the mix; they don't blend.
 
 ```css
 state off { to: on  on click(#bulb) mix 300ms ease-in-out; }
