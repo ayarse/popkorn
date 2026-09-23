@@ -128,3 +128,159 @@ test("crush renames var() uses inside random() operands", () => {
   expect(out).not.toContain("--lo");
   expect(out).not.toContain("--host-hi");
 });
+
+const kfNames = (out: string) =>
+  [...out.matchAll(/@keyframes ([a-z]+)\{/g)].map((m) => m[1]);
+
+test("crush merges identical @keyframes and repoints every reference", () => {
+  const out = crush(`
+    @keyframes fadeA { 0% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes fadeB { 0% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes fadeC { 0% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes fadeD { 0% { opacity: 0; } 100% { opacity: 1; } }
+    @define sym { type: circle; r: 2px; animation: fadeD 1s; }
+    #x { type: rect; animation: fadeB 2s linear; }
+    #y { type: rect; animation-name: fadeC; animation-duration: 1s;
+      &:hover { animation: fadeB 3s; } }
+    #z { use: sym; }
+  `);
+  const names = kfNames(out);
+  expect(names).toHaveLength(1);
+  const k = names[0]!;
+  expect(out).toContain(`animation:${k} 2s linear`);
+  expect(out).toContain(`animation-name:${k}`);
+  expect(out).toContain(`&:hover{animation:${k} 3s}`);
+  expect(out).toContain(`animation:${k} 1s`);
+  expect(out).not.toMatch(/fade/);
+});
+
+test("crush keeps @keyframes whose bodies differ", () => {
+  const out = crush(`
+    @keyframes a1 { 0% { opacity: 0; } 100% { opacity: 1; } }
+    @keyframes a2 { 0% { opacity: 0; } 100% { opacity: 0.5; } }
+    @keyframes a3 { 0% { opacity: 0; } 50% { opacity: 1; } }
+    @keyframes a4 { 0% { opacity: 0; animation-timing-function: ease-in; } 100% { opacity: 1; } }
+    #x { type: rect; animation: a1 1s, a2 1s, a3 1s, a4 1s; }
+  `);
+  expect(kfNames(out)).toHaveLength(4);
+});
+
+test("crush compares keyframe bodies after var renaming", () => {
+  const out = crush(`
+    :root { --p: 1; --q: 2; }
+    @keyframes a1 { 0% { opacity: var(--p); } }
+    @keyframes a2 { 0% { opacity: var(--q); } }
+    @keyframes a3 { 0% { opacity: var(--p); } }
+    #x { type: rect; animation: a1 1s, a2 1s, a3 1s; }
+  `);
+  const names = kfNames(out);
+  expect(names).toHaveLength(2);
+  expect(out).toContain(
+    `animation:${names[0]} 1s,${names[1]} 1s,${names[0]} 1s`,
+  );
+});
+
+test("crush keyframe merge respects later-wins redefinition", () => {
+  const out = crush(`
+    @keyframes a { 0% { opacity: 0; } }
+    @keyframes b { 0% { opacity: 1; } }
+    @keyframes a { 0% { opacity: 1; } }
+    #x { type: rect; animation: a 1s, b 1s; }
+  `);
+  // `a`'s effective body equals `b`: both references collapse onto one survivor.
+  const names = kfNames(out);
+  expect(names).toHaveLength(2);
+  expect(new Set(names).size).toBe(1);
+  expect(out).toContain(`animation:${names[0]} 1s,${names[0]} 1s`);
+  expect(out.lastIndexOf("opacity:1")).toBeGreaterThan(
+    out.indexOf("opacity:0"),
+  );
+});
+
+test("crush keyframe merge is deterministic and keeps the first occurrence", () => {
+  const src = `
+    @keyframes b { 0% { opacity: 1; } }
+    @keyframes a { 0% { opacity: 1; } }
+    #x { type: rect; animation: a 1s; }
+  `;
+  const out = crush(src);
+  expect(out).toBe(crush(src));
+  expect(kfNames(out)).toEqual(["a"]);
+  expect(out).toContain("animation:a 1s");
+});
+
+test("crush compacts path data in d, keyframes, offset-path and clip-path", () => {
+  const out = crush(`
+    @keyframes m { 0% { d: 'M 0 0 L 10.004 0 L 10 10 Z'; } }
+    #x { type: path; d: 'M 0 0 L 10.004 0 L 10 10 Z'; animation: m 1s;
+      offset-path: path('M 0 0 C 50 0 100 50 100 100');
+      clip-path: path('M 0 0 H 100 V 100 H 0 Z') path('M 5 5 H 6 V 6 Z'); }
+  `);
+  expect(out).toContain('d:"m0 0 10 0 0 10z"');
+  expect(out).toContain('offset-path:path("m0 0c50 0 100 50 100 100")');
+  expect(out).toContain('clip-path:path("m0 0h100v100H0z") path("m5 5h1v1z")');
+});
+
+test("crush leaves non-path strings alone", () => {
+  const out = crush(`
+    :root { --t: 'M 1 2 L 3 4'; }
+    #x { type: text; content: 'M 1 2 L 3 4'; font-family: 'M 1 2'; }
+    #y { type: text; content: var(--t); }
+    #z { type: path; d: var(--t); }
+  `);
+  expect(out).toContain('content:"M 1 2 L 3 4"');
+  expect(out).toContain('font-family:"M 1 2"');
+  // --t is also text content, so it is neither compacted nor inlined.
+  expect(out).toMatch(/--[a-z]+:"M 1 2 L 3 4"/);
+});
+
+test("crush inlines a :root path var referenced exactly once", () => {
+  const out = crush(`
+    :root { --once: 'M 0 0 L 10 10'; --twice: 'M 0 0 L 20 20'; }
+    @keyframes k { 0% { d: var(--twice); } }
+    #a { type: path; d: var(--once); }
+    #b { type: path; d: var(--twice); animation: k 1s; }
+  `);
+  expect(out).toContain('d:"m0 0 10 10"');
+  expect(out).not.toContain('"m0 0 10 10";');
+  // Two references: kept as a (compacted) var.
+  expect(out).toMatch(/--[a-z]+:"m0 0 20 20"/);
+  expect(out).toMatch(/d:var\(--[a-z]+\)/);
+});
+
+test("crush follows var aliases into path positions", () => {
+  const out = crush(`
+    :root { --base: 'M 0 0 L 10 10'; --alias: var(--base); }
+    #a { type: path; d: var(--alias); }
+    #b { type: path; d: var(--alias); }
+  `);
+  // --base's only use is the path var --alias: compacted and inlined into it.
+  expect(out).toMatch(/--[a-z]+:"m0 0 10 10"/);
+  expect(out).not.toContain("M 0 0");
+});
+
+test("crush does not inline overridden, reactive or guard-read path vars", () => {
+  const out = crush(`
+    :root { --o: 'M 0 0 L 1 1'; --g: 'M 0 0 L 2 2'; }
+    #a { type: path; d: var(--o); }
+    #b { type: group; --o: 'M 0 0 L 3 3'; }
+    #c { type: path; d: var(--g); }
+    @machine m { initial: s; state s { to: s on click(#c) when style(--g = 1); } }
+  `);
+  expect(out).toMatch(/--[a-z]+:"m0 0 1 1"/);
+  expect(out).toMatch(/--[a-z]+:"m0 0 3 3"/);
+  expect(out).toMatch(/--[a-z]+:"M 0 0 L 2 2"/);
+});
+
+test("crush inlines a path var whose other refs sit in merged duplicate @keyframes", () => {
+  const out = crush(`
+    :root { --p: 'M 0 0 L 10 10'; }
+    @keyframes k1 { 0% { d: var(--p); } }
+    @keyframes k2 { 0% { d: var(--p); } }
+    #a { type: path; animation: k1 1s; }
+    #b { type: path; animation: k2 1s; }
+  `);
+  expect(kfNames(out)).toHaveLength(1);
+  expect(out).toContain('d:"m0 0 10 10"');
+  expect(out).not.toContain("var(");
+});

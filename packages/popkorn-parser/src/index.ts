@@ -49,4 +49,5 @@ export type { Diagnostic, Severity } from "./diagnostics.js";
 export { offsetToLineCol } from "./diagnostics.js";
 export { NAMED_COLOR_RGB } from "./named-colors.js";
 export { parse, validate } from "./parser.js";
+export { compactPath, decodePath, type PathSeg } from "./path-codec.js";
 export { serialize } from "./serializer.js";

@@ -83,6 +83,28 @@ function renderTrace(src: string): string {
   return r.trace.join("\n");
 }
 
+const NUM = /-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/g;
+
+// Same trace up to crush's path rounding: path/clip coordinates within 0.006, all else float noise.
+function expectSameTrace(got: string, want: string, label: string): void {
+  if (got === want) return;
+  const a = got.split("\n");
+  const b = want.split("\n");
+  expect(a.length, label).toBe(b.length);
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === b[i]) continue;
+    expect(a[i].replace(NUM, "#"), label).toBe(b[i].replace(NUM, "#"));
+    const isPath = /^(drawPath|clip)\(/.test(b[i]);
+    const na = a[i].match(NUM)!.map(Number);
+    const nb = b[i].match(NUM)!.map(Number);
+    na.forEach((v, k) => {
+      const tol = isPath ? 0.006 : 1e-9 * Math.max(1, Math.abs(nb[k]));
+      if (Math.abs(v - nb[k]) > tol)
+        throw new Error(`${label}: line ${i} value ${k}: ${v} vs ${nb[k]}`);
+    });
+  }
+}
+
 // The property/value bits crush deliberately leaves alone must survive verbatim.
 const RICH_SCENE = `
 :root {
@@ -150,8 +172,10 @@ test("crush renders identically across the example gallery", () => {
   for (const f of files) {
     const src = readFileSync(join(dir, f), "utf8");
     const crushed = serialize(parse(src), { crush: true });
-    expect(renderTrace(crushed), `${f} render drift after crush`).toBe(
+    expectSameTrace(
+      renderTrace(crushed),
       renderTrace(src),
+      `${f} render drift after crush`,
     );
     count++;
   }
