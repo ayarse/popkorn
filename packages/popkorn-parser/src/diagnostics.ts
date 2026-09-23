@@ -1,5 +1,7 @@
 // Diagnostic shape, check vocabularies and "did you mean"; parser.ts decides where each fires.
 
+import { NAMED_COLOR_RGB } from "./named-colors.js";
+
 export type Severity = "error" | "warning" | "info";
 
 export interface Diagnostic {
@@ -151,56 +153,10 @@ export const COLOR_KEYWORDS = new Set<string>([
   "unset",
 ]);
 
-// Hand-synced mirror of the player's NAMED_COLORS; only feeds hints, so drift is harmless.
-export const NAMED_COLORS = new Set<string>([
-  "black",
-  "white",
-  "red",
-  "green",
-  "blue",
-  "yellow",
-  "cyan",
-  "magenta",
-  "gray",
-  "grey",
-  "silver",
-  "maroon",
-  "olive",
-  "lime",
-  "aqua",
-  "teal",
-  "navy",
-  "fuchsia",
-  "purple",
-  "orange",
-  "pink",
-  "brown",
-  "gold",
-  "indigo",
-  "violet",
-  "crimson",
-  "coral",
-  "salmon",
-  "khaki",
-  "orchid",
-  "plum",
-  "tan",
-  "turquoise",
-  "darkgray",
-  "darkgrey",
-  "lightgray",
-  "lightgrey",
-  "darkblue",
-  "darkgreen",
-  "darkred",
-  "steelblue",
-  "slategray",
-  "skyblue",
-  "tomato",
-  "seagreen",
-  "royalblue",
-  "dodgerblue",
-]);
+/** Every CSS named color; feeds the unknown-color hint. */
+export const NAMED_COLORS: ReadonlySet<string> = new Set(
+  NAMED_COLOR_RGB.keys(),
+);
 
 /** `animation` shorthand keywords; any other ident is the @keyframes name. */
 const ANIMATION_KEYWORDS = new Set<string>([

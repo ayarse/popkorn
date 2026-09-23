@@ -1,5 +1,6 @@
-// CSS color strings → RGBA: hex, rgb(a), hsl(a), oklab/oklch and a named subset.
+// CSS color strings → RGBA: hex, rgb(a), hsl(a), oklab/oklch and CSS named colors.
 
+import { NAMED_COLOR_RGB } from "@popkorn/parser";
 import { oklabToRgba, tryParseOklabColor } from "./oklab.js";
 import type { Color, RGBAColor } from "./types.js";
 
@@ -10,7 +11,7 @@ export function colorToCSS(color: Color): string {
   return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
 }
 
-// Duplicated from converters svg2popkorn.ts `hslToRgb` so the player stays dependency-free; keep in sync.
+// HSL (h degrees, s/l 0..1) → sRGB bytes.
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   h = (((h % 360) + 360) % 360) / 360;
   s = Math.max(0, Math.min(1, s));
@@ -36,65 +37,22 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   ];
 }
 
-// Hand-authoring subset of CSS named colors, duplicated from converters `NAMED`; keep in sync.
-const NAMED_COLORS: Record<string, [number, number, number]> = {
-  black: [0, 0, 0],
-  white: [255, 255, 255],
-  red: [255, 0, 0],
-  green: [0, 128, 0],
-  blue: [0, 0, 255],
-  yellow: [255, 255, 0],
-  cyan: [0, 255, 255],
-  magenta: [255, 0, 255],
-  gray: [128, 128, 128],
-  grey: [128, 128, 128],
-  silver: [192, 192, 192],
-  maroon: [128, 0, 0],
-  olive: [128, 128, 0],
-  lime: [0, 255, 0],
-  aqua: [0, 255, 255],
-  teal: [0, 128, 128],
-  navy: [0, 0, 128],
-  fuchsia: [255, 0, 255],
-  purple: [128, 0, 128],
-  orange: [255, 165, 0],
-  pink: [255, 192, 203],
-  brown: [165, 42, 42],
-  gold: [255, 215, 0],
-  indigo: [75, 0, 130],
-  violet: [238, 130, 238],
-  crimson: [220, 20, 60],
-  coral: [255, 127, 80],
-  salmon: [250, 128, 114],
-  khaki: [240, 230, 140],
-  orchid: [218, 112, 214],
-  plum: [221, 160, 221],
-  tan: [210, 180, 140],
-  turquoise: [64, 224, 208],
-  darkgray: [169, 169, 169],
-  darkgrey: [169, 169, 169],
-  lightgray: [211, 211, 211],
-  lightgrey: [211, 211, 211],
-  darkblue: [0, 0, 139],
-  darkgreen: [0, 100, 0],
-  darkred: [139, 0, 0],
-  steelblue: [70, 130, 180],
-  slategray: [112, 128, 144],
-  skyblue: [135, 206, 235],
-  tomato: [255, 99, 71],
-  seagreen: [46, 139, 87],
-  royalblue: [65, 105, 225],
-  dodgerblue: [30, 144, 255],
-};
+// CSS number or percentage; `pct` is the value 100% maps to.
+function channel(v: string | undefined, pct: number): number {
+  if (v == null) return Number.NaN;
+  return v.endsWith("%") ? (parseFloat(v) / 100) * pct : parseFloat(v);
+}
 
-// Hex, rgb/rgba, hsl/hsla, oklab/oklch and the named subset; null when unrecognized.
+const clamp = (v: number, hi: number) => Math.max(0, Math.min(hi, v));
+
+// Hex, rgb/rgba, hsl/hsla (legacy or space syntax, % channels), oklab/oklch and CSS named colors; null when unrecognized.
 export function tryParseColor(value: string): RGBAColor | null {
   const s = value.trim().toLowerCase();
 
   if (s.startsWith("#")) {
     let hex = s.slice(1);
-    if (hex.length === 3)
-      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    if (!/^[0-9a-f]+$/.test(hex)) return null;
+    if (hex.length === 3 || hex.length === 4) hex = hex.replace(/./g, "$&$&");
     if (hex.length !== 6 && hex.length !== 8) return null;
     const byte = (i: number) => parseInt(hex.slice(i, i + 2), 16);
     return {
@@ -105,27 +63,21 @@ export function tryParseColor(value: string): RGBAColor | null {
     };
   }
 
-  const rgbaMatch = s.match(
-    /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/,
-  );
-  if (rgbaMatch) {
-    return {
-      r: parseInt(rgbaMatch[1], 10),
-      g: parseInt(rgbaMatch[2], 10),
-      b: parseInt(rgbaMatch[3], 10),
-      a: rgbaMatch[4] ? parseFloat(rgbaMatch[4]) : 1,
-    };
-  }
-
-  const hslMatch = s.match(/^hsla?\(([^)]*)\)$/);
-  if (hslMatch) {
-    const parts = hslMatch[1].split(/[\s,/]+/).filter(Boolean);
-    const [r, g, b] = hslToRgb(
-      parseFloat(parts[0]),
-      parseFloat(parts[1]) / 100,
-      parseFloat(parts[2]) / 100,
-    );
-    return { r, g, b, a: parts[3] != null ? parseFloat(parts[3]) : 1 };
+  const fn = s.match(/^(rgba?|hsla?)\(([^)]*)\)$/);
+  if (fn) {
+    const parts = fn[2].split(/[\s,/]+/).filter(Boolean);
+    const a = parts[3] != null ? clamp(channel(parts[3], 1), 1) : 1;
+    const byte = (i: number) => Math.round(clamp(channel(parts[i], 255), 255));
+    const rgb: [number, number, number] = fn[1].startsWith("rgb")
+      ? [byte(0), byte(1), byte(2)]
+      : // s/l: `%` or a bare number (CSS Color 4), both 0..100.
+        hslToRgb(
+          parseFloat(parts[0]),
+          parseFloat(parts[1]) / 100,
+          parseFloat(parts[2]) / 100,
+        );
+    if (rgb.some(Number.isNaN) || Number.isNaN(a)) return null;
+    return { r: rgb[0], g: rgb[1], b: rgb[2], a };
   }
 
   // oklab()/oklch() (CSS Color 4). Wide-gamut input clips per channel.
@@ -134,7 +86,7 @@ export function tryParseColor(value: string): RGBAColor | null {
     if (ok) return oklabToRgba(ok);
   }
 
-  const named = NAMED_COLORS[s];
+  const named = NAMED_COLOR_RGB.get(s);
   if (named) return { r: named[0], g: named[1], b: named[2], a: 1 };
 
   return null;

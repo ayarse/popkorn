@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { offsetToLineCol } from "./diagnostics.js";
+import { NAMED_COLORS, offsetToLineCol } from "./diagnostics.js";
+import { NAMED_COLOR_RGB } from "./named-colors.js";
 import { parse, validate } from "./parser.js";
 
 // One assertion per diagnostic code — each pins the code, severity, a hint when
@@ -80,9 +81,24 @@ test("unknown-color: bad color keyword + did-you-mean + value span", () => {
 });
 
 test("unknown-color: named colors, hex, none, and refs pass", () => {
-  for (const v of ["red", "#ff0000", "none", "transparent", "#myLayer"]) {
+  for (const v of [
+    "red",
+    "rebeccapurple",
+    "lightgoldenrodyellow",
+    "#ff0000",
+    "none",
+    "transparent",
+    "#myLayer",
+  ]) {
     expect(find(`#box { fill: ${v}; }`, "unknown-color")).toBeUndefined();
   }
+});
+
+test("named colors: full CSS Color 4 table, diagnostics derived from it", () => {
+  expect(NAMED_COLOR_RGB.size).toBe(148);
+  expect(NAMED_COLOR_RGB.get("rebeccapurple")).toEqual([102, 51, 153]);
+  expect(NAMED_COLOR_RGB.has("transparent")).toBe(false);
+  expect([...NAMED_COLORS]).toEqual([...NAMED_COLOR_RGB.keys()]);
 });
 
 test("unknown-keyframes: animation-name to missing @keyframes", () => {

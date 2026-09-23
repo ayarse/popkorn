@@ -151,8 +151,12 @@ test("named colors, rgb(), hsl() and currentColor all normalize", () => {
   const named = conv(
     `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="rebeccapurple"/></svg>`,
   );
-  // rebeccapurple isn't in the pragmatic table -> warns + black fallback.
-  expect(named.warnings.some((w) => w.includes("rebeccapurple"))).toBe(true);
+  expect(block(named.css, "rect1")).toContain("fill: #663399");
+  expect(named.warnings.some((w) => w.includes("color"))).toBe(false);
+  const bogus = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="notacolor"/></svg>`,
+  );
+  expect(bogus.warnings.some((w) => w.includes("notacolor"))).toBe(true);
   const rgb = conv(
     `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="rgb(10,20,30)"/></svg>`,
   ).css;
@@ -161,6 +165,11 @@ test("named colors, rgb(), hsl() and currentColor all normalize", () => {
     `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="hsl(0,100%,50%)"/></svg>`,
   ).css;
   expect(block(hsl, "rect1")).toContain("fill: #ff0000");
+  const pct = conv(
+    `<svg viewBox="0 0 10 10"><rect width="5" height="5" fill="rgb(100%,0%,0%)" stroke="oklch(0.628 0.2577 29.23)"/></svg>`,
+  ).css;
+  expect(block(pct, "rect1")).toContain("fill: #ff0000");
+  expect(block(pct, "rect1")).toContain("stroke: #ff0000");
 });
 
 test("currentColor resolves to the inherited color", () => {

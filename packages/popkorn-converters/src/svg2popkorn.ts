@@ -30,7 +30,7 @@
  * `<animateMotion>`, event/sync-base begins, additive/accumulate, and skew
  * degrade to a warning.
  */
-import { parsePath } from "@popkorn/player";
+import { parsePath, tryParseColor } from "@popkorn/player";
 import {
   emitColor,
   type Rule,
@@ -197,117 +197,11 @@ function decompose(m: Mat): {
 // Colors — normalize any SVG color to hex / rgba(), folding an opacity 0..1 in.
 // ---------------------------------------------------------------------------
 
-// A pragmatic subset of the 147 CSS named colors — the ones that actually show
-// up in hand-authored/exported SVG. Unknown names fall back with a warning.
-const NAMED: Record<string, [number, number, number]> = {
-  black: [0, 0, 0],
-  white: [255, 255, 255],
-  red: [255, 0, 0],
-  green: [0, 128, 0],
-  blue: [0, 0, 255],
-  yellow: [255, 255, 0],
-  cyan: [0, 255, 255],
-  magenta: [255, 0, 255],
-  gray: [128, 128, 128],
-  grey: [128, 128, 128],
-  silver: [192, 192, 192],
-  maroon: [128, 0, 0],
-  olive: [128, 128, 0],
-  lime: [0, 255, 0],
-  aqua: [0, 255, 255],
-  teal: [0, 128, 128],
-  navy: [0, 0, 128],
-  fuchsia: [255, 0, 255],
-  purple: [128, 0, 128],
-  orange: [255, 165, 0],
-  pink: [255, 192, 203],
-  brown: [165, 42, 42],
-  gold: [255, 215, 0],
-  indigo: [75, 0, 130],
-  violet: [238, 130, 238],
-  crimson: [220, 20, 60],
-  coral: [255, 127, 80],
-  salmon: [250, 128, 114],
-  khaki: [240, 230, 140],
-  orchid: [218, 112, 214],
-  plum: [221, 160, 221],
-  tan: [210, 180, 140],
-  turquoise: [64, 224, 208],
-  darkgray: [169, 169, 169],
-  darkgrey: [169, 169, 169],
-  lightgray: [211, 211, 211],
-  lightgrey: [211, 211, 211],
-  darkblue: [0, 0, 139],
-  darkgreen: [0, 100, 0],
-  darkred: [139, 0, 0],
-  steelblue: [70, 130, 180],
-  slategray: [112, 128, 144],
-  skyblue: [135, 206, 235],
-  tomato: [255, 99, 71],
-  seagreen: [46, 139, 87],
-  royalblue: [65, 105, 225],
-  dodgerblue: [30, 144, 255],
-};
-
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  h = (((h % 360) + 360) % 360) / 360;
-  s = Math.max(0, Math.min(1, s));
-  l = Math.max(0, Math.min(1, l));
-  if (s === 0) {
-    const v = Math.round(l * 255);
-    return [v, v, v];
-  }
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  const hue = (t: number) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  return [
-    Math.round(hue(h + 1 / 3) * 255),
-    Math.round(hue(h) * 255),
-    Math.round(hue(h - 1 / 3) * 255),
-  ];
-}
-
 /** Parse a CSS/SVG color to [r,g,b,a] (0..255, a 0..1), or null if unrecognized. */
 function parseColor(raw: string): [number, number, number, number] | null {
-  const s = raw.trim().toLowerCase();
-  if (s === "transparent") return [0, 0, 0, 0];
-  if (s[0] === "#") {
-    const h = s.slice(1);
-    const x = (i: number, len: number) =>
-      parseInt(len === 1 ? h[i] + h[i] : h.slice(i, i + 2), 16);
-    if (h.length === 3 || h.length === 4) {
-      return [x(0, 1), x(1, 1), x(2, 1), h.length === 4 ? x(3, 1) / 255 : 1];
-    }
-    if (h.length === 6 || h.length === 8) {
-      return [x(0, 2), x(2, 2), x(4, 2), h.length === 8 ? x(6, 2) / 255 : 1];
-    }
-    return null;
-  }
-  const fn = s.match(/^(rgba?|hsla?)\(([^)]*)\)$/);
-  if (fn) {
-    const parts = fn[2].split(/[\s,/]+/).filter(Boolean);
-    const p = (v: string, scale = 1) =>
-      v.endsWith("%") ? (parseFloat(v) / 100) * scale : parseFloat(v);
-    if (fn[1].startsWith("rgb")) {
-      return [
-        Math.round(p(parts[0], 255)),
-        Math.round(p(parts[1], 255)),
-        Math.round(p(parts[2], 255)),
-        parts[3] != null ? p(parts[3]) : 1,
-      ];
-    }
-    const [r, g, b] = hslToRgb(parseFloat(parts[0]), p(parts[1]), p(parts[2]));
-    return [r, g, b, parts[3] != null ? p(parts[3]) : 1];
-  }
-  if (NAMED[s]) return [...NAMED[s], 1];
-  return null;
+  if (raw.trim().toLowerCase() === "transparent") return [0, 0, 0, 0];
+  const c = tryParseColor(raw);
+  return c ? [c.r, c.g, c.b, c.a] : null;
 }
 
 /** Serialize [r,g,b,a] to #rrggbb (alpha≈1) or rgba(). */

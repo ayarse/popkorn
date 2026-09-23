@@ -14,7 +14,7 @@ export {
 } from "./animation/scheduler.js";
 export { PopkornPlayer, registerPopkornPlayer } from "./component.js";
 export { Canvas2DRenderer } from "./renderer/canvas2d.js";
-export { parseColor } from "./renderer/color.js";
+export { parseColor, tryParseColor } from "./renderer/color.js";
 export type {
   ClipObs,
   ConformanceHarness,

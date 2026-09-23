@@ -1,5 +1,6 @@
 import {
   type Diagnostic,
+  NAMED_COLOR_RGB,
   offsetToLineCol,
   parse,
   type StyleSheet,
@@ -269,69 +270,6 @@ function stripNonCode(text: string): string {
   return out;
 }
 
-// NOTE: pragmatic subset of the ~148 CSS named colors — the common ones seen in
-// hand-authored and converted scenes. Ceiling: an exotic name (e.g.
-// `lightgoldenrodyellow`) in a fill won't be flagged; add it here if it shows
-// up. `none`/`transparent`/`currentcolor` are intentionally excluded.
-const NAMED_COLORS = new Set([
-  "aqua",
-  "aquamarine",
-  "beige",
-  "black",
-  "blue",
-  "brown",
-  "chocolate",
-  "coral",
-  "crimson",
-  "cyan",
-  "darkblue",
-  "darkgray",
-  "darkgreen",
-  "darkgrey",
-  "darkred",
-  "fuchsia",
-  "gold",
-  "goldenrod",
-  "gray",
-  "green",
-  "grey",
-  "indigo",
-  "ivory",
-  "khaki",
-  "lavender",
-  "lightblue",
-  "lightgray",
-  "lightgreen",
-  "lightgrey",
-  "lime",
-  "magenta",
-  "maroon",
-  "navy",
-  "olive",
-  "orange",
-  "orchid",
-  "pink",
-  "plum",
-  "purple",
-  "rebeccapurple",
-  "red",
-  "salmon",
-  "sienna",
-  "silver",
-  "skyblue",
-  "slategray",
-  "slategrey",
-  "steelblue",
-  "tan",
-  "teal",
-  "tomato",
-  "turquoise",
-  "violet",
-  "wheat",
-  "white",
-  "yellow",
-]);
-
 const HEX_RE =
   /#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b/g;
 const FN_RE = /\b(rgba?|hsla?)\(([^)]*)\)/gi;
@@ -354,7 +292,7 @@ function canonFn(name: string, args: string): string {
 
 function isColorValue(v: string): boolean {
   return (
-    HEX_FULL.test(v) || FN_FULL.test(v) || NAMED_COLORS.has(v.toLowerCase())
+    HEX_FULL.test(v) || FN_FULL.test(v) || NAMED_COLOR_RGB.has(v.toLowerCase())
   );
 }
 
@@ -377,7 +315,7 @@ function paletteLine(source: string): string | null {
   const scanNamed = (val: string) => {
     for (const m of val.matchAll(/[a-zA-Z]+/g)) {
       const lower = m[0].toLowerCase();
-      if (NAMED_COLORS.has(lower)) bump(lower, m[0]);
+      if (NAMED_COLOR_RGB.has(lower)) bump(lower, m[0]);
     }
   };
 
