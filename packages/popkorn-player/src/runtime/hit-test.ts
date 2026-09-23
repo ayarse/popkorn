@@ -11,13 +11,7 @@ import {
 import { flattenToSubpaths } from "../scene/path-parser.js";
 import { polystarCommands } from "../scene/polystar.js";
 import { computeWorldMatrix, getShapeBounds } from "../scene/transform.js";
-import type {
-  CircleData,
-  EllipseData,
-  FillRule,
-  RectData,
-  SceneNode,
-} from "../scene/types.js";
+import type { EllipseData, FillRule, SceneNode } from "../scene/types.js";
 import { childrenInPaintOrder } from "../scene/types.js";
 
 export interface Point {
@@ -25,30 +19,53 @@ export interface Point {
   y: number;
 }
 
+type Rect = { x: number; y: number; width: number; height: number };
+type Circle = { cx: number; cy: number; r: number };
+
+/** Last containing shape (preorder = paint order) and the last one credited to an interactive node. */
+interface Found {
+  shape: SceneNode | null;
+  shapeCredit: SceneNode | null;
+  credited: SceneNode | null;
+}
+
 /** Topmost interactive node; any containing shape credits its nearest interactive ancestor-or-self (DOM bubbling). */
 export function hitTest(root: SceneNode, point: Point): SceneNode | null {
-  // Max paint depth credited to each interactive node.
-  const hits = new Map<SceneNode, number>();
-  hitTestNode(root, point, IDENTITY_MATRIX, { value: 0 }, null, hits);
+  return walk(root, point).credited;
+}
 
-  let best: SceneNode | null = null;
-  let bestDepth = -Infinity;
-  for (const [node, depth] of hits) {
-    if (depth > bestDepth) {
-      bestDepth = depth;
-      best = node;
-    }
-  }
-  return best;
+/** Credited node plus its root → node id path. */
+export interface ClickHit {
+  node: SceneNode;
+  path: string[];
+}
+
+/** Topmost shape of any kind, credited to its nearest interactive ancestor if any. */
+export function hitTestClick(root: SceneNode, point: Point): ClickHit | null {
+  const found = walk(root, point);
+  if (!found.shape) return null;
+  const target = found.shapeCredit ?? found.shape;
+  return { node: target, path: ancestorPath(target) };
+}
+
+function walk(root: SceneNode, point: Point): Found {
+  const found: Found = { shape: null, shapeCredit: null, credited: null };
+  hitTestNode(root, point, IDENTITY_MATRIX, null, found);
+  return found;
+}
+
+function ancestorPath(node: SceneNode): string[] {
+  const ids: string[] = [];
+  for (let n: SceneNode | null = node; n; n = n.parent) ids.push(n.id);
+  return ids.reverse();
 }
 
 function hitTestNode(
   node: SceneNode,
   point: Point,
   parentWorld: Matrix3x3,
-  order: { value: number },
   nearestInteractive: SceneNode | null,
-  hits: Map<SceneNode, number>,
+  found: Found,
 ): void {
   // Same gating as the render walk.
   if (node.hidden || node.displayNone) return;
@@ -60,7 +77,6 @@ function hitTestNode(
   if (node.pointerEvents === "none") return;
 
   const world = computeWorldMatrix(node, parentWorld);
-  const depth = order.value++;
   const local = transformPoint(invertMatrix(world), point.x, point.y);
 
   const clip = resolveClip(node);
@@ -69,71 +85,14 @@ function hitTestNode(
   const credited = node.interactive ? node : nearestInteractive;
 
   // Groups have no geometry, so they're only credited via descendants.
-  if (credited && isPointInShape(node, local)) {
-    const prev = hits.get(credited);
-    if (prev === undefined || depth > prev) hits.set(credited, depth);
+  if (isPointInShape(node, local)) {
+    found.shape = node;
+    found.shapeCredit = credited;
+    if (credited) found.credited = credited;
   }
 
   for (const child of childrenInPaintOrder(node)) {
-    hitTestNode(child, point, world, order, credited, hits);
-  }
-}
-
-/** Credited node plus its root → node id path. */
-export interface ClickHit {
-  node: SceneNode;
-  path: string[];
-}
-
-/** Topmost shape of any kind, credited to its nearest interactive ancestor if any. Full-tree walk: edges only. */
-export function hitTestClick(root: SceneNode, point: Point): ClickHit | null {
-  const found: {
-    depth: number;
-    node: SceneNode | null;
-    credited: SceneNode | null;
-  } = { depth: -Infinity, node: null, credited: null };
-  clickTestNode(root, point, IDENTITY_MATRIX, { value: 0 }, null, found);
-  if (!found.node) return null;
-  const target = found.credited ?? found.node;
-  return { node: target, path: ancestorPath(target) };
-}
-
-function ancestorPath(node: SceneNode): string[] {
-  const ids: string[] = [];
-  for (let n: SceneNode | null = node; n; n = n.parent) ids.push(n.id);
-  return ids.reverse();
-}
-
-/** Full-tree {@link hitTestNode}; skips the same non-hittable subtrees. */
-function clickTestNode(
-  node: SceneNode,
-  point: Point,
-  parentWorld: Matrix3x3,
-  order: { value: number },
-  nearestInteractive: SceneNode | null,
-  found: { depth: number; node: SceneNode | null; credited: SceneNode | null },
-): void {
-  if (node.hidden || node.displayNone) return;
-  if (node.isMaskSource) return;
-  if (node.pointerEvents === "none") return;
-
-  const world = computeWorldMatrix(node, parentWorld);
-  const depth = order.value++;
-  const local = transformPoint(invertMatrix(world), point.x, point.y);
-
-  const clip = resolveClip(node);
-  if (clip && !isPointInClip(clip, local, node.fillRule)) return;
-
-  const credited = node.interactive ? node : nearestInteractive;
-
-  if (isPointInShape(node, local) && depth > found.depth) {
-    found.depth = depth;
-    found.node = node;
-    found.credited = credited;
-  }
-
-  for (const child of childrenInPaintOrder(node)) {
-    clickTestNode(child, point, world, order, credited, found);
+    hitTestNode(child, point, world, credited, found);
   }
 }
 
@@ -145,17 +104,9 @@ function isPointInClip(
 ): boolean {
   switch (clip.type) {
     case "rect":
-      return (
-        point.x >= clip.x &&
-        point.x <= clip.x + clip.width &&
-        point.y >= clip.y &&
-        point.y <= clip.y + clip.height
-      );
-    case "circle": {
-      const dx = point.x - clip.cx;
-      const dy = point.y - clip.cy;
-      return dx * dx + dy * dy <= clip.r * clip.r;
-    }
+      return isPointInRect(clip, point);
+    case "circle":
+      return isPointInCircle(clip, point);
     case "path":
       return isPointInCommands(clip.commands, point, fillRule);
   }
@@ -176,23 +127,14 @@ function isPointInShape(node: SceneNode, point: Point): boolean {
     case "polygon":
       return isPointInCommands(polystarCommands(node), point, node.fillRule);
     case "text":
-    case "image": {
-      const b = getShapeBounds(node);
-      return (
-        point.x >= b.x &&
-        point.x <= b.x + b.width &&
-        point.y >= b.y &&
-        point.y <= b.y + b.height
-      );
-    }
-    case "group":
-      return false;
+    case "image":
+      return isPointInRect(getShapeBounds(node), point);
     default:
       return false;
   }
 }
 
-function isPointInRect(rect: RectData, point: Point): boolean {
+function isPointInRect(rect: Rect, point: Point): boolean {
   return (
     point.x >= rect.x &&
     point.x <= rect.x + rect.width &&
@@ -201,7 +143,7 @@ function isPointInRect(rect: RectData, point: Point): boolean {
   );
 }
 
-function isPointInCircle(circle: CircleData, point: Point): boolean {
+function isPointInCircle(circle: Circle, point: Point): boolean {
   const dx = point.x - circle.cx;
   const dy = point.y - circle.cy;
   return dx * dx + dy * dy <= circle.r * circle.r;

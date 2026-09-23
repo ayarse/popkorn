@@ -346,8 +346,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   set renderer(value: string | null) {
-    if (value === null) this.removeAttribute("renderer");
-    else this.setAttribute("renderer", value);
+    this.reflect("renderer", value);
   }
 
   get source(): string {
@@ -368,8 +367,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   set src(value: string | null) {
-    if (value === null) this.removeAttribute("src");
-    else this.setAttribute("src", value);
+    this.reflect("src", value);
   }
 
   private async loadFromUrl(url: string): Promise<void> {
@@ -411,11 +409,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   set background(value: string | null) {
-    if (value) {
-      this.setAttribute("background", value);
-    } else {
-      this.removeAttribute("background");
-    }
+    this.reflect("background", value || null);
   }
 
   get loop(): boolean {
@@ -423,8 +417,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   set loop(value: boolean) {
-    if (value) this.setAttribute("loop", "");
-    else this.removeAttribute("loop");
+    this.reflect("loop", value ? "" : null);
   }
 
   get controls(): boolean {
@@ -432,8 +425,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   set controls(value: boolean) {
-    if (value) this.setAttribute("controls", "");
-    else this.removeAttribute("controls");
+    this.reflect("controls", value ? "" : null);
   }
 
   /** Default TRUE, unlike HTML media: only `autoplay="false"` disables it. */
@@ -456,21 +448,15 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   play(): void {
-    if (this.renderLoop) {
-      this.renderLoop.start();
-    }
+    this.renderLoop?.start();
   }
 
   stop(): void {
-    if (this.renderLoop) {
-      this.renderLoop.stop();
-    }
+    this.renderLoop?.stop();
   }
 
   reset(): void {
-    if (this.renderLoop) {
-      this.renderLoop.reset();
-    }
+    this.renderLoop?.reset();
   }
 
   /** Freeze the timeline (interaction stays live). */
@@ -568,6 +554,12 @@ export class PopkornPlayer extends HTMLElementBase {
   private boolAttr(name: string): boolean {
     const v = this.getAttribute(name);
     return v !== null && v !== "false";
+  }
+
+  // null removes the attribute.
+  private reflect(name: string, value: string | null): void {
+    if (value === null) this.removeAttribute(name);
+    else this.setAttribute(name, value);
   }
 
   private async initializePlayer(): Promise<void> {
@@ -727,7 +719,7 @@ export class PopkornPlayer extends HTMLElementBase {
     if (!this.renderLoop) return;
     if (this.renderLoop.paused) this.resume();
     else this.pause();
-    this.playBtn.textContent = this.paused ? "▶" : "❚❚";
+    this.syncPlayButton();
   }
 
   private onScrubInput(): void {
@@ -738,13 +730,21 @@ export class PopkornPlayer extends HTMLElementBase {
     this.pause();
     const t = Number(this.scrub.value);
     this.seek(t);
-    this.timeEl.textContent = `${formatTime(t)} / ${formatTime(this.duration)}`;
+    this.setReadout(t);
   }
 
   private onScrubChange(): void {
     this.scrubbing = false;
     if (this.wasPlaying) this.resume();
+    this.syncPlayButton();
+  }
+
+  private syncPlayButton(): void {
     this.playBtn.textContent = this.paused ? "▶" : "❚❚";
+  }
+
+  private setReadout(ms: number): void {
+    this.timeEl.textContent = `${formatTime(ms)} / ${formatTime(this.duration)}`;
   }
 
   /** Per-frame tick: advances the scrubber + readout unless dragging. */
@@ -759,16 +759,12 @@ export class PopkornPlayer extends HTMLElementBase {
     // Mirror the hovered node's `cursor: pointer`; hover is already resolved by the interaction manager.
     this.syncCursor();
     if (!this.boolAttr("controls")) return;
-    if (!this.scrubbing) {
-      const d = this.duration;
-      const finite = isFinite(d);
+    // Unbounded: scrubber and readout are hidden.
+    if (!this.scrubbing && Number.isFinite(d)) {
       // Animation-less scenes (d = 0) free-run; clamp the readout.
       const shown = d > 0 ? Math.min(t, d) : 0;
-      if (finite) {
-        this.scrub.value = String(shown);
-        this.timeEl.textContent = `${formatTime(shown)} / ${formatTime(d)}`;
-      }
-      // Unbounded: scrubber and readout are hidden.
+      this.scrub.value = String(shown);
+      this.setReadout(shown);
     }
   }
 
@@ -789,16 +785,15 @@ export class PopkornPlayer extends HTMLElementBase {
     this.syncSize();
     if (!show) return;
     const d = this.duration;
-    const finite = isFinite(d);
+    const finite = Number.isFinite(d);
     // Unbounded scenes have no endpoint: play/pause only (like Rive's state machines).
     this.scrub.style.display = finite ? "" : "none";
     this.timeEl.style.display = finite ? "" : "none";
     this.scrub.max = String(finite ? d : 0);
     this.scrub.disabled = !finite || d <= 0;
     this.scrub.value = String(this.currentTime);
-    this.playBtn.textContent = this.paused ? "▶" : "❚❚";
-    if (finite)
-      this.timeEl.textContent = `${formatTime(this.currentTime)} / ${formatTime(d)}`;
+    this.syncPlayButton();
+    if (finite) this.setReadout(this.currentTime);
   }
 }
 

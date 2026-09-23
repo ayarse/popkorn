@@ -9,7 +9,7 @@ import { cloneGradient } from "../renderer/types.js";
 import type { MotionPath } from "./path-parser.js";
 
 // `auto` follows the tangent; `angle` is an offset (auto) or fixed orientation.
-interface OffsetRotate {
+export interface OffsetRotate {
   auto: boolean;
   angle: number; // degrees
 }
@@ -32,11 +32,13 @@ export type ShapeType =
   | "image";
 
 // Track-mask modes (Lottie tt); *-invert flips the source's alpha/luminance.
-export type MaskMode =
-  | "alpha"
-  | "alpha-invert"
-  | "luminance"
-  | "luminance-invert";
+export const MASK_MODES = [
+  "alpha",
+  "alpha-invert",
+  "luminance",
+  "luminance-invert",
+] as const;
+export type MaskMode = (typeof MASK_MODES)[number];
 
 // Lengths are local and scale with the node's world scale (CSS); color-adjust
 // `amount` is a fraction (1 = 100%) except hue-rotate's, which is degrees.
@@ -66,34 +68,40 @@ export type ColorFilterFn =
   | "hue-rotate";
 
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
-export type FillRule = "nonzero" | "evenodd";
+export const FILL_RULES = ["nonzero", "evenodd"] as const;
+export type FillRule = (typeof FILL_RULES)[number];
 
 // CSS mix-blend-mode; every keyword maps to all three backends.
 // NOTE: per shape against the backdrop; no group isolation.
-export type BlendMode =
-  | "normal"
-  | "multiply"
-  | "screen"
-  | "overlay"
-  | "darken"
-  | "lighten"
-  | "color-dodge"
-  | "color-burn"
-  | "hard-light"
-  | "soft-light"
-  | "difference"
-  | "exclusion"
-  | "hue"
-  | "saturation"
-  | "color"
-  | "luminosity";
+export const BLEND_MODES = [
+  "normal",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion",
+  "hue",
+  "saturation",
+  "color",
+  "luminosity",
+] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
 
 // Maps to CanvasRenderingContext2D.textAlign.
-export type TextAnchor = "start" | "middle" | "end";
+export const TEXT_ANCHORS = ["start", "middle", "end"] as const;
+export type TextAnchor = (typeof TEXT_ANCHORS)[number];
 
-export type StrokeLineCap = "butt" | "round" | "square";
+export const STROKE_LINE_CAPS = ["butt", "round", "square"] as const;
+export type StrokeLineCap = (typeof STROKE_LINE_CAPS)[number];
 
-export type StrokeLineJoin = "miter" | "round" | "bevel";
+export const STROKE_LINE_JOINS = ["miter", "round", "bevel"] as const;
+export type StrokeLineJoin = (typeof STROKE_LINE_JOINS)[number];
 
 // 'stroke' paints stroke behind the fill (SVG `paint-order: stroke`).
 export type PaintOrder = "normal" | "stroke";
@@ -433,24 +441,37 @@ export interface AnimationInstance {
   tracks: KeyframeTrack[];
 }
 
-export type CompositeOperation = "replace" | "add" | "accumulate";
+export const COMPOSITE_OPERATIONS = ["replace", "add", "accumulate"] as const;
+export type CompositeOperation = (typeof COMPOSITE_OPERATIONS)[number];
 
-export type AnimationDirection =
-  | "normal"
-  | "reverse"
-  | "alternate"
-  | "alternate-reverse";
+export const ANIMATION_DIRECTIONS = [
+  "normal",
+  "reverse",
+  "alternate",
+  "alternate-reverse",
+] as const;
+export type AnimationDirection = (typeof ANIMATION_DIRECTIONS)[number];
 
-export type AnimationFillMode = "none" | "forwards" | "backwards" | "both";
+export const ANIMATION_FILL_MODES = [
+  "none",
+  "forwards",
+  "backwards",
+  "both",
+] as const;
+export type AnimationFillMode = (typeof ANIMATION_FILL_MODES)[number];
+
+export const EASING_KEYWORDS = [
+  "linear",
+  "ease",
+  "ease-in",
+  "ease-out",
+  "ease-in-out",
+  "step-start",
+  "step-end",
+] as const;
 
 export type TimingFunction =
-  | "linear"
-  | "ease"
-  | "ease-in"
-  | "ease-out"
-  | "ease-in-out"
-  | "step-start"
-  | "step-end"
+  | (typeof EASING_KEYWORDS)[number]
   | CubicBezier
   | StepsEasing
   | LinearEasing;
@@ -464,11 +485,13 @@ export interface CubicBezier {
 }
 
 // `count` intervals; `step-start`/`step-end` are steps(1, jump-start/jump-end).
-export type StepPosition =
-  | "jump-start"
-  | "jump-end"
-  | "jump-none"
-  | "jump-both";
+export const STEP_POSITIONS = [
+  "jump-start",
+  "jump-end",
+  "jump-none",
+  "jump-both",
+] as const;
+export type StepPosition = (typeof STEP_POSITIONS)[number];
 
 export interface StepsEasing {
   type: "steps";
@@ -587,7 +610,7 @@ function cloneFilter(filter: FilterOp[] | null): FilterOp[] | null {
   return filter ? filter.map((f) => ({ ...f })) : null;
 }
 
-export function snapshotNode(node: SceneNode): NodeBase {
+export function snapshotNode(node: Omit<SceneNode, "base">): NodeBase {
   return {
     transform: cloneTransform(node.transform),
     zIndex: node.zIndex,
@@ -637,13 +660,12 @@ export function resetNodeToBase(node: SceneNode): void {
 }
 
 export function createSceneNode(id: string, type: ShapeType): SceneNode {
-  const transform = createDefaultTransform();
-  return {
+  const node: Omit<SceneNode, "base"> = {
     id,
     type,
     parent: null,
     children: [],
-    transform,
+    transform: createDefaultTransform(),
     fill: null,
     stroke: null,
     strokeWidth: 1,
@@ -688,27 +710,6 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     hidden: false,
     shapeData: { type: "group" },
     animations: [],
-    base: {
-      transform: cloneTransform(transform),
-      zIndex: 0,
-      displayNone: false,
-      fill: null,
-      stroke: null,
-      strokeWidth: 1,
-      opacity: 1,
-      trimStart: 0,
-      trimEnd: 1,
-      trimOffset: 0,
-      strokeDashOffset: 0,
-      offsetDistance: 0,
-      timeRemapValue: null,
-      shapeData: { type: "group" },
-      fillGradient: null,
-      strokeGradient: null,
-      clipPath: null,
-      filter: null,
-      boxShadow: null,
-    },
     bindings: [],
     interactionState: "normal",
     hoverStyles: null,
@@ -721,6 +722,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     animationTimeline: null,
     machines: [],
   };
+  return { ...node, base: snapshotNode(node) };
 }
 
 // Ascending z-index, stable for ties; returns the same array when all are 0.

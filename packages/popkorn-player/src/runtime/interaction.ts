@@ -21,6 +21,7 @@ import type {
   StateStyles,
   TransitionSpec,
 } from "../scene/types.js";
+import { someNode } from "../scene/walk.js";
 import { hitTest, type Point } from "./hit-test.js";
 import type { InputState } from "./inputs.js";
 
@@ -298,7 +299,7 @@ export class InteractionManager {
     this.activeNode = null;
     this.transitions = new WeakMap();
     // `interactive` is build-time only, so update() can skip hit-testing non-interactive scenes.
-    this.hasInteractive = subtreeHasInteractive(root);
+    this.hasInteractive = someNode(root, (n) => n.interactive);
   }
 
   /** `now` (wall-clock) anchors any transition a state flip starts. */
@@ -462,9 +463,4 @@ export class InteractionManager {
   getHoveredNode(): SceneNode | null {
     return this.hoveredNode;
   }
-}
-
-function subtreeHasInteractive(node: SceneNode): boolean {
-  if (node.interactive) return true;
-  return node.children.some(subtreeHasInteractive);
 }

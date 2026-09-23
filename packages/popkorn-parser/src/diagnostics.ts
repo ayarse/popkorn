@@ -18,18 +18,8 @@ export function offsetToLineCol(
   source: string,
   offset: number,
 ): { line: number; column: number } {
-  let line = 1;
-  let column = 1;
-  const end = Math.min(offset, source.length);
-  for (let i = 0; i < end; i++) {
-    if (source[i] === "\n") {
-      line++;
-      column = 1;
-    } else {
-      column++;
-    }
-  }
-  return { line, column };
+  const lines = source.slice(0, Math.max(0, offset)).split("\n");
+  return { line: lines.length, column: lines[lines.length - 1].length + 1 };
 }
 
 // NOTE: hand-synced mirror of the builder's vocabulary (it reads props ad hoc); add new props here.
@@ -236,6 +226,11 @@ const ANIMATION_KEYWORDS = new Set<string>([
 
 export function isReservedAnimationKeyword(kw: string): boolean {
   return ANIMATION_KEYWORDS.has(kw);
+}
+
+// An `animation` token that can name @keyframes: not a reserved keyword, `#id` or `a.b` member.
+export function isKeyframeNameToken(k: string): boolean {
+  return !ANIMATION_KEYWORDS.has(k) && !k.startsWith("#") && !k.includes(".");
 }
 
 // Optimal string alignment distance: Levenshtein + adjacent transposition (`rde`→`red` = 1).

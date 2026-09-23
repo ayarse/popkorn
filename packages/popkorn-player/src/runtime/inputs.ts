@@ -1,5 +1,6 @@
 /** Cursor, touch and scroll state for input(cursor.*)/input(scroll.*). */
 
+import { isFunctionValue, isKeywordValue, type Value } from "@popkorn/parser";
 import { deviceToScene, IDENTITY_VIEWPORT, type Viewport } from "./viewport.js";
 
 export interface InputState {
@@ -30,44 +31,23 @@ export class InputTracker {
   // Device px → scene coords, so hit-testing and input(cursor.*) survive fit/DPR.
   private viewport: Viewport = IDENTITY_VIEWPORT;
   private dpr: number = 1;
-  private boundHandlers: {
-    mouseMove: (e: MouseEvent) => void;
-    mouseDown: (e: MouseEvent) => void;
-    mouseUp: (e: MouseEvent) => void;
-    scroll: (e: Event) => void;
-  } | null = null;
 
   attach(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
-
-    this.boundHandlers = {
-      mouseMove: this.handleMouseMove.bind(this),
-      mouseDown: this.handleMouseDown.bind(this),
-      mouseUp: this.handleMouseUp.bind(this),
-      scroll: this.handleScroll.bind(this),
-    };
-
-    canvas.addEventListener("mousemove", this.boundHandlers.mouseMove);
-    canvas.addEventListener("mousedown", this.boundHandlers.mouseDown);
-    canvas.addEventListener("mouseup", this.boundHandlers.mouseUp);
-    window.addEventListener("scroll", this.boundHandlers.scroll);
+    canvas.addEventListener("mousemove", this.handleMouseMove);
+    canvas.addEventListener("mousedown", this.handleMouseDown);
+    canvas.addEventListener("mouseup", this.handleMouseUp);
+    window.addEventListener("scroll", this.handleScroll);
   }
 
   detach(): void {
-    if (this.canvas && this.boundHandlers) {
-      this.canvas.removeEventListener(
-        "mousemove",
-        this.boundHandlers.mouseMove,
-      );
-      this.canvas.removeEventListener(
-        "mousedown",
-        this.boundHandlers.mouseDown,
-      );
-      this.canvas.removeEventListener("mouseup", this.boundHandlers.mouseUp);
-      window.removeEventListener("scroll", this.boundHandlers.scroll);
+    if (this.canvas) {
+      this.canvas.removeEventListener("mousemove", this.handleMouseMove);
+      this.canvas.removeEventListener("mousedown", this.handleMouseDown);
+      this.canvas.removeEventListener("mouseup", this.handleMouseUp);
+      window.removeEventListener("scroll", this.handleScroll);
     }
     this.canvas = null;
-    this.boundHandlers = null;
   }
 
   getState(): InputState {
@@ -83,7 +63,7 @@ export class InputTracker {
     this.state.time = time;
   }
 
-  private handleMouseMove(e: MouseEvent): void {
+  private handleMouseMove = (e: MouseEvent): void => {
     if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
     // CSS px → device px (×dpr) → scene (inverse viewport).
@@ -92,18 +72,18 @@ export class InputTracker {
     const scene = deviceToScene(this.viewport, deviceX, deviceY);
     this.state.cursor.x = scene.x;
     this.state.cursor.y = scene.y;
-  }
+  };
 
-  private handleMouseDown(_e: MouseEvent): void {
+  private handleMouseDown = (): void => {
     this.state.cursor.isDown = true;
     this.state.cursor.pressed = true;
-  }
+  };
 
-  private handleMouseUp(_e: MouseEvent): void {
+  private handleMouseUp = (): void => {
     this.state.cursor.isDown = false;
-  }
+  };
 
-  private handleScroll(_e: Event): void {
+  private handleScroll = (): void => {
     this.state.scroll.x = window.scrollX;
     this.state.scroll.y = window.scrollY;
     this.state.scroll.progress = scrollProgress(
@@ -111,7 +91,7 @@ export class InputTracker {
       document.documentElement?.scrollHeight ?? 0,
       window.innerHeight,
     );
-  }
+  };
 }
 
 /** scrollY / max(1, range); the max keeps a zero range at 0 rather than NaN. */
@@ -121,4 +101,11 @@ export function scrollProgress(
   innerHeight: number,
 ): number {
   return scrollY / Math.max(1, scrollHeight - innerHeight);
+}
+
+/** `input(cursor.x)` → "cursor.x"; null for anything else. */
+export function inputPathOf(v: Value): string | null {
+  if (!isFunctionValue(v) || v.name !== "input") return null;
+  const arg = v.args[0];
+  return arg && isKeywordValue(arg) ? arg.value : null;
 }

@@ -18,7 +18,7 @@ import {
 } from "@popkorn/parser";
 import { planCalcBatches, runCalcLane } from "./calc-batch.js";
 import { type CompiledCalc, compileCalc, runCalc } from "./calc-compile.js";
-import type { InputState } from "./inputs.js";
+import { type InputState, inputPathOf } from "./inputs.js";
 
 // Keyed by AST identity; repeat copies carry distinct exprs, so only shared source dedups.
 const compiledCalcCache = new WeakMap<CalcExpr, CompiledCalc>();
@@ -31,7 +31,8 @@ export type VariableValue = number | boolean | string;
 
 export class VariableResolver {
   private staticVariables: Map<string, Value> = new Map();
-  private dynamicVariables: Map<string, () => number> = new Map();
+  // `--x: input(path)` → path.
+  private inputVariables: Map<string, string> = new Map();
   private hostOverrides: Map<string, VariableValue> = new Map();
   private triggers: Set<string> = new Set();
   private firedTriggers: Set<string> = new Set();
@@ -45,7 +46,7 @@ export class VariableResolver {
   private readonly calcCtx = {
     resolveCalcVar: (name: string, fallback?: Value): Value =>
       this.resolveVariable(name, fallback),
-    resolveCalcInput: (path: string): number => this.resolveInputPath(path),
+    resolveCalcInput: (path: string): number => this.resolveInput(path),
   };
 
   /** Invalidate the var() memo; called at the top of every draw. */
@@ -55,17 +56,13 @@ export class VariableResolver {
 
   setVariables(variables: VariableDefinition[]): void {
     this.staticVariables.clear();
-    this.dynamicVariables.clear();
+    this.inputVariables.clear();
     this.triggers.clear();
 
     for (const v of variables) {
       if (isFunctionValue(v.value) && v.value.name === "input") {
-        const inputPath = this.getInputPath(v.value.args);
-        if (inputPath) {
-          this.dynamicVariables.set(v.name, () =>
-            this.resolveInputPath(inputPath),
-          );
-        }
+        const path = inputPathOf(v.value);
+        if (path) this.inputVariables.set(v.name, path);
       } else if (isKeywordValue(v.value) && v.value.value === "trigger") {
         this.triggers.add(v.name);
       } else {
@@ -84,16 +81,8 @@ export class VariableResolver {
 
   /** Undefined for unknown names. */
   getVariable(name: string): VariableValue | undefined {
-    const key = normalizeVarName(name);
-    if (
-      !this.hostOverrides.has(key) &&
-      !this.triggers.has(key) &&
-      !this.dynamicVariables.has(key) &&
-      !this.staticVariables.has(key)
-    ) {
-      return undefined;
-    }
-    return valueToPrimitive(this.resolveVariable(key));
+    const v = this.lookupDefinedVar(normalizeVarName(name));
+    return v === VAR_UNDEFINED ? undefined : valueToPrimitive(v);
   }
 
   /** Reads `true` for exactly one frame, until `endFrame()`. */
@@ -192,8 +181,9 @@ export class VariableResolver {
         value: this.firedTriggers.has(name) ? "true" : "false",
       };
     }
-    if (this.dynamicVariables.has(name)) {
-      return { type: "number", value: this.dynamicVariables.get(name)!() };
+    const path = this.inputVariables.get(name);
+    if (path !== undefined) {
+      return { type: "number", value: this.resolveInput(path) };
     }
     if (this.staticVariables.has(name)) {
       return this.resolveValue(this.staticVariables.get(name)!);
@@ -223,22 +213,8 @@ export class VariableResolver {
     return 0;
   }
 
-  /** For machine guards and animation-timeline; unknown paths resolve to 0. */
+  /** Unknown paths resolve to 0. */
   resolveInput(path: string): number {
-    return this.resolveInputPath(path);
-  }
-
-  private getInputPath(args: Value[]): string | null {
-    if (args.length === 0) return null;
-
-    const arg = args[0];
-    if (isKeywordValue(arg)) {
-      return arg.value;
-    }
-    return null;
-  }
-
-  private resolveInputPath(path: string): number {
     // Switch, not split(): runs per binding per frame.
     switch (path) {
       case "cursor.x":

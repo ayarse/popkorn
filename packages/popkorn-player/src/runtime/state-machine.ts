@@ -13,6 +13,7 @@ import type {
   SceneNode,
   TimingFunction,
 } from "../scene/types.js";
+import { forEachNode } from "../scene/walk.js";
 import type { VariableResolver } from "./variables.js";
 
 // Credited to the nearest interactive hit node, or null for empty canvas (still a `:root` occurrence).
@@ -236,14 +237,12 @@ export class StateMachineRunner {
 
   private animationsForState(machine: string, state: string) {
     const acc: AnimationInstance[] = [];
-    const visit = (n: SceneNode): void => {
-      for (const e of n.stateStyles) {
-        if (e.name === state && (e.machine === null || e.machine === machine))
-          acc.push(...e.animations);
-      }
-      n.children.forEach(visit);
-    };
-    if (this.root) visit(this.root);
+    if (this.root)
+      forEachNode(this.root, (n) => {
+        for (const e of n.stateStyles)
+          if (e.name === state && (e.machine === null || e.machine === machine))
+            acc.push(...e.animations);
+      });
     return acc;
   }
 }
@@ -289,9 +288,12 @@ function looseEq(
   a: number | boolean | string | undefined,
   b: number | boolean | string,
 ): boolean {
-  if (typeof a === "boolean" || typeof b === "boolean")
-    return toNum(a) === toNum(b);
-  if (typeof a === "number" || typeof b === "number")
+  if (
+    typeof a === "boolean" ||
+    typeof b === "boolean" ||
+    typeof a === "number" ||
+    typeof b === "number"
+  )
     return toNum(a) === toNum(b);
   return String(a) === String(b);
 }

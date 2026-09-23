@@ -49,9 +49,10 @@ import {
   refreshSortedChildren,
   resetNodeToBase,
 } from "../scene/types.js";
+import { forEachNode, someNode } from "../scene/walk.js";
 import { subtreeToken } from "./content-hash.js";
 import { hitTest, hitTestClick } from "./hit-test.js";
-import { InputTracker } from "./inputs.js";
+import { InputTracker, inputPathOf } from "./inputs.js";
 import {
   applyStateStyles,
   blendProp,
@@ -502,27 +503,23 @@ export class RenderLoop {
 
   /** Raw 0..1 progress of an `animation-timeline` source (var/literal or `input(path)`). */
   private resolveTimelineProgress(value: Value): number {
-    if (isFunctionValue(value) && value.name === "input") {
-      const arg = value.args[0];
-      if (arg && isKeywordValue(arg))
-        return this.variableResolver.resolveInput(arg.value);
-      return 0;
-    }
+    const path = inputPathOf(value);
+    if (path !== null) return this.variableResolver.resolveInput(path);
     return this.variableResolver.resolveNumeric(value);
   }
 
+  private readonly resolveNumeric = (v: Value): number =>
+    this.variableResolver.resolveNumeric(v);
+
   private applyBindings(node: SceneNode): void {
-    const resolve = (v: Value) => this.variableResolver.resolveNumeric(v);
+    const resolve = this.resolveNumeric;
+    const setTransform: Parameters<typeof extractTransform>[1] = (key, val) => {
+      node.transform[key] = val;
+    };
     for (const binding of node.bindings) {
       // Transforms aren't scalar-registry props: re-extract the whole value each frame.
       if (binding.property === "transform") {
-        extractTransform(
-          binding.value,
-          (key, val) => {
-            node.transform[key] = val;
-          },
-          resolve,
-        );
+        extractTransform(binding.value, setTransform, resolve);
         continue;
       }
       // Re-extract xywh() live so a host `--frame` can page a sprite sheet.
@@ -540,9 +537,7 @@ export class RenderLoop {
         extractIndividualTransform(
           binding.property,
           binding.value,
-          (key, val) => {
-            node.transform[key] = val;
-          },
+          setTransform,
           resolve,
         );
         continue;
@@ -550,14 +545,12 @@ export class RenderLoop {
       // Solid colors or `none` only; gradients and non-colors are ignored.
       if (binding.property === "fill" || binding.property === "stroke") {
         const resolved = this.variableResolver.resolveValue(binding.value);
-        const color = colorStringFromValue(resolved);
-        if (color !== null) {
-          if (binding.property === "fill") node.fill = color;
-          else node.stroke = color;
-        } else if (isKeywordValue(resolved) && resolved.value === "none") {
-          if (binding.property === "fill") node.fill = null;
-          else node.stroke = null;
-        }
+        const color =
+          colorStringFromValue(resolved) ??
+          (isKeywordValue(resolved) && resolved.value === "none"
+            ? null
+            : undefined);
+        if (color !== undefined) node[binding.property] = color;
         continue;
       }
       // String/keyword props re-apply through the builder switch (discrete).
@@ -691,10 +684,7 @@ export class RenderLoop {
 
     // Background fills the scene box, not the device buffer, so it letterboxes.
     if (this.backgroundColor) {
-      this.renderer.setFill(this.backgroundColor);
-      this.renderer.setFillGradient(null);
-      this.renderer.setStroke(null, 0);
-      this.renderer.setStrokeGradient(null);
+      this.solidPaint(this.backgroundColor);
       this.renderer.setTrim(null);
       const w = this.sceneWidth || this.renderer.getWidth();
       const h = this.sceneHeight || this.renderer.getHeight();
@@ -709,6 +699,7 @@ export class RenderLoop {
     this.renderer.endFrame();
   }
 
+  // NOTE: a fresh `{}` default is sunk by the JIT; a shared constant measured slower in bun.
   private renderNode(
     node: SceneNode,
     opts: RenderOpts = {},
@@ -726,7 +717,7 @@ export class RenderLoop {
     // Filter is the outermost wrapper (also wraps the mask); outer no-spread box-shadows ride it.
     const filterOps = skipFilter ? null : effectiveFilterOps(node);
     if (filterOps) {
-      if (this.renderer.supportsFilter?.() && this.renderer.compositeFilter) {
+      if (this.canFilter()) {
         this.renderFilter(node, opts, inheritedAlpha, filterOps);
         return;
       }
@@ -870,6 +861,26 @@ export class RenderLoop {
     this.renderer.endNode?.();
   }
 
+  /** Scene → device px for `node` (setTransform bypasses the root viewport, so it's folded in). */
+  private deviceMatrix(node: SceneNode | null): Matrix3x3 {
+    return multiplyMatrices(this.viewport, computeWorldMatrixFromRoot(node));
+  }
+
+  /** Filter composites need both the capability probe and the method. */
+  private canFilter(): boolean {
+    return !!(
+      this.renderer.supportsFilter?.() && this.renderer.compositeFilter
+    );
+  }
+
+  /** Flat solid fill, no stroke. */
+  private solidPaint(color: string): void {
+    this.renderer.setFill(color);
+    this.renderer.setFillGradient(null);
+    this.renderer.setStroke(null, 0);
+    this.renderer.setStrokeGradient(null);
+  }
+
   private nodeKey(node: SceneNode): string {
     let key = this.nodeKeys.get(node);
     if (key === undefined) {
@@ -882,15 +893,8 @@ export class RenderLoop {
   /** Each closure sets its own world transform, so content/source align wherever the source lives. */
   private renderMask(node: SceneNode): void {
     const source = node.mask!.source;
-    // setTransform bypasses the root viewport, so fold it in.
-    const contentParent = multiplyMatrices(
-      this.viewport,
-      computeWorldMatrixFromRoot(node.parent),
-    );
-    const maskParent = multiplyMatrices(
-      this.viewport,
-      computeWorldMatrixFromRoot(source.parent),
-    );
+    const contentParent = this.deviceMatrix(node.parent);
+    const maskParent = this.deviceMatrix(source.parent);
     const contentAlpha = worldAlpha(node.parent);
     const maskAlpha = worldAlpha(source.parent);
 
@@ -939,10 +943,7 @@ export class RenderLoop {
     inheritedAlpha: number,
     ops: FilterOp[],
   ): void {
-    const parentWorld = multiplyMatrices(
-      this.viewport,
-      computeWorldMatrixFromRoot(node.parent),
-    );
+    const parentWorld = this.deviceMatrix(node.parent);
     const paintSource = opts.paintSource ?? false;
     const planKey = `${parentWorld.join(",")}|${paintSource}`;
     let plan = this.filterPlans.get(node);
@@ -985,10 +986,7 @@ export class RenderLoop {
     ops: FilterOp[],
     paintSource: boolean,
   ): { css: string | null; region: DeviceRect | null } {
-    const world = multiplyMatrices(
-      this.viewport,
-      computeWorldMatrixFromRoot(node),
-    );
+    const world = this.deviceMatrix(node);
     // User-space filters (SVG) already get the parent's scale; pass only the local part.
     const scale = this.renderer.filtersUseUserSpace?.()
       ? matrixScale(world) / (matrixScale(parentWorld) || 1)
@@ -1015,10 +1013,7 @@ export class RenderLoop {
         (s.inset ?? false) === inset,
     );
     if (shadows.length === 0) return;
-    const world = multiplyMatrices(
-      this.viewport,
-      computeWorldMatrixFromRoot(node),
-    );
+    const world = this.deviceMatrix(node);
     const scale = matrixScale(world);
     const clip = inset ? shapeClip(node.shapeData) : null;
     // CSS paints the first-listed shadow on top; draw back-to-front.
@@ -1032,10 +1027,7 @@ export class RenderLoop {
       const draw = () => {
         this.renderer.setTransform(world);
         this.renderer.save();
-        this.renderer.setFill(s.color);
-        this.renderer.setFillGradient(null);
-        this.renderer.setStroke(null, 0);
-        this.renderer.setStrokeGradient(null);
+        this.solidPaint(s.color);
         this.renderer.setFillRule(inset ? "evenodd" : "nonzero");
         this.renderer.setOpacity(alpha);
         if (inset && clip) this.renderer.clip(clip);
@@ -1044,12 +1036,8 @@ export class RenderLoop {
       };
       const blur = s.blur * scale;
       // NOTE: no region, so this claims the full buffer; pass the shadow's device rect to fix.
-      if (
-        blur > 0 &&
-        this.renderer.supportsFilter?.() &&
-        this.renderer.compositeFilter
-      ) {
-        this.renderer.compositeFilter(`blur(${blur}px)`, draw);
+      if (blur > 0 && this.canFilter()) {
+        this.renderer.compositeFilter!(`blur(${blur}px)`, draw);
       } else {
         this.renderer.save();
         draw();
@@ -1164,67 +1152,54 @@ function collectBindingValues(root: SceneNode): Value[] {
     if (isFunctionValue(v)) for (const a of v.args) push(a);
     else if (v.type === "list") for (const a of v.values) push(a);
   };
-  (function walk(node: SceneNode) {
+  forEachNode(root, (node) => {
     for (const b of node.bindings) push(b.value);
-    for (const child of node.children) walk(child);
-  })(root);
+  });
   return out;
 }
 
 /** Anything that changes beyond a one-shot timeline; scanned once so `isStatic` is O(1). */
 function sceneHasDynamicContent(root: SceneNode): boolean {
-  if (root.machines.length > 0) return true;
-  if (root.bindings.length > 0) return true;
-  if (root.hoverStyles || root.activeStyles || root.interactive) return true;
-  if (root.stateStyles.length > 0 || root.animationTimeline) return true;
-  for (const a of root.animations)
-    if (a.iterationCount === Infinity) return true;
-  for (const child of root.children)
-    if (sceneHasDynamicContent(child)) return true;
-  return false;
+  return someNode(
+    root,
+    (n) =>
+      n.machines.length > 0 ||
+      n.bindings.length > 0 ||
+      !!(n.hoverStyles || n.activeStyles || n.interactive) ||
+      n.stateStyles.length > 0 ||
+      !!n.animationTimeline ||
+      n.animations.some((a) => a.iterationCount === Infinity),
+  );
 }
 
 /** Any time-remap/offset/scale, which makes `computeSceneDuration` a local-time max, not a root bound. */
 function sceneHasTimeScoping(root: SceneNode): boolean {
-  if (
-    root.timeRemap ||
-    root.timeRemapValue !== null ||
-    root.timeOffset !== 0 ||
-    root.timeScale !== 1
-  )
-    return true;
-  for (const child of root.children)
-    if (sceneHasTimeScoping(child)) return true;
-  return false;
+  return someNode(
+    root,
+    (n) =>
+      !!n.timeRemap ||
+      n.timeRemapValue !== null ||
+      n.timeOffset !== 0 ||
+      n.timeScale !== 1,
+  );
 }
 
 /** A `@machine` or any `:state()` set (legal without a machine): no clip end to hold, wrap or finish at. */
 function sceneIsUnbounded(root: SceneNode): boolean {
   if (root.machines.length > 0) return true;
-  return subtreeHasStateStyles(root);
-}
-
-function subtreeHasStateStyles(node: SceneNode): boolean {
-  if (node.stateStyles.length > 0) return true;
-  for (const child of node.children)
-    if (subtreeHasStateStyles(child)) return true;
-  return false;
+  return someNode(root, (n) => n.stateStyles.length > 0);
 }
 
 /** All animations `infinite` and no visibility windows: free-runs rather than snapping to phase 0 at a nominal wrap. */
 export function sceneIsPerpetual(root: SceneNode): boolean {
-  let sawAnimation = false;
-  const visit = (node: SceneNode): boolean => {
-    if (node.visibleFrom !== -Infinity || node.visibleUntil !== Infinity)
-      return false;
-    for (const a of node.animations) {
-      if (a.iterationCount !== Infinity) return false;
-      sawAnimation = true;
-    }
-    for (const child of node.children) if (!visit(child)) return false;
-    return true;
-  };
-  return visit(root) && sawAnimation;
+  const finite = someNode(
+    root,
+    (n) =>
+      n.visibleFrom !== -Infinity ||
+      n.visibleUntil !== Infinity ||
+      n.animations.some((a) => a.iterationCount !== Infinity),
+  );
+  return !finite && someNode(root, (n) => n.animations.length > 0);
 }
 
 /** Does `value` read an input() whose path passes `test`, directly or through var()? */
@@ -1239,8 +1214,8 @@ export function readsInput(
     if (Array.isArray(v)) return v.some(visit);
     const o = v as { type?: string; name?: string; args?: Value[] };
     if (o.type === "function" && o.name === "input") {
-      const arg = o.args?.[0];
-      return !!arg && isKeywordValue(arg) && test(arg.value);
+      const path = inputPathOf(v as Value);
+      return path !== null && test(path);
     }
     if (o.type === "variable" && o.name && !seen.has(o.name)) {
       seen.add(o.name);
@@ -1253,14 +1228,12 @@ export function readsInput(
 }
 
 function subtreeReadsTime(
-  node: SceneNode,
+  root: SceneNode,
   variables: readonly VariableDefinition[],
 ): boolean {
-  for (const b of node.bindings)
-    if (readsInput(b.value, variables, (p) => p === "time")) return true;
-  for (const child of node.children)
-    if (subtreeReadsTime(child, variables)) return true;
-  return false;
+  return someNode(root, (n) =>
+    n.bindings.some((b) => readsInput(b.value, variables, (p) => p === "time")),
+  );
 }
 
 const MAX_SEAMLESS_LOOP_MS = 30_000;
@@ -1270,7 +1243,7 @@ const DEFAULT_TIME_EXPORT_MS = 5_000;
 function seamlessLoopMs(root: SceneNode): number {
   const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
   let lcm = 1;
-  const visit = (node: SceneNode): void => {
+  forEachNode(root, (node) => {
     for (const a of node.animations) {
       const alt =
         a.direction === "alternate" || a.direction === "alternate-reverse";
@@ -1278,9 +1251,7 @@ function seamlessLoopMs(root: SceneNode): number {
       if (period > 0 && lcm <= MAX_SEAMLESS_LOOP_MS)
         lcm = (lcm / gcd(lcm, period)) * period;
     }
-    for (const child of node.children) visit(child);
-  };
-  visit(root);
+  });
   return lcm;
 }
 

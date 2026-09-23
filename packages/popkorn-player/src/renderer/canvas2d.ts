@@ -4,11 +4,14 @@ import {
   applyCommandsToPath,
   computePathBounds,
 } from "../scene/path-parser.js";
+import { anchorX } from "../scene/transform.js";
 import type { BlendMode, MaskMode, TextAnchor } from "../scene/types.js";
 import type { PaintBox } from "./gradient-geometry.js";
-import { resolveGradient } from "./gradient-geometry.js";
+import { ellipseBox, resolveGradient } from "./gradient-geometry.js";
+import type { ImageEntry } from "./images.js";
+import { newImageDest, PendingImages, resolveImageDest } from "./images.js";
 import type { Renderer } from "./interface.js";
-import { PaintStateRenderer } from "./paint-state.js";
+import { maskModeParts, PaintStateRenderer } from "./paint-state.js";
 import { paintOrderSequence, resolveStrokeDash } from "./stroke.js";
 import type {
   CornerRadii,
@@ -18,12 +21,8 @@ import type {
 } from "./types.js";
 import { LUMA_COEFFICIENTS } from "./types.js";
 
-// Image cache entry by src; `img` (HTMLImageElement, or ImageBitmap in a worker) is null until decoded.
-interface ImageEntry {
-  img: HTMLImageElement | ImageBitmap | null;
-  loaded: boolean;
-  errored: boolean;
-}
+// HTMLImageElement, or ImageBitmap in a worker.
+type CanvasImage = HTMLImageElement | ImageBitmap;
 
 // A cached composite raster: buffer (pixel (0,0) = region origin), capture signature, region.
 interface RasterEntry {
@@ -37,10 +36,10 @@ function entryArea(e: RasterEntry): number {
 }
 
 // Intrinsic size: HTMLImageElement exposes naturalWidth/Height, ImageBitmap width/height.
-function imgWidth(img: HTMLImageElement | ImageBitmap): number {
+function imgWidth(img: CanvasImage): number {
   return "naturalWidth" in img ? img.naturalWidth : img.width;
 }
-function imgHeight(img: HTMLImageElement | ImageBitmap): number {
+function imgHeight(img: CanvasImage): number {
   return "naturalHeight" in img ? img.naturalHeight : img.height;
 }
 
@@ -52,9 +51,9 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   // Device coords of `this.ctx`'s pixel (0,0): region origin for a composite buffer, folded in by setTransform.
   private originX = 0;
   private originY = 0;
-  private images = new Map<string, ImageEntry>();
-  // In-flight image decodes; each promise settles (never rejects) on load/error.
-  private pendingImages = new Set<Promise<void>>();
+  private images = new Map<string, ImageEntry<CanvasImage>>();
+  private pendingImages = new PendingImages();
+  private imageDest = newImageDest();
   private offscreen: (CanvasRenderingContext2D | null)[] = [];
   // Composite nesting depth (mask + filter share it); each level claims its own buffer band.
   private maskDepth = 0;
@@ -117,23 +116,13 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   drawCircle(cx: number, cy: number, r: number): void {
     this.ctx.beginPath();
     this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    this.applyFillAndStroke({
-      x: cx - r,
-      y: cy - r,
-      width: r * 2,
-      height: r * 2,
-    });
+    this.applyFillAndStroke(ellipseBox(cx, cy, r, r));
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
     this.ctx.beginPath();
     this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-    this.applyFillAndStroke({
-      x: cx - rx,
-      y: cy - ry,
-      width: rx * 2,
-      height: ry * 2,
-    });
+    this.applyFillAndStroke(ellipseBox(cx, cy, rx, ry));
   }
 
   drawPath(commands: PathCommand[]): void {
@@ -167,10 +156,8 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
     // Bounding box (for gradients) matches scene/transform.getShapeBounds.
     const width = this.ctx.measureText(text).width;
-    const ax =
-      anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
     const bounds: PaintBox = {
-      x: ax,
+      x: anchorX(x, width, anchor),
       y: y - fontSize,
       width,
       height: fontSize,
@@ -217,54 +204,62 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       if (this.capturing && !entry.errored) this.rasterIncomplete = true;
       return;
     }
+    const img = entry.img;
+    const d = resolveImageDest(
+      this.imageDest,
+      w,
+      h,
+      imgWidth(img),
+      imgHeight(img),
+      sx,
+      sy,
+      sw,
+      sh,
+    );
     // Source-cropped (object-view-box): 9-arg sample.
-    if (
-      sx !== undefined &&
-      sy !== undefined &&
-      sw !== undefined &&
-      sh !== undefined
-    ) {
-      const dw = w > 0 ? w : sw;
-      const dh = h > 0 ? h : sh;
-      this.ctx.drawImage(entry.img, sx, sy, sw, sh, x, y, dw, dh);
-      return;
-    }
-    const dw = w > 0 ? w : imgWidth(entry.img);
-    const dh = h > 0 ? h : imgHeight(entry.img);
-    this.ctx.drawImage(entry.img, x, y, dw, dh);
+    if (d.cropped)
+      this.ctx.drawImage(img, d.sx, d.sy, d.sw, d.sh, x, y, d.dw, d.dh);
+    else this.ctx.drawImage(img, x, y, d.dw, d.dh);
   }
 
   // Start a decode once per src: HTMLImageElement, or fetch -> createImageBitmap in a worker; null if neither exists.
-  private loadImage(src: string): ImageEntry | null {
-    if (typeof Image !== "undefined") {
+  private loadImage(src: string): ImageEntry<CanvasImage> | null {
+    const hasImage = typeof Image !== "undefined";
+    if (
+      !hasImage &&
+      (typeof createImageBitmap === "undefined" || typeof fetch === "undefined")
+    )
+      return null;
+    const entry: ImageEntry<CanvasImage> = {
+      img: null,
+      loaded: false,
+      errored: false,
+    };
+    this.images.set(src, entry);
+    const fail = () => {
+      entry.errored = true;
+      console.warn(
+        `Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`,
+      );
+    };
+    if (hasImage) {
       const img = new Image();
-      const entry: ImageEntry = { img, loaded: false, errored: false };
-      this.images.set(src, entry);
-      this.trackImageLoad(
+      entry.img = img;
+      this.pendingImages.track(
         new Promise<void>((resolve) => {
           img.onload = () => {
             entry.loaded = true;
             resolve();
           };
           img.onerror = () => {
-            entry.errored = true;
-            console.warn(
-              `Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`,
-            );
+            fail();
             resolve();
           };
         }),
       );
       img.src = src;
-      return entry;
-    }
-    if (
-      typeof createImageBitmap !== "undefined" &&
-      typeof fetch !== "undefined"
-    ) {
-      const entry: ImageEntry = { img: null, loaded: false, errored: false };
-      this.images.set(src, entry);
-      this.trackImageLoad(
+    } else {
+      this.pendingImages.track(
         fetch(src)
           .then((r) => r.blob())
           .then((b) => createImageBitmap(b))
@@ -272,27 +267,14 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
             entry.img = bmp;
             entry.loaded = true;
           })
-          .catch(() => {
-            entry.errored = true;
-            console.warn(
-              `Canvas2DRenderer: failed to load image ${src.slice(0, 64)}`,
-            );
-          }),
+          .catch(fail),
       );
-      return entry;
     }
-    return null;
-  }
-
-  private trackImageLoad(p: Promise<void>): void {
-    this.pendingImages.add(p);
-    void p.finally(() => {
-      this.pendingImages.delete(p);
-    });
+    return entry;
   }
 
   whenImagesSettled(): Promise<void> {
-    return Promise.all([...this.pendingImages]).then(() => undefined);
+    return this.pendingImages.settled();
   }
 
   compositeMask(
@@ -311,68 +293,29 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       return;
     } // headless / no offscreen: content only
 
-    const main = this.ctx;
-    const mainX = this.originX;
-    const mainY = this.originY;
-
     // Content -> A, mask -> B at the same origin; a nested matte re-enters at a deeper band.
     this.maskDepth++;
     try {
-      this.ctx = a;
-      this.originX = r.x;
-      this.originY = r.y;
-      this.enterRegion(a, r);
-      try {
-        drawContent();
-      } finally {
-        a.restore();
-      }
-
-      this.ctx = b;
-      this.enterRegion(b, r);
-      try {
-        drawMask();
-      } finally {
-        b.restore();
-      }
+      this.drawInto(a, r, drawContent);
+      this.drawInto(b, r, drawMask);
     } finally {
       this.maskDepth--;
-      this.ctx = main;
-      this.originX = mainX;
-      this.originY = mainY;
     }
 
     // Luminance -> alpha in place, so one destination-in/out handles every mode.
-    if (mode === "luminance" || mode === "luminance-invert")
-      luminanceToAlpha(b, r.width, r.height);
+    const { luminance, invert } = maskModeParts(mode);
+    if (luminance) luminanceToAlpha(b, r.width, r.height);
 
     // destination-in keeps content under opaque mask, destination-out (invert) under transparent;
     // the clip keeps the erase off the grow-only buffer's slack.
-    const invert = mode === "alpha-invert" || mode === "luminance-invert";
     a.save();
     a.setTransform(1, 0, 0, 1, 0, 0);
     clipToRegion(a, 0, 0, r.width, r.height);
     a.globalCompositeOperation = invert ? "destination-out" : "destination-in";
     a.drawImage(b.canvas, 0, 0, r.width, r.height, 0, 0, r.width, r.height);
-    a.globalCompositeOperation = "source-over";
     a.restore();
 
-    // Blit back at identity, buffer corner on the region origin.
-    main.save();
-    main.setTransform(1, 0, 0, 1, 0, 0);
-    main.globalAlpha = 1;
-    main.drawImage(
-      a.canvas,
-      0,
-      0,
-      r.width,
-      r.height,
-      r.x - mainX,
-      r.y - mainY,
-      r.width,
-      r.height,
-    );
-    main.restore();
+    this.blitRaster(a, r);
   }
 
   // ctx.filter is missing on old Safari (<18).
@@ -397,46 +340,15 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       return;
     }
 
-    const main = this.ctx;
-    const mainX = this.originX;
-    const mainY = this.originY;
     // A nested composite claims a deeper band, so it can't clear this buffer.
     this.maskDepth++;
     try {
-      this.ctx = buf;
-      this.originX = r.x;
-      this.originY = r.y;
-      this.enterRegion(buf, r);
-      try {
-        drawContent();
-      } finally {
-        buf.restore();
-      }
+      this.drawInto(buf, r, drawContent);
     } finally {
       this.maskDepth--;
-      this.ctx = main;
-      this.originX = mainX;
-      this.originY = mainY;
     }
-
-    main.save();
-    main.setTransform(1, 0, 0, 1, 0, 0);
-    main.globalAlpha = 1;
-    main.filter = filter;
-    // Source the region only: the grow-only buffer's slack holds stale pixels. Region includes filter bleed.
-    main.drawImage(
-      buf.canvas,
-      0,
-      0,
-      r.width,
-      r.height,
-      r.x - mainX,
-      r.y - mainY,
-      r.width,
-      r.height,
-    );
-    main.filter = "none";
-    main.restore();
+    // Region includes filter bleed.
+    this.blitRaster(buf, r, filter);
   }
 
   /** Composite into a dedicated raster and blit; reuse it while signature and region match. */
@@ -478,28 +390,14 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       return;
     }
 
-    const main = this.ctx;
-    const mainX = this.originX;
-    const mainY = this.originY;
     const outerIncomplete = this.rasterIncomplete;
     const outerCapturing = this.capturing;
     this.rasterIncomplete = false;
     this.capturing = true;
     try {
-      this.ctx = buf;
-      this.originX = region.x;
-      this.originY = region.y;
       // A dedicated buffer, not the banded pool, so no depth bump.
-      this.enterRegion(buf, region);
-      try {
-        draw();
-      } finally {
-        buf.restore();
-      }
+      this.drawInto(buf, region, draw);
     } finally {
-      this.ctx = main;
-      this.originX = mainX;
-      this.originY = mainY;
       this.capturing = outerCapturing;
     }
 
@@ -530,12 +428,17 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     }
   }
 
-  /** Blit a stored raster at identity. */
-  private blitRaster(src: CanvasRenderingContext2D, r: DeviceRect): void {
+  /** Blit a buffer's region-sized corner (never its stale slack) at identity onto the current target. */
+  private blitRaster(
+    src: CanvasRenderingContext2D,
+    r: DeviceRect,
+    filter?: string,
+  ): void {
     const dst = this.ctx;
     dst.save();
     dst.setTransform(1, 0, 0, 1, 0, 0);
     dst.globalAlpha = 1;
+    if (filter !== undefined) dst.filter = filter;
     dst.drawImage(
       src.canvas,
       0,
@@ -560,13 +463,31 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     };
   }
 
-  /** Reset to device space, clear and clip `r` on a composite buffer; pair with ctx.restore(). */
-  private enterRegion(ctx: CanvasRenderingContext2D, r: DeviceRect): void {
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = 1;
-    ctx.clearRect(0, 0, r.width, r.height);
-    clipToRegion(ctx, 0, 0, r.width, r.height);
+  /** Run `draw` targeting `buf` (pixel (0,0) = r's origin) cleared and clipped to `r`, then restore the target. */
+  private drawInto(
+    buf: CanvasRenderingContext2D,
+    r: DeviceRect,
+    draw: () => void,
+  ): void {
+    buf.save();
+    buf.setTransform(1, 0, 0, 1, 0, 0);
+    buf.globalAlpha = 1;
+    buf.clearRect(0, 0, r.width, r.height);
+    clipToRegion(buf, 0, 0, r.width, r.height);
+    const main = this.ctx;
+    const mainX = this.originX;
+    const mainY = this.originY;
+    this.ctx = buf;
+    this.originX = r.x;
+    this.originY = r.y;
+    try {
+      draw();
+    } finally {
+      buf.restore();
+      this.ctx = main;
+      this.originX = mainX;
+      this.originY = mainY;
+    }
   }
 
   // Region-sized (filtered blit cost tracks the source surface), 64px-grid, grow-only; resize() drops the pool.

@@ -246,25 +246,17 @@ export function tryParseColor(value: string): RGBAColor | null {
   const s = value.trim().toLowerCase();
 
   if (s.startsWith("#")) {
-    const hex = s.slice(1);
-    if (hex.length === 3) {
-      const r = parseInt(hex[0] + hex[0], 16);
-      const g = parseInt(hex[1] + hex[1], 16);
-      const b = parseInt(hex[2] + hex[2], 16);
-      return { r, g, b, a: 1 };
-    } else if (hex.length === 6) {
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      return { r, g, b, a: 1 };
-    } else if (hex.length === 8) {
-      const r = parseInt(hex.slice(0, 2), 16);
-      const g = parseInt(hex.slice(2, 4), 16);
-      const b = parseInt(hex.slice(4, 6), 16);
-      const a = parseInt(hex.slice(6, 8), 16) / 255;
-      return { r, g, b, a };
-    }
-    return null;
+    let hex = s.slice(1);
+    if (hex.length === 3)
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    if (hex.length !== 6 && hex.length !== 8) return null;
+    const byte = (i: number) => parseInt(hex.slice(i, i + 2), 16);
+    return {
+      r: byte(0),
+      g: byte(2),
+      b: byte(4),
+      a: hex.length === 8 ? byte(6) / 255 : 1,
+    };
   }
 
   const rgbaMatch = s.match(

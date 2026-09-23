@@ -7,12 +7,29 @@ import {
 import type {
   BlendMode,
   FillRule,
+  MaskMode,
   PaintOrder,
   StrokeLineCap,
   StrokeLineJoin,
 } from "../scene/types.js";
 import type { Color, GradientData, TrimDescriptor } from "./types.js";
 import { colorToCSS } from "./types.js";
+
+// Track-matte mode decoded into its luminance/invert axes (shared constants, no per-call allocation).
+export interface MaskModeParts {
+  readonly luminance: boolean;
+  readonly invert: boolean;
+}
+const MASK_MODE_PARTS: Record<MaskMode, MaskModeParts> = {
+  alpha: { luminance: false, invert: false },
+  luminance: { luminance: true, invert: false },
+  "alpha-invert": { luminance: false, invert: true },
+  "luminance-invert": { luminance: true, invert: true },
+};
+
+export function maskModeParts(mode: MaskMode): MaskModeParts {
+  return MASK_MODE_PARTS[mode];
+}
 
 /**
  * Shared sticky paint state (set* before each draw, read at draw time) plus an

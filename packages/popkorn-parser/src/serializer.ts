@@ -14,16 +14,13 @@ import type {
   MachineTrigger,
   Rule,
   Selector,
-  Span,
   StateRule,
   StyleSheet,
   Value,
   VariableDefinition,
 } from "./ast.js";
+import { decl } from "./ast.js";
 import { crush } from "./crush.js";
-
-// Synthetic declarations are only printed, never located.
-const NO_SPAN: Span = { start: 0, end: 0 };
 
 export interface SerializeOptions {
   minify?: boolean;
@@ -50,6 +47,8 @@ export function serialize(
 }
 
 // --- number / value formatting -------------------------------------------
+
+const sep = (min: boolean): string => (min ? "," : ", ");
 
 function num(n: number): string {
   if (Number.isInteger(n)) return String(n);
@@ -80,24 +79,21 @@ function fmtValue(v: Value, min: boolean): string {
       return v.expr.type === "calc-function"
         ? fmtCalc(v.expr, min)
         : `calc(${fmtCalc(v.expr, min)})`;
-    case "function": {
-      const sep = min ? "," : ", ";
-      return `${v.name}(${v.args.map((a) => fmtValue(a, min)).join(sep)})`;
-    }
-    case "list": {
+    case "function":
+      return `${v.name}(${v.args.map((a) => fmtValue(a, min)).join(sep(min))})`;
+    case "list":
       // A 'comma' list rejoins with commas so it round-trips to distinct groups.
-      const sep = v.separator === "comma" ? (min ? "," : ", ") : " ";
-      return v.values.map((a) => fmtValue(a, min)).join(sep);
-    }
+      return v.values
+        .map((a) => fmtValue(a, min))
+        .join(v.separator === "comma" ? sep(min) : " ");
     case "random": {
-      const sep = min ? "," : ", ";
       const prelude = [v.perElement ? "per-element" : "", v.ident ?? ""]
         .filter(Boolean)
         .join(" ");
       const parts = [fmtValue(v.min, min), fmtValue(v.max, min)];
       if (prelude) parts.unshift(prelude);
       if (v.step) parts.push(`by ${fmtValue(v.step, min)}`);
-      return `random(${parts.join(sep)})`;
+      return `random(${parts.join(sep(min))})`;
     }
   }
 }
@@ -106,12 +102,11 @@ function fmtValue(v: Value, min: boolean): string {
 function fmtCalc(expr: CalcExpr, min: boolean): string {
   if (expr.type === "calc-operand") return fmtValue(expr.value, min);
   if (expr.type === "calc-function") {
-    const sep = min ? "," : ", ";
     const parts = expr.args.map((a) => fmtCalc(a, min));
     // round()'s optional strategy leads the argument list ("nearest" is elided).
     if (expr.strategy && expr.strategy !== "nearest")
       parts.unshift(expr.strategy);
-    return `${expr.name}(${parts.join(sep)})`;
+    return `${expr.name}(${parts.join(sep(min))})`;
   }
   const l = fmtCalc(expr.left, min);
   const r = fmtCalc(expr.right, min);
@@ -152,7 +147,7 @@ function stateSelector(st: StateRule): string {
 interface Body {
   declarations: Declaration[];
   children: Rule[];
-  states: StateRule[];
+  states?: StateRule[];
 }
 
 /** Emit `<prelude> { <body> }` for a rule/definition-style block. */
@@ -162,30 +157,16 @@ function block(
   min: boolean,
   depth: number,
 ): string {
+  const states = body.states ?? [];
   if (min) {
-    const items: string[] = [];
-    const { declarations, children, states } = body;
-    const hasBlocks = children.length > 0 || states.length > 0;
-    declarations.forEach((d, i) => {
-      const last = i === declarations.length - 1 && !hasBlocks;
-      items.push(fmtDecl(d, true) + (last ? "" : ";"));
-    });
-    for (const ch of children) items.push(">" + ruleBlock(ch, true, 0));
-    for (const st of states)
-      items.push(
-        stateSelector(st) +
-          block(
-            "",
-            {
-              declarations: st.declarations,
-              children: st.children,
-              states: [],
-            },
-            true,
-            0,
-          ),
-      );
-    return `${prelude}{${items.join("")}}`;
+    const decls = body.declarations.map((d) => fmtDecl(d, true));
+    const blocks = [
+      ...body.children.map((ch) => ">" + ruleBlock(ch, true, 0)),
+      ...states.map((st) => stateSelector(st) + block("", st, true, 0)),
+    ];
+    // Only the final declaration may drop its `;`, and only when no block follows.
+    const semi = decls.length && blocks.length ? ";" : "";
+    return `${prelude}{${decls.join(";")}${semi}${blocks.join("")}}`;
   }
 
   const pad = "  ".repeat(depth);
@@ -199,16 +180,11 @@ function block(
       inner + "> " + ruleBlock(ch, false, depth + 1).slice(inner.length),
     );
   }
-  for (const st of body.states) {
+  for (const st of states) {
     lines.push("");
     lines.push(
       inner +
-        block(
-          stateSelector(st),
-          { declarations: st.declarations, children: st.children, states: [] },
-          false,
-          depth + 1,
-        ).slice(inner.length),
+        block(stateSelector(st), st, false, depth + 1).slice(inner.length),
     );
   }
   return `${pad}${prelude} {\n${lines.join("\n")}\n${pad}}`;
@@ -230,53 +206,17 @@ function rootBlock(
 ): string {
   const decls: Declaration[] = [];
   if (cfg) {
-    decls.push({
-      type: "declaration",
-      property: "width",
-      value: { type: "length", value: cfg.width, unit: "px" },
-      span: NO_SPAN,
-      valueSpan: NO_SPAN,
-    });
-    decls.push({
-      type: "declaration",
-      property: "height",
-      value: { type: "length", value: cfg.height, unit: "px" },
-      span: NO_SPAN,
-      valueSpan: NO_SPAN,
-    });
-    if (cfg.background !== undefined) {
-      decls.push({
-        type: "declaration",
-        property: "background",
-        value: { type: "color", value: cfg.background },
-        span: NO_SPAN,
-        valueSpan: NO_SPAN,
-      });
-    }
-    if (cfg.overflow !== undefined) {
-      decls.push({
-        type: "declaration",
-        property: "overflow",
-        value: { type: "keyword", value: cfg.overflow },
-        span: NO_SPAN,
-        valueSpan: NO_SPAN,
-      });
-    }
+    decls.push(
+      decl("width", { type: "length", value: cfg.width, unit: "px" }),
+      decl("height", { type: "length", value: cfg.height, unit: "px" }),
+    );
+    if (cfg.background !== undefined)
+      decls.push(decl("background", { type: "color", value: cfg.background }));
+    if (cfg.overflow !== undefined)
+      decls.push(decl("overflow", { type: "keyword", value: cfg.overflow }));
   }
-  for (const v of vars)
-    decls.push({
-      type: "declaration",
-      property: v.name,
-      value: v.value,
-      span: NO_SPAN,
-      valueSpan: NO_SPAN,
-    });
-  return block(
-    ":root",
-    { declarations: decls, children: [], states: [] },
-    min,
-    0,
-  );
+  for (const v of vars) decls.push(decl(v.name, v.value));
+  return block(":root", { declarations: decls, children: [] }, min, 0);
 }
 
 function keyframesBlock(kf: KeyframeRule, min: boolean): string {
@@ -286,17 +226,9 @@ function keyframesBlock(kf: KeyframeRule, min: boolean): string {
 }
 
 function keyframeBlock(b: KeyframeBlock, min: boolean): string {
-  const sel = b.selectors.map((s) => num(s) + "%").join(min ? "," : ", ");
+  const sel = b.selectors.map((s) => num(s) + "%").join(sep(min));
   const decls = b.declarations.slice();
-  if (b.easing) {
-    decls.push({
-      type: "declaration",
-      property: "animation-timing-function",
-      value: b.easing,
-      span: NO_SPAN,
-      valueSpan: NO_SPAN,
-    });
-  }
+  if (b.easing) decls.push(decl("animation-timing-function", b.easing));
   if (min) {
     const body = decls.map((d) => fmtDecl(d, true)).join(";");
     return `${sel}{${body}}`;

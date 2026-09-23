@@ -29,18 +29,10 @@ function colorArgToken(v: Value): string {
 }
 
 function buildColorString(func: FunctionValue): string {
-  if (func.name === "rgb") {
-    const r = getNumericValue(func.args[0]);
-    const g = getNumericValue(func.args[1]);
-    const b = getNumericValue(func.args[2]);
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-  if (func.name === "rgba") {
-    const r = getNumericValue(func.args[0]);
-    const g = getNumericValue(func.args[1]);
-    const b = getNumericValue(func.args[2]);
-    const a = getNumericValue(func.args[3]);
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  if (func.name === "rgb" || func.name === "rgba") {
+    // One component per letter: rgb() drops a 4th arg, rgba() requires it.
+    const parts = [...func.name].map((_, i) => getNumericValue(func.args[i]));
+    return `${func.name}(${parts.join(", ")})`;
   }
   if (func.name === "oklab" || func.name === "oklch") {
     // Kept as oklab(), not hex: the spelling tells interpolateColor to skip sRGB.
@@ -64,6 +56,8 @@ function buildColorString(func: FunctionValue): string {
   return "#000000";
 }
 
+const COLOR_FUNCS = new Set(["rgb", "rgba", "hsl", "hsla", "oklab", "oklch"]);
+
 // Named colors -> hex; other keywords pass through; `none` -> null (no paint).
 export function colorStringFromValue(value: Value): string | null {
   if (isColorValue(value)) return value.value;
@@ -73,15 +67,7 @@ export function colorStringFromValue(value: Value): string | null {
   }
   // Host-set strings count only if they parse as a color.
   if (isStringValue(value)) return canonicalColor(value.value);
-  if (
-    isFunctionValue(value) &&
-    (value.name === "rgb" ||
-      value.name === "rgba" ||
-      value.name === "hsl" ||
-      value.name === "hsla" ||
-      value.name === "oklab" ||
-      value.name === "oklch")
-  ) {
+  if (isFunctionValue(value) && COLOR_FUNCS.has(value.name)) {
     return buildColorString(value);
   }
   return null;

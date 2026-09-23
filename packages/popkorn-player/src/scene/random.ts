@@ -1,12 +1,8 @@
 // random() rolls once at build time; seed = source hash + call-site key (+ node id for per-element).
 
-import type {
-  CalcExpr,
-  LengthValue,
-  RandomValue,
-  Value,
-} from "@popkorn/parser";
+import type { LengthValue, RandomValue, Value } from "@popkorn/parser";
 import { getNumericValue, isLengthValue } from "@popkorn/parser";
+import { rewriteValue, someValue } from "./sibling.js";
 
 export function hashString(s: string): number {
   let h = 0x811c9dc5;
@@ -80,67 +76,12 @@ function rollRandom(
 
 /** Returns the same object when nothing was frozen. */
 export function freezeRandom(value: Value, ctx: RandomContext): Value {
-  return freeze(value, ctx, { n: 0 });
-}
-
-function freeze(v: Value, ctx: RandomContext, counter: { n: number }): Value {
-  switch (v.type) {
-    case "random":
-      return rollRandom(v, ctx, counter.n++);
-    case "function":
-      return { ...v, args: v.args.map((a) => freeze(a, ctx, counter)) };
-    case "list":
-      return { ...v, values: v.values.map((a) => freeze(a, ctx, counter)) };
-    case "variable":
-      return v.fallback
-        ? { ...v, fallback: freeze(v.fallback, ctx, counter) }
-        : v;
-    case "calc":
-      return { ...v, expr: freezeCalc(v.expr, ctx, counter) };
-    default:
-      return v;
-  }
-}
-
-function freezeCalc(
-  expr: CalcExpr,
-  ctx: RandomContext,
-  counter: { n: number },
-): CalcExpr {
-  if (expr.type === "calc-operand")
-    return { type: "calc-operand", value: freeze(expr.value, ctx, counter) };
-  if (expr.type === "calc-function")
-    return {
-      ...expr,
-      args: expr.args.map((a) => freezeCalc(a, ctx, counter)),
-    };
-  return {
-    type: "calc-binary",
-    op: expr.op,
-    left: freezeCalc(expr.left, ctx, counter),
-    right: freezeCalc(expr.right, ctx, counter),
-  };
+  let n = 0;
+  return rewriteValue(value, {
+    value: (v) => (v.type === "random" ? rollRandom(v, ctx, n++) : undefined),
+  });
 }
 
 export function valueHasRandom(v: Value): boolean {
-  switch (v.type) {
-    case "random":
-      return true;
-    case "function":
-      return v.args.some(valueHasRandom);
-    case "list":
-      return v.values.some(valueHasRandom);
-    case "variable":
-      return v.fallback ? valueHasRandom(v.fallback) : false;
-    case "calc":
-      return calcHasRandom(v.expr);
-    default:
-      return false;
-  }
-}
-
-function calcHasRandom(expr: CalcExpr): boolean {
-  if (expr.type === "calc-operand") return valueHasRandom(expr.value);
-  if (expr.type === "calc-function") return expr.args.some(calcHasRandom);
-  return calcHasRandom(expr.left) || calcHasRandom(expr.right);
+  return someValue(v, (x) => x.type === "random");
 }

@@ -5,11 +5,13 @@ import {
   multiplyMatrices,
 } from "../scene/matrix.js";
 import { computePathBounds, roundedRectPath } from "../scene/path-parser.js";
+import { anchorX } from "../scene/transform.js";
 import type { MaskMode, TextAnchor } from "../scene/types.js";
 import type { PaintBox } from "./gradient-geometry.js";
-import { resolveGradient } from "./gradient-geometry.js";
+import { ellipseBox, resolveGradient } from "./gradient-geometry.js";
+import { newImageDest, PendingImages, resolveImageDest } from "./images.js";
 import type { Renderer } from "./interface.js";
-import { PaintStateRenderer } from "./paint-state.js";
+import { maskModeParts, PaintStateRenderer } from "./paint-state.js";
 import { resolveStrokeDash } from "./stroke.js";
 import type {
   CornerRadii,
@@ -170,16 +172,13 @@ export function maskModePlumbing(mode: MaskMode): {
   maskType: "alpha" | "luminance";
   filter: MaskFilterPrimitive[] | null;
 } {
-  switch (mode) {
-    case "alpha":
-      return { maskType: "alpha", filter: null };
-    case "luminance":
-      return { maskType: "luminance", filter: null };
-    case "alpha-invert":
-      return { maskType: "alpha", filter: ["invertAlpha"] };
-    case "luminance-invert":
-      return { maskType: "alpha", filter: ["luminanceToAlpha", "invertAlpha"] };
-  }
+  const { luminance, invert } = maskModeParts(mode);
+  if (!invert)
+    return { maskType: luminance ? "luminance" : "alpha", filter: null };
+  return {
+    maskType: "alpha",
+    filter: luminance ? ["luminanceToAlpha", "invertAlpha"] : ["invertAlpha"],
+  };
 }
 
 /** Device rect [0,0,w,h] bbox in the user space `inv` maps to; sizes mask/filter regions to cover the surface. */
@@ -225,6 +224,46 @@ interface GroupEntry {
   lastFrame: number;
 }
 
+/** A fresh <g> appended under `parent`. */
+function newGroup(
+  key: string,
+  parent: Element,
+  worldAtOpen: Matrix3x3,
+  frame: number,
+): GroupEntry {
+  const g = document.createElementNS(SVGNS, "g");
+  parent.appendChild(g);
+  return {
+    key,
+    g,
+    worldAtOpen,
+    shapes: [],
+    drawCursor: 0,
+    childKeys: [],
+    prevChildKeys: [],
+    clipThisFrame: false,
+    maskCursor: 0,
+    filterCursor: 0,
+    lastFrame: frame,
+  };
+}
+
+/** Reset a group's per-frame draw state. */
+function openGroup(
+  e: GroupEntry,
+  worldAtOpen: Matrix3x3,
+  frame: number,
+): GroupEntry {
+  e.worldAtOpen = worldAtOpen;
+  e.drawCursor = 0;
+  e.childKeys = [];
+  e.clipThisFrame = false;
+  e.maskCursor = 0;
+  e.filterCursor = 0;
+  e.lastFrame = frame;
+  return e;
+}
+
 interface DefEntry {
   el: SVGElement;
   lastFrame: number;
@@ -262,7 +301,8 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   private attrCache = new WeakMap<Element, Map<string, string>>();
   private textCache = new WeakMap<Element, string>();
   private imageHrefs = new WeakMap<Element, string>();
-  private pendingImages = new Set<Promise<void>>();
+  private pendingImages = new PendingImages();
+  private imageDest = newImageDest();
 
   private width = 0;
   private height = 0;
@@ -279,28 +319,12 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.svg = svg;
     this.idp = `b${rendererBuildSeq++}_`;
     // Clear a prior renderer's defs/root on the reused <svg>, or stale same-id defs win lookups.
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.replaceChildren();
     this.defs = document.createElementNS(SVGNS, "defs");
-    const rootG = document.createElementNS(SVGNS, "g");
     svg.appendChild(this.defs);
-    svg.appendChild(rootG);
-    this.root = {
-      key: "__root__",
-      g: rootG,
-      worldAtOpen: IDENTITY_MATRIX,
-      shapes: [],
-      drawCursor: 0,
-      childKeys: [],
-      prevChildKeys: [],
-      clipThisFrame: false,
-      maskCursor: 0,
-      filterCursor: 0,
-      lastFrame: 0,
-    };
-    const wAttr = parseFloat(svg.getAttribute("width") || "0");
-    const hAttr = parseFloat(svg.getAttribute("height") || "0");
-    this.width = wAttr || 0;
-    this.height = hAttr || 0;
+    this.root = newGroup("__root__", svg, IDENTITY_MATRIX, 0);
+    this.width = parseFloat(svg.getAttribute("width") ?? "") || 0;
+    this.height = parseFloat(svg.getAttribute("height") ?? "") || 0;
   }
 
   /** Width/height in device px with a matching viewBox, so the DPR scale maps back onto the CSS box. */
@@ -318,13 +342,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.frame++;
     this.resetCtm();
     // Reset the root layer; loose draws (the background) land here.
-    this.root.drawCursor = 0;
-    this.root.childKeys = [];
-    this.root.worldAtOpen = IDENTITY_MATRIX;
-    this.root.clipThisFrame = false;
-    this.root.maskCursor = 0;
-    this.root.filterCursor = 0;
-    this.root.lastFrame = this.frame;
+    openGroup(this.root, IDENTITY_MATRIX, this.frame);
     this.groupStack.length = 0;
     this.groupStack.push(this.root);
     this.keyPrefix = "";
@@ -339,18 +357,8 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
         this.groups.delete(key);
       }
     }
-    for (const [id, e] of this.gradients) {
-      if (e.lastFrame !== this.frame) {
-        e.el.remove();
-        this.gradients.delete(id);
-      }
-    }
-    for (const [id, e] of this.clips) {
-      if (e.lastFrame !== this.frame) {
-        e.el.remove();
-        this.clips.delete(id);
-      }
-    }
+    this.sweep(this.gradients);
+    this.sweep(this.clips);
     for (const [id, m] of this.masks) {
       if (m.lastFrame !== this.frame) {
         m.maskEl.remove(); // takes filterG + container + source <g>s with it
@@ -365,41 +373,10 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   beginNode(key: string): void {
     // Flush the parent's <g> transform (ctm is at parent world), then nest.
     this.flushGroupTransform();
-    const parent = this.top();
     // Mask namespace (see keyPrefix); def ids derive from this key, so they separate too.
-    const fullKey = this.keyPrefix + key;
-    parent.childKeys.push(fullKey);
-
-    let e = this.groups.get(fullKey);
-    if (!e) {
-      const g = document.createElementNS(SVGNS, "g");
-      parent.g.appendChild(g);
-      e = {
-        key: fullKey,
-        g,
-        worldAtOpen: this.ctm,
-        shapes: [],
-        drawCursor: 0,
-        childKeys: [],
-        prevChildKeys: [],
-        clipThisFrame: false,
-        maskCursor: 0,
-        filterCursor: 0,
-        lastFrame: this.frame,
-      };
-      this.groups.set(fullKey, e);
-    } else if (e.g.parentNode !== parent.g) {
-      // Re-home if the node moved under a different parent.
-      parent.g.appendChild(e.g);
-    }
-    e.worldAtOpen = this.ctm;
-    e.drawCursor = 0;
-    e.childKeys = [];
-    e.clipThisFrame = false;
-    e.maskCursor = 0;
-    e.filterCursor = 0;
-    e.lastFrame = this.frame;
-    this.groupStack.push(e);
+    this.groupStack.push(
+      this.ensureGroup(this.top(), this.keyPrefix + key, this.ctm),
+    );
   }
 
   endNode(): void {
@@ -440,7 +417,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.setAttr(el, "cx", String(cx));
     this.setAttr(el, "cy", String(cy));
     this.setAttr(el, "r", String(r));
-    this.applyPaint(el, { x: cx - r, y: cy - r, width: r * 2, height: r * 2 });
+    this.applyPaint(el, ellipseBox(cx, cy, r, r));
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
@@ -449,12 +426,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.setAttr(el, "cy", String(cy));
     this.setAttr(el, "rx", String(rx));
     this.setAttr(el, "ry", String(ry));
-    this.applyPaint(el, {
-      x: cx - rx,
-      y: cy - ry,
-      width: rx * 2,
-      height: ry * 2,
-    });
+    this.applyPaint(el, ellipseBox(cx, cy, rx, ry));
   }
 
   drawPath(commands: PathCommand[]): void {
@@ -491,9 +463,12 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     }
     // Bounds for gradients are approximate without measureText; ~0.6em advance.
     const width = text.length * fontSize * 0.6;
-    const ax =
-      anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
-    this.applyPaint(el, { x: ax, y: y - fontSize, width, height: fontSize });
+    this.applyPaint(el, {
+      x: anchorX(x, width, anchor),
+      y: y - fontSize,
+      width,
+      height: fontSize,
+    });
   }
 
   drawImage(
@@ -509,13 +484,10 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   ): void {
     if (!src) return;
     this.flushGroupTransform();
-    const cropped =
-      sx !== undefined &&
-      sy !== undefined &&
-      sw !== undefined &&
-      sh !== undefined;
+    // Natural size is unknown here; SVG sizes an absent box intrinsically.
+    const d = resolveImageDest(this.imageDest, w, h, 0, 0, sx, sy, sw, sh);
 
-    if (cropped) {
+    if (d.cropped) {
       // Source crop: nested <svg viewBox=sx sy sw sh> clips to the frame.
       // NOTE: relies on SVG2 intrinsic <image> sizing; SVG 1.1 would need the natural size stamped.
       const outer = this.allocShape("svg");
@@ -523,26 +495,16 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       this.setAttr(outer, "y", String(y));
       this.setAttr(outer, "width", w > 0 ? String(w) : null);
       this.setAttr(outer, "height", h > 0 ? String(h) : null);
-      this.setAttr(outer, "viewBox", `${sx} ${sy} ${sw} ${sh}`);
+      this.setAttr(outer, "viewBox", `${d.sx} ${d.sy} ${d.sw} ${d.sh}`);
       this.setAttr(outer, "preserveAspectRatio", "none");
       let inner = outer.firstElementChild as SVGElement | null;
-      if (!inner || inner.tagName !== "image") {
-        while (outer.firstChild) outer.removeChild(outer.firstChild);
+      if (inner?.tagName !== "image") {
         inner = document.createElementNS(SVGNS, "image");
-        outer.appendChild(inner);
+        outer.replaceChildren(inner);
       }
       this.setAttr(inner, "preserveAspectRatio", "none");
-      if (this.imageHrefs.get(inner) !== src) {
-        inner.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", src);
-        this.setAttr(inner, "href", src);
-        this.imageHrefs.set(inner, src);
-        this.trackImageLoad(inner);
-      }
-      this.setAttr(
-        outer,
-        "opacity",
-        this.opacity === 1 ? null : String(this.opacity),
-      );
+      this.setHref(inner, src);
+      this.setOpacityAttr(outer);
       return;
     }
 
@@ -553,12 +515,26 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.setAttr(el, "y", String(y));
     this.setAttr(el, "width", w > 0 ? String(w) : null);
     this.setAttr(el, "height", h > 0 ? String(h) : null);
-    if (this.imageHrefs.get(el) !== src) {
-      el.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", src);
-      this.setAttr(el, "href", src);
-      this.imageHrefs.set(el, src);
-      this.trackImageLoad(el);
-    }
+    this.setHref(el, src);
+    this.setOpacityAttr(el);
+  }
+
+  /** Diff-set an <image> href (both forms) and track its load. */
+  private setHref(el: SVGElement, src: string): void {
+    if (this.imageHrefs.get(el) === src) return;
+    el.setAttributeNS("http://www.w3.org/1999/xlink", "xlink:href", src);
+    this.setAttr(el, "href", src);
+    this.imageHrefs.set(el, src);
+    this.pendingImages.track(
+      new Promise<void>((resolve) => {
+        el.addEventListener("load", () => resolve(), { once: true });
+        el.addEventListener("error", () => resolve(), { once: true });
+      }),
+    );
+  }
+
+  // The loop folds group opacity into per-leaf alpha; set it on the leaf, never the <g>.
+  private setOpacityAttr(el: SVGElement): void {
     this.setAttr(
       el,
       "opacity",
@@ -566,17 +542,8 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     );
   }
 
-  private trackImageLoad(el: Element): void {
-    const p = new Promise<void>((resolve) => {
-      el.addEventListener("load", () => resolve(), { once: true });
-      el.addEventListener("error", () => resolve(), { once: true });
-    });
-    this.pendingImages.add(p);
-    void p.finally(() => this.pendingImages.delete(p));
-  }
-
   whenImagesSettled(): Promise<void> {
-    return Promise.all([...this.pendingImages]).then(() => undefined);
+    return this.pendingImages.settled();
   }
 
   // --- clip ------------------------------------------------------------------
@@ -646,8 +613,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.save();
 
     // Content -> wrapper <g mask=url(#maskId)>, standing in for the node in paint order.
-    const wrapper = this.ensureSynthetic(wrapperKey, parent.g, pw);
-    parent.childKeys.push(wrapperKey);
+    const wrapper = this.ensureGroup(parent, wrapperKey, pw);
     this.setAttr(wrapper.g, "mask", `url(#${maskId})`);
     this.groupStack.push(wrapper);
     drawContent();
@@ -655,14 +621,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.reconcileGroup(wrapper);
 
     // Source -> <mask> container, keys namespaced by this mask (stacks for nested mattes).
-    const c = m.container;
-    c.worldAtOpen = pw;
-    c.drawCursor = 0;
-    c.childKeys = [];
-    c.clipThisFrame = false;
-    c.maskCursor = 0;
-    c.filterCursor = 0;
-    c.lastFrame = this.frame;
+    const c = openGroup(m.container, pw, this.frame);
     this.groupStack.push(c);
     const savedPrefix = this.keyPrefix;
     this.keyPrefix = `${savedPrefix + maskId}$`;
@@ -693,8 +652,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     const wrapperKey = `${parent.key}$fw${idx}`;
 
     this.save();
-    const wrapper = this.ensureSynthetic(wrapperKey, parent.g, pw);
-    parent.childKeys.push(wrapperKey);
+    const wrapper = this.ensureGroup(parent, wrapperKey, pw);
     // Filter functions go in style; the `filter` attribute only takes url().
     this.setAttr(wrapper.g, "style", filter ? `filter: ${filter}` : null);
     this.groupStack.push(wrapper);
@@ -757,7 +715,6 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     const el = document.createElementNS(SVGNS, tag) as SVGElement;
     if (existing) {
       top.g.replaceChild(el, existing);
-      this.attrCache.delete(existing);
     } else {
       // Keep shapes before child <g>s so document order = paint order.
       top.g.insertBefore(el, this.firstGroupChild(top.g));
@@ -773,19 +730,28 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     return null;
   }
 
-  private applyPaint(el: SVGElement, bounds: PaintBox): void {
+  /** Gradient paint -> url() of its def, keyed by the current draw slot. */
+  private paintRef(
+    g: GradientData,
+    which: "fill" | "stroke",
+    bounds: PaintBox,
+  ): string {
+    // NOTE: no SVG conic primitive (pinned divergence).
+    if (g.type === "conic-gradient") return conicFallbackColor(g);
     const top = this.top();
+    const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_${which}`;
+    this.ensureGradient(id, g, bounds);
+    return `url(#${id})`;
+  }
 
-    if (this.fillGradient && this.fillGradient.type === "conic-gradient") {
-      // NOTE: no SVG conic primitive (pinned divergence).
-      this.setAttr(el, "fill", conicFallbackColor(this.fillGradient));
-    } else if (this.fillGradient) {
-      const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_fill`;
-      this.ensureGradient(id, this.fillGradient, bounds);
-      this.setAttr(el, "fill", `url(#${id})`);
-    } else {
-      this.setAttr(el, "fill", this.fillColor ?? "none");
-    }
+  private applyPaint(el: SVGElement, bounds: PaintBox): void {
+    this.setAttr(
+      el,
+      "fill",
+      this.fillGradient
+        ? this.paintRef(this.fillGradient, "fill", bounds)
+        : (this.fillColor ?? "none"),
+    );
     this.setAttr(el, "fill-rule", this.fillRule);
 
     // Stroke: trim/dash via the shared resolver.
@@ -794,18 +760,11 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       this.dashArray,
       this.dashOffset,
     );
-    let stroke: string | null;
-    if (!dashDecision.stroke) {
-      stroke = "none";
-    } else if (this.strokeGradient?.type === "conic-gradient") {
-      stroke = conicFallbackColor(this.strokeGradient); // pinned divergence
-    } else if (this.strokeGradient) {
-      const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_stroke`;
-      this.ensureGradient(id, this.strokeGradient, bounds);
-      stroke = `url(#${id})`;
-    } else {
-      stroke = this.strokeColor ?? "none";
-    }
+    const stroke = !dashDecision.stroke
+      ? "none"
+      : this.strokeGradient
+        ? this.paintRef(this.strokeGradient, "stroke", bounds)
+        : (this.strokeColor ?? "none");
     this.setAttr(el, "stroke", stroke);
 
     if (stroke !== "none") {
@@ -837,12 +796,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       "paint-order",
       this.paintOrder === "stroke" ? "stroke" : null,
     );
-    // The loop folds group opacity into per-leaf alpha; set it on the leaf, never the <g>.
-    this.setAttr(
-      el,
-      "opacity",
-      this.opacity === 1 ? null : String(this.opacity),
-    );
+    this.setOpacityAttr(el);
     // mix-blend-mode has no presentation attr; 'normal' clears it.
     this.setAttr(
       el,
@@ -871,7 +825,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     if (e.sig !== sig) {
       for (const [k, v] of Object.entries(r.coords))
         e.el.setAttribute(k, String(v));
-      while (e.el.firstChild) e.el.removeChild(e.el.firstChild);
+      e.el.replaceChildren();
       for (const s of r.stops) {
         const stop = document.createElementNS(SVGNS, "stop");
         stop.setAttribute("offset", String(s.offset));
@@ -896,9 +850,9 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       e = { el, sig: "", lastFrame: this.frame };
       this.clips.set(id, e);
     }
-    const sig = JSON.stringify(clip) + "|" + this.fillRule;
+    const sig = `${JSON.stringify(clip)}|${this.fillRule}`;
     if (e.sig !== sig) {
-      while (e.el.firstChild) e.el.removeChild(e.el.firstChild);
+      e.el.replaceChildren();
       let shape: SVGElement;
       if (clip.type === "rect") {
         shape = document.createElementNS(SVGNS, "rect");
@@ -934,26 +888,11 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       const filterG = document.createElementNS(SVGNS, "g");
       maskEl.appendChild(filterG);
       this.defs.appendChild(maskEl);
-      const containerG = document.createElementNS(SVGNS, "g");
-      filterG.appendChild(containerG);
-      const container: GroupEntry = {
-        key: `${id}$c`,
-        g: containerG,
-        worldAtOpen: pw,
-        shapes: [],
-        drawCursor: 0,
-        childKeys: [],
-        prevChildKeys: [],
-        clipThisFrame: false,
-        maskCursor: 0,
-        filterCursor: 0,
-        lastFrame: this.frame,
-      };
       m = {
         maskEl,
         filterG,
         filterEl: null,
-        container,
+        container: newGroup(`${id}$c`, filterG, pw, this.frame),
         modeSig: "",
         lastFrame: this.frame,
       };
@@ -977,7 +916,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       this.defs.appendChild(f);
       m.filterEl = f;
     }
-    while (f.firstChild) f.removeChild(f.firstChild);
+    f.replaceChildren();
     for (const p of prims) {
       if (p === "luminanceToAlpha") {
         const fe = document.createElementNS(SVGNS, "feColorMatrix");
@@ -1001,41 +940,32 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     el.setAttribute("height", String(r.height));
   }
 
-  /** Get-or-create a mask/filter wrapper <g>, swept and reordered like a node group. */
-  private ensureSynthetic(
+  /** Get-or-create `parent`'s child <g> for a node or mask/filter wrapper, opened for this frame. */
+  private ensureGroup(
+    parent: GroupEntry,
     key: string,
-    parentG: SVGGElement,
     worldAtOpen: Matrix3x3,
   ): GroupEntry {
+    parent.childKeys.push(key);
     let e = this.groups.get(key);
     if (!e) {
-      const g = document.createElementNS(SVGNS, "g");
-      parentG.appendChild(g);
-      e = {
-        key,
-        g,
-        worldAtOpen,
-        shapes: [],
-        drawCursor: 0,
-        childKeys: [],
-        prevChildKeys: [],
-        clipThisFrame: false,
-        maskCursor: 0,
-        filterCursor: 0,
-        lastFrame: this.frame,
-      };
+      e = newGroup(key, parent.g, worldAtOpen, this.frame);
       this.groups.set(key, e);
-    } else if (e.g.parentNode !== parentG) {
-      parentG.appendChild(e.g);
+    } else if (e.g.parentNode !== parent.g) {
+      // Re-home if the node moved under a different parent.
+      parent.g.appendChild(e.g);
     }
-    e.worldAtOpen = worldAtOpen;
-    e.drawCursor = 0;
-    e.childKeys = [];
-    e.clipThisFrame = false;
-    e.maskCursor = 0;
-    e.filterCursor = 0;
-    e.lastFrame = this.frame;
-    return e;
+    return openGroup(e, worldAtOpen, this.frame);
+  }
+
+  /** Remove defs not visited this frame. */
+  private sweep(map: Map<string, DefEntry>): void {
+    for (const [id, e] of map) {
+      if (e.lastFrame !== this.frame) {
+        e.el.remove();
+        map.delete(id);
+      }
+    }
   }
 
   /** Trim stale shapes, reconcile clip-path, reorder child <g>s when the key sequence changed. */
@@ -1047,11 +977,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     );
 
     for (let i = e.shapes.length - 1; i >= e.drawCursor; i--) {
-      const el = e.shapes[i];
-      if (el) {
-        el.remove();
-        this.attrCache.delete(el);
-      }
+      e.shapes[i]?.remove();
       e.shapes.pop();
     }
 

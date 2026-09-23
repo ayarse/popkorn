@@ -33,9 +33,15 @@ export {
   registerConformance,
 } from "./renderer/conformance.js";
 export type { PaintBox } from "./renderer/gradient-geometry.js";
-export { resolveGradient } from "./renderer/gradient-geometry.js";
+export { ellipseBox, resolveGradient } from "./renderer/gradient-geometry.js";
+export type { ImageEntry } from "./renderer/images.js";
+export {
+  newImageDest,
+  PendingImages,
+  resolveImageDest,
+} from "./renderer/images.js";
 export type { Renderer } from "./renderer/interface.js";
-export { PaintStateRenderer } from "./renderer/paint-state.js";
+export { maskModeParts, PaintStateRenderer } from "./renderer/paint-state.js";
 export type { StrokeDashDecision } from "./renderer/stroke.js";
 export { paintOrderSequence, resolveStrokeDash } from "./renderer/stroke.js";
 export type {
@@ -77,6 +83,7 @@ export {
 export { polystarToCommands } from "./scene/polystar.js";
 export type { TextMeasurer } from "./scene/transform.js";
 export {
+  anchorX,
   computeLocalMatrix,
   computeWorldMatrix,
   lerp,

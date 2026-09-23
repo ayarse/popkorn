@@ -175,4 +175,7 @@ test("offsetToLineCol maps offsets to 1-based line/col", () => {
   expect(offsetToLineCol(src, 2)).toEqual({ line: 2, column: 1 });
   expect(offsetToLineCol(src, 3)).toEqual({ line: 2, column: 2 });
   expect(offsetToLineCol(src, 5)).toEqual({ line: 3, column: 1 });
+  expect(offsetToLineCol(src, 1)).toEqual({ line: 1, column: 2 }); // on the newline
+  expect(offsetToLineCol(src, 99)).toEqual({ line: 3, column: 2 }); // clamps past end
+  expect(offsetToLineCol(src, -1)).toEqual({ line: 1, column: 1 });
 });

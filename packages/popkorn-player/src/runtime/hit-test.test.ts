@@ -259,3 +259,75 @@ test("machine click() on a PATH-shaped node fires from a device tap", () => {
     g.cancelAnimationFrame = prevCancel;
   }
 });
+
+// --- Ordering and gating shared by hitTest and hitTestClick -----------------
+
+function scene(body: string): SceneNode {
+  return buildSceneGraph(
+    parse(`:root { width: 200px; height: 200px; }\n${body}`),
+  );
+}
+
+test("hit order: later sibling wins; z-index reorders", () => {
+  const root = scene(`
+    #a { type: rect; x: 0; y: 0; width: 100px; height: 100px; cursor: pointer; }
+    #b { type: rect; x: 50px; y: 50px; width: 100px; height: 100px; cursor: pointer; }
+  `);
+  expect(hitTest(root, { x: 75, y: 75 })?.id).toBe("b");
+  expect(hitTestClick(root, { x: 75, y: 75 })?.node.id).toBe("b");
+  expect(hitTest(root, { x: 25, y: 25 })?.id).toBe("a");
+
+  const z = scene(`
+    #a { type: rect; x: 0; y: 0; width: 100px; height: 100px; cursor: pointer; z-index: 2; }
+    #b { type: rect; x: 50px; y: 50px; width: 100px; height: 100px; cursor: pointer; }
+  `);
+  expect(hitTest(z, { x: 75, y: 75 })?.id).toBe("a");
+  expect(hitTestClick(z, { x: 75, y: 75 })?.node.id).toBe("a");
+});
+
+test("hit order: non-interactive top shape is skipped by hitTest, not by hitTestClick", () => {
+  const root = scene(`
+    #under { type: rect; x: 0; y: 0; width: 100px; height: 100px; cursor: pointer; }
+    #over { type: circle; cx: 50px; cy: 50px; r: 20px; }
+  `);
+  expect(hitTest(root, { x: 50, y: 50 })?.id).toBe("under");
+  expect(hitTestClick(root, { x: 50, y: 50 })?.node.id).toBe("over");
+});
+
+test("hit order: nested child over interactive parent credits the parent; deeper interactive wins", () => {
+  const root = scene(`
+    #p {
+      type: rect; x: 0; y: 0; width: 100px; height: 100px; cursor: pointer;
+      > #c { type: circle; cx: 50px; cy: 50px; r: 20px; }
+      > #d { type: circle; cx: 80px; cy: 80px; r: 10px; cursor: pointer; }
+    }
+    #later { type: rect; x: 150px; y: 150px; width: 10px; height: 10px; cursor: pointer; }
+  `);
+  expect(hitTest(root, { x: 50, y: 50 })?.id).toBe("p");
+  expect(hitTestClick(root, { x: 50, y: 50 })?.node.id).toBe("p");
+  expect(hitTestClick(root, { x: 50, y: 50 })?.path).toEqual(["root", "p"]);
+  expect(hitTest(root, { x: 80, y: 80 })?.id).toBe("d");
+  expect(hitTestClick(root, { x: 80, y: 80 })?.node.id).toBe("d");
+  expect(hitTest(root, { x: 10, y: 10 })?.id).toBe("p");
+});
+
+test("hit gating: pointer-events none, display none, clip and mask sources", () => {
+  const root = scene(`
+    #base { type: rect; x: 0; y: 0; width: 200px; height: 200px; cursor: pointer; }
+    #ghost { type: rect; x: 0; y: 0; width: 50px; height: 50px; cursor: pointer; pointer-events: none;
+      > #kid { type: rect; x: 0; y: 0; width: 50px; height: 50px; cursor: pointer; } }
+    #gone { type: rect; x: 60px; y: 0; width: 40px; height: 40px; cursor: pointer; display: none; }
+    #clipped { type: rect; x: 100px; y: 100px; width: 100px; height: 100px; cursor: pointer;
+      clip-path: circle(10 at 150 150); }
+    #matte { type: rect; x: 0; y: 150px; width: 50px; height: 50px; }
+    #masked { type: rect; x: 0; y: 150px; width: 50px; height: 50px; cursor: pointer; mask: #matte; }
+  `);
+  expect(hitTest(root, { x: 20, y: 20 })?.id).toBe("base");
+  expect(hitTestClick(root, { x: 20, y: 20 })?.node.id).toBe("base");
+  expect(hitTest(root, { x: 70, y: 20 })?.id).toBe("base");
+  expect(hitTest(root, { x: 150, y: 150 })?.id).toBe("clipped");
+  expect(hitTest(root, { x: 110, y: 110 })?.id).toBe("base");
+  expect(hitTestClick(root, { x: 110, y: 110 })?.node.id).toBe("base");
+  expect(hitTest(root, { x: 25, y: 175 })?.id).toBe("masked");
+  expect(hitTestClick(root, { x: 25, y: 175 })?.node.id).toBe("masked");
+});

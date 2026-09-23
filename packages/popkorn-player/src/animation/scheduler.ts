@@ -1,9 +1,27 @@
+import { clamp01 } from "../scene/transform.js";
 import type {
   AnimationDirection,
   AnimationInstance,
   SceneNode,
 } from "../scene/types.js";
 import { interpolateKeyframes } from "./keyframes.js";
+
+// Iteration progress as played under `direction`.
+function applyDirection(
+  progress: number,
+  iteration: number,
+  direction: AnimationDirection,
+): number {
+  switch (direction) {
+    case "reverse":
+      return 1 - progress;
+    case "alternate":
+      return iteration % 2 === 0 ? progress : 1 - progress;
+    case "alternate-reverse":
+      return iteration % 2 === 0 ? 1 - progress : progress;
+  }
+  return progress;
+}
 
 // One global timeline: sampling is a pure function of time onto base-reset nodes.
 export class AnimationScheduler {
@@ -116,34 +134,15 @@ export class AnimationScheduler {
     const iterationProgress = (elapsed % duration) / duration;
 
     if (iterationCount !== Infinity && iteration >= iterationCount) {
-      return this.applyDirection(1, iterationCount - 1, direction);
+      return applyDirection(1, iterationCount - 1, direction);
     }
 
-    return this.applyDirection(iterationProgress, iteration, direction);
-  }
-
-  private applyDirection(
-    progress: number,
-    iteration: number,
-    direction: AnimationDirection,
-  ): number {
-    switch (direction) {
-      case "normal":
-        return progress;
-      case "reverse":
-        return 1 - progress;
-      case "alternate":
-        return iteration % 2 === 0 ? progress : 1 - progress;
-      case "alternate-reverse":
-        return iteration % 2 === 0 ? 1 - progress : progress;
-      default:
-        return progress;
-    }
+    return applyDirection(iterationProgress, iteration, direction);
   }
 
   // For `backwards` fill.
   private startProgress(animation: AnimationInstance): number {
-    return this.applyDirection(0, 0, animation.direction);
+    return applyDirection(0, 0, animation.direction);
   }
 
   // For `forwards` fill.
@@ -156,7 +155,6 @@ export class AnimationScheduler {
         return iterationCount % 2 === 0 ? 0 : 1;
       case "alternate-reverse":
         return iterationCount % 2 === 0 ? 1 : 0;
-      case "normal":
       default:
         return 1;
     }
@@ -198,10 +196,8 @@ export function sampleInstanceAtProgress(
 ): void {
   const { tracks, timingFunction, composition, direction } = instance;
   if (tracks.length === 0) return;
-  const p = Math.max(0, Math.min(1, progress));
-  // Single iteration: reverse/alternate-reverse mirror p.
-  const directed =
-    direction === "reverse" || direction === "alternate-reverse" ? 1 - p : p;
+  // Single iteration: reverse/alternate-reverse mirror progress.
+  const directed = applyDirection(clamp01(progress), 0, direction);
   interpolateKeyframes(node, tracks, directed, timingFunction, composition);
 }
 

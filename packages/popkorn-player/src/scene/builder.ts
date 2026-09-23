@@ -53,7 +53,6 @@ import type {
   AnimationDirection,
   AnimationFillMode,
   AnimationInstance,
-  BlendMode,
   ClipPathData,
   CompositeOperation,
   FilterOp,
@@ -62,14 +61,13 @@ import type {
   KeyframeTrack,
   LinearEasingPoint,
   MaskMode,
-  PolystarData,
+  OffsetRotate,
   PropertyBinding,
   SceneNode,
   ShapeData,
   ShapeType,
   StateStyles,
   StepPosition,
-  TextAnchor,
   TimeRemapStop,
   TimingFunction,
   Transform,
@@ -77,9 +75,20 @@ import type {
   TransitionSpec,
 } from "./types.js";
 import {
+  ANIMATION_DIRECTIONS,
+  ANIMATION_FILL_MODES,
+  BLEND_MODES,
+  COMPOSITE_OPERATIONS,
   createDefaultTransformOrigin,
   createSceneNode,
+  EASING_KEYWORDS,
+  FILL_RULES,
+  MASK_MODES,
+  STEP_POSITIONS,
+  STROKE_LINE_CAPS,
+  STROKE_LINE_JOINS,
   snapshotNode,
+  TEXT_ANCHORS,
 } from "./types.js";
 
 // State-block props consumed elsewhere (transition*/animation*); not warned.
@@ -103,20 +112,74 @@ const STATE_BLOCK_IGNORED = new Set([
 // `repeat:` copy cap — a typo'd count must not OOM. Above this is a diagnostic.
 const REPEAT_CAP = 10000;
 
-const isPolystar = (sd: ShapeData): sd is PolystarData =>
-  sd.type === "star" || sd.type === "polygon";
+// Plain numeric shape props: shape type → shapeData field, plus a cache to dirty.
+// circle/ellipse x/y land in box-sugar scratch (resolveCircleEllipseBoxPosition).
+type NumericShapeProp = {
+  fields: Partial<Record<ShapeType, string>>;
+  dirty?: "textBoundsDirty" | "polystarDirty";
+};
+const polystar = (field: string) => ({ star: field, polygon: field });
+const NUMERIC_SHAPE_PROPS = new Map<string, NumericShapeProp>([
+  [
+    "x",
+    {
+      fields: {
+        rect: "x",
+        text: "x",
+        image: "x",
+        circle: "__boxX",
+        ellipse: "__boxX",
+      },
+    },
+  ],
+  [
+    "y",
+    {
+      fields: {
+        rect: "y",
+        text: "y",
+        image: "y",
+        circle: "__boxY",
+        ellipse: "__boxY",
+      },
+    },
+  ],
+  ["width", { fields: { rect: "width", image: "width" } }],
+  ["height", { fields: { rect: "height", image: "height" } }],
+  ["rx", { fields: { rect: "rx", ellipse: "rx" } }],
+  ["ry", { fields: { rect: "ry", ellipse: "ry" } }],
+  ["r", { fields: { circle: "r" } }],
+  ["cx", { fields: { circle: "cx", ellipse: "cx", ...polystar("cx") } }],
+  ["cy", { fields: { circle: "cy", ellipse: "cy", ...polystar("cy") } }],
+  ["font-size", { fields: { text: "fontSize" } }],
+  [
+    "letter-spacing",
+    { fields: { text: "letterSpacing" }, dirty: "textBoundsDirty" },
+  ],
+  ["sides", { fields: polystar("sides"), dirty: "polystarDirty" }],
+  ["outer-radius", { fields: polystar("outerRadius"), dirty: "polystarDirty" }],
+  ["inner-radius", { fields: { star: "innerRadius" }, dirty: "polystarDirty" }],
+  ["rotation", { fields: polystar("rotation"), dirty: "polystarDirty" }],
+  [
+    "outer-roundness",
+    { fields: polystar("outerRoundness"), dirty: "polystarDirty" },
+  ],
+  [
+    "inner-roundness",
+    { fields: { star: "innerRoundness" }, dirty: "polystarDirty" },
+  ],
+]);
 
-// Set one corner (0=tl,1=tr,2=br,3=bl), seeding the tuple from the uniform rx.
-function setCornerRadius(node: SceneNode, index: number, value: number): void {
-  if (node.shapeData.type !== "rect") return;
-  const rect = node.shapeData;
-  const seed = rect.rx || 0;
-  const c: [number, number, number, number] = rect.cornerRadii
-    ? [...rect.cornerRadii]
-    : [seed, seed, seed, seed];
-  c[index] = value;
-  rect.cornerRadii = c;
+// The keyword when `v` is one of `options`, else null.
+function oneOf<T extends string>(v: Value, options: readonly T[]): T | null {
+  return isKeywordValue(v) && (options as readonly string[]).includes(v.value)
+    ? (v.value as T)
+    : null;
 }
+
+// An id, or a namespaced `@define` instance id ending in it.
+const idMatches = (nodeId: string, name: string): boolean =>
+  nodeId === name || nodeId.endsWith(`.${name}`);
 
 // CSS gradient functions accepted as fill/stroke paint (all via parseGradient).
 export const GRADIENT_FN = new Set([
@@ -158,26 +221,6 @@ const STRING_BINDABLE_PROPERTIES = new Set([
   "paint-order",
   "visibility",
   "mix-blend-mode",
-]);
-
-// CSS mix-blend-mode keywords (every one maps to all three backends).
-const BLEND_MODES = new Set<string>([
-  "normal",
-  "multiply",
-  "screen",
-  "overlay",
-  "darken",
-  "lighten",
-  "color-dodge",
-  "color-burn",
-  "hard-light",
-  "soft-light",
-  "difference",
-  "exclusion",
-  "hue",
-  "saturation",
-  "color",
-  "luminosity",
 ]);
 
 // Warn once per animation whose gradient/path keyframes step, not interpolate.
@@ -329,28 +372,24 @@ export function extractImageViewBox(
   return null;
 }
 
-// True when an object-view-box operand is reactive (per-frame binding).
-function objectViewBoxHasVariable(value: Value): boolean {
-  const argHasVar = (v: Value): boolean =>
-    isVariableRefValue(v) ||
-    (isFunctionValue(v) && v.name === "input") ||
-    (isCalcValue(v) && calcOperands(v.expr).some(argHasVar));
-  return isFunctionValue(value) && value.args.some(argHasVar);
+// var()/input() anywhere outside a function's args (lists and calc() included).
+function hasVariableReference(value: Value): boolean {
+  if (isVariableRefValue(value)) return true;
+  if (isFunctionValue(value)) return value.name === "input";
+  if (isListValue(value)) return value.values.some(hasVariableReference);
+  if (isCalcValue(value))
+    return calcOperands(value.expr).some(hasVariableReference);
+  return false;
 }
 
-// True when a transform operand is reactive; the loop re-extracts per frame.
+// A reactive transform operand, bare or as a function arg; re-extracted per frame.
 function transformHasVariable(value: Value): boolean {
-  const argHasVar = (v: Value): boolean =>
-    isVariableRefValue(v) ||
-    (isFunctionValue(v) && v.name === "input") ||
-    (isCalcValue(v) && calcOperands(v.expr).some(argHasVar));
   const items = isListValue(value) ? value.values : [value];
-  for (const item of items) {
-    if (isFunctionValue(item) && item.args.some(argHasVar)) return true;
-    // Individual transform props carry bare operands (e.g. `translate: var(--x)`).
-    if (argHasVar(item)) return true;
-  }
-  return false;
+  return items.some(
+    (item) =>
+      hasVariableReference(item) ||
+      (isFunctionValue(item) && item.args.some(hasVariableReference)),
+  );
 }
 
 class SceneBuilder {
@@ -419,8 +458,7 @@ class SceneBuilder {
     }
     if (ids.size === 0) return;
     const visit = (n: SceneNode): void => {
-      if (ids.has(n.id) || [...ids].some((id) => n.id.endsWith("." + id)))
-        n.interactive = true;
+      if ([...ids].some((id) => idMatches(n.id, id))) n.interactive = true;
       n.children.forEach(visit);
     };
     visit(root);
@@ -494,33 +532,40 @@ class SceneBuilder {
 
     const id = rule.selector.name;
     // Freeze random() now; keyframes freeze per-node in buildKeyframes.
-    rule = this.freezeRandomInRule(rule, id);
+    // NOTE: `&:hover > #c` blocks freeze/fold against the parent, not #c.
+    rule = mapRuleDecls(rule, valueHasRandom, (d) =>
+      freezeRandom(d.value, {
+        documentSeed: this.documentSeed(),
+        nodeId: id,
+        property: d.property,
+      }),
+    );
     // Fold sibling-index()/sibling-count() the same way.
-    rule = this.foldSiblingInRule(rule, sib);
-    let shapeType: ShapeType = "group";
+    rule = mapRuleDecls(rule, valueHasSiblingFn, (d) =>
+      foldSiblingFns(d.value, sib),
+    );
 
-    for (const decl of rule.declarations) {
-      if (decl.property === "type") {
-        shapeType = getStringValue(decl.value) as ShapeType;
-        break;
-      }
-    }
-
+    const typeDecl = rule.declarations.find((d) => d.property === "type");
+    const shapeType = (
+      typeDecl ? getStringValue(typeDecl.value) : "group"
+    ) as ShapeType;
     const node = createSceneNode(id, shapeType);
     // Materialize shapeData first so declaration order doesn't matter.
-    this.ensureShapeData(node);
+    node.shapeData = defaultShapeData(shapeType);
 
     if (rule.selector.type === "class") {
       node.className = id;
     }
 
-    this.applyDeclarations(node, rule.declarations);
+    for (const decl of rule.declarations) this.applyDeclaration(node, decl);
 
     // circle/ellipse `x`/`y` box sugar → cx/cy, once r/rx/ry are final.
-    this.resolveCircleEllipseBoxPosition(node);
+    resolveCircleEllipseBoxPosition(node);
 
     // `animation` + longhands compose per CSS (later wins per sub-property).
-    this.resolveAnimations(node, rule.declarations, sib);
+    node.animations.push(
+      ...this.buildAnimations(rule.declarations, false, node.id, sib),
+    );
 
     node.transitions = this.resolveTransitions(rule.declarations);
 
@@ -569,13 +614,8 @@ class SceneBuilder {
 
     // The parent's state flip drives each target child (interaction.ts).
     for (const { rule: childRule, state } of stateChildRules) {
-      const target = findDirectChild(node, childRule.selector);
-      if (!target) {
-        console.warn(
-          `&:${state} > ${childRule.selector.type === "class" ? "." : "#"}${childRule.selector.name} in '${node.id}' targets no direct child; ignored.`,
-        );
-        continue;
-      }
+      const target = stateChildTarget(node, childRule.selector, `&:${state}`);
+      if (!target) continue;
       const styles = this.buildStateStyles(childRule.declarations);
       if (state === "hover") target.hoverStyles = styles;
       else target.activeStyles = styles;
@@ -584,13 +624,12 @@ class SceneBuilder {
 
     // Machine state is global, so these merge into the child's own stateStyles.
     for (const { rule: childRule, machineState } of machineChildRules) {
-      const target = findDirectChild(node, childRule.selector);
-      if (!target) {
-        console.warn(
-          `&:state(${machineState.name}) > ${childRule.selector.type === "class" ? "." : "#"}${childRule.selector.name} in '${node.id}' targets no direct child; ignored.`,
-        );
-        continue;
-      }
+      const target = stateChildTarget(
+        node,
+        childRule.selector,
+        `&:state(${machineState.name})`,
+      );
+      if (!target) continue;
       target.stateStyles.push({
         machine: machineState.machine,
         name: machineState.name,
@@ -611,61 +650,8 @@ class SceneBuilder {
   }
 
   private documentSeed(): number {
-    this.docSeed ??= hashString(serialize(this.sheet as StyleSheet));
+    this.docSeed ??= hashString(serialize(this.sheet!));
     return this.docSeed;
-  }
-
-  // Freeze random() in own declarations + state blocks, keyed by node id.
-  // NOTE: `&:hover > #c` blocks freeze/fold against the parent, not #c.
-  private freezeRandomInRule(rule: Rule, nodeId: string): Rule {
-    const seed = this.documentSeed.bind(this);
-    let sawRandom = false;
-    const mapDecls = (decls: Declaration[]): Declaration[] =>
-      decls.map((d) => {
-        if (!valueHasRandom(d.value)) return d;
-        sawRandom = true;
-        return {
-          ...d,
-          value: freezeRandom(d.value, {
-            documentSeed: seed(),
-            nodeId,
-            property: d.property,
-          }),
-        };
-      });
-
-    const declarations = mapDecls(rule.declarations);
-    const states = rule.states.map((s) => ({
-      ...s,
-      declarations: mapDecls(s.declarations),
-      children: s.children.map((c) => ({
-        ...c,
-        declarations: mapDecls(c.declarations),
-      })),
-    }));
-    return sawRandom ? { ...rule, declarations, states } : rule;
-  }
-
-  // Fold sibling-index()/-count() in a rule's own declarations + state blocks.
-  private foldSiblingInRule(rule: Rule, sib: SiblingContext): Rule {
-    let sawFn = false;
-    const mapDecls = (decls: Declaration[]): Declaration[] =>
-      decls.map((d) => {
-        if (!valueHasSiblingFn(d.value)) return d;
-        sawFn = true;
-        return { ...d, value: foldSiblingFns(d.value, sib) };
-      });
-
-    const declarations = mapDecls(rule.declarations);
-    const states = rule.states.map((s) => ({
-      ...s,
-      declarations: mapDecls(s.declarations),
-      children: s.children.map((c) => ({
-        ...c,
-        declarations: mapDecls(c.declarations),
-      })),
-    }));
-    return sawFn ? { ...rule, declarations, states } : rule;
   }
 
   // Expand `repeat:`, then build siblings indexed against the expanded list.
@@ -728,7 +714,7 @@ class SceneBuilder {
     if (!decl) return null;
     const id = rule.selector.name;
     const resolved = this.resolveStaticVars(decl.value);
-    if (this.hasVariableReference(resolved)) {
+    if (hasVariableReference(resolved)) {
       throw new Error(
         `repeat on '#${id}' must be a static count, not a reactive input()/var() (node count is fixed over the timeline)`,
       );
@@ -815,26 +801,11 @@ class SceneBuilder {
       const { property, value } = decl;
 
       switch (property) {
-        case "fill": {
-          // Channels are exclusive; applyStateStyles clears the other.
-          const paint = this.parsePaint(value);
-          if (paint?.type === "gradient") {
-            styles.fillGradient = paint.gradient;
-          } else if (paint) {
-            styles.fill = paint.color;
-          }
+        // Channels are exclusive; applyStateStyles clears the other.
+        case "fill":
+        case "stroke":
+          this.applyPaint(styles, property, value, false);
           break;
-        }
-
-        case "stroke": {
-          const paint = this.parsePaint(value);
-          if (paint?.type === "gradient") {
-            styles.strokeGradient = paint.gradient;
-          } else if (paint) {
-            styles.stroke = paint.color;
-          }
-          break;
-        }
 
         case "stroke-width":
           styles.strokeWidth = getNumericValue(value);
@@ -844,12 +815,14 @@ class SceneBuilder {
           styles.opacity = getNumericValue(value);
           break;
 
-        case "transform":
-          styles.transform = {
-            ...styles.transform,
-            ...this.extractStateTransform(value),
-          };
+        case "transform": {
+          const t: Partial<Transform> = {};
+          extractTransform(value, (key, val) => {
+            t[key] = val;
+          });
+          styles.transform = { ...styles.transform, ...t };
           break;
+        }
 
         case "translate":
         case "rotate":
@@ -893,41 +866,24 @@ class SceneBuilder {
     return styles;
   }
 
-  private extractStateTransform(value: Value): Partial<Transform> {
-    const transform: Partial<Transform> = {};
-    extractTransform(value, (key, val) => {
-      transform[key] = val;
-    });
-    return transform;
-  }
-
-  // circle/ellipse `x`/`y` box sugar → `cx = x + r`; explicit cx/cy wins.
-  private resolveCircleEllipseBoxPosition(node: SceneNode): void {
-    if (node.shapeData.type === "circle") {
-      const d = node.shapeData;
-      if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + d.r;
-      if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + d.r;
-      delete d.__boxX;
-      delete d.__boxY;
-      delete d.__cxSet;
-      delete d.__cySet;
-    } else if (node.shapeData.type === "ellipse") {
-      const d = node.shapeData;
-      if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + d.rx;
-      if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + d.ry;
-      delete d.__boxX;
-      delete d.__boxY;
-      delete d.__cxSet;
-      delete d.__cySet;
-    }
-  }
-
-  private applyDeclarations(
-    node: SceneNode,
-    declarations: Declaration[],
+  // fill/stroke → its solid or gradient channel; `exclusive` also nulls the solid.
+  private applyPaint(
+    target: Pick<
+      StateStyles,
+      "fill" | "stroke" | "fillGradient" | "strokeGradient"
+    >,
+    prop: "fill" | "stroke",
+    value: Value,
+    exclusive: boolean,
   ): void {
-    for (const decl of declarations) {
-      this.applyDeclaration(node, decl);
+    const paint = this.parsePaint(value);
+    if (paint?.type === "gradient") {
+      // Invalid gradient falls back to no fill.
+      target[prop === "fill" ? "fillGradient" : "strokeGradient"] =
+        paint.gradient;
+      if (exclusive) target[prop] = null;
+    } else if (paint) {
+      target[prop] = paint.color;
     }
   }
 
@@ -951,7 +907,7 @@ class SceneBuilder {
       return;
     }
 
-    if (this.hasVariableReference(value)) {
+    if (hasVariableReference(value)) {
       const binding: PropertyBinding = { property, value };
       // String props re-apply the resolved value through this switch each frame.
       if (STRING_BINDABLE_PROPERTIES.has(property)) {
@@ -968,7 +924,9 @@ class SceneBuilder {
         if (transformHasVariable(value)) {
           node.bindings.push({ property, value });
         } else {
-          this.applyTransform(node, value);
+          extractTransform(value, (key, val) => {
+            node.transform[key] = val;
+          });
         }
         break;
 
@@ -986,38 +944,7 @@ class SceneBuilder {
         break;
 
       case "transform-origin":
-        this.applyTransformOrigin(node, value);
-        break;
-
-      // Position/size for rect (x/y are also the text anchor point)
-      case "x":
-        if (node.shapeData.type === "rect") {
-          node.shapeData.x = getNumericValue(value);
-        } else if (node.shapeData.type === "text") {
-          node.shapeData.x = getNumericValue(value);
-        } else if (node.shapeData.type === "image") {
-          node.shapeData.x = getNumericValue(value);
-        } else if (
-          node.shapeData.type === "circle" ||
-          node.shapeData.type === "ellipse"
-        ) {
-          // NOTE: box sugar, see resolveCircleEllipseBoxPosition; static.
-          node.shapeData.__boxX = getNumericValue(value);
-        }
-        break;
-      case "y":
-        if (node.shapeData.type === "rect") {
-          node.shapeData.y = getNumericValue(value);
-        } else if (node.shapeData.type === "text") {
-          node.shapeData.y = getNumericValue(value);
-        } else if (node.shapeData.type === "image") {
-          node.shapeData.y = getNumericValue(value);
-        } else if (
-          node.shapeData.type === "circle" ||
-          node.shapeData.type === "ellipse"
-        ) {
-          node.shapeData.__boxY = getNumericValue(value);
-        }
+        node.transform.transformOrigin = parseTransformOrigin(value);
         break;
 
       // Text content, or image source (`content: url('…')`).
@@ -1032,16 +959,11 @@ class SceneBuilder {
       // xywh() skips the hasVariableReference check above; bind here.
       case "object-view-box":
         if (node.shapeData.type === "image") {
-          if (objectViewBoxHasVariable(value)) {
+          if (isFunctionValue(value) && value.args.some(hasVariableReference)) {
             node.bindings.push({ property, value });
           } else {
             node.shapeData.viewBox = extractImageViewBox(value);
           }
-        }
-        break;
-      case "font-size":
-        if (node.shapeData.type === "text") {
-          node.shapeData.fontSize = getNumericValue(value);
         }
         break;
       case "font-family":
@@ -1060,17 +982,12 @@ class SceneBuilder {
             : getStringValue(value) || "normal";
         }
         break;
-      case "text-anchor":
-        if (
-          node.shapeData.type === "text" &&
-          isKeywordValue(value) &&
-          (value.value === "start" ||
-            value.value === "middle" ||
-            value.value === "end")
-        ) {
-          node.shapeData.anchor = value.value as TextAnchor;
-        }
+      case "text-anchor": {
+        const anchor = oneOf(value, TEXT_ANCHORS);
+        if (node.shapeData.type === "text" && anchor)
+          node.shapeData.anchor = anchor;
         break;
+      }
       // text-align → anchor: center→middle, right/end→end, else start.
       case "text-align":
         if (node.shapeData.type === "text" && isKeywordValue(value)) {
@@ -1081,12 +998,6 @@ class SceneBuilder {
                 ? "end"
                 : "start";
           node.shapeData.anchor = a;
-        }
-        break;
-      case "letter-spacing":
-        if (node.shapeData.type === "text") {
-          node.shapeData.letterSpacing = getNumericValue(value);
-          node.textBoundsDirty = true;
         }
         break;
       // px/% resolve against font-size; unitless is a multiplier.
@@ -1103,118 +1014,11 @@ class SceneBuilder {
           node.textBoundsDirty = true;
         }
         break;
-      case "width":
-        if (node.shapeData.type === "rect") {
-          node.shapeData.width = getNumericValue(value);
-        } else if (node.shapeData.type === "image") {
-          node.shapeData.width = getNumericValue(value);
-        }
-        break;
-      case "height":
-        if (node.shapeData.type === "rect") {
-          node.shapeData.height = getNumericValue(value);
-        } else if (node.shapeData.type === "image") {
-          node.shapeData.height = getNumericValue(value);
-        }
-        break;
-
-      case "rx":
-        if (node.shapeData.type === "rect") {
-          node.shapeData.rx = getNumericValue(value);
-        } else if (node.shapeData.type === "ellipse") {
-          node.shapeData.rx = getNumericValue(value);
-        }
-        break;
-      case "ry":
-        if (node.shapeData.type === "rect") {
-          node.shapeData.ry = getNumericValue(value);
-        } else if (node.shapeData.type === "ellipse") {
-          node.shapeData.ry = getNumericValue(value);
-        }
-        break;
-
-      // CSS border-radius longhands.
       case "border-top-left-radius":
-        setCornerRadius(node, 0, getNumericValue(value));
-        break;
       case "border-top-right-radius":
-        setCornerRadius(node, 1, getNumericValue(value));
-        break;
       case "border-bottom-right-radius":
-        setCornerRadius(node, 2, getNumericValue(value));
-        break;
       case "border-bottom-left-radius":
-        setCornerRadius(node, 3, getNumericValue(value));
-        break;
-
-      case "cx":
-        if (node.shapeData.type === "circle") {
-          const d = node.shapeData;
-          d.cx = getNumericValue(value);
-          d.__cxSet = true;
-        } else if (node.shapeData.type === "ellipse") {
-          const d = node.shapeData;
-          d.cx = getNumericValue(value);
-          d.__cxSet = true;
-        } else if (isPolystar(node.shapeData)) {
-          node.shapeData.cx = getNumericValue(value);
-        }
-        break;
-      case "cy":
-        if (node.shapeData.type === "circle") {
-          const d = node.shapeData;
-          d.cy = getNumericValue(value);
-          d.__cySet = true;
-        } else if (node.shapeData.type === "ellipse") {
-          const d = node.shapeData;
-          d.cy = getNumericValue(value);
-          d.__cySet = true;
-        } else if (isPolystar(node.shapeData)) {
-          node.shapeData.cy = getNumericValue(value);
-        }
-        break;
-      case "r":
-        if (node.shapeData.type === "circle") {
-          node.shapeData.r = getNumericValue(value);
-        }
-        break;
-
-      // Star/polygon geometry (path synthesized at render); `sides` is static.
-      case "sides":
-        if (isPolystar(node.shapeData)) {
-          node.shapeData.sides = getNumericValue(value);
-          node.polystarDirty = true;
-        }
-        break;
-      case "outer-radius":
-        if (isPolystar(node.shapeData)) {
-          node.shapeData.outerRadius = getNumericValue(value);
-          node.polystarDirty = true;
-        }
-        break;
-      case "inner-radius":
-        if (node.shapeData.type === "star") {
-          node.shapeData.innerRadius = getNumericValue(value);
-          node.polystarDirty = true;
-        }
-        break;
-      case "rotation":
-        if (isPolystar(node.shapeData)) {
-          node.shapeData.rotation = getNumericValue(value);
-          node.polystarDirty = true;
-        }
-        break;
-      case "outer-roundness":
-        if (isPolystar(node.shapeData)) {
-          node.shapeData.outerRoundness = getNumericValue(value);
-          node.polystarDirty = true;
-        }
-        break;
-      case "inner-roundness":
-        if (node.shapeData.type === "star") {
-          node.shapeData.innerRoundness = getNumericValue(value);
-          node.polystarDirty = true;
-        }
+        getPropHandler(property)?.apply(node, getNumericValue(value));
         break;
 
       case "d":
@@ -1223,28 +1027,10 @@ class SceneBuilder {
         }
         break;
 
-      case "fill": {
-        const paint = this.parsePaint(value);
-        if (paint?.type === "gradient") {
-          // Invalid gradient falls back to no fill.
-          node.fillGradient = paint.gradient;
-          node.fill = null;
-        } else if (paint) {
-          node.fill = paint.color;
-        }
+      case "fill":
+      case "stroke":
+        this.applyPaint(node, property, value, true);
         break;
-      }
-
-      case "stroke": {
-        const paint = this.parsePaint(value);
-        if (paint?.type === "gradient") {
-          node.strokeGradient = paint.gradient;
-          node.stroke = null;
-        } else if (paint) {
-          node.stroke = paint.color;
-        }
-        break;
-      }
 
       case "clip-path":
         node.clipPath = this.parseClipPath(value);
@@ -1266,9 +1052,7 @@ class SceneBuilder {
 
       // Unknown keywords are ignored (stay 'normal').
       case "mix-blend-mode":
-        if (isKeywordValue(value) && BLEND_MODES.has(value.value)) {
-          node.mixBlendMode = value.value as BlendMode;
-        }
+        node.mixBlendMode = oneOf(value, BLEND_MODES) ?? node.mixBlendMode;
         break;
 
       // offset-path/offset-rotate are static; offset-distance is animatable.
@@ -1292,25 +1076,13 @@ class SceneBuilder {
         break;
 
       case "stroke-linecap":
-        if (
-          isKeywordValue(value) &&
-          (value.value === "butt" ||
-            value.value === "round" ||
-            value.value === "square")
-        ) {
-          node.strokeLineCap = value.value;
-        }
+        node.strokeLineCap =
+          oneOf(value, STROKE_LINE_CAPS) ?? node.strokeLineCap;
         break;
 
       case "stroke-linejoin":
-        if (
-          isKeywordValue(value) &&
-          (value.value === "miter" ||
-            value.value === "round" ||
-            value.value === "bevel")
-        ) {
-          node.strokeLineJoin = value.value;
-        }
+        node.strokeLineJoin =
+          oneOf(value, STROKE_LINE_JOINS) ?? node.strokeLineJoin;
         break;
 
       case "stroke-miterlimit":
@@ -1328,12 +1100,7 @@ class SceneBuilder {
         break;
 
       case "fill-rule":
-        if (
-          isKeywordValue(value) &&
-          (value.value === "nonzero" || value.value === "evenodd")
-        ) {
-          node.fillRule = value.value;
-        }
+        node.fillRule = oneOf(value, FILL_RULES) ?? node.fillRule;
         break;
 
       // Only 'stroke' (stroke behind fill) changes the default order.
@@ -1425,186 +1192,21 @@ class SceneBuilder {
             ? value.value * 1000
             : getNumericValue(value); // ms (bare number or 'ms')
         break;
-    }
 
-    this.ensureShapeData(node);
-  }
-
-  private ensureShapeData(node: SceneNode): void {
-    if (!node.shapeData || node.shapeData.type !== node.type) {
-      switch (node.type) {
-        case "group":
-          node.shapeData = { type: "group" };
-          break;
-        case "rect":
-          node.shapeData = {
-            type: "rect",
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            rx: 0,
-            ry: 0,
-          };
-          break;
-        case "circle":
-          node.shapeData = { type: "circle", cx: 0, cy: 0, r: 0 };
-          break;
-        case "ellipse":
-          node.shapeData = { type: "ellipse", cx: 0, cy: 0, rx: 0, ry: 0 };
-          break;
-        case "path":
-          node.shapeData = { type: "path", commands: [] };
-          break;
-        case "star":
-        case "polygon":
-          node.shapeData = {
-            type: node.type,
-            sides: 5,
-            outerRadius: 0,
-            innerRadius: 0,
-            rotation: 0,
-            cx: 0,
-            cy: 0,
-            outerRoundness: 0,
-            innerRoundness: 0,
-          };
-          break;
-        case "text":
-          node.shapeData = {
-            type: "text",
-            x: 0,
-            y: 0,
-            content: "",
-            fontSize: 16,
-            fontFamily: "sans-serif",
-            fontWeight: "normal",
-            anchor: "start",
-            letterSpacing: 0,
-            lineHeight: 0,
-          };
-          break;
-        case "image":
-          node.shapeData = {
-            type: "image",
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-            src: "",
-            viewBox: null,
-          };
-          break;
-      }
-    }
-  }
-
-  private applyTransform(node: SceneNode, value: Value): void {
-    extractTransform(value, (key, val) => {
-      node.transform[key] = val;
-    });
-  }
-
-  // transform-origin: keywords, %, px, or mixed (`center 100px`).
-  private applyTransformOrigin(node: SceneNode, value: Value): void {
-    const origin = createDefaultTransformOrigin();
-
-    let values: Value[] = [];
-    if (isListValue(value)) {
-      values = value.values;
-    } else {
-      values = [value];
-    }
-
-    if (values.length >= 1) {
-      const firstVal = this.parseTransformOriginValue(values[0], "x");
-      if (firstVal) {
-        if (this.isYAxisKeyword(values[0])) {
-          origin.y = firstVal;
-          origin.x = { value: 50, unit: "%" };
-        } else {
-          origin.x = firstVal;
+      default: {
+        const spec = NUMERIC_SHAPE_PROPS.get(property);
+        const field = spec?.fields[node.shapeData.type];
+        if (!spec || !field) break;
+        const sd = node.shapeData as unknown as Record<string, unknown>;
+        sd[field] = getNumericValue(value);
+        if (property === "cx" || property === "cy") {
+          // Explicit centre beats circle/ellipse box sugar.
+          if (sd.type === "circle" || sd.type === "ellipse")
+            sd[property === "cx" ? "__cxSet" : "__cySet"] = true;
         }
+        if (spec.dirty) node[spec.dirty] = true;
       }
     }
-
-    if (values.length >= 2) {
-      const secondVal = this.parseTransformOriginValue(values[1], "y");
-      if (secondVal) {
-        if (this.isYAxisKeyword(values[0])) {
-          origin.x = secondVal;
-        } else {
-          origin.y = secondVal;
-        }
-      }
-    } else if (values.length === 1) {
-      const firstVal = values[0];
-      if (isKeywordValue(firstVal) && firstVal.value === "center") {
-        origin.x = { value: 50, unit: "%" };
-        origin.y = { value: 50, unit: "%" };
-      } else if (!this.isYAxisKeyword(firstVal)) {
-        // A lone x value defaults y to 50% (CSS: `100px` = `100px 50%`).
-        origin.y = { value: 50, unit: "%" };
-      }
-    }
-
-    node.transform.transformOrigin = origin;
-  }
-
-  private isYAxisKeyword(value: Value): boolean {
-    return (
-      isKeywordValue(value) &&
-      (value.value === "top" || value.value === "bottom")
-    );
-  }
-
-  private parseTransformOriginValue(
-    value: Value,
-    axis: "x" | "y",
-  ): TransformOriginValue | null {
-    if (isKeywordValue(value)) {
-      return this.keywordToOriginValue(value.value, axis);
-    } else if (isLengthValue(value)) {
-      if (value.unit === "%") {
-        return { value: value.value, unit: "%" };
-      } else {
-        // NOTE: non-% units are read as px.
-        return { value: value.value, unit: "px" };
-      }
-    } else if (isNumberValue(value)) {
-      return { value: value.value, unit: "px" };
-    }
-    return null;
-  }
-
-  private keywordToOriginValue(
-    keyword: string,
-    _axis: "x" | "y",
-  ): TransformOriginValue {
-    switch (keyword) {
-      case "left":
-        return { value: 0, unit: "%" };
-      case "right":
-        return { value: 100, unit: "%" };
-      case "top":
-        return { value: 0, unit: "%" };
-      case "bottom":
-        return { value: 100, unit: "%" };
-      case "center":
-        return { value: 50, unit: "%" };
-      default:
-        return { value: 0, unit: "px" };
-    }
-  }
-
-  // CSS composition: shorthand resets the list, longhands index positionally.
-  private resolveAnimations(
-    node: SceneNode,
-    declarations: Declaration[],
-    sib: SiblingContext,
-  ): void {
-    for (const a of this.buildAnimations(declarations, false, node.id, sib))
-      node.animations.push(a);
   }
 
   // `stateDefault`: unset fill-mode is `both`, so :state() one-shots hold.
@@ -1614,109 +1216,50 @@ class SceneBuilder {
     nodeId: string,
     sib: SiblingContext,
   ): AnimationInstance[] {
-    let slots: AnimSlot[] | null = null;
-    // Grow so a longhand before any shorthand still defines slots.
-    const ensure = (n: number): AnimSlot[] => {
-      slots ??= [];
-      while (slots.length < n) slots.push(defaultAnimSlot());
-      return slots;
-    };
-    const eachSlot = (
-      v: Value,
-      fn: (slot: AnimSlot, val: Value) => void,
-    ): void => {
-      const vals = commaValues(v);
-      const s = ensure(vals.length);
-      for (let i = 0; i < s.length; i++) fn(s[i], vals[i % vals.length]);
-    };
-
-    for (const decl of declarations) {
-      switch (decl.property) {
-        case "animation": {
-          // Shorthand resets the whole animation list.
-          const groups =
-            isListValue(decl.value) && decl.value.separator === "comma"
-              ? decl.value.values
-              : [decl.value];
-          slots = groups.map((g) =>
-            this.parseAnimationGroup(isListValue(g) ? g.values : [g]),
-          );
-          break;
-        }
-        case "animation-name":
-          eachSlot(decl.value, (slot, v) => {
-            if (isKeywordValue(v) || isStringValue(v)) slot.name = v.value;
-          });
-          break;
-        case "animation-duration":
-          eachSlot(decl.value, (slot, v) => {
-            const ms = timeMs(v);
-            if (ms !== null) {
-              slot.duration = ms;
-              slot.durationSet = true;
-            }
-          });
-          break;
-        case "animation-delay":
-          eachSlot(decl.value, (slot, v) => {
-            const ms = timeMs(v);
-            if (ms !== null) slot.delay = ms;
-          });
-          break;
-        case "animation-timing-function":
-          eachSlot(decl.value, (slot, v) => {
-            slot.timingFunction = this.timingFromValue(v);
-          });
-          break;
-        case "animation-iteration-count":
-          eachSlot(decl.value, (slot, v) => {
-            if (isKeywordValue(v) && v.value === "infinite")
-              slot.iterationCount = Infinity;
-            else if (isNumberValue(v)) slot.iterationCount = v.value;
-          });
-          break;
-        case "animation-direction":
-          eachSlot(decl.value, (slot, v) => {
-            if (
-              isKeywordValue(v) &&
-              (v.value === "normal" ||
-                v.value === "reverse" ||
-                v.value === "alternate" ||
-                v.value === "alternate-reverse")
-            ) {
-              slot.direction = v.value;
-            }
-          });
-          break;
-        case "animation-fill-mode":
-          eachSlot(decl.value, (slot, v) => {
-            if (
-              isKeywordValue(v) &&
-              (v.value === "none" ||
-                v.value === "forwards" ||
-                v.value === "backwards" ||
-                v.value === "both")
-            ) {
-              slot.fillMode = v.value;
-              slot.fillModeSet = true;
-            }
-          });
-          break;
+    const slots = composeSlots(
+      declarations,
+      "animation",
+      (g) => this.parseAnimationGroup(g),
+      defaultAnimSlot,
+      {
+        "animation-name": (slot, v) => {
+          if (isKeywordValue(v) || isStringValue(v)) slot.name = v.value;
+        },
+        "animation-duration": (slot, v) => {
+          const ms = timeMs(v);
+          if (ms !== null) {
+            slot.duration = ms;
+            slot.durationSet = true;
+          }
+        },
+        "animation-delay": (slot, v) => {
+          const ms = timeMs(v);
+          if (ms !== null) slot.delay = ms;
+        },
+        "animation-timing-function": (slot, v) => {
+          slot.timingFunction = this.timingFromValue(v);
+        },
+        "animation-iteration-count": (slot, v) => {
+          if (isKeywordValue(v) && v.value === "infinite")
+            slot.iterationCount = Infinity;
+          else if (isNumberValue(v)) slot.iterationCount = v.value;
+        },
+        "animation-direction": (slot, v) => {
+          slot.direction = oneOf(v, ANIMATION_DIRECTIONS) ?? slot.direction;
+        },
+        "animation-fill-mode": (slot, v) => {
+          const fillMode = oneOf(v, ANIMATION_FILL_MODES);
+          if (fillMode) {
+            slot.fillMode = fillMode;
+            slot.fillModeSet = true;
+          }
+        },
         // Not part of the `animation` shorthand (which resets it to 'replace').
-        case "animation-composition":
-          eachSlot(decl.value, (slot, v) => {
-            if (
-              isKeywordValue(v) &&
-              (v.value === "replace" ||
-                v.value === "add" ||
-                v.value === "accumulate")
-            ) {
-              slot.composition = v.value;
-            }
-          });
-          break;
-      }
-    }
+        "animation-composition": (slot, v) => {
+          slot.composition = oneOf(v, COMPOSITE_OPERATIONS) ?? slot.composition;
+        },
+      },
+    );
 
     if (!slots) return [];
     const out: AnimationInstance[] = [];
@@ -1744,57 +1287,28 @@ class SceneBuilder {
 
   // Compose `transition` + longhands like animations; drops zero durations.
   private resolveTransitions(declarations: Declaration[]): TransitionSpec[] {
-    let slots: TransSlot[] | null = null;
-    const ensure = (n: number): TransSlot[] => {
-      slots ??= [];
-      while (slots.length < n) slots.push(defaultTransSlot());
-      return slots;
-    };
-    const eachSlot = (
-      v: Value,
-      fn: (slot: TransSlot, val: Value) => void,
-    ): void => {
-      const vals = commaValues(v);
-      const s = ensure(vals.length);
-      for (let i = 0; i < s.length; i++) fn(s[i], vals[i % vals.length]);
-    };
-
-    for (const decl of declarations) {
-      switch (decl.property) {
-        case "transition": {
-          const groups =
-            isListValue(decl.value) && decl.value.separator === "comma"
-              ? decl.value.values
-              : [decl.value];
-          slots = groups.map((g) =>
-            this.parseTransitionGroup(isListValue(g) ? g.values : [g]),
-          );
-          break;
-        }
-        case "transition-property":
-          eachSlot(decl.value, (slot, v) => {
-            if (isKeywordValue(v)) slot.property = v.value;
-          });
-          break;
-        case "transition-duration":
-          eachSlot(decl.value, (slot, v) => {
-            const ms = timeMs(v);
-            if (ms !== null) slot.duration = ms;
-          });
-          break;
-        case "transition-delay":
-          eachSlot(decl.value, (slot, v) => {
-            const ms = timeMs(v);
-            if (ms !== null) slot.delay = ms;
-          });
-          break;
-        case "transition-timing-function":
-          eachSlot(decl.value, (slot, v) => {
-            slot.easing = this.timingFromValue(v);
-          });
-          break;
-      }
-    }
+    const slots = composeSlots(
+      declarations,
+      "transition",
+      (g) => this.parseTransitionGroup(g),
+      defaultTransSlot,
+      {
+        "transition-property": (slot, v) => {
+          if (isKeywordValue(v)) slot.property = v.value;
+        },
+        "transition-duration": (slot, v) => {
+          const ms = timeMs(v);
+          if (ms !== null) slot.duration = ms;
+        },
+        "transition-delay": (slot, v) => {
+          const ms = timeMs(v);
+          if (ms !== null) slot.delay = ms;
+        },
+        "transition-timing-function": (slot, v) => {
+          slot.easing = this.timingFromValue(v);
+        },
+      },
+    );
 
     if (!slots) return [];
     return slots
@@ -1813,8 +1327,8 @@ class SceneBuilder {
     let durationSet = false;
     for (const raw of values) {
       const v = this.resolveStaticVars(raw);
-      if (isLengthValue(v) && (v.unit === "s" || v.unit === "ms")) {
-        const ms = timeMs(v)!;
+      const ms = timeMs(v);
+      if (ms !== null) {
         if (!durationSet) {
           slot.duration = ms;
           durationSet = true;
@@ -1822,20 +1336,9 @@ class SceneBuilder {
       } else if (isFunctionValue(v) && this.isTimingFunctionName(v.name)) {
         slot.easing = this.timingFromFunction(v);
       } else if (isKeywordValue(v)) {
-        const kw = v.value;
-        if (
-          kw === "linear" ||
-          kw === "ease" ||
-          kw === "ease-in" ||
-          kw === "ease-out" ||
-          kw === "ease-in-out" ||
-          kw === "step-start" ||
-          kw === "step-end"
-        ) {
-          slot.easing = kw;
-        } else {
-          slot.property = kw; // property name: all/fill/stroke/stroke-width/opacity/transform
-        }
+        const easing = oneOf(v, EASING_KEYWORDS);
+        if (easing) slot.easing = easing;
+        else slot.property = v.value; // all/fill/stroke/stroke-width/opacity/transform
       }
     }
     return slot;
@@ -1848,32 +1351,15 @@ class SceneBuilder {
       const v = this.resolveStaticVars(raw);
       if (isKeywordValue(v)) {
         const kw = v.value;
+        const easing = oneOf(v, EASING_KEYWORDS);
+        const direction = oneOf(v, ANIMATION_DIRECTIONS);
+        const fillMode = oneOf(v, ANIMATION_FILL_MODES);
         if (this.keyframesMap.has(kw)) slot.name = kw;
-        else if (
-          kw === "linear" ||
-          kw === "ease" ||
-          kw === "ease-in" ||
-          kw === "ease-out" ||
-          kw === "ease-in-out" ||
-          kw === "step-start" ||
-          kw === "step-end"
-        )
-          slot.timingFunction = kw;
+        else if (easing) slot.timingFunction = easing;
         else if (kw === "infinite") slot.iterationCount = Infinity;
-        else if (
-          kw === "normal" ||
-          kw === "reverse" ||
-          kw === "alternate" ||
-          kw === "alternate-reverse"
-        )
-          slot.direction = kw;
-        else if (
-          kw === "none" ||
-          kw === "forwards" ||
-          kw === "backwards" ||
-          kw === "both"
-        ) {
-          slot.fillMode = kw;
+        else if (direction) slot.direction = direction;
+        else if (fillMode) {
+          slot.fillMode = fillMode;
           slot.fillModeSet = true;
         }
       } else if (isFunctionValue(v) && this.isTimingFunctionName(v.name)) {
@@ -1938,13 +1424,7 @@ class SceneBuilder {
         const p = arg.value;
         if (p === "start") position = "jump-start";
         else if (p === "end") position = "jump-end";
-        else if (
-          p === "jump-start" ||
-          p === "jump-end" ||
-          p === "jump-none" ||
-          p === "jump-both"
-        )
-          position = p;
+        else position = oneOf(arg, STEP_POSITIONS) ?? position;
       }
     }
     return { type: "steps", count, position };
@@ -1956,19 +1436,7 @@ class SceneBuilder {
     const v = this.resolveStaticVars(rawV);
     if (isFunctionValue(v) && this.isTimingFunctionName(v.name))
       return this.timingFromFunction(v);
-    if (
-      isKeywordValue(v) &&
-      (v.value === "linear" ||
-        v.value === "ease" ||
-        v.value === "ease-in" ||
-        v.value === "ease-out" ||
-        v.value === "ease-in-out" ||
-        v.value === "step-start" ||
-        v.value === "step-end")
-    ) {
-      return v.value;
-    }
-    return "ease";
+    return oneOf(v, EASING_KEYWORDS) ?? "ease";
   }
 
   private buildKeyframes(
@@ -2022,7 +1490,9 @@ class SceneBuilder {
       switch (property) {
         case "transform":
           // Per-channel values so they merge with the base transform.
-          this.extractTransformProperties(value, props);
+          extractTransform(value, (key, val) => {
+            props[key] = val;
+          });
           break;
         case "translate":
         case "rotate":
@@ -2099,15 +1569,6 @@ class SceneBuilder {
     }
   }
 
-  private extractTransformProperties(
-    value: Value,
-    props: Record<string, AnimatableValue>,
-  ): void {
-    extractTransform(value, (key, val) => {
-      props[key] = val;
-    });
-  }
-
   // Fill/stroke → gradient or color (either null if invalid/none); null if not paint.
   private parsePaint(
     value: Value,
@@ -2128,10 +1589,7 @@ class SceneBuilder {
   }
 
   // Flattened gradient args → GradientData; null without color stops.
-  private parseGradient(func: {
-    name: string;
-    args: Value[];
-  }): GradientData | null {
+  private parseGradient(func: FunctionValue): GradientData | null {
     // `repeating-<kind>()` tiles the stop run; otherwise the kind carries through.
     const repeating = func.name.startsWith("repeating-");
     const kind = repeating ? func.name.slice("repeating-".length) : func.name;
@@ -2146,10 +1604,10 @@ class SceneBuilder {
     // `in <space> [<method> hue]`, either side of the direction.
     // NOTE: only oklab/oklch are realized; other spaces degrade to sRGB.
     let interpolate: GradientInterpolation | undefined;
-    const keywordAt = (k: number): string | null =>
-      args[k] && isKeywordValue(args[k])
-        ? (args[k] as { value: string }).value
-        : null;
+    const keywordAt = (k: number): string | null => {
+      const a = args[k];
+      return a && isKeywordValue(a) ? a.value : null;
+    };
     const eatInterpolation = (): void => {
       if (keywordAt(i) !== "in") return;
       const space = keywordAt(i + 1);
@@ -2197,8 +1655,8 @@ class SceneBuilder {
     // conic: `from <angle>` (0 = up, clockwise), `at` defaults to the box centre.
     let fromAngle = 0;
     if (isConic) {
-      while (i < args.length && isKeywordValue(args[i])) {
-        const kw = (args[i] as { value: string }).value;
+      for (;;) {
+        const kw = keywordAt(i);
         if (kw === "from" && args[i + 1] && num(args[i + 1]) != null) {
           fromAngle = num(args[i + 1])!;
           i += 2;
@@ -2222,8 +1680,8 @@ class SceneBuilder {
     let to: { x: number; y: number } | undefined;
     let radius: number | undefined;
     let focal: { x: number; y: number } | undefined;
-    while (!isConic && i < args.length && isKeywordValue(args[i])) {
-      const kw = (args[i] as { value: string }).value;
+    while (!isConic && keywordAt(i) !== null) {
+      const kw = keywordAt(i);
       const x = num(args[i + 1]);
       if (kw === "circle" && x != null) {
         radius = x;
@@ -2252,7 +1710,7 @@ class SceneBuilder {
 
     const stops: GradientStop[] = [];
     while (i < args.length) {
-      const color = this.colorArgToString(args[i++]);
+      const color = colorStringFromValue(args[i++]);
       if (color === null) continue; // skip anything that isn't a color
       let offset: number | null = null;
       const next = args[i];
@@ -2310,10 +1768,6 @@ class SceneBuilder {
           repeating,
           interpolate,
         };
-  }
-
-  private colorArgToString(value: Value): string | null {
-    return colorStringFromValue(value);
   }
 
   // clip-path: circle(r at x y) | inset(t r b l) | path('d'); null = unclipped.
@@ -2376,16 +1830,8 @@ class SceneBuilder {
         continue;
       }
       if (!isKeywordValue(v)) continue;
-      if (v.value.startsWith("#")) {
-        sourceId = v.value.slice(1);
-      } else if (
-        v.value === "alpha" ||
-        v.value === "alpha-invert" ||
-        v.value === "luminance" ||
-        v.value === "luminance-invert"
-      ) {
-        mode = v.value;
-      }
+      if (v.value.startsWith("#")) sourceId = v.value.slice(1);
+      else mode = oneOf(v, MASK_MODES) ?? mode;
     }
     if (sourceId) this.pendingMasks.push({ node, sourceId, mode });
   }
@@ -2487,7 +1933,7 @@ class SceneBuilder {
   }
 
   // offset-rotate: `auto` (default) | `<angle>` | `auto <angle>`.
-  private parseOffsetRotate(value: Value): { auto: boolean; angle: number } {
+  private parseOffsetRotate(value: Value): OffsetRotate {
     const values = isListValue(value) ? value.values : [value];
     let auto = false;
     let angle = 0;
@@ -2512,11 +1958,11 @@ class SceneBuilder {
     if (isVariableRefValue(value)) {
       const resolved = this.variablesMap.get(value.name);
       if (resolved) {
-        if (this.hasVariableReference(resolved)) return value;
+        if (hasVariableReference(resolved)) return value;
         return this.resolveStaticVars(resolved);
       }
       // Undefined var: fall back to the authored fallback (if static).
-      if (value.fallback && !this.hasVariableReference(value.fallback)) {
+      if (value.fallback && !hasVariableReference(value.fallback)) {
         return this.resolveStaticVars(value.fallback);
       }
       return value;
@@ -2546,32 +1992,12 @@ class SceneBuilder {
         type: "calc" as const,
         expr: mapCalcOperands(value.expr, (v) => this.resolveStaticVars(v)),
       };
-      if (!this.hasVariableReference(resolved)) {
+      if (!hasVariableReference(resolved)) {
         return evalCalcStatic(resolved) ?? resolved;
       }
       return resolved;
     }
     return value;
-  }
-
-  private hasVariableReference(value: Value): boolean {
-    if (isVariableRefValue(value)) {
-      return true;
-    }
-
-    if (isFunctionValue(value) && value.name === "input") {
-      return true;
-    }
-
-    if (isListValue(value)) {
-      return value.values.some((v) => this.hasVariableReference(v));
-    }
-
-    if (isCalcValue(value)) {
-      return calcOperands(value.expr).some((v) => this.hasVariableReference(v));
-    }
-
-    return false;
   }
 
   // `time-remap` list of `<in> <out> [easing]` stops, sorted; null if none.
@@ -2618,10 +2044,7 @@ class SceneBuilder {
     return stops;
   }
 
-  private parseCubicBezierFunction(func: {
-    name: string;
-    args: Value[];
-  }): TimingFunction {
+  private parseCubicBezierFunction(func: FunctionValue): TimingFunction {
     if (func.args.length >= 4) {
       return {
         type: "cubic-bezier",
@@ -2727,9 +2150,177 @@ function findDirectChild(
   if (selector.type === "class") {
     return parent.children.find((c) => c.className === selector.name);
   }
-  return parent.children.find(
-    (c) => c.id === selector.name || c.id.endsWith("." + selector.name),
-  );
+  return parent.children.find((c) => idMatches(c.id, selector.name));
+}
+
+// The direct child a `<state> > sel` rule targets; warns when there is none.
+function stateChildTarget(
+  parent: SceneNode,
+  selector: Selector,
+  state: string,
+): SceneNode | undefined {
+  const target = findDirectChild(parent, selector);
+  if (!target)
+    console.warn(
+      `${state} > ${selector.type === "class" ? "." : "#"}${selector.name} in '${parent.id}' targets no direct child; ignored.`,
+    );
+  return target;
+}
+
+// Rewrite matching values in a rule's own + state-block declarations; same rule if none match.
+function mapRuleDecls(
+  rule: Rule,
+  test: (v: Value) => boolean,
+  map: (d: Declaration) => Value,
+): Rule {
+  let hit = false;
+  const mapDecls = (decls: Declaration[]): Declaration[] =>
+    decls.map((d) => {
+      if (!test(d.value)) return d;
+      hit = true;
+      return { ...d, value: map(d) };
+    });
+  const declarations = mapDecls(rule.declarations);
+  const states = rule.states.map((s) => ({
+    ...s,
+    declarations: mapDecls(s.declarations),
+    children: s.children.map((c) => ({
+      ...c,
+      declarations: mapDecls(c.declarations),
+    })),
+  }));
+  return hit ? { ...rule, declarations, states } : rule;
+}
+
+// CSS list composition: the shorthand resets the slots, longhands index positionally.
+function composeSlots<S>(
+  declarations: Declaration[],
+  shorthand: string,
+  parseGroup: (values: Value[]) => S,
+  makeSlot: () => S,
+  longhands: Record<string, (slot: S, v: Value) => void>,
+): S[] | null {
+  let slots: S[] | null = null;
+  for (const decl of declarations) {
+    if (decl.property === shorthand) {
+      slots = commaValues(decl.value).map((g) =>
+        parseGroup(isListValue(g) ? g.values : [g]),
+      );
+      continue;
+    }
+    // The prefix check keeps Object.prototype names out of the lookup.
+    const set = decl.property.startsWith(`${shorthand}-`)
+      ? longhands[decl.property]
+      : undefined;
+    if (!set) continue;
+    // Grow so a longhand before any shorthand still defines slots.
+    const vals = commaValues(decl.value);
+    slots ??= [];
+    while (slots.length < vals.length) slots.push(makeSlot());
+    for (let i = 0; i < slots.length; i++) set(slots[i], vals[i % vals.length]);
+  }
+  return slots;
+}
+
+// circle/ellipse `x`/`y` box sugar → `cx = x + r`; explicit cx/cy wins.
+function resolveCircleEllipseBoxPosition(node: SceneNode): void {
+  const d = node.shapeData;
+  if (d.type !== "circle" && d.type !== "ellipse") return;
+  const rx = d.type === "circle" ? d.r : d.rx;
+  const ry = d.type === "circle" ? d.r : d.ry;
+  if (d.__boxX !== undefined && !d.__cxSet) d.cx = d.__boxX + rx;
+  if (d.__boxY !== undefined && !d.__cySet) d.cy = d.__boxY + ry;
+  delete d.__boxX;
+  delete d.__boxY;
+  delete d.__cxSet;
+  delete d.__cySet;
+}
+
+// Fresh default geometry for a shape type; unknown types are groups.
+function defaultShapeData(type: ShapeType): ShapeData {
+  switch (type) {
+    case "rect":
+      return { type, x: 0, y: 0, width: 0, height: 0, rx: 0, ry: 0 };
+    case "circle":
+      return { type, cx: 0, cy: 0, r: 0 };
+    case "ellipse":
+      return { type, cx: 0, cy: 0, rx: 0, ry: 0 };
+    case "path":
+      return { type, commands: [] };
+    case "star":
+    case "polygon":
+      return {
+        type,
+        sides: 5,
+        outerRadius: 0,
+        innerRadius: 0,
+        rotation: 0,
+        cx: 0,
+        cy: 0,
+        outerRoundness: 0,
+        innerRoundness: 0,
+      };
+    case "text":
+      return {
+        type,
+        x: 0,
+        y: 0,
+        content: "",
+        fontSize: 16,
+        fontFamily: "sans-serif",
+        fontWeight: "normal",
+        anchor: "start",
+        letterSpacing: 0,
+        lineHeight: 0,
+      };
+    case "image":
+      return { type, x: 0, y: 0, width: 0, height: 0, src: "", viewBox: null };
+    default:
+      return { type: "group" };
+  }
+}
+
+const ORIGIN_KEYWORDS = new Map([
+  ["left", 0],
+  ["top", 0],
+  ["center", 50],
+  ["right", 100],
+  ["bottom", 100],
+]);
+
+// One transform-origin component; unknown keywords read as 0px, non-% lengths as px.
+function originComponent(v: Value): TransformOriginValue | null {
+  if (isKeywordValue(v)) {
+    const pct = ORIGIN_KEYWORDS.get(v.value);
+    return pct === undefined
+      ? { value: 0, unit: "px" }
+      : { value: pct, unit: "%" };
+  }
+  if (isLengthValue(v))
+    return { value: v.value, unit: v.unit === "%" ? "%" : "px" };
+  if (isNumberValue(v)) return { value: v.value, unit: "px" };
+  return null;
+}
+
+// transform-origin: keywords, %, px, or mixed; a leading top/bottom swaps axes.
+function parseTransformOrigin(value: Value): Transform["transformOrigin"] {
+  const values = isListValue(value) ? value.values : [value];
+  const origin = createDefaultTransformOrigin();
+  if (values.length === 0) return origin;
+  const yFirst = oneOf(values[0], ["top", "bottom"]) !== null;
+  const first = originComponent(values[0]);
+  if (first && yFirst) {
+    origin.y = first;
+    origin.x = { value: 50, unit: "%" };
+  } else if (first) origin.x = first;
+  if (values.length >= 2) {
+    const second = originComponent(values[1]);
+    if (second) origin[yFirst ? "x" : "y"] = second;
+  } else if (!yFirst) {
+    // A lone x value defaults y to 50% (CSS: `100px` = `100px 50%`).
+    origin.y = { value: 50, unit: "%" };
+  }
+  return origin;
 }
 
 // Merge state blocks: a use-site block replaces the definition's for the same pseudo.

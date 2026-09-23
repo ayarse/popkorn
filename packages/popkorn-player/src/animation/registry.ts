@@ -60,28 +60,38 @@ function transformNumber(
   };
 }
 
-// --- geometry (shapeData) ---
-function geometryNumber(key: string): PropHandler {
+// --- shapeData numbers; stray keys on shapes that don't declare them are inert ---
+function shapeNumber(
+  key: string,
+  fallback: number,
+  markDirty: (node: SceneNode) => void,
+): PropHandler {
+  const read = (sd: object): number =>
+    ((sd as Record<string, unknown>)[key] as number) ?? fallback;
   return {
     kind: "number",
-    readBase: (base) =>
-      ((base.shapeData as unknown as Record<string, unknown>)[key] as number) ??
-      0,
-    readLive: (node) =>
-      ((node.shapeData as unknown as Record<string, unknown>)[key] as number) ??
-      0,
+    readBase: (base) => read(base.shapeData),
+    readLive: (node) => read(node.shapeData),
     apply: (node, value) => {
-      // Stray keys on shapes that don't declare them are inert.
       const sd = node.shapeData as unknown as Record<string, unknown>;
       if (key in sd) {
         sd[key] = value;
-        // Stale: outline length (trim paths) and synthesized polystar path.
-        node.outlineLengthDirty = true;
-        node.polystarDirty = true;
+        markDirty(node);
       }
     },
   };
 }
+
+// Stale: outline length (trim paths) and synthesized polystar path.
+const geometryDirty = (node: SceneNode): void => {
+  node.outlineLengthDirty = true;
+  node.polystarDirty = true;
+};
+const textDirty = (node: SceneNode): void => {
+  node.textBoundsDirty = true;
+};
+const geometryNumber = (key: string) => shapeNumber(key, 0, geometryDirty);
+const textNumber = (key: string) => shapeNumber(key, 0, textDirty);
 
 // --- per-corner rect radii (0=tl,1=tr,2=br,3=bl); seeds from uniform rx ---
 function cornerRadiusNumber(index: number): PropHandler {
@@ -108,12 +118,22 @@ function cornerRadiusNumber(index: number): PropHandler {
   };
 }
 
-// --- trim paths (0..1 of the outline) ---
-function trimNumber(key: "trimStart" | "trimEnd" | "trimOffset"): PropHandler {
+// --- plain numeric node fields ---
+function nodeNumber(
+  key:
+    | "opacity"
+    | "strokeWidth"
+    | "strokeDashOffset"
+    | "offsetDistance"
+    | "trimStart"
+    | "trimEnd"
+    | "trimOffset"
+    | "timeRemapValue",
+): PropHandler {
   return {
     kind: "number",
     readBase: (base) => base[key],
-    readLive: (node) => node[key],
+    readLive: (node) => node[key] ?? 0,
     apply: (node, value) => {
       node[key] = value as number;
     },
@@ -150,14 +170,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  opacity: {
-    kind: "number",
-    readBase: (base) => base.opacity,
-    readLive: (node) => node.opacity,
-    apply: (node, value) => {
-      node.opacity = value as number;
-    },
-  },
+  opacity: nodeNumber("opacity"),
 
   // A fill endpoint is a color string or GradientData; apply routes by type.
   fill: {
@@ -176,14 +189,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
       else node.stroke = value as string;
     },
   },
-  "stroke-width": {
-    kind: "number",
-    readBase: (base) => base.strokeWidth,
-    readLive: (node) => node.strokeWidth,
-    apply: (node, value) => {
-      node.strokeWidth = value as number;
-    },
-  },
+  "stroke-width": nodeNumber("strokeWidth"),
 
   x: geometryNumber("x"),
   y: geometryNumber("y"),
@@ -239,38 +245,18 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   "inner-radius": geometryNumber("innerRadius"),
   rotation: geometryNumber("rotation"),
 
-  "stroke-dashoffset": {
-    kind: "number",
-    readBase: (base) => base.strokeDashOffset,
-    readLive: (node) => node.strokeDashOffset,
-    apply: (node, value) => {
-      node.strokeDashOffset = value as number;
-    },
-  },
+  "stroke-dashoffset": nodeNumber("strokeDashOffset"),
 
-  "trim-start": trimNumber("trimStart"),
-  "trim-end": trimNumber("trimEnd"),
-  "trim-offset": trimNumber("trimOffset"),
+  // Trim window: 0..1 of the outline.
+  "trim-start": nodeNumber("trimStart"),
+  "trim-end": nodeNumber("trimEnd"),
+  "trim-offset": nodeNumber("trimOffset"),
 
   // time-remap (ms): read after the state merge to drive the subtree's local time; no dirty flag.
-  "time-remap": {
-    kind: "number",
-    readBase: (base) => base.timeRemapValue,
-    readLive: (node) => node.timeRemapValue ?? 0,
-    apply: (node, value) => {
-      node.timeRemapValue = value as number;
-    },
-  },
+  "time-remap": nodeNumber("timeRemapValue"),
 
   // offset-distance: 0..1 of arc length.
-  "offset-distance": {
-    kind: "number",
-    readBase: (base) => base.offsetDistance,
-    readLive: (node) => node.offsetDistance,
-    apply: (node, value) => {
-      node.offsetDistance = value as number;
-    },
-  },
+  "offset-distance": nodeNumber("offsetDistance"),
 
   // filter: ops lerp when function sequences match, else the departing list holds.
   filter: {
@@ -290,44 +276,11 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // font-size lives under a different shapeData key; invalidates text metrics.
-  "font-size": {
-    kind: "number",
-    readBase: (base) =>
-      ((base.shapeData as unknown as Record<string, unknown>)
-        .fontSize as number) ?? 16,
-    readLive: (node) =>
-      ((node.shapeData as unknown as Record<string, unknown>)
-        .fontSize as number) ?? 16,
-    apply: (node, value) => {
-      const sd = node.shapeData as unknown as Record<string, unknown>;
-      if ("fontSize" in sd) {
-        sd.fontSize = value;
-        node.textBoundsDirty = true;
-      }
-    },
-  },
+  // Text fields invalidate text metrics; inert on non-text nodes.
+  "font-size": shapeNumber("fontSize", 16, textDirty),
   "letter-spacing": textNumber("letterSpacing"),
   "line-height": textNumber("lineHeight"),
 };
-
-// Numeric text field that invalidates text bounds; inert on non-text nodes.
-function textNumber(key: "letterSpacing" | "lineHeight"): PropHandler {
-  const read = (sd: Record<string, unknown>): number =>
-    (sd[key] as number) ?? 0;
-  return {
-    kind: "number",
-    readBase: (base) => read(base.shapeData as never),
-    readLive: (node) => read(node.shapeData as never),
-    apply: (node, value) => {
-      const sd = node.shapeData as unknown as Record<string, unknown>;
-      if (key in sd) {
-        sd[key] = value;
-        node.textBoundsDirty = true;
-      }
-    },
-  };
-}
 
 export function getPropHandler(property: string): PropHandler | undefined {
   return PROPERTY_REGISTRY[property];
@@ -423,11 +376,17 @@ export function isFilterList(v: PropValue | null): v is FilterOp[] {
   );
 }
 
-export function filtersCompatible(a: FilterOp[], b: FilterOp[]): boolean {
+// Filters and paths morph only when their type sequences match index-for-index.
+export function sameTypeSequence(
+  a: readonly { type: string }[],
+  b: readonly { type: string }[],
+): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i].type !== b[i].type) return false;
   return true;
 }
+export const filtersCompatible = sameTypeSequence;
+export const pathsCompatible = sameTypeSequence;
 
 // Returns a fresh list; base snapshots stay immutable.
 function interpolateFilter(
@@ -545,13 +504,6 @@ export function interpolateGradient(
 }
 
 // --- paths ---
-
-// Morph only when command letters match at every index.
-export function pathsCompatible(a: PathCommand[], b: PathCommand[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i].type !== b[i].type) return false;
-  return true;
-}
 
 // Arc flags step to the departing value.
 // NOTE: allocates per call; path morph isn't a many-instance hot path.

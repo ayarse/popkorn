@@ -8,7 +8,12 @@ import {
   translationMatrix,
 } from "./matrix.js";
 import { samplePathAt } from "./path-parser.js";
-import type { SceneNode, TextData, TransformOriginValue } from "./types.js";
+import type {
+  SceneNode,
+  TextAnchor,
+  TextData,
+  TransformOriginValue,
+} from "./types.js";
 
 /** Uniform scale of an affine matrix: √|det|, the geometric mean of its axis scales. */
 export function matrixScale(m: Matrix3x3): number {
@@ -51,18 +56,22 @@ export function getShapeBounds(node: SceneNode): {
       return { x: sd.x, y: sd.y, width: sd.width, height: sd.height };
     case "text": {
       const { width, height } = measureText(node, sd);
-      // Anchor shifts like ctx.textAlign; alphabetic baseline, so the first line sits above y.
-      const x =
-        sd.anchor === "middle"
-          ? sd.x - width / 2
-          : sd.anchor === "end"
-            ? sd.x - width
-            : sd.x;
-      return { x, y: sd.y - sd.fontSize, width, height };
+      // Alphabetic baseline, so the first line sits above y.
+      return {
+        x: anchorX(sd.x, width, sd.anchor),
+        y: sd.y - sd.fontSize,
+        width,
+        height,
+      };
     }
     default:
       return { x: 0, y: 0, width: 0, height: 0 };
   }
+}
+
+/** Left edge of a text run of `width` anchored at `x`, shifting like ctx.textAlign. */
+export function anchorX(x: number, width: number, anchor: TextAnchor): number {
+  return anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
 }
 
 // Platform text measurer (e.g. Skia on RN); null defers to the next stage.

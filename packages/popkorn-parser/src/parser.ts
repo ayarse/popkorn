@@ -10,6 +10,7 @@ import type {
   DefinitionRule,
   KeyframeBlock,
   KeyframeRule,
+  KeywordValue,
   MachineGuard,
   MachineRule,
   MachineState,
@@ -27,6 +28,7 @@ import type {
   VariableDefinition,
 } from "./ast.js";
 import {
+  decl,
   getNumericValue,
   isColorValue,
   isKeywordValue,
@@ -38,7 +40,7 @@ import type { Diagnostic, Severity } from "./diagnostics.js";
 import {
   COLOR_KEYWORDS,
   COLOR_PROPERTIES,
-  isReservedAnimationKeyword,
+  isKeyframeNameToken,
   KNOWN_PROPERTIES,
   NAMED_COLORS,
   suggest,
@@ -103,7 +105,7 @@ class Cursor {
   ws(): void {
     for (;;) {
       const c = this.src[this.pos];
-      if (c === " " || c === "\t" || c === "\n" || c === "\r") {
+      if (isWs(c)) {
         this.pos++;
         continue;
       }
@@ -218,45 +220,43 @@ export function validate(source: string): Diagnostic[] {
 
 // Resolves every captured reference against the fully-collected definition sets.
 function resolveRefs(c: Cursor): void {
-  for (const r of c.keyframeRefs) {
-    if (!c.declaredKeyframes.has(r.name)) {
-      const hint = suggest(r.name, c.declaredKeyframes);
+  // [refs, declared names, code, message lead, name sigil]
+  const tables: [Ref[], Set<string>, string, string, string][] = [
+    [
+      c.keyframeRefs,
+      c.declaredKeyframes,
+      "unknown-keyframes",
+      "animation references unknown @keyframes",
+      "",
+    ],
+    [
+      c.defineRefs,
+      c.declaredDefines,
+      "unknown-define",
+      "use: references undefined @define",
+      "",
+    ],
+    [
+      c.idRefs,
+      c.declaredIds,
+      "unknown-id",
+      "reference to unknown node id",
+      "#",
+    ],
+  ];
+  for (const [refs, declared, code, lead, sigil] of tables)
+    for (const r of refs) {
+      if (declared.has(r.name)) continue;
+      const hint = suggest(r.name, declared);
       c.report(
-        "unknown-keyframes",
+        code,
         "warning",
-        `animation references unknown @keyframes '${r.name}'.`,
+        `${lead} '${sigil}${r.name}'.`,
         r.start,
         r.end,
-        hint && `Did you mean '${hint}'?`,
+        hint && `Did you mean '${sigil}${hint}'?`,
       );
     }
-  }
-  for (const r of c.defineRefs) {
-    if (!c.declaredDefines.has(r.name)) {
-      const hint = suggest(r.name, c.declaredDefines);
-      c.report(
-        "unknown-define",
-        "warning",
-        `use: references undefined @define '${r.name}'.`,
-        r.start,
-        r.end,
-        hint && `Did you mean '${hint}'?`,
-      );
-    }
-  }
-  for (const r of c.idRefs) {
-    if (!c.declaredIds.has(r.name)) {
-      const hint = suggest(r.name, c.declaredIds);
-      c.report(
-        "unknown-id",
-        "warning",
-        `reference to unknown node id '#${r.name}'.`,
-        r.start,
-        r.end,
-        hint && `Did you mean '#${hint}'?`,
-      );
-    }
-  }
   for (const r of c.varRefs) {
     if (!c.declaredVars.has(r.name)) {
       c.report(
@@ -272,19 +272,13 @@ function resolveRefs(c: Cursor): void {
 }
 
 function parseSelector(c: Cursor): Selector {
-  const ch = c.peek();
-  if (ch === "#") {
-    c.expect("#");
+  if (c.eat("#")) {
     const name = c.ident();
     c.declaredIds.add(name);
     return { type: "id", name };
   }
-  if (ch === ".") {
-    c.expect(".");
-    return { type: "class", name: c.ident() };
-  }
-  if (ch === ":") {
-    c.expect(":");
+  if (c.eat(".")) return { type: "class", name: c.ident() };
+  if (c.eat(":")) {
     const kw = c.ident();
     if (kw === "root") return { type: "root", name: "root" };
     throw new Error(`unknown selector ':${kw}'`);
@@ -479,8 +473,11 @@ function readTime(c: Cursor): number {
   return n;
 }
 
-/** Parse `{ decls, > children, &:state blocks }` shared by rules and @define. */
-function parseRuleBody(c: Cursor): {
+/** Parse `{ decls, > children, &:state blocks }` shared by rules, @define and (state-free) state blocks. */
+function parseRuleBody(
+  c: Cursor,
+  allowStates = true,
+): {
   declarations: Declaration[];
   children: Rule[];
   states: StateRule[];
@@ -493,10 +490,13 @@ function parseRuleBody(c: Cursor): {
   while (!c.eat("}")) {
     if (c.eat(">")) {
       children.push(parseRule(c));
-    } else if (c.eat("&")) {
+    } else if (allowStates && c.eat("&")) {
       // `&:hover` / `&:active` / `&:state(name)` / `&:state(machine.name)`.
       c.expect(":");
       const kw = c.ident();
+      let head: Pick<StateRule, "state" | "machineState"> = {
+        state: kw as PseudoState,
+      };
       if (kw === "state") {
         c.expect("(");
         const first = c.ident();
@@ -505,30 +505,15 @@ function parseRuleBody(c: Cursor): {
           ? { machine: first, name: c.ident() }
           : { machine: null, name: first };
         c.expect(")");
-        states.push({ state: "state", machineState, ...parseStateBlock(c) });
-      } else {
-        states.push({ state: kw as PseudoState, ...parseStateBlock(c) });
+        head = { state: "state", machineState };
       }
+      const { declarations, children } = parseRuleBody(c, false);
+      states.push({ ...head, declarations, children });
     } else {
       declarations.push(...parseDeclaration(c));
     }
   }
   return { declarations, children, states };
-}
-
-/** A rule body minus nested `&:state` blocks. */
-function parseStateBlock(c: Cursor): {
-  declarations: Declaration[];
-  children: Rule[];
-} {
-  c.expect("{");
-  const declarations: Declaration[] = [];
-  const children: Rule[] = [];
-  while (!c.eat("}")) {
-    if (c.eat(">")) children.push(parseRule(c));
-    else declarations.push(...parseDeclaration(c));
-  }
-  return { declarations, children };
 }
 
 function parseDeclaration(c: Cursor): Declaration[] {
@@ -554,16 +539,14 @@ function parseDeclaration(c: Cursor): Declaration[] {
     groups.length === 1
       ? groups[0]
       : { type: "list", values: groups, separator: "comma" };
-  lintDeclaration(c, property, value, propStart, propEnd, valStart, valEnd);
-  const out = expandAliases(c, property, value, propStart, propEnd);
+  const propSpan: Span = { start: propStart, end: propEnd };
+  const valueSpan: Span = { start: valStart, end: valEnd };
+  lintDeclaration(c, property, value, propSpan, valueSpan);
   // Alias expansions share the source declaration's spans.
   const span: Span = { start: propStart, end: valEnd };
-  const valueSpan: Span = { start: valStart, end: valEnd };
-  for (const d of out) {
-    d.span = span;
-    d.valueSpan = valueSpan;
-  }
-  return out;
+  return expandAliases(c, property, value, propSpan, (p, v) =>
+    decl(p, v, span, valueSpan),
+  );
 }
 
 // Non-AST checks: unknown properties, bad color keywords, em/rem, reference collection.
@@ -571,10 +554,8 @@ function lintDeclaration(
   c: Cursor,
   property: string,
   value: Value,
-  propStart: number,
-  propEnd: number,
-  valStart: number,
-  valEnd: number,
+  propSpan: Span,
+  valueSpan: Span,
 ): void {
   if (property.startsWith("--")) {
     c.declaredVars.add(property);
@@ -584,8 +565,8 @@ function lintDeclaration(
       "unknown-property",
       "warning",
       `unknown property '${property}'.`,
-      propStart,
-      propEnd,
+      propSpan.start,
+      propSpan.end,
       hint && `Did you mean '${hint}'?`,
     );
   }
@@ -603,8 +584,8 @@ function lintDeclaration(
         "unknown-color",
         "warning",
         `'${value.value}' is not a recognized color.`,
-        valStart,
-        valEnd,
+        valueSpan.start,
+        valueSpan.end,
         hint && `Did you mean '${hint}'?`,
       );
     }
@@ -617,23 +598,23 @@ function lintDeclaration(
       "unit-has-no-effect",
       "warning",
       `unit '${fontRelativeUnit}' has no effect — lengths are scene units.`,
-      valStart,
-      valEnd,
+      valueSpan.start,
+      valueSpan.end,
     );
   }
 
   // Cross-sheet references — resolved against the full sheet after parsing.
   if (property === "animation-name" || property === "animation") {
     const name = animationName(value, property);
-    if (name) c.keyframeRefs.push({ name, start: valStart, end: valEnd });
+    if (name) c.keyframeRefs.push({ name, ...valueSpan });
   }
   if (property === "use" && value.type === "keyword") {
-    c.defineRefs.push({ name: value.value, start: valStart, end: valEnd });
+    c.defineRefs.push({ name: value.value, ...valueSpan });
   }
   if (property === "mask" || property === "clip-path") {
     for (const id of keywordTokens(value)) {
       if (id.startsWith("#"))
-        c.idRefs.push({ name: id.slice(1), start: valStart, end: valEnd });
+        c.idRefs.push({ name: id.slice(1), ...valueSpan });
     }
   }
 }
@@ -691,24 +672,17 @@ function keywordTokens(v: Value): string[] {
 
 // The referenced @keyframes name, or undefined unless exactly one candidate (avoids false positives).
 function animationName(value: Value, property: string): string | undefined {
-  const kws = keywordTokens(value).filter(
-    (k) => !k.startsWith("#") && !k.includes("."),
-  );
-  if (property === "animation-name") return kws.find((k) => k !== "none");
-  const names = kws.filter((k) => !isReservedAnimationKeyword(k));
+  const kws = keywordTokens(value);
+  if (property === "animation-name")
+    return kws.find(
+      (k) => k !== "none" && !k.startsWith("#") && !k.includes("."),
+    );
+  const names = kws.filter(isKeyframeNameToken);
   return names.length === 1 ? names[0] : undefined;
 }
 
-// Placeholder span; parseDeclaration overwrites it with real offsets.
-const ZERO_SPAN: Span = { start: 0, end: 0 };
-
-const decl = (property: string, value: Value): Declaration => ({
-  type: "declaration",
-  property,
-  value,
-  span: ZERO_SPAN,
-  valueSpan: ZERO_SPAN,
-});
+// Builds an expanded declaration carrying the source declaration's spans.
+type DeclFactory = (property: string, value: Value) => Declaration;
 
 // Distinguishes `border:`'s style keyword from a named-color keyword.
 const BORDER_STYLES = new Set([
@@ -728,23 +702,23 @@ function expandAliases(
   c: Cursor,
   property: string,
   value: Value,
-  start: number,
-  end: number,
+  at: Span,
+  d: DeclFactory,
 ): Declaration[] {
   switch (property) {
     // Positional sugar. right/bottom have no containing box to resolve against.
     case "left":
-      return [decl("x", value)];
+      return [d("x", value)];
     case "top":
-      return [decl("y", value)];
+      return [d("y", value)];
     case "right":
     case "bottom":
       c.report(
         "unsupported-property",
         "warning",
         `'${property}' has no containing box in Popkorn.`,
-        start,
-        end,
+        at.start,
+        at.end,
         "Position with x/y instead.",
       );
       return [];
@@ -752,7 +726,7 @@ function expandAliases(
     // `background`/`color` fold to `fill`; extractCanvas reads the stage color back from it.
     case "background":
     case "color":
-      return [decl("fill", value)];
+      return [d("fill", value)];
 
     // One value → uniform rx/ry (animatable); 2–4 values → per-corner longhands.
     // NOTE: elliptical `a / b` corners unsupported; the `/` trips the guard below.
@@ -764,14 +738,14 @@ function expandAliases(
           "unsupported-value",
           "warning",
           "elliptical border-radius (with `/`) isn't supported.",
-          start,
-          end,
+          at.start,
+          at.end,
           "Use type: path for a custom outline.",
         );
         return [];
       }
       if (radii.length <= 1) {
-        return [decl("rx", value), decl("ry", value)];
+        return [d("rx", value), d("ry", value)];
       }
       // CSS shorthand fill: [tl, tr, br, bl] from 2–4 values.
       const tl = radii[0];
@@ -779,15 +753,15 @@ function expandAliases(
       const br = radii[2] ?? radii[0];
       const bl = radii[3] ?? radii[1];
       return [
-        decl("border-top-left-radius", tl),
-        decl("border-top-right-radius", tr),
-        decl("border-bottom-right-radius", br),
-        decl("border-bottom-left-radius", bl),
+        d("border-top-left-radius", tl),
+        d("border-top-right-radius", tr),
+        d("border-bottom-right-radius", br),
+        d("border-bottom-left-radius", bl),
       ];
     }
 
     case "border":
-      return expandBorder(c, value, start, end);
+      return expandBorder(c, value, at, d);
 
     // No box model. `display` is absent on purpose: `none` hides a subtree.
     case "padding":
@@ -797,13 +771,13 @@ function expandAliases(
         "unsupported-property",
         "warning",
         `'${property}' is not supported — Popkorn has no box model.`,
-        start,
-        end,
+        at.start,
+        at.end,
       );
       return [];
 
     default:
-      return [decl(property, value)];
+      return [d(property, value)];
   }
 }
 
@@ -811,34 +785,33 @@ function expandAliases(
 function expandBorder(
   c: Cursor,
   value: Value,
-  start: number,
-  end: number,
+  at: Span,
+  d: DeclFactory,
 ): Declaration[] {
   const parts = isListValue(value) ? value.values : [value];
   const style = parts.find(
-    (p) => isKeywordValue(p) && BORDER_STYLES.has(p.value),
-  );
-  if (style && isKeywordValue(style) && style.value === "none") {
-    return [decl("stroke-width", { type: "number", value: 0 })];
-  }
-  if (style && isKeywordValue(style) && style.value !== "solid") {
+    (p): p is KeywordValue => isKeywordValue(p) && BORDER_STYLES.has(p.value),
+  )?.value;
+  if (style === "none")
+    return [d("stroke-width", { type: "number", value: 0 })];
+  if (style && style !== "solid") {
     c.report(
       "unsupported-value",
       "warning",
-      `border-style '${style.value}' isn't supported; only 'solid' maps to a stroke.`,
-      start,
-      end,
+      `border-style '${style}' isn't supported; only 'solid' maps to a stroke.`,
+      at.start,
+      at.end,
     );
     return [];
   }
   const out: Declaration[] = [];
   const width = parts.find((p) => isLengthValue(p) || isNumberValue(p));
-  if (width) out.push(decl("stroke-width", width));
+  if (width) out.push(d("stroke-width", width));
   const color = parts.find(
     (p) =>
       isColorValue(p) || (isKeywordValue(p) && !BORDER_STYLES.has(p.value)),
   );
-  if (color) out.push(decl("stroke", color));
+  if (color) out.push(d("stroke", color));
   return out;
 }
 
@@ -873,7 +846,6 @@ function parseValue(c: Cursor): Value {
   if (isNumberStart(c, ch)) return readNumber(c);
 
   // Identifier-led: calc(), var(), function call, member expression, or bare keyword.
-  c.ws();
   const identStart = c.pos;
   const name = c.ident();
   if (name === "calc" && c.peek() === "(") {
@@ -900,8 +872,7 @@ function parseValue(c: Cursor): Value {
   if (name === "random" && c.peek() === "(") {
     return parseRandom(c, identStart);
   }
-  if (c.peek() === "(") {
-    c.expect("(");
+  if (c.eat("(")) {
     const args: Value[] = [];
     while (!c.eat(")")) {
       // `/` separates alpha in modern color functions; both flatten to positional args.
@@ -910,11 +881,8 @@ function parseValue(c: Cursor): Value {
     }
     return { type: "function", name, args };
   }
-  if (c.peek() === ".") {
-    // Member expression, e.g. `cursor.x`.
-    c.expect(".");
-    return { type: "keyword", value: `${name}.${c.ident()}` };
-  }
+  // Member expression, e.g. `cursor.x`.
+  if (c.eat(".")) return { type: "keyword", value: `${name}.${c.ident()}` };
   return { type: "keyword", value: name };
 }
 
@@ -1071,8 +1039,10 @@ const ROUND_STRATEGIES = new Set<RoundStrategy>([
   "to-zero",
 ]);
 
+const CALC_NAMES = new Set(Object.keys(CALC_ARITY));
+
 function isCalcFunctionName(name: string): name is CalcFunctionName {
-  return Object.hasOwn(CALC_ARITY, name);
+  return CALC_NAMES.has(name);
 }
 
 // Comma-separated calc sums validated against CALC_ARITY; `(` already peeked.
@@ -1135,8 +1105,7 @@ function parseCalcProduct(c: Cursor): CalcExpr {
 }
 
 function parseCalcUnary(c: Cursor): CalcExpr {
-  if (c.peek() === "(") {
-    c.expect("(");
+  if (c.eat("(")) {
     const inner = parseCalcSum(c);
     c.expect(")");
     return inner;

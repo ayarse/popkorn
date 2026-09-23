@@ -16,6 +16,7 @@ import {
   isVariableRefValue,
 } from "@popkorn/parser";
 import type { CalcLane } from "./calc-batch.js";
+import { inputPathOf } from "./inputs.js";
 
 /** Compiles reactive calc() to an allocation-free postfix program; bit-identical to `evalCalc` (@popkorn/parser). */
 
@@ -222,17 +223,12 @@ export function resolveLeaves(p: CompiledCalc, ctx: CalcEvalContext): void {
       leafValue[i] = v.value;
       leafUnit[i] = unitId(v.unit);
     } else if (isKeywordValue(v)) {
-      if (v.value === "true" || v.value === "false") {
-        leafValue[i] = v.value === "true" ? 1 : 0;
-        leafUnit[i] = 0;
+      const k = keywordNumeric(v.value);
+      if (k) {
+        leafValue[i] = k.value;
+        leafUnit[i] = k.unit ? unitId(k.unit) : 0;
       } else {
-        const k = calcConstant(v.value);
-        if (k) {
-          leafValue[i] = k.value;
-          leafUnit[i] = unitId(k.unit);
-        } else {
-          leafValid[i] = 0;
-        }
+        leafValid[i] = 0;
       }
     } else {
       leafValid[i] = 0;
@@ -254,11 +250,10 @@ class Compiler {
   private depth = 0;
   private maxDepth = 0;
 
-  build(constant: Folded | undefined): CompiledCalc {
+  build(constant: CalcNumeric | null | undefined): CompiledCalc {
     const depth = Math.max(this.maxDepth, 1);
     return {
-      constant:
-        constant === DYNAMIC || constant === undefined ? undefined : constant,
+      constant,
       code: this.code,
       constValue: this.constValue,
       constUnit: this.constUnit,
@@ -336,7 +331,7 @@ class Compiler {
       return;
     }
     if (isFunctionValue(v) && v.name === "input") {
-      this.push(OP_LEAF, this.leaf(null, undefined, inputPath(v.args)));
+      this.push(OP_LEAF, this.leaf(null, undefined, inputPathOf(v)));
       this.grow();
       return;
     }
@@ -407,17 +402,17 @@ function foldLeaf(v: Value): Folded {
   if (isVariableRefValue(v)) return DYNAMIC;
   if (isNumberValue(v)) return { value: v.value, unit: "" };
   if (isLengthValue(v)) return { value: v.value, unit: v.unit };
-  if (isKeywordValue(v)) {
-    if (v.value === "true") return { value: 1, unit: "" };
-    if (v.value === "false") return { value: 0, unit: "" };
-    return calcConstant(v.value);
-  }
+  if (isKeywordValue(v)) return keywordNumeric(v.value);
   return null; // string/color/list are unresolvable
 }
 
-// `input(cursor.x)` → "cursor.x". Mirrors VariableResolver.getInputPath.
-function inputPath(args: Value[]): string | null {
-  const arg = args[0];
-  if (arg && isKeywordValue(arg)) return arg.value;
-  return null;
+// Shared, never mutated: keeps a boolean leaf allocation-free per run.
+const TRUE_NUM: CalcNumeric = { value: 1, unit: "" };
+const FALSE_NUM: CalcNumeric = { value: 0, unit: "" };
+
+/** Keyword as a calc operand: true/false → 1/0, else a named constant (pi, e). */
+function keywordNumeric(word: string): CalcNumeric | null {
+  if (word === "true") return TRUE_NUM;
+  if (word === "false") return FALSE_NUM;
+  return calcConstant(word);
 }

@@ -74,6 +74,15 @@ export interface Declaration {
   valueSpan: Span;
 }
 
+export const ZERO_SPAN: Span = { start: 0, end: 0 };
+
+export const decl = (
+  property: string,
+  value: Value,
+  span: Span = ZERO_SPAN,
+  valueSpan: Span = ZERO_SPAN,
+): Declaration => ({ type: "declaration", property, value, span, valueSpan });
+
 export type Value =
   | LengthValue
   | ColorValue
@@ -425,49 +434,43 @@ export function evalCalcFunction(
     case "sibling-index":
     case "sibling-count":
       return null;
+    // Unit-agreeing functions: all args share one unit, which the result keeps.
     case "min":
     case "max":
-    case "clamp": {
-      const unit = agreedUnit(args);
-      if (unit === null) return null;
-      if (expr.name === "clamp") {
-        // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
-        return setNumeric(out, Math.max(v0, Math.min(v1, args[2].value)), unit);
-      }
-      return setNumeric(
-        out,
-        expr.name === "min"
-          ? Math.min(...args.map((a) => a.value))
-          : Math.max(...args.map((a) => a.value)),
-        unit,
-      );
-    }
-    case "hypot": {
-      const unit = agreedUnit(args);
-      if (unit === null) return null;
-      return setNumeric(out, Math.hypot(...args.map((a) => a.value)), unit);
-    }
-    // mod() follows the sign of the divisor; rem() follows the dividend (CSS).
-    case "mod": {
-      const unit = agreedUnit(args);
-      if (unit === null) return null;
-      return setNumeric(out, v0 - v1 * Math.floor(v0 / v1), unit);
-    }
-    case "rem": {
-      const unit = agreedUnit(args);
-      if (unit === null) return null;
-      return setNumeric(out, v0 % v1, unit);
-    }
+    case "clamp":
+    case "hypot":
+    case "mod":
+    case "rem":
     case "round": {
       const unit = agreedUnit(args);
       if (unit === null) return null;
-      // Step defaults to 1 (in the value's own unit) when omitted.
-      const step = n > 1 ? v1 : 1;
-      return setNumeric(
-        out,
-        roundTo(expr.strategy ?? "nearest", v0, step),
-        unit,
-      );
+      switch (expr.name) {
+        case "min":
+          return setNumeric(out, Math.min(...args.map((a) => a.value)), unit);
+        case "max":
+          return setNumeric(out, Math.max(...args.map((a) => a.value)), unit);
+        // clamp(MIN, VAL, MAX) = max(MIN, min(VAL, MAX)); MIN wins when MIN > MAX.
+        case "clamp":
+          return setNumeric(
+            out,
+            Math.max(v0, Math.min(v1, args[2].value)),
+            unit,
+          );
+        case "hypot":
+          return setNumeric(out, Math.hypot(...args.map((a) => a.value)), unit);
+        // mod() follows the sign of the divisor; rem() follows the dividend (CSS).
+        case "mod":
+          return setNumeric(out, v0 - v1 * Math.floor(v0 / v1), unit);
+        case "rem":
+          return setNumeric(out, v0 % v1, unit);
+        // Step defaults to 1 (in the value's own unit) when omitted.
+        default:
+          return setNumeric(
+            out,
+            roundTo(expr.strategy ?? "nearest", v0, n > 1 ? v1 : 1),
+            unit,
+          );
+      }
     }
     case "abs":
       return setNumeric(out, Math.abs(v0), args[0].unit);

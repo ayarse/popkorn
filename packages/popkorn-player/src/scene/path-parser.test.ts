@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { parsePath } from "./path-parser.js";
+import {
+  applyCommandsToPath,
+  flattenToSubpaths,
+  type PathSink,
+  parsePath,
+} from "./path-parser.js";
 
 test("parsePath splits compact concatenated decimals into separate numbers", () => {
   // Compact SVG notation: ".2-1.96" must tokenize as -0.2, -1.96, not one number.
@@ -63,3 +68,20 @@ for (const c of arcFlagCases) {
     }
   });
 }
+
+test("Z returns the pen to the subpath start for render and flatten alike", () => {
+  const cmds = parsePath("M0 0 L10 10 Z H5");
+  const lines: number[][] = [];
+  const noop = () => {};
+  const sink: PathSink = {
+    moveTo: noop,
+    lineTo: (x, y) => lines.push([x, y]),
+    bezierCurveTo: noop,
+    quadraticCurveTo: noop,
+    ellipse: noop,
+    closePath: noop,
+  };
+  applyCommandsToPath(sink, cmds);
+  expect(lines.at(-1)).toEqual([5, 0]);
+  expect(flattenToSubpaths(cmds)[0].at(-1)).toEqual({ x: 5, y: 0 });
+});

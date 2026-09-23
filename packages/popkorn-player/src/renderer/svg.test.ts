@@ -274,6 +274,11 @@ class FakeElement {
   remove(): void {
     this.parentNode?.removeChild(this);
   }
+  replaceChildren(...nodes: FakeElement[]): void {
+    for (const c of this.childNodes) c.parentNode = null;
+    this.childNodes = [];
+    for (const n of nodes) this.appendChild(n);
+  }
   setAttribute(n: string, v: string): void {
     this.attrs.set(n, String(v));
   }

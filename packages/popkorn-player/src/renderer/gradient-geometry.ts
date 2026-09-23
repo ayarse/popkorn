@@ -14,6 +14,16 @@ export interface PaintBox {
   height: number;
 }
 
+/** Bounding box of a circle/ellipse. */
+export function ellipseBox(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+): PaintBox {
+  return { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 };
+}
+
 // A gradient resolved to platform-agnostic geometry that every backend realizes identically.
 export interface ResolvedLinearGradient {
   type: "linear";
@@ -108,18 +118,9 @@ function realizeStops(
 ): GradientStop[] {
   const finish = (out: GradientStop[]): GradientStop[] =>
     interpolate ? densifyStops(out, interpolate) : out;
-  if (!repeating)
-    return finish(
-      authored.map((s) => ({
-        offset: Math.max(0, Math.min(1, s.offset)),
-        color: s.color,
-      })),
-    );
-
-  const first = authored[0].offset;
-  const last = authored[authored.length - 1].offset;
-  const w = last - first;
-  // Degenerate tile (zero/negative width) can't repeat — fall back to a clamp.
+  const first = repeating ? authored[0].offset : 0;
+  const w = repeating ? authored[authored.length - 1].offset - first : 0;
+  // Non-repeating, or a degenerate tile (zero/negative width) that can't repeat: clamp.
   if (w <= 0)
     return finish(
       authored.map((s) => ({

@@ -1576,3 +1576,34 @@ test("mix-blend-mode: a known keyword sets the node blend; a typo stays normal",
   expect(blend("luminosity")).toBe("luminosity");
   expect(blend("nope")).toBe("normal"); // unknown -> ignored, stays normal
 });
+
+test("transform-origin: keyword/length/% combos", () => {
+  const cases: [string, string][] = [
+    ["center", "50% 50%"],
+    ["left", "0% 50%"],
+    ["right", "100% 50%"],
+    ["top", "50% 0%"],
+    ["bottom", "50% 100%"],
+    ["left top", "0% 0%"],
+    ["top left", "0% 0%"],
+    ["bottom right", "100% 100%"],
+    ["center top", "50% 0%"],
+    ["top center", "50% 0%"],
+    ["50% 20%", "50% 20%"],
+    ["10px 20px", "10px 20px"],
+    ["10px", "10px 50%"],
+    ["20%", "20% 50%"],
+    ["5", "5px 50%"],
+    ["center 100px", "50% 100px"],
+    ["top 30px", "30px 0%"],
+    ["bottom 10%", "10% 100%"],
+    ["10em 3px", "10px 3px"],
+    ["foo", "0px 50%"],
+    ["top bottom", "100% 0%"],
+  ];
+  for (const [src, want] of cases) {
+    const o = build(`#n { type: rect; transform-origin: ${src}; }`).children[0]
+      .transform.transformOrigin;
+    expect(`${o.x.value}${o.x.unit} ${o.y.value}${o.y.unit}`).toBe(want);
+  }
+});

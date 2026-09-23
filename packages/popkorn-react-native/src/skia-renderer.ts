@@ -1,6 +1,7 @@
 import type {
   CornerRadii,
   GradientData,
+  ImageEntry,
   MaskMode,
   Matrix3x3,
   PaintBox,
@@ -11,12 +12,18 @@ import type {
   TextAnchor,
 } from "@popkorn/player";
 import {
+  anchorX,
   applyCommandsToPath,
   computePathBounds,
+  ellipseBox,
   LUMA_COEFFICIENTS,
+  maskModeParts,
+  newImageDest,
   PaintStateRenderer,
+  PendingImages,
   paintOrderSequence,
   resolveGradient,
+  resolveImageDest,
   resolveStrokeDash,
   roundedRectPath,
   setTextMeasurer,
@@ -33,13 +40,6 @@ type SkPathEffect = import("@shopify/react-native-skia").SkPathEffect;
 type SkFont = import("@shopify/react-native-skia").SkFont;
 type SkFontMgr = import("@shopify/react-native-skia").SkFontMgr;
 type SkImage = import("@shopify/react-native-skia").SkImage;
-
-// Image cache entry by src; `image` is null until MakeImageFromEncoded lands.
-interface ImageEntry {
-  image: SkImage | null;
-  loaded: boolean;
-  errored: boolean;
-}
 
 // Only gradient shaders read bounds, so non-gradient shapes share a zero box.
 const ZERO_BOUNDS: PaintBox = { x: 0, y: 0, width: 0, height: 0 };
@@ -81,21 +81,7 @@ const BLEND_MODE: Record<string, number> = {
 // Luma -> alpha colour matrix (4x5 row-major, Rec.709), turning a luminance matte into an alpha matte.
 // NOTE: ignores the mask's own alpha (luma·alpha isn't linear); pinned divergence vs Canvas2D.
 const LUMA_TO_ALPHA_MATRIX = [
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
-  0,
+  ...new Array<number>(15).fill(0),
   LUMA_COEFFICIENTS.r,
   LUMA_COEFFICIENTS.g,
   LUMA_COEFFICIENTS.b,
@@ -130,8 +116,9 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   private fontCache = new Map<string, SkFont>();
   private imagePaint: SkPaint | null = null;
   // Transparent until the async decode lands; decode failure warns once.
-  private images = new Map<string, ImageEntry>();
-  private pendingImages = new Set<Promise<void>>();
+  private images = new Map<string, ImageEntry<SkImage>>();
+  private pendingImages = new PendingImages();
+  private imageDest = newImageDest();
 
   constructor(skia: SkiaApi, opts: { width: number; height: number }) {
     super();
@@ -208,24 +195,15 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   drawCircle(cx: number, cy: number, r: number): void {
-    const bounds: PaintBox = {
-      x: cx - r,
-      y: cy - r,
-      width: r * 2,
-      height: r * 2,
-    };
-    this.fillAndStroke(bounds, (p, c) => c.drawCircle(cx, cy, r, p));
+    this.fillAndStroke(ellipseBox(cx, cy, r, r), (p, c) =>
+      c.drawCircle(cx, cy, r, p),
+    );
   }
 
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void {
-    const rect = this.skia.XYWHRect(cx - rx, cy - ry, rx * 2, ry * 2);
-    const bounds: PaintBox = {
-      x: cx - rx,
-      y: cy - ry,
-      width: rx * 2,
-      height: ry * 2,
-    };
-    this.fillAndStroke(bounds, (p, c) => c.drawOval(rect, p));
+    const b = ellipseBox(cx, cy, rx, ry);
+    const rect = this.skia.XYWHRect(b.x, b.y, b.width, b.height);
+    this.fillAndStroke(b, (p, c) => c.drawOval(rect, p));
   }
 
   drawPath(commands: PathCommand[]): void {
@@ -256,8 +234,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
     // Skia draws left-aligned from the alphabetic baseline; shift x for middle/end anchors.
     const width = font.measureText(text).width;
-    const ax =
-      anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
+    const ax = anchorX(x, width, anchor);
     // Bounding box (for gradients) matches scene/transform.getShapeBounds.
     const bounds: PaintBox = {
       x: ax,
@@ -283,21 +260,20 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     if (!this.canvas || !src) return;
     let entry = this.images.get(src);
     if (!entry) entry = this.loadImage(src);
-    if (!entry.loaded || !entry.image) return; // repaints in once decoded
-    const img = entry.image;
-    const iw = img.width();
-    const ih = img.height();
-    // Source-cropped (object-view-box): sample the sub-rect.
-    const cropped =
-      sx !== undefined &&
-      sy !== undefined &&
-      sw !== undefined &&
-      sh !== undefined;
-    const srcRect = cropped
-      ? this.skia.XYWHRect(sx, sy, sw, sh)
-      : this.skia.XYWHRect(0, 0, iw, ih);
-    const dw = w > 0 ? w : cropped ? sw : iw;
-    const dh = h > 0 ? h : cropped ? sh : ih;
+    if (!entry.loaded || !entry.img) return; // repaints in once decoded
+    const img = entry.img;
+    // Source = the object-view-box crop, else the whole image.
+    const d = resolveImageDest(
+      this.imageDest,
+      w,
+      h,
+      img.width(),
+      img.height(),
+      sx,
+      sy,
+      sw,
+      sh,
+    );
     if (!this.imagePaint) this.imagePaint = this.skia.Paint();
     const paint = this.imagePaint;
     paint.reset();
@@ -305,8 +281,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     paint.setAlphaf(this.opacity); // cascade group opacity onto the image
     this.canvas.drawImageRect(
       img,
-      srcRect,
-      this.skia.XYWHRect(x, y, dw, dh),
+      this.skia.XYWHRect(d.sx, d.sy, d.sw, d.sh),
+      this.skia.XYWHRect(x, y, d.dw, d.dh),
       paint,
     );
   }
@@ -346,22 +322,27 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   // Decode each src once: data: URIs synchronously via fromBase64, else async Data.fromURI.
-  private loadImage(src: string): ImageEntry {
-    const entry: ImageEntry = { image: null, loaded: false, errored: false };
+  private loadImage(src: string): ImageEntry<SkImage> {
+    const entry: ImageEntry<SkImage> = {
+      img: null,
+      loaded: false,
+      errored: false,
+    };
     this.images.set(src, entry);
+    const fail = (what: string) => {
+      entry.errored = true;
+      console.warn(`SkiaRenderer: failed to ${what} image ${src.slice(0, 64)}`);
+    };
 
     const decode = (
       data: import("@shopify/react-native-skia").SkData,
     ): void => {
       const img = this.skia.Image.MakeImageFromEncoded(data);
       if (img) {
-        entry.image = img;
+        entry.img = img;
         entry.loaded = true;
       } else {
-        entry.errored = true;
-        console.warn(
-          `SkiaRenderer: failed to decode image ${src.slice(0, 64)}`,
-        );
+        fail("decode");
       }
     };
 
@@ -370,36 +351,21 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       try {
         decode(this.skia.Data.fromBase64(base64[1]));
       } catch {
-        entry.errored = true;
-        console.warn(
-          `SkiaRenderer: failed to decode image ${src.slice(0, 64)}`,
-        );
+        fail("decode");
       }
       return entry;
     }
 
-    this.trackImageLoad(
+    this.pendingImages.track(
       this.skia.Data.fromURI(src)
         .then(decode)
-        .catch(() => {
-          entry.errored = true;
-          console.warn(
-            `SkiaRenderer: failed to load image ${src.slice(0, 64)}`,
-          );
-        }),
+        .catch(() => fail("load")),
     );
     return entry;
   }
 
-  private trackImageLoad(p: Promise<void>): void {
-    this.pendingImages.add(p);
-    void p.finally(() => {
-      this.pendingImages.delete(p);
-    });
-  }
-
   whenImagesSettled(): Promise<void> {
-    return Promise.all([...this.pendingImages]).then(() => undefined);
+    return this.pendingImages.settled();
   }
 
   // True while an async (file/http) decode is in flight, so a dormant host can schedule a wake-up.
@@ -443,7 +409,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     const savedCtm = this.ctm;
     const savedOpacity = this.opacity;
 
-    const invert = mode === "alpha-invert" || mode === "luminance-invert";
+    const { luminance, invert } = maskModeParts(mode);
     this.maskPaint ??= this.skia.Paint();
     const maskPaint = this.maskPaint;
 
@@ -454,7 +420,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     // saveLayer snapshots the paint, so a nested matte in drawMask is safe.
     maskPaint.reset();
     maskPaint.setBlendMode(invert ? BlendMode_DstOut : BlendMode_DstIn);
-    if (mode === "luminance" || mode === "luminance-invert") {
+    if (luminance) {
       maskPaint.setColorFilter(
         this.skia.ColorFilter.MakeMatrix(LUMA_TO_ALPHA_MATRIX),
       );
@@ -542,48 +508,46 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   private makeFillPaint(bounds: PaintBox): SkPaint | null {
-    if (this.fillGradient) {
-      const paint = this.fillPaint;
-      paint.reset();
-      this.applyBlend(paint);
-      paint.setAntiAlias(true);
-      paint.setStyle(PaintStyle.Fill);
-      paint.setShader(this.makeShader(this.fillGradient, bounds));
-      paint.setAlphaf(this.opacity); // paint alpha modulates the shader
-      return paint;
-    }
-    if (this.fillColor) {
-      const paint = this.fillPaint;
-      paint.reset();
-      this.applyBlend(paint);
-      paint.setAntiAlias(true);
-      paint.setStyle(PaintStyle.Fill);
-      const c = this.color(this.fillColor);
-      paint.setColor(c);
-      paint.setAlphaf(c[3] * this.opacity);
-      return paint;
-    }
-    return null;
+    if (!this.fillGradient && !this.fillColor) return null;
+    const paint = this.resetPaint(this.fillPaint, PaintStyle.Fill);
+    return this.shade(paint, this.fillGradient, this.fillColor, bounds);
   }
 
-  // Apply the sticky blend to a freshly-reset paint (SrcOver needs nothing).
-  private applyBlend(paint: SkPaint): void {
+  // Reset a pooled paint and apply the sticky blend (SrcOver needs nothing).
+  private resetPaint(paint: SkPaint, style: number): SkPaint {
+    paint.reset();
     const m = BLEND_MODE[this.blendMode];
     if (m !== undefined) paint.setBlendMode(m);
+    paint.setAntiAlias(true);
+    paint.setStyle(style);
+    return paint;
+  }
+
+  // Gradient shader or solid colour; paint alpha modulates either by opacity.
+  private shade(
+    paint: SkPaint,
+    gradient: GradientData | null,
+    color: string | null,
+    bounds: PaintBox,
+  ): SkPaint {
+    if (gradient) {
+      paint.setShader(this.makeShader(gradient, bounds));
+      paint.setAlphaf(this.opacity);
+    } else if (color) {
+      const c = this.color(color);
+      paint.setColor(c);
+      paint.setAlphaf(c[3] * this.opacity);
+    }
+    return paint;
   }
 
   private makeStrokePaint(bounds: PaintBox): SkPaint | null {
-    const hasStroke = this.strokeGradient || this.strokeColor;
-    if (!hasStroke) return null;
+    if (!this.strokeGradient && !this.strokeColor) return null;
     // Trim/dash composition; an empty trim window strokes nothing.
     const dash = resolveStrokeDash(this.trim, this.dashArray, this.dashOffset);
     if (!dash.stroke) return null;
 
-    const paint = this.strokePaint;
-    paint.reset();
-    this.applyBlend(paint);
-    paint.setAntiAlias(true);
-    paint.setStyle(PaintStyle.Stroke);
+    const paint = this.resetPaint(this.strokePaint, PaintStyle.Stroke);
     paint.setStrokeWidth(this.strokeWidth);
     paint.setStrokeCap(StrokeCap[this.lineCap]);
     paint.setStrokeJoin(StrokeJoin[this.lineJoin]);
@@ -593,15 +557,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       paint.setPathEffect(this.dashEffect(dash.dashArray, dash.dashOffset));
     }
 
-    if (this.strokeGradient) {
-      paint.setShader(this.makeShader(this.strokeGradient, bounds));
-      paint.setAlphaf(this.opacity);
-    } else {
-      const c = this.color(this.strokeColor!);
-      paint.setColor(c);
-      paint.setAlphaf(c[3] * this.opacity);
-    }
-    return paint;
+    return this.shade(paint, this.strokeGradient, this.strokeColor, bounds);
   }
 
   /** Gradient descriptor -> SkShader via the shared resolver. */

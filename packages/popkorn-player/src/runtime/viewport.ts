@@ -29,38 +29,20 @@ export function computeViewport(
 ): Viewport {
   const dw = elemW * dpr;
   const dh = elemH * dpr;
-  if (sceneW <= 0 || sceneH <= 0) {
+  // `none`: 1:1 scene pixels (scaled only by dpr), pinned top-left.
+  if (sceneW <= 0 || sceneH <= 0 || fit === "none") {
     return { scaleX: dpr, scaleY: dpr, offsetX: 0, offsetY: 0 };
   }
   const sx = dw / sceneW;
   const sy = dh / sceneH;
-
-  switch (fit) {
-    case "fill":
-      return { scaleX: sx, scaleY: sy, offsetX: 0, offsetY: 0 };
-    case "none":
-      // 1:1 scene pixels (scaled only by dpr), pinned top-left.
-      return { scaleX: dpr, scaleY: dpr, offsetX: 0, offsetY: 0 };
-    case "cover": {
-      const s = Math.max(sx, sy);
-      return {
-        scaleX: s,
-        scaleY: s,
-        offsetX: (dw - sceneW * s) / 2,
-        offsetY: (dh - sceneH * s) / 2,
-      };
-    }
-    case "contain":
-    default: {
-      const s = Math.min(sx, sy);
-      return {
-        scaleX: s,
-        scaleY: s,
-        offsetX: (dw - sceneW * s) / 2,
-        offsetY: (dh - sceneH * s) / 2,
-      };
-    }
-  }
+  if (fit === "fill") return { scaleX: sx, scaleY: sy, offsetX: 0, offsetY: 0 };
+  const s = fit === "cover" ? Math.max(sx, sy) : Math.min(sx, sy);
+  return {
+    scaleX: s,
+    scaleY: s,
+    offsetX: (dw - sceneW * s) / 2,
+    offsetY: (dh - sceneH * s) / 2,
+  };
 }
 
 /** The device-space root transform matrix for a viewport (translate ∘ scale). */

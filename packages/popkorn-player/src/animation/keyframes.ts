@@ -1,3 +1,4 @@
+import { clamp01 } from "../scene/transform.js";
 import type {
   CompositeOperation,
   KeyframeData,
@@ -46,7 +47,7 @@ export function interpolateKeyframes(
   // add/accumulate: numeric channels (with readLive) add onto this frame's value; others replace.
   const additive = composite !== "replace";
 
-  progress = Math.max(0, Math.min(1, progress));
+  progress = clamp01(progress);
 
   for (const track of tracks) {
     const handler = getPropHandler(track.property);

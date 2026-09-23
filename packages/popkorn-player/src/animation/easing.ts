@@ -1,3 +1,4 @@
+import { clamp01 } from "../scene/transform.js";
 import type {
   CubicBezier,
   LinearEasingPoint,
@@ -5,34 +6,34 @@ import type {
   TimingFunction,
 } from "../scene/types.js";
 
-const EASE_BEZIER: CubicBezier = {
+const cubic = (
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): CubicBezier => ({
   type: "cubic-bezier",
-  x1: 0.25,
-  y1: 0.1,
-  x2: 0.25,
-  y2: 1.0,
-};
-const EASE_IN_BEZIER: CubicBezier = {
-  type: "cubic-bezier",
-  x1: 0.42,
-  y1: 0.0,
-  x2: 1.0,
-  y2: 1.0,
-};
-const EASE_OUT_BEZIER: CubicBezier = {
-  type: "cubic-bezier",
-  x1: 0.0,
-  y1: 0.0,
-  x2: 0.58,
-  y2: 1.0,
-};
-const EASE_IN_OUT_BEZIER: CubicBezier = {
-  type: "cubic-bezier",
-  x1: 0.42,
-  y1: 0.0,
-  x2: 0.58,
-  y2: 1.0,
-};
+  x1,
+  y1,
+  x2,
+  y2,
+});
+
+// CSS named cubic-bezier keywords.
+const NAMED_BEZIER = new Map<string, CubicBezier>([
+  ["ease", cubic(0.25, 0.1, 0.25, 1.0)],
+  ["ease-in", cubic(0.42, 0.0, 1.0, 1.0)],
+  ["ease-out", cubic(0.0, 0.0, 0.58, 1.0)],
+  ["ease-in-out", cubic(0.42, 0.0, 0.58, 1.0)],
+]);
+
+// Named keywords that are valid TimingFunction values on their own.
+const NAMED_EASINGS = new Set([
+  "linear",
+  "step-start",
+  "step-end",
+  ...NAMED_BEZIER.keys(),
+]);
 
 // step-end holds the departing value; keyframe/time-remap sampling special-case it before dispatch.
 export function holdsAtStart(
@@ -42,7 +43,7 @@ export function holdsAtStart(
 }
 
 export function applyEasing(t: number, timingFunction: TimingFunction): number {
-  t = Math.max(0, Math.min(1, t));
+  t = clamp01(t);
 
   if (timingFunction === "linear") {
     return t;
@@ -57,20 +58,9 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
     return stepEasing(t, 1, "jump-start");
   }
 
-  if (timingFunction === "ease") {
-    return cubicBezier(t, EASE_BEZIER);
-  }
-
-  if (timingFunction === "ease-in") {
-    return cubicBezier(t, EASE_IN_BEZIER);
-  }
-
-  if (timingFunction === "ease-out") {
-    return cubicBezier(t, EASE_OUT_BEZIER);
-  }
-
-  if (timingFunction === "ease-in-out") {
-    return cubicBezier(t, EASE_IN_OUT_BEZIER);
+  if (typeof timingFunction === "string") {
+    const named = NAMED_BEZIER.get(timingFunction);
+    return named ? cubicBezier(t, named) : t;
   }
 
   if (typeof timingFunction === "object") {
@@ -86,17 +76,6 @@ export function applyEasing(t: number, timingFunction: TimingFunction): number {
 
   return t;
 }
-
-// Named keywords that are valid TimingFunction values on their own.
-const NAMED_EASINGS = new Set([
-  "linear",
-  "ease",
-  "ease-in",
-  "ease-out",
-  "ease-in-out",
-  "step-start",
-  "step-end",
-]);
 
 // Raw source easing (e.g. state-machine `mix`) to a TimingFunction; unrecognized -> "linear".
 export function parseTimingString(
@@ -170,7 +149,7 @@ function cubicBezier(t: number, bezier: CubicBezier): number {
 
   let x = t;
   for (let i = 0; i < 8; i++) {
-    const xEst = sampleCurveX(x, x1, x2);
+    const xEst = bezierAxis(x, x1, x2);
     const dx = t - xEst;
     if (Math.abs(dx) < 1e-6) break;
     const slope = sampleCurveDerivativeX(x, x1, x2);
@@ -178,17 +157,12 @@ function cubicBezier(t: number, bezier: CubicBezier): number {
     x += dx / slope;
   }
 
-  return sampleCurveY(x, y1, y2);
+  return bezierAxis(x, y1, y2);
 }
 
-function sampleCurveX(t: number, x1: number, x2: number): number {
-  // B(t) = 3*(1-t)^2*t*P1 + 3*(1-t)*t^2*P2 + t^3
-  // For X: P0.x=0, P1.x=x1, P2.x=x2, P3.x=1
-  return ((1 - 3 * x2 + 3 * x1) * t + (3 * x2 - 6 * x1)) * t * t + 3 * x1 * t;
-}
-
-function sampleCurveY(t: number, y1: number, y2: number): number {
-  return ((1 - 3 * y2 + 3 * y1) * t + (3 * y2 - 6 * y1)) * t * t + 3 * y1 * t;
+// Bezier coordinate on one axis with P0 = 0, P3 = 1.
+function bezierAxis(t: number, p1: number, p2: number): number {
+  return ((1 - 3 * p2 + 3 * p1) * t + (3 * p2 - 6 * p1)) * t * t + 3 * p1 * t;
 }
 
 function sampleCurveDerivativeX(t: number, x1: number, x2: number): number {

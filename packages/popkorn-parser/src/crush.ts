@@ -10,7 +10,6 @@ import type {
   KeywordValue,
   MachineGuard,
   MachineRule,
-  MachineState,
   MachineTransition,
   MachineTrigger,
   Rule,
@@ -21,7 +20,10 @@ import type {
   Value,
   VariableDefinition,
 } from "./ast.js";
-import { isReservedAnimationKeyword } from "./diagnostics.js";
+import {
+  isKeyframeNameToken,
+  isReservedAnimationKeyword,
+} from "./diagnostics.js";
 
 // a, b, … aa, …; skips animation keywords and hex-color-shaped names, which would re-parse differently.
 function makeNameGen(): () => string {
@@ -47,19 +49,14 @@ function makeNameGen(): () => string {
 
 // A 3/4/6/8-length all-hex-digit token lexes as a `#`-color, not a keyword.
 function isHexColorShaped(s: string): boolean {
-  return (
-    (s.length === 3 || s.length === 4 || s.length === 6 || s.length === 8) &&
-    /^[0-9a-f]+$/i.test(s)
-  );
+  return [3, 4, 6, 8].includes(s.length) && /^[0-9a-f]+$/i.test(s);
 }
 
 // One rename namespace; `prefix` keeps custom properties' `--` (`--brand` → `--a`).
 class Renamer {
   private map = new Map<string, string>();
-  constructor(
-    private readonly gen = makeNameGen(),
-    private readonly prefix = "",
-  ) {}
+  private readonly gen = makeNameGen();
+  constructor(private readonly prefix = "") {}
   add(name: string): void {
     if (!this.map.has(name)) this.map.set(name, this.prefix + this.gen());
   }
@@ -86,7 +83,7 @@ export function crush(sheet: StyleSheet): StyleSheet {
     classes: new Renamer(),
     keyframes: new Renamer(),
     defines: new Renamer(),
-    vars: new Renamer(makeNameGen(), "--"),
+    vars: new Renamer("--"),
   };
 
   // Var uses are registered too: they may name a var only the host declares.
@@ -185,29 +182,28 @@ function renameSelector(sel: Selector, maps: Maps): Selector {
 
 function renameRule(rule: Rule, maps: Maps): Rule {
   return {
-    ...rule,
+    ...renameBody(rule, maps),
     selector: renameSelector(rule.selector, maps),
-    declarations: rule.declarations.map((d) => renameDecl(d, maps)),
-    children: rule.children.map((c) => renameRule(c, maps)),
-    states: rule.states.map((s) => renameState(s, maps)),
   };
 }
 
 function renameDefine(def: DefinitionRule, maps: Maps): DefinitionRule {
-  return {
-    ...def,
-    name: maps.defines.get(def.name),
-    declarations: def.declarations.map((d) => renameDecl(d, maps)),
-    children: def.children.map((c) => renameRule(c, maps)),
-    states: def.states.map((s) => renameState(s, maps)),
-  };
+  return { ...renameBody(def, maps), name: maps.defines.get(def.name) };
 }
 
-function renameState(st: StateRule, maps: Maps): StateRule {
+// Rule, @define and state-block bodies; state blocks carry no `states`.
+function renameBody<
+  T extends {
+    declarations: Declaration[];
+    children: Rule[];
+    states?: StateRule[];
+  },
+>(b: T, maps: Maps): T {
   return {
-    ...st,
-    declarations: st.declarations.map((d) => renameDecl(d, maps)),
-    children: st.children.map((c) => renameRule(c, maps)),
+    ...b,
+    declarations: b.declarations.map((d) => renameDecl(d, maps)),
+    children: b.children.map((c) => renameRule(c, maps)),
+    ...(b.states && { states: b.states.map((s) => renameBody(s, maps)) }),
   };
 }
 
@@ -302,12 +298,7 @@ function renameAnimationValue(v: Value, maps: Maps): Value {
 }
 
 function renameKeyframeToken(v: KeywordValue | StringValue, maps: Maps): Value {
-  if (
-    !isReservedAnimationKeyword(v.value) &&
-    !v.value.startsWith("#") &&
-    !v.value.includes(".") &&
-    maps.keyframes.has(v.value)
-  )
+  if (isKeyframeNameToken(v.value) && maps.keyframes.has(v.value))
     return { ...v, value: maps.keyframes.get(v.value) };
   return v;
 }
@@ -323,14 +314,10 @@ function renameKeyword(v: Value, r: Renamer): Value {
 function renameMachine(m: MachineRule, maps: Maps): MachineRule {
   return {
     ...m,
-    states: m.states.map((s) => renameMachineState(s, maps)),
-  };
-}
-
-function renameMachineState(s: MachineState, maps: Maps): MachineState {
-  return {
-    ...s,
-    transitions: s.transitions.map((t) => renameTransition(t, maps)),
+    states: m.states.map((s) => ({
+      ...s,
+      transitions: s.transitions.map((t) => renameTransition(t, maps)),
+    })),
   };
 }
 
