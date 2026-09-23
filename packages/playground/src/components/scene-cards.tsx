@@ -1,32 +1,38 @@
+import { Link } from "@tanstack/react-router";
 import { ScenePreview } from "@/components/scene-preview";
 
 // Masonry via native CSS multi-column: equal widths, cards keep their scene's
 // own height. `break-inside-avoid` on the card is what stops a split mid-card.
 export const SCENE_GRID = "columns-1 gap-4 sm:columns-2 lg:columns-3";
 
-/** The anchor and its text server-render; only the preview inside is client-only. */
+/** The link and its text server-render; only the preview inside is client-only.
+ *  Community scenes open at `/s/$id`, built-in examples at `/examples/$key`. */
 export function SceneCard({
-  href,
   title,
   meta,
-  source,
   sceneId,
+  exampleKey,
   aspect,
 }: {
-  href: string;
   title: string;
   meta?: string;
-  source?: string;
   sceneId?: string;
+  exampleKey?: string;
   aspect?: number;
 }) {
   return (
-    <a
-      href={href}
-      className="group mb-4 block break-inside-avoid overflow-hidden rounded-xl border border-border bg-card/40 transition-colors hover:border-primary/60"
+    <Link
+      {...(sceneId
+        ? { to: "/s/$id", params: { id: sceneId } }
+        : { to: "/examples/$key", params: { key: exampleKey ?? "" } })}
+      className="group mb-4 block break-inside-avoid overflow-hidden rounded-xl border border-border bg-card/40 transition-colors hover:border-primary/60 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="w-full bg-background/60">
-        <ScenePreview source={source} sceneId={sceneId} aspect={aspect} />
+        <ScenePreview
+          sceneId={sceneId}
+          exampleKey={exampleKey}
+          aspect={aspect}
+        />
       </div>
       <div className="flex items-baseline justify-between gap-3 border-t border-border px-3 py-2">
         <span className="truncate text-[13px] group-hover:text-primary">
@@ -38,7 +44,7 @@ export function SceneCard({
           </span>
         )}
       </div>
-    </a>
+    </Link>
   );
 }
 

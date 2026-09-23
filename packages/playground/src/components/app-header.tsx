@@ -1,5 +1,5 @@
 import { Show, SignInButton, UserButton } from "@clerk/tanstack-react-start";
-import { useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   BookText,
   ChevronDown,
@@ -12,6 +12,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { BrandMark } from "@/components/brand-mark";
 import { ImportStatusChip } from "@/components/import-status-chip";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,7 +30,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { examples } from "@/examples";
+import { exampleIndex } from "@/examples";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import type { CommunityScene } from "@/hooks/use-scene";
 import { track } from "@/lib/analytics";
@@ -71,20 +72,21 @@ export function AppHeader({
   chatOpen: boolean;
   onToggleChat: () => void;
 }) {
-  const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [reported, setReported] = useState(false);
+  // Keyed on the scene id so opening another scene re-arms the button.
+  const [reportedId, setReportedId] = useState<string | null>(null);
+  const reported = community !== null && reportedId === community.id;
 
   const exampleItems = (
     <>
       <DropdownMenuLabel className="flex items-center justify-between">
         <span>Example scenes</span>
         <span className="text-[10px] font-normal tracking-widest text-muted-foreground">
-          {examples.length}
+          {exampleIndex.length}
         </span>
       </DropdownMenuLabel>
       <DropdownMenuSeparator />
-      {examples.map((ex) => (
+      {exampleIndex.map((ex) => (
         <DropdownMenuCheckboxItem
           key={ex.key}
           checked={currentExample === ex.key}
@@ -128,15 +130,19 @@ export function AppHeader({
             align="start"
             className="max-h-[min(70vh,var(--radix-dropdown-menu-content-available-height))] w-64 overflow-y-auto"
           >
-            <DropdownMenuItem onSelect={() => navigate({ to: "/docs" })}>
-              <BookText className="size-3.5" />
-              Docs
+            <DropdownMenuItem asChild>
+              <Link to="/docs/{-$section}">
+                <BookText className="size-3.5" />
+                Docs
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => navigate({ to: "/community" })}>
-              <Images className="size-3.5" />
-              Community
+            <DropdownMenuItem asChild>
+              <Link to="/community">
+                <Images className="size-3.5" />
+                Community
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => startTour()}>
+            <DropdownMenuItem onSelect={() => void startTour()}>
               <HelpCircle className="size-3.5" />
               Take a tour
             </DropdownMenuItem>
@@ -157,25 +163,29 @@ export function AppHeader({
         </DropdownMenu>
       ) : (
         <>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => navigate({ to: "/docs" })}
+          <Link
+            to="/docs/{-$section}"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "sm",
+              className: "gap-1.5",
+            })}
           >
             <BookText className="size-3.5" />
             Docs
-          </Button>
+          </Link>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => navigate({ to: "/community" })}
+          <Link
+            to="/community"
+            className={buttonVariants({
+              variant: "ghost",
+              size: "sm",
+              className: "gap-1.5",
+            })}
           >
             <Images className="size-3.5" />
             Community
-          </Button>
+          </Link>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -237,25 +247,46 @@ export function AppHeader({
           </Button>
         )}
         {community && !community.mine && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={reported}
-                aria-label={reported ? "Reported" : "Report this scene"}
-                onClick={() => {
-                  setReported(true);
-                  void reportScene({ data: community.id });
-                }}
-              >
-                <Flag className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              {reported ? "Reported" : "Report this scene"}
-            </TooltipContent>
-          </Tooltip>
+          <Show
+            when="signed-in"
+            fallback={
+              <SignInButton mode="modal">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Sign in to report this scene"
+                >
+                  <Flag className="size-4" />
+                </Button>
+              </SignInButton>
+            }
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={reported}
+                  aria-label={reported ? "Reported" : "Report this scene"}
+                  onClick={() => {
+                    const id = community.id;
+                    setReportedId(id);
+                    reportScene({ data: id }).catch(() => {
+                      setReportedId((cur) => (cur === id ? null : cur));
+                      toast.error("Couldn't report this scene", {
+                        description: "Try again in a moment.",
+                      });
+                    });
+                  }}
+                >
+                  <Flag className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {reported ? "Reported" : "Report this scene"}
+              </TooltipContent>
+            </Tooltip>
+          </Show>
         )}
         {!isMobile && (
           <>
@@ -264,7 +295,7 @@ export function AppHeader({
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => startTour()}
+                  onClick={() => void startTour()}
                   aria-label="Take a tour"
                 >
                   <HelpCircle className="size-4" />

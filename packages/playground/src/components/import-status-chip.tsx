@@ -1,10 +1,22 @@
 import { AlertCircle, AlertTriangle, Check, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { fmtPct, humanBytes, type ImportResult, pct } from "@/lib/import-size";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  fmtPct,
+  humanBytes,
+  type ImportResult,
+  pct,
+  type SizePair,
+} from "@/lib/import-size";
 
 export function ImportStatusChip({
   result,
@@ -15,13 +27,21 @@ export function ImportStatusChip({
 }) {
   const { format, label, warnings, blocked, raw, min, gz, crushGz } = result;
   const hasIssues = warnings.length > 0 || blocked.length > 0;
-  const deltaPct = pct(raw.lottie, raw.popkorn);
-  const minDeltaPct = min ? pct(min.lottie, min.popkorn) : 0;
-  const gzDeltaPct = gz ? pct(gz.lottie, gz.popkorn) : 0;
-  const crushDeltaPct = crushGz ? pct(crushGz.lottie, crushGz.popkorn) : 0;
+  const rows = [
+    { name: "Raw", size: raw },
+    { name: "Minified", size: min },
+    { name: "Gzipped", size: gz },
+    {
+      name: "Crushed",
+      size: crushGz,
+      title:
+        "Gzipped, identifiers renamed — smallest wire size (not human-readable)",
+    },
+  ];
+  const delta = (p: SizePair) => pct(p.source, p.popkorn);
   // Collapsed chip teases the gzipped delta (real wire size); until the async
   // gzip resolves, fall back to the raw delta.
-  const chipDeltaPct = gz ? gzDeltaPct : deltaPct;
+  const chipDeltaPct = delta(gz ?? raw);
 
   return (
     <div className="flex items-center overflow-hidden rounded-md border border-border">
@@ -29,8 +49,8 @@ export function ImportStatusChip({
       <button
         type="button"
         onClick={onDismiss}
-        className="flex h-8 items-center px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-        aria-label="Dismiss"
+        className="flex h-8 items-center px-2 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        aria-label="Dismiss import summary"
       >
         <X className="size-3.5" />
       </button>
@@ -40,7 +60,7 @@ export function ImportStatusChip({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40"
+            className="flex h-8 items-center gap-1.5 px-2.5 text-xs font-medium transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             {hasIssues ? (
               <AlertTriangle className="size-3.5 text-amber-500" />
@@ -49,14 +69,14 @@ export function ImportStatusChip({
             )}
             <span className="max-w-[160px] truncate">{label}</span>
             {warnings.length > 0 && (
-              <span className="rounded-sm bg-amber-500/15 px-1 text-[10px] font-semibold text-amber-500">
+              <Badge variant="warning" shape="count">
                 {warnings.length}w
-              </span>
+              </Badge>
             )}
             {blocked.length > 0 && (
-              <span className="rounded-sm bg-destructive/15 px-1 text-[10px] font-semibold text-destructive">
+              <Badge variant="destructive" shape="count">
                 {blocked.length}b
-              </span>
+              </Badge>
             )}
             <span className="ml-0.5 font-mono text-[11px] text-muted-foreground">
               {fmtPct(chipDeltaPct)}
@@ -88,72 +108,42 @@ export function ImportStatusChip({
               <span className="w-12 whitespace-nowrap text-center">Δ</span>
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 font-mono">
-                <span className="w-2/5 text-muted-foreground">Raw</span>
-                <span className="flex-1 whitespace-nowrap text-center">
-                  {humanBytes(raw.lottie)}
-                </span>
-                <span className="flex-1 whitespace-nowrap text-center">
-                  {humanBytes(raw.popkorn)}
-                </span>
-                <span
-                  className={`w-12 whitespace-nowrap text-center ${deltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                >
-                  {fmtPct(deltaPct)}
-                </span>
-              </div>
-              {min && (
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="w-2/5 text-muted-foreground">Minified</span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(min.lottie)}
-                  </span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(min.popkorn)}
-                  </span>
-                  <span
-                    className={`w-12 whitespace-nowrap text-center ${minDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                  >
-                    {fmtPct(minDeltaPct)}
-                  </span>
-                </div>
-              )}
-              {gz && (
-                <div className="flex items-center gap-2 font-mono">
-                  <span className="w-2/5 text-muted-foreground">Gzipped</span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(gz.lottie)}
-                  </span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(gz.popkorn)}
-                  </span>
-                  <span
-                    className={`w-12 whitespace-nowrap text-center ${gzDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                  >
-                    {fmtPct(gzDeltaPct)}
-                  </span>
-                </div>
-              )}
-              {crushGz && (
-                <div className="flex items-center gap-2 font-mono">
-                  <span
-                    className="w-2/5 text-muted-foreground"
-                    title="Gzipped, identifiers renamed — smallest wire size (not human-readable)"
-                  >
-                    Crushed
-                  </span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(crushGz.lottie)}
-                  </span>
-                  <span className="flex-1 whitespace-nowrap text-center">
-                    {humanBytes(crushGz.popkorn)}
-                  </span>
-                  <span
-                    className={`w-12 whitespace-nowrap text-center ${crushDeltaPct <= 0 ? "text-emerald-500" : "text-amber-500"}`}
-                  >
-                    {fmtPct(crushDeltaPct)}
-                  </span>
-                </div>
+              {rows.map(
+                ({ name, size, title }) =>
+                  size && (
+                    <div
+                      key={name}
+                      className="flex items-center gap-2 font-mono"
+                    >
+                      {title ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="w-2/5 cursor-help text-muted-foreground underline decoration-dotted underline-offset-2">
+                              {name}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-56">
+                            {title}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="w-2/5 text-muted-foreground">
+                          {name}
+                        </span>
+                      )}
+                      <span className="flex-1 whitespace-nowrap text-center">
+                        {humanBytes(size.source)}
+                      </span>
+                      <span className="flex-1 whitespace-nowrap text-center">
+                        {humanBytes(size.popkorn)}
+                      </span>
+                      <span
+                        className={`w-12 whitespace-nowrap text-center ${delta(size) <= 0 ? "text-emerald-500" : "text-amber-500"}`}
+                      >
+                        {fmtPct(delta(size))}
+                      </span>
+                    </div>
+                  ),
               )}
             </div>
           </div>

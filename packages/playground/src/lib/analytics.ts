@@ -1,6 +1,7 @@
 // Fire an event to both analytics backends (Umami + GA gtag). Both scripts are
-// loaded globally in index.html; either may be absent (blocked, still loading),
-// so both calls are optional. ponytail: no wrapper lib, these two are the whole API.
+// injected by the root route's head (`routes/__root.tsx`); either may be absent
+// (blocked, still loading), so both calls are optional.
+// NOTE: no wrapper lib, these two calls are the whole API.
 type Gtag = (
   command: "event",
   name: string,

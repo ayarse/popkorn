@@ -1,12 +1,15 @@
-import { type DriveStep, driver } from "driver.js";
-import "driver.js/dist/driver.css";
+import type { DriveStep } from "driver.js";
 
 const TOUR_SEEN_KEY = "popkorn-tour-seen";
 
 /** Launch the onboarding tour over the current layout. Steps whose target
  *  isn't on screen are dropped — mobile has no timeline, so pointing at one
- *  would leave the popover hanging over nothing. */
-export function startTour() {
+ *  would leave the popover hanging over nothing. driver.js loads on first use. */
+export async function startTour() {
+  const [{ driver }] = await Promise.all([
+    import("driver.js"),
+    import("driver.js/dist/driver.css"),
+  ]);
   driver({
     showProgress: true,
     popoverClass: "popkorn-tour",
@@ -100,5 +103,5 @@ export function maybeStartTour() {
   } catch {
     return; // storage blocked — don't nag on every load.
   }
-  startTour();
+  void startTour();
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 export function ImportModal({
@@ -21,14 +22,6 @@ export function ImportModal({
   const [dragOver, setDragOver] = useState(false);
   const [text, setText] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   return (
     <Dialog
@@ -99,12 +92,13 @@ export function ImportModal({
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        <textarea
+        <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder='{ "v": "5.7.0", "layers": [ ... ] }  or  <svg ...>'
+          aria-label="Lottie JSON or SVG markup"
           spellCheck={false}
-          className="h-36 w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground outline-none focus:ring-2 focus:ring-ring"
+          className="h-36"
         />
 
         <div className="flex justify-end">

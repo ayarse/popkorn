@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { MAX_TAGS, parseTags } from "@/lib/scenes";
 
 /** Chip editor for a scene's tags — the field holds the chips, so what you see
@@ -34,20 +35,17 @@ export function TagInput({
 
       <div className="flex flex-wrap items-center gap-1 rounded-md border border-border bg-background p-1.5 focus-within:ring-2 focus-within:ring-ring">
         {tags.map((tag) => (
-          <span
-            key={tag}
-            className="flex items-center gap-1 rounded-full bg-muted py-0.5 pl-2 pr-1 text-xs text-foreground"
-          >
+          <Badge key={tag} className="py-0.5 pl-2 pr-1 text-xs font-normal">
             {tag}
             <button
               type="button"
               onClick={() => onChange(tags.filter((t) => t !== tag))}
               aria-label={`Remove ${tag}`}
-              className="rounded-full p-0.5 text-muted-foreground hover:text-foreground"
+              className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="size-3" />
             </button>
-          </span>
+          </Badge>
         ))}
         {!full && (
           <input
@@ -74,7 +72,7 @@ export function TagInput({
       <p className="text-[11px] text-muted-foreground">
         {full
           ? "That's the limit. Remove one to add another."
-          : "Enter or comma adds a tag."}
+          : "Enter, comma or Space adds a tag."}
       </p>
     </div>
   );

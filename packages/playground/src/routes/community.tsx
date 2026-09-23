@@ -10,8 +10,13 @@ import {
 } from "@/components/scene-cards";
 import { ShareModal } from "@/components/share-modal";
 import { Button } from "@/components/ui/button";
-import { examples } from "@/examples";
-import { listScenes, type SceneSummary } from "@/lib/scenes";
+import { Input } from "@/components/ui/input";
+import { exampleIndex } from "@/examples";
+import {
+  listExampleAspects,
+  listScenes,
+  type SceneSummary,
+} from "@/lib/scenes";
 import { SITE } from "@/routes/__root";
 
 const TITLE = "Community — Popkorn";
@@ -19,7 +24,13 @@ const DESCRIPTION =
   "Popkorn scenes published by the community, plus the built-in examples. Every one is a plain CSS file — open it in the playground and make it yours.";
 
 export const Route = createFileRoute("/community")({
-  loader: () => listScenes(),
+  loader: async () => {
+    const [scenes, exampleAspects] = await Promise.all([
+      listScenes(),
+      listExampleAspects(),
+    ]);
+    return { scenes, exampleAspects };
+  },
   head: () => ({
     meta: [
       { title: TITLE },
@@ -45,28 +56,30 @@ function SearchInput({
   return (
     <div className="relative">
       <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <input
+      <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none focus:ring-2 focus:ring-ring"
+        aria-label={placeholder}
+        className="py-1.5 pl-8 pr-7"
       />
       {value && (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => onChange("")}
-          aria-label="Clear"
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+          aria-label="Clear search"
+          className="absolute right-1 top-1/2 size-6 -translate-y-1/2 [&_svg]:size-3.5"
         >
-          <X className="size-3.5" />
-        </button>
+          <X />
+        </Button>
       )}
     </div>
   );
 }
 
 function Community() {
-  const scenes = Route.useLoaderData();
+  const { scenes, exampleAspects } = Route.useLoaderData();
   const [showAll, setShowAll] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [query, setQuery] = useState("");
@@ -130,13 +143,14 @@ function Community() {
             placeholder="Search tags"
           />
           {selected && (
-            <button
-              type="button"
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => setSelected(null)}
-              className="self-start text-xs text-muted-foreground hover:text-foreground"
+              className="h-auto self-start px-0 text-xs"
             >
               Clear filter
-            </button>
+            </Button>
           )}
           <div className="flex flex-col gap-0.5">
             {shownTags.length === 0 ? (
@@ -149,7 +163,8 @@ function Community() {
                   key={tag}
                   type="button"
                   onClick={() => toggleTag(tag)}
-                  className={`flex items-center justify-between gap-2 rounded px-2 py-1 text-left text-sm ${
+                  aria-pressed={selected === tag}
+                  className={`flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     selected === tag
                       ? "bg-primary/15 text-primary"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -197,7 +212,6 @@ function Community() {
                 {visible.map((s: SceneSummary) => (
                   <SceneCard
                     key={s.id}
-                    href={`/s/${s.id}`}
                     title={s.title}
                     meta={s.author ?? shortDate(s.created_at)}
                     sceneId={s.id}
@@ -216,13 +230,13 @@ function Community() {
                 <div
                   className={`${SCENE_GRID} ${showAll ? "" : "max-h-[580px] overflow-hidden"}`}
                 >
-                  {examples.map((ex) => (
+                  {exampleIndex.map((ex) => (
                     // Examples open straight in the editor, not on a share page.
                     <SceneCard
                       key={ex.key}
-                      href={`/examples/${ex.key}`}
                       title={ex.label}
-                      source={ex.source}
+                      exampleKey={ex.key}
+                      aspect={exampleAspects[ex.key]}
                     />
                   ))}
                 </div>

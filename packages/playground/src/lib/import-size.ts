@@ -16,16 +16,17 @@ export function humanBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function pct(lottie: number, popkorn: number): number {
-  if (lottie === 0) return 0;
-  return ((popkorn - lottie) / lottie) * 100;
+export function pct(before: number, after: number): number {
+  if (before === 0) return 0;
+  return ((after - before) / before) * 100;
 }
 
 export function fmtPct(d: number): string {
   return `${d > 0 ? "+" : ""}${d.toFixed(1)}%`;
 }
 
-export type SizePair = { lottie: number; popkorn: number };
+/** Byte sizes of the imported source (Lottie or SVG) and its Popkorn conversion. */
+export type SizePair = { source: number; popkorn: number };
 export type SizeDelta = { before: number; after: number };
 
 export type ImportResult = {
@@ -38,7 +39,7 @@ export type ImportResult = {
   gz?: SizePair;
   // Gzipped size with the popkorn side additionally crushed (identifiers
   // renamed) — the smallest wire size the format reaches. Source side mirrors
-  // `gz.lottie` so the row compares against the same source bytes.
+  // `gz.source` so the row compares against the same source bytes.
   crushGz?: SizePair;
 };
 
@@ -48,13 +49,13 @@ export function buildImportResult(
   rawSource: string,
   css: string,
 ): ImportResult {
-  const raw: SizePair = { lottie: bytes(rawSource), popkorn: bytes(css) };
+  const raw: SizePair = { source: bytes(rawSource), popkorn: bytes(css) };
   let min: SizePair | undefined;
   // Only Lottie has a JSON-minify step; SVG skips the minified row.
   if (format === "Lottie") {
     try {
       min = {
-        lottie: bytes(JSON.stringify(JSON.parse(rawSource))),
+        source: bytes(JSON.stringify(JSON.parse(rawSource))),
         popkorn: bytes(serialize(parse(css), { minify: true })),
       };
     } catch {
@@ -83,8 +84,8 @@ export async function gzipSizes(
       gzipBytes(serialize(sheet, { crush: true })),
     ]);
     return {
-      gz: { lottie: srcGz, popkorn: minGz },
-      crushGz: { lottie: srcGz, popkorn: crushGz },
+      gz: { source: srcGz, popkorn: minGz },
+      crushGz: { source: srcGz, popkorn: crushGz },
     };
   } catch {
     return undefined;
