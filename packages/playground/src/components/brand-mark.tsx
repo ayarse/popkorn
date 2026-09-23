@@ -16,7 +16,7 @@ export function BrandMark({ suffix, className }: BrandMarkProps) {
         className,
       )}
     >
-      <div className="flex size-5 items-center justify-center rounded-md bg-indigo-500 text-white">
+      <div className="flex size-5 items-center justify-center rounded-md bg-foreground text-background">
         <span
           // biome-ignore lint/security/noDangerouslySetInnerHtml: bundled trusted SVG icon
           dangerouslySetInnerHTML={{ __html: popkornIconRaw }}

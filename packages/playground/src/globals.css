@@ -9,29 +9,29 @@
 }
 
 .dark {
-  --background: oklch(0.145 0.02 264);
-  --foreground: oklch(0.985 0.005 264);
-  --card: oklch(0.179 0.02 264);
-  --card-foreground: oklch(0.985 0.005 264);
-  --popover: oklch(0.179 0.02 264);
-  --popover-foreground: oklch(0.985 0.005 264);
-  --primary: oklch(0.62 0.193 275);
-  --primary-foreground: oklch(0.985 0.005 264);
-  --secondary: oklch(0.22 0.02 264);
-  --secondary-foreground: oklch(0.92 0.01 264);
-  --muted: oklch(0.22 0.02 264);
-  --muted-foreground: oklch(0.65 0.018 264);
-  --accent: oklch(0.62 0.193 275);
-  --accent-foreground: oklch(0.985 0.005 264);
+  --background: oklch(0.145 0.004 264);
+  --foreground: oklch(0.985 0.004 264);
+  --card: oklch(0.179 0.004 264);
+  --card-foreground: oklch(0.985 0.004 264);
+  --popover: oklch(0.179 0.004 264);
+  --popover-foreground: oklch(0.985 0.004 264);
+  --primary: oklch(0.93 0.004 264);
+  --primary-foreground: oklch(0.17 0.004 264);
+  --secondary: oklch(0.22 0.004 264);
+  --secondary-foreground: oklch(0.92 0.004 264);
+  --muted: oklch(0.22 0.004 264);
+  --muted-foreground: oklch(0.65 0.004 264);
+  --accent: oklch(0.3 0.004 264);
+  --accent-foreground: oklch(0.985 0.004 264);
   --destructive: oklch(0.7 0.193 22);
-  --border: oklch(0.27 0.015 264 / 0.6);
-  --input: oklch(0.27 0.015 264 / 0.6);
-  --ring: oklch(0.62 0.193 275 / 0.5);
-  --sidebar: oklch(0.179 0.02 264);
-  --sidebar-foreground: oklch(0.985 0.005 264);
-  --sidebar-primary: oklch(0.62 0.193 275);
-  --sidebar-border: oklch(0.27 0.015 264 / 0.6);
-  --code: oklch(0.225 0.022 285);
+  --border: oklch(0.3 0.004 264 / 0.7);
+  --input: oklch(0.3 0.004 264 / 0.7);
+  --ring: oklch(0.9 0.004 264 / 0.45);
+  --sidebar: oklch(0.179 0.004 264);
+  --sidebar-foreground: oklch(0.985 0.004 264);
+  --sidebar-primary: oklch(0.93 0.004 264);
+  --sidebar-border: oklch(0.27 0.004 264 / 0.6);
+  --code: oklch(0.2 0.004 264);
 }
 
 @theme inline {
@@ -365,27 +365,27 @@
      gutter — the same trick VS Code/Linear use for their CSS scrollbars. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: oklch(0.35 0.02 264 / 0.6) transparent;
+    scrollbar-color: oklch(0.35 0.004 264 / 0.6) transparent;
   }
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
-    background-color: oklch(0.2 0.015 264 / 0.25);
+    background-color: oklch(0.2 0.004 264 / 0.25);
   }
   ::-webkit-scrollbar:hover {
-    background-color: oklch(0.2 0.015 264 / 0.5);
+    background-color: oklch(0.2 0.004 264 / 0.5);
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background-color: oklch(0.3 0.02 264 / 0.35);
+    background-color: oklch(0.3 0.004 264 / 0.35);
     border: 2px solid transparent;
     border-radius: 9999px;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: oklch(0.45 0.02 264 / 0.8);
+    background-color: oklch(0.45 0.004 264 / 0.8);
   }
   ::-webkit-scrollbar-corner {
     background: transparent;
@@ -512,7 +512,7 @@
   font-size: 13px;
   line-height: 1.6;
   text-shadow: none;
-  color: oklch(0.86 0.012 264);
+  color: oklch(0.86 0.004 264);
 }
 .docs-prose .scene-editor {
   padding: 0;
@@ -536,12 +536,12 @@
 .docs-prose .token.comment,
 .docs-prose .token.prolog,
 .docs-prose .token.doctype {
-  color: oklch(0.56 0.02 264);
+  color: oklch(0.56 0.004 264);
   font-style: italic;
 }
 .docs-prose .token.punctuation,
 .docs-prose .token.operator {
-  color: oklch(0.62 0.02 264);
+  color: oklch(0.62 0.004 264);
 }
 .docs-prose .token.selector,
 .docs-prose .token.atrule,
@@ -575,7 +575,7 @@
   color: oklch(0.82 0.1 65);
 }
 .docs-prose .token.variable {
-  color: oklch(0.86 0.012 264);
+  color: oklch(0.86 0.004 264);
 }
 .docs-prose .token.parameter {
   color: oklch(0.8 0.08 240);
