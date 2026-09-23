@@ -4,50 +4,25 @@ import {
   type Transform,
 } from "../scene/types.js";
 
-/**
- * Content addressing for composite subtrees.
- *
- * The raster cache (see loop.ts renderFilter/renderMask + canvas2d) must decide
- * whether a filtered/masked subtree would rasterize to the same pixels it did
- * last time. This module answers that as a pure function of the subtree's
- * RESOLVED state: it hashes exactly the live fields the render walk reads, in
- * paint order, so equal hashes mean equal draw calls (invariant 4 — the hash
- * depends on time only through the values the resolve walk produced, never on a
- * frame counter or wall clock, so seek(t) twice hashes identically).
- *
- * The field list mirrors `resetNodeToBase` — the definitive set of per-frame
- * mutable fields — plus `hidden` (set by the resolve walk) and the static paint
- * fields, which are free to include and keep the hash honest.
- *
- * NOTE: no memoization — every hashed node re-walks its own values each frame.
- * Only composite subtrees are ever hashed (the loop asks lazily), so the cost
- * tracks the filtered/masked part of the scene, not the whole scene. The upgrade
- * path is a per-node dirty bit stamped at the resolve-walk write sites, which
- * removes the re-walk at the cost of instrumenting every writer.
- */
+/** Pure hash of a composite subtree's resolved render state (mirrors `resetNodeToBase` + paint fields) for the raster cache. */
+// NOTE: re-hashes every frame; a per-node dirty bit at resolve-walk write sites would avoid it.
 
-// FNV-1a, two independent 32-bit lanes (different basis/prime) combined into one
-// token — a single 32-bit lane collides too easily for something whose failure
-// mode is a frozen sublayer.
+// Two FNV-1a lanes: one 32-bit lane collides too easily when a collision freezes a sublayer.
 const A_BASIS = 2166136261;
 const B_BASIS = 2654435769;
 const A_PRIME = 16777619;
 const B_PRIME = 40503;
 
-// Scratch view for hashing a float exactly (both halves of its bit pattern),
-// reused so hashing allocates nothing on the hot path.
 const FLOAT = new Float64Array(1);
 const WORDS = new Uint32Array(FLOAT.buffer);
 
-// A subtree deeper than this is treated as unhashable rather than risking
-// unbounded recursion on a malformed (cyclic) mask reference.
+// Guards against cyclic mask references.
 const MAX_DEPTH = 256;
 
 export class ContentHash {
   private a = A_BASIS;
   private b = B_BASIS;
-  /** Set when the hash could not be computed honestly (depth bail). A poisoned
-   *  hash must never be used as a cache key — the caller skips caching. */
+  /** A poisoned hash must never be used as a cache key. */
   poisoned = false;
 
   num(v: number): void {
@@ -69,8 +44,7 @@ export class ContentHash {
     this.word(v ? 1 : v === false ? 2 : 3);
   }
 
-  /** Arity marker (array length, key count) — keeps a 2-element list from
-   *  hashing like the 2 fields of an object. */
+  /** Arity marker so a 2-element list can't hash like a 2-field object. */
   len(n: number): void {
     this.word(0xa11a);
     this.word(n);
@@ -83,16 +57,12 @@ export class ContentHash {
     this.b = Math.imul(this.b ^ (w >>> 16), B_PRIME);
   }
 
-  /** The accumulated token. Two lanes, base-36, so it is short enough to sit in
-   *  a cache-key string. */
   toString(): string {
     return (this.a >>> 0).toString(36) + ":" + (this.b >>> 0).toString(36);
   }
 }
 
-/** Hash an arbitrary structural value (shape data, gradients, filter ops, clip
- *  geometry). Keys are hashed alongside values, so a differently-shaped object
- *  can't collide with a same-valued one. */
+/** Keys hash alongside values, so differently-shaped objects can't collide. */
 export function hashValue(h: ContentHash, v: unknown, depth = 0): void {
   if (depth > MAX_DEPTH) {
     h.poisoned = true;
@@ -112,8 +82,7 @@ export function hashValue(h: ContentHash, v: unknown, depth = 0): void {
     case "object":
       break;
     default:
-      // A function-valued field (none today) can't be compared — refuse to cache
-      // rather than pretend it matched.
+      // Functions can't be compared; refuse to cache.
       h.poisoned = true;
       return;
   }
@@ -149,17 +118,11 @@ function hashTransform(h: ContentHash, t: Transform): void {
   h.str(t.transformOrigin.y.unit);
 }
 
-/**
- * Hash one node's own renderable state (not its children). Mirrors what
- * `renderNode` reads before recursing.
- */
+/** One node's own state, mirroring what `renderNode` reads before recursing. */
 export function hashNodeState(h: ContentHash, node: SceneNode): void {
   h.flag(node.hidden);
   h.flag(node.displayNone);
-  // Gated out of the walk entirely: nothing below contributes pixels, so
-  // nothing below may contribute to the hash either (this mirrors renderNode's
-  // early return exactly — hashing less than the walk paints would be a false
-  // hit, hashing more is only a missed hit).
+  // Must mirror renderNode's early return: hashing less than the walk paints is a false hit.
   if (node.hidden || node.displayNone) return;
 
   hashTransform(h, node.transform);
@@ -191,11 +154,7 @@ export function hashNodeState(h: ContentHash, node: SceneNode): void {
   hashValue(h, node.boxShadow);
 }
 
-/**
- * Hash a whole subtree's resolved state, in paint order, following the mask
- * source a masked node composites against (the source lives elsewhere in the
- * tree but is part of what this subtree paints).
- */
+/** Paint-order subtree hash, including each mask source (it lives elsewhere but is painted here). */
 export function hashSubtree(h: ContentHash, node: SceneNode, depth = 0): void {
   if (depth > MAX_DEPTH) {
     h.poisoned = true;
@@ -212,8 +171,7 @@ export function hashSubtree(h: ContentHash, node: SceneNode, depth = 0): void {
   }
 }
 
-/** Content token for a composite subtree, or null when it can't be hashed
- *  honestly (and so must not be cached). */
+/** Null when it can't be hashed honestly (must not be cached). */
 export function subtreeToken(node: SceneNode): string | null {
   const h = new ContentHash();
   hashSubtree(h, node);

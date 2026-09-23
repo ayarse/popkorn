@@ -18,22 +18,14 @@ import type {
 } from "./types.js";
 import { LUMA_COEFFICIENTS } from "./types.js";
 
-/**
- * Canvas 2D implementation of the Renderer interface
- * Used for the PoC - can be swapped for ThorVG later
- */
-// Cache entry for a loaded (or loading) image, keyed by src. `img` is an
-// HTMLImageElement on the main thread and an ImageBitmap in a worker; it stays
-// null until the decode lands (guarded by `loaded`).
+// Image cache entry by src; `img` (HTMLImageElement, or ImageBitmap in a worker) is null until decoded.
 interface ImageEntry {
   img: HTMLImageElement | ImageBitmap | null;
   loaded: boolean;
   errored: boolean;
 }
 
-// One cached composite raster: the buffer holding it (its pixel (0,0) is the
-// region's device origin, like every composite buffer), the signature the shared
-// walk captured it under, and the region it covers.
+// A cached composite raster: buffer (pixel (0,0) = region origin), capture signature, region.
 interface RasterEntry {
   ctx: CanvasRenderingContext2D;
   signature: string;
@@ -52,39 +44,26 @@ function imgHeight(img: HTMLImageElement | ImageBitmap): number {
   return "naturalHeight" in img ? img.naturalHeight : img.height;
 }
 
+/** Canvas 2D backend of the Renderer interface. */
 export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
-  // The visible canvas — the composite target of last resort, and the authority
-  // on device size (`this.ctx` is an offscreen buffer mid-composite).
+  // The visible canvas: device-size authority (`this.ctx` may be a composite buffer).
   private main: CanvasRenderingContext2D;
   private ctx: CanvasRenderingContext2D;
-  // Device coordinates of `this.ctx`'s pixel (0, 0). Zero on the main canvas;
-  // a composite buffer's origin is its region's origin, so buffers only need to
-  // be region-sized. setTransform folds it in, so callers stay in device space.
+  // Device coords of `this.ctx`'s pixel (0,0): region origin for a composite buffer, folded in by setTransform.
   private originX = 0;
   private originY = 0;
-  // Image cache and lazily-created offscreen buffers for track masks.
   private images = new Map<string, ImageEntry>();
   // In-flight image decodes; each promise settles (never rejects) on load/error.
   private pendingImages = new Set<Promise<void>>();
   private offscreen: (CanvasRenderingContext2D | null)[] = [];
-  // Re-entrancy depth for offscreen compositing (compositeMask + compositeFilter):
-  // nested composites each claim a distinct offscreen band (base = depth*2) so an
-  // inner composite's beginFrame() can't clear an outer's content mid-composite.
-  // Filter and mask share the counter so they interleave (filter-in-matte,
-  // matte-in-filter) without clobbering each other's buffers.
+  // Composite nesting depth (mask + filter share it); each level claims its own buffer band.
   private maskDepth = 0;
-  // Raster cache for composite subtrees, keyed by the shared walk's cache key.
-  // Insertion order IS the LRU order (a hit re-inserts), and `rasterArea` tracks
-  // the allocated pixels so eviction can bound the pool by area.
+  // Composite raster cache; Map insertion order is the LRU order, bounded by allocated area.
   private rasters = new Map<string, RasterEntry>();
   private rasterArea = 0;
-  // Signature last seen for a key that wasn't cached — the admission gate: a
-  // subtree earns a buffer only once its signature repeats, so a genuinely
-  // animating subtree (a new signature every frame) never allocates one.
+  // Admission gate: a key earns a buffer only once its signature repeats.
   private rasterAdmit = new Map<string, string>();
-  // Set while capturing when a draw could not produce final pixels (an image
-  // still decoding, a webfont still loading). Such a raster is blitted but not
-  // stored — caching it would freeze the pre-decode frame forever.
+  // A draw during capture lacked final pixels (image/webfont pending): blit but don't store.
   private rasterIncomplete = false;
   private capturing = false;
 
@@ -103,22 +82,15 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   }
 
   beginFrame(): void {
-    // Reset to identity/device space FIRST, then clear — clearRect is affected
-    // by the current transform, so clearing before resetting would wipe only the
-    // scene rect under the leftover viewport transform and leave stale pixels in
-    // the letterbox band (a transient ghost that self-heals on a later repaint).
+    // Reset to device space BEFORE clearRect, or the letterbox band keeps stale pixels.
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.clear();
     this.ctx.globalAlpha = 1;
   }
 
-  endFrame(): void {
-    // No-op for Canvas2D (immediate mode)
-  }
+  endFrame(): void {}
 
-  // Apply eagerly onto the ctx: the CSS keyword IS the globalCompositeOperation
-  // value for every blend mode, except `normal` -> `source-over`. The loop resets
-  // to 'normal' after the node's shape, so it doesn't leak to siblings.
+  // The CSS keyword is the globalCompositeOperation, except `normal` -> `source-over`.
   setBlendMode(mode: BlendMode): void {
     super.setBlendMode(mode);
     this.ctx.globalCompositeOperation =
@@ -139,7 +111,6 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       // roundRect takes the per-corner array natively (tl, tr, br, bl).
       this.ctx.roundRect(x, y, w, h, [...corners]);
     } else if (rx > 0 || ry > 0) {
-      // Uniform (possibly elliptical) radius.
       this.ctx.roundRect(x, y, w, h, [{ x: rx, y: ry }]);
     } else {
       this.ctx.rect(x, y, w, h);
@@ -185,8 +156,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     anchor: TextAnchor,
     letterSpacing = 0,
   ): void {
-    // A webfont landing later re-shapes this text with no scene-state change, so
-    // a raster captured before the fonts settle must not be stored.
+    // A later-loading webfont re-shapes text with no state change, so don't store this capture.
     if (this.capturing && typeof document !== "undefined") {
       if (document.fonts && document.fonts.status !== "loaded")
         this.rasterIncomplete = true;
@@ -195,12 +165,11 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.ctx.textAlign =
       anchor === "middle" ? "center" : anchor === "end" ? "right" : "left";
     this.ctx.textBaseline = "alphabetic";
-    // ctx.letterSpacing is sticky — set it every draw (a CSS length string), so a
-    // 0 spacing clears a prior node's value. Guarded: not all engines expose it.
+    // ctx.letterSpacing is sticky: set every draw so 0 clears a prior value.
     if ("letterSpacing" in this.ctx)
       this.ctx.letterSpacing = `${letterSpacing}px`;
 
-    // Bounding box (for gradients) mirrors scene/transform.getShapeBounds.
+    // Bounding box (for gradients) matches scene/transform.getShapeBounds.
     const width = this.ctx.measureText(text).width;
     const ax =
       anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
@@ -248,12 +217,11 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       entry = loaded;
     }
     if (!entry.loaded || !entry.img) {
-      // Repaints in once the decode lands — but a raster captured now would
-      // freeze the image out permanently, so the capture must not be stored.
+      // Repaints once decoded; a raster captured now must not be stored.
       if (this.capturing && !entry.errored) this.rasterIncomplete = true;
       return;
     }
-    // Source-cropped (object-view-box): 9-arg sample of the sub-rect into the box.
+    // Source-cropped (object-view-box): 9-arg sample.
     if (
       sx !== undefined &&
       sy !== undefined &&
@@ -270,10 +238,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.ctx.drawImage(entry.img, x, y, dw, dh);
   }
 
-  // Kick off a decode, caching the entry immediately so we fetch each src once.
-  // Main thread: HTMLImageElement. Worker (no Image): fetch(src) -> blob ->
-  // createImageBitmap, which also handles data: URLs. Returns null when neither
-  // path exists (e.g. bun tests), leaving the image node inert.
+  // Start a decode once per src: HTMLImageElement, or fetch -> createImageBitmap in a worker; null if neither exists.
   private loadImage(src: string): ImageEntry | null {
     if (typeof Image !== "undefined") {
       const img = new Image();
@@ -330,9 +295,6 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     });
   }
 
-  // Resolves once no image decodes are in flight (immediately if none). An
-  // offline, seek-driven export awaits this after seeking so a re-render paints
-  // the now-decoded images; the live loop ignores it and repaints naturally.
   whenImagesSettled(): Promise<void> {
     return Promise.all([...this.pendingImages]).then(() => undefined);
   }
@@ -357,10 +319,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     const mainX = this.originX;
     const mainY = this.originY;
 
-    // Content -> A, mask source -> B; each closure sets its own world transform.
-    // A nested matte encountered inside these closures re-enters here at a
-    // deeper depth, so it claims its own buffer pair rather than clearing ours.
-    // Both buffers take the same origin, so they combine at matching coords.
+    // Content -> A, mask -> B at the same origin; a nested matte re-enters at a deeper band.
     this.maskDepth++;
     try {
       this.ctx = a;
@@ -387,16 +346,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       this.originY = mainY;
     }
 
-    // Turn a luminance mask into an alpha mask in place, so a single
-    // destination-in/out handles every mode.
+    // Luminance -> alpha in place, so one destination-in/out handles every mode.
     if (mode === "luminance" || mode === "luminance-invert")
       luminanceToAlpha(b, r.width, r.height);
 
-    // destination-in keeps content where the mask is opaque; destination-out
-    // keeps it where the mask is transparent (the *-invert variants). Both
-    // buffers hold the region at their own top-left corner, so the combine is
-    // corner-to-corner; the clip keeps destination-in's erasure off the slack
-    // a grow-only buffer carries beyond the region.
+    // destination-in keeps content under opaque mask, destination-out (invert) under transparent;
+    // the clip keeps the erase off the grow-only buffer's slack.
     const invert = mode === "alpha-invert" || mode === "luminance-invert";
     a.save();
     a.setTransform(1, 0, 0, 1, 0, 0);
@@ -406,8 +361,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     a.globalCompositeOperation = "source-over";
     a.restore();
 
-    // Blit the masked result back at identity, landing the buffer's corner on
-    // the region's position in the destination's own coordinates.
+    // Blit back at identity, buffer corner on the region origin.
     main.save();
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
@@ -425,18 +379,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     main.restore();
   }
 
-  // ctx.filter exists on all evergreen browsers; old Safari (<18) lacks it. It's
-  // a string property ('none' by default), so a typeof check feature-detects it.
+  // ctx.filter is missing on old Safari (<18).
   supportsFilter(): boolean {
     return typeof this.ctx.filter === "string";
   }
 
-  // Composite a filtered subtree: render `drawContent` (which sets its own world
-  // transform) into an offscreen holding device-space pixels, then blit it back
-  // to the main canvas at identity with `filter` applied. Because the blit is in
-  // device space, the caller must have already scaled the filter's lengths by the
-  // node's world scale (so a scaled element's blur/shadow scales — CSS semantics),
-  // rather than relying on ctx.filter honoring the CTM (which browsers diverge on).
+  // Blit happens in device space, so `filter` must arrive pre-scaled by world scale (ctx.filter CTM handling diverges).
   compositeFilter(
     filter: string,
     drawContent: () => void,
@@ -446,8 +394,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     if (r.width <= 0 || r.height <= 0) return;
     const buf = this.ensureOffscreen(this.maskDepth * 2, r.width, r.height);
     if (!buf) {
-      // Headless (no offscreen): draw unfiltered, bracketed so the closure's
-      // absolute setTransform can't leak into sibling draws on the main ctx.
+      // Headless: draw unfiltered, bracketed so the closure's setTransform can't leak.
       this.ctx.save();
       drawContent();
       this.ctx.restore();
@@ -457,8 +404,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     const main = this.ctx;
     const mainX = this.originX;
     const mainY = this.originY;
-    // A nested composite inside drawContent claims a deeper band, so it can't
-    // clear this buffer mid-composite (mirrors compositeMask's depth discipline).
+    // A nested composite claims a deeper band, so it can't clear this buffer.
     this.maskDepth++;
     try {
       this.ctx = buf;
@@ -481,11 +427,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     main.setTransform(1, 0, 0, 1, 0, 0);
     main.globalAlpha = 1;
     main.filter = filter;
-    // Source sub-rect, not the whole buffer: only the region was cleared and
-    // redrawn, so a grow-only buffer's slack still holds a previous composite's
-    // pixels and would otherwise be filtered in. The region already carries the
-    // filter's bleed margin (see scene/bounds), so the blur samples transparent
-    // padding, not a hard edge.
+    // Source the region only: the grow-only buffer's slack holds stale pixels. Region includes filter bleed.
     main.drawImage(
       buf.canvas,
       0,
@@ -505,14 +447,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     return true;
   }
 
-  /**
-   * Run a composite into a dedicated region-sized raster and blit it, reusing
-   * the stored raster when the caller's signature and region match the one it
-   * was captured under. The composite draws into a transparent buffer and is
-   * blitted with the same identity/source-over blit `compositeFilter` and
-   * `compositeMask` use, so a captured frame lands the same pixels the direct
-   * composite would (bar the 8-bit rounding of one extra premultiplied blit).
-   */
+  /** Composite into a dedicated raster and blit; reuse it while signature and region match. */
   cacheComposite(
     key: string,
     signature: string,
@@ -522,23 +457,20 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     if (region.width <= 0 || region.height <= 0) return;
     const hit = this.rasters.get(key);
     if (hit && hit.signature === signature) {
-      // Re-insert to move it to the young end of the LRU order.
+      // Re-insert to move it to the young end of the LRU.
       this.rasters.delete(key);
       this.rasters.set(key, hit);
       this.blitRaster(hit.ctx, region);
       return;
     }
-    // First sighting of this signature: draw straight through. A subtree that
-    // changes every frame stops here forever and never claims a buffer.
+    // First sighting of this signature: draw through without a buffer.
     if (this.rasterAdmit.get(key) !== signature) {
       this.rasterAdmit.set(key, signature);
       draw();
       return;
     }
 
-    // Drop the superseded entry BEFORE capturing: the capture may reuse its
-    // canvas (and always invalidates its pixels), and an aborted capture must
-    // not leave a live entry pointing at half-overwritten pixels.
+    // Drop the superseded entry before capturing: the capture may reuse its canvas.
     const w = gridUp(region.width);
     const h = gridUp(region.height);
     let buf: CanvasRenderingContext2D | null = null;
@@ -565,9 +497,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       this.ctx = buf;
       this.originX = region.x;
       this.originY = region.y;
-      // The capture buffer is dedicated, not from the depth-banded scratch pool,
-      // so a nested composite inside `draw` still claims its own band and the
-      // depth counter needs no bump here.
+      // A dedicated buffer, not the banded pool, so no depth bump.
       this.enterRegion(buf, region);
       try {
         draw();
@@ -583,22 +513,18 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
 
     this.blitRaster(buf, region);
     const incomplete = this.rasterIncomplete;
-    // An enclosing capture must inherit the incompleteness, or it would store a
-    // raster containing this one's placeholder pixels.
+    // An enclosing capture inherits incompleteness.
     this.rasterIncomplete = outerIncomplete || incomplete;
     if (incomplete) return;
     this.store(key, { ctx: buf, signature, region });
   }
 
-  /** A raster buffer for one cached composite: its own allocation, never the
-   *  depth-banded scratch pool (whose bands a nested composite clobbers). */
+  /** Dedicated raster allocation, never the depth-banded scratch pool. */
   private newRaster(w: number, h: number): CanvasRenderingContext2D | null {
     return createOffscreen(w, h);
   }
 
-  /** Insert a cache entry and evict by LRU until the pool fits the budget: 4x
-   *  the main buffer's pixels, which holds a handful of typical composite
-   *  regions without tracking the viewport. */
+  /** Insert and LRU-evict to a budget of 4x the main buffer's pixels. */
   private store(key: string, entry: RasterEntry): void {
     this.rasters.delete(key);
     this.rasters.set(key, entry);
@@ -612,8 +538,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     }
   }
 
-  /** Blit a stored raster's region into the current target, at identity — the
-   *  same shape of blit the two composites end with. */
+  /** Blit a stored raster at identity. */
   private blitRaster(src: CanvasRenderingContext2D, r: DeviceRect): void {
     const dst = this.ctx;
     dst.save();
@@ -633,7 +558,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     dst.restore();
   }
 
-  /** The whole backing buffer — the region used when a caller supplies none. */
+  /** The whole backing buffer, used when a caller supplies no region. */
   private fullRegion(): DeviceRect {
     return {
       x: 0,
@@ -643,12 +568,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     };
   }
 
-  /**
-   * Open a composite buffer for drawing into `r`: reset to device space, clear
-   * the region, and clip to it. The buffer's pixel (0, 0) IS the region's
-   * device origin (see `originX`), so the region sits at the buffer's corner
-   * and drawing in device space still lands correctly. Pairs with ctx.restore().
-   */
+  /** Reset to device space, clear and clip `r` on a composite buffer; pair with ctx.restore(). */
   private enterRegion(ctx: CanvasRenderingContext2D, r: DeviceRect): void {
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -657,16 +577,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     clipToRegion(ctx, 0, 0, r.width, r.height);
   }
 
-  /**
-   * Lazily create an offscreen 2D context holding at least w×h pixels. Buffers
-   * are region-sized rather than canvas-sized because a filtered blit costs in
-   * proportion to its SOURCE surface (Firefox measurably so, ~2× from a
-   * viewport-sized source), and because the pool retains 2×(depth+1) of them.
-   *
-   * Sizes round UP to a 64px grid and only ever grow within a frame band, so a
-   * region jittering by a pixel per frame doesn't reallocate; `resize()` drops
-   * the pool so a shrunken canvas doesn't keep paying for the old one.
-   */
+  // Region-sized (filtered blit cost tracks the source surface), 64px-grid, grow-only; resize() drops the pool.
   private ensureOffscreen(
     index: number,
     w: number,
@@ -679,8 +590,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       return ctx;
     }
     if (ctx && (ctx.canvas.width < w || ctx.canvas.height < h)) {
-      // Assigning either dimension wipes the canvas; both composites clear the
-      // region they draw into first, so there is nothing to preserve.
+      // Assigning a dimension wipes the canvas; composites clear their region first anyway.
       ctx.canvas.width = Math.max(ctx.canvas.width, gridUp(w));
       ctx.canvas.height = Math.max(ctx.canvas.height, gridUp(h));
     }
@@ -703,9 +613,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.ctx.clip(path, this.fillRule);
   }
 
-  // Paint state (fill/stroke/trim/dash/…) is inherited from PaintStateRenderer.
-  // Opacity is the exception: Canvas2D drives it through the native globalAlpha
-  // rather than a tracked field.
+  // Opacity drives the native globalAlpha rather than a tracked field.
   setOpacity(opacity: number): void {
     this.ctx.globalAlpha = opacity;
   }
@@ -719,16 +627,12 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   }
 
   transform(m: Matrix3x3): void {
-    // Matrix3x3 is [a, b, tx, c, d, ty, 0, 0, 1]
-    // Canvas transform takes (a, b, c, d, e, f) = (a, c, b, d, tx, ty)
+    // Matrix3x3 [a, b, tx, c, d, ty, ...] -> canvas (a, c, b, d, tx, ty).
     this.ctx.transform(m[0], m[3], m[1], m[4], m[2], m[5]);
   }
 
   setTransform(m: Matrix3x3): void {
-    // Matrix3x3 is [a, b, tx, c, d, ty, 0, 0, 1]
-    // Canvas setTransform takes (a, b, c, d, e, f) = (a, c, b, d, tx, ty)
-    // The translation drops the current target's origin, so an absolute
-    // device-space matrix addresses a region-sized composite buffer unchanged.
+    // Same mapping; the target's origin is subtracted so device-space matrices address region buffers.
     this.ctx.setTransform(
       m[0],
       m[3],
@@ -739,8 +643,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     );
   }
 
-  // Device size is the main canvas's, never the composite buffer we may be
-  // drawing into: the walk clamps its bounds against this.
+  // Device size is the main canvas's, never a composite buffer's.
   getWidth(): number {
     return this.main.canvas.width;
   }
@@ -753,9 +656,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     const c = this.main.canvas;
     if (c.width !== width) c.width = width;
     if (c.height !== height) c.height = height;
-    // Composite buffers grow monotonically; a resize is the point where a
-    // pool sized for the old canvas should stop being retained. Cached rasters
-    // go with them: every one was captured in the old device space.
+    // Drop the buffer pool and cached rasters: both belong to the old device space.
     this.offscreen.length = 0;
     this.rasters.clear();
     this.rasterAdmit.clear();
@@ -770,8 +671,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   }
 
   private fillPath(bounds: PaintBox): void {
-    // Fill is always drawn untrimmed (trim affects the stroke only, like Lottie).
-    // Gradient wins over solid color when present.
+    // Fill is never trimmed (like Lottie); gradient wins over solid.
     if (this.fillGradient) {
       this.ctx.fillStyle = this.realizeGradient(this.fillGradient, bounds);
       this.ctx.fill(this.fillRule);
@@ -787,9 +687,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
       : this.strokeColor;
     if (!stroke) return;
 
-    // Resolve trim/dash precedence (trim wins over an authored dasharray; an
-    // empty trim window strokes nothing). Reset the dash per stroke so a trim
-    // pattern can't leak to the next shape.
+    // Trim/dash composition; an empty trim window strokes nothing. Set per stroke so it can't leak.
     const dash = resolveStrokeDash(this.trim, this.dashArray, this.dashOffset);
     if (!dash.stroke) return;
     this.ctx.setLineDash(dash.dashArray);
@@ -804,8 +702,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
     this.ctx.setLineDash([]);
   }
 
-  /** Realize a gradient descriptor (via the shared geometry resolver) into a
-   *  CanvasGradient. */
+  /** Gradient descriptor -> CanvasGradient via the shared resolver. */
   private realizeGradient(g: GradientData, b: PaintBox): CanvasGradient {
     const r = resolveGradient(g, b);
     const grad =
@@ -819,8 +716,7 @@ export class Canvas2DRenderer extends PaintStateRenderer implements Renderer {
   }
 }
 
-/** Confine drawing to a rect, in the target's own pixels (caller has reset the
- *  transform). */
+/** Clip to a rect in the target's own pixels (transform already reset). */
 function clipToRegion(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -833,8 +729,7 @@ function clipToRegion(
   ctx.clip();
 }
 
-/** Round an allocation up to a 64px grid — never below the request, so a
- *  buffer always holds the whole region (invariant: regions stay supersets). */
+/** Round up to a 64px grid, never below the request. */
 function gridUp(n: number): number {
   return Math.max(1, Math.ceil(n / 64) * 64);
 }
@@ -862,14 +757,7 @@ function createOffscreen(
   return null;
 }
 
-/**
- * Rewrite a buffer's alpha to its per-pixel luminance (×existing alpha), so a
- * luminance mask can be applied with the same destination-in/out path as an alpha
- * mask. One getImageData/putImageData pass.
- *
- * NOTE: a filter-only fast path (`ctx.filter = 'grayscale(1)'` + a luminance
- * blend) would avoid the CPU round-trip; the pixel loop is the simple version.
- */
+/** Rewrite alpha to luminance × alpha. NOTE: CPU pass; a ctx.filter grayscale path would avoid the readback. */
 function luminanceToAlpha(
   ctx: CanvasRenderingContext2D,
   width: number,

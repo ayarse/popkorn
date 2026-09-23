@@ -5,12 +5,6 @@ import type {
   TimingFunction,
 } from "../scene/types.js";
 
-/**
- * Easing functions for animations
- * All functions take t in [0, 1] and return value in [0, 1]
- */
-
-// Pre-defined cubic bezier values for standard easing functions
 const EASE_BEZIER: CubicBezier = {
   type: "cubic-bezier",
   x1: 0.25,
@@ -40,26 +34,14 @@ const EASE_IN_OUT_BEZIER: CubicBezier = {
   y2: 1.0,
 };
 
-/**
- * Whether an easing holds at its departing (start) value across the whole
- * segment and jumps only at the end — CSS `step-end` (steps(1, jump-end))
- * semantics. Keyframe sampling (`animation/keyframes.ts`) and time-remap
- * sampling (`runtime/loop.ts sampleTimeRemap`) both special-case this before
- * per-kind dispatch, since forcing local progress to 0 is cheaper and more
- * direct than routing every property through `stepEasing`; `applyEasing`
- * uses the same predicate so direct callers see identical behavior.
- */
+// step-end holds the departing value; keyframe/time-remap sampling special-case it before dispatch.
 export function holdsAtStart(
   timingFunction: TimingFunction | undefined,
 ): boolean {
   return timingFunction === "step-end";
 }
 
-/**
- * Apply easing function to a progress value
- */
 export function applyEasing(t: number, timingFunction: TimingFunction): number {
-  // Clamp input
   t = Math.max(0, Math.min(1, t));
 
   if (timingFunction === "linear") {
@@ -116,15 +98,7 @@ const NAMED_EASINGS = new Set([
   "step-end",
 ]);
 
-/**
- * Parse an easing written as a raw source string (e.g. a state-machine `mix`
- * easing, which the parser slurps verbatim) into a TimingFunction usable with
- * applyEasing. Named keywords pass straight through; `cubic-bezier(...)` and
- * `steps(...)` are parsed with a compact regex (this is not the animation
- * property path — that goes through the builder's Value-based parser — so a
- * dependency-free string parser keeps the runtime self-contained). Anything
- * unrecognized (or null) falls back to "linear", the sensible cross-fade default.
- */
+// Raw source easing (e.g. state-machine `mix`) to a TimingFunction; unrecognized -> "linear".
 export function parseTimingString(
   raw: string | null | undefined,
 ): TimingFunction {
@@ -152,13 +126,7 @@ export function parseTimingString(
   return "linear";
 }
 
-/**
- * CSS linear() easing (Easing Level 2). Evaluate the piecewise-linear curve at
- * input `t`; `points` are pre-normalized (input ascending in [0,1]). The output
- * is NOT clamped, so overshoot control points (> 1) produce spring/bounce
- * curves. Equal-input points create a flat/discontinuous step (first bracket
- * wins).
- */
+// CSS linear(): points pre-normalized; output NOT clamped so overshoot gives spring/bounce.
 export function linearEasing(t: number, points: LinearEasingPoint[]): number {
   if (points.length === 0) return t;
   if (points.length === 1) return points[0].output;
@@ -174,10 +142,7 @@ export function linearEasing(t: number, points: LinearEasingPoint[]): number {
   return points[points.length - 1].output;
 }
 
-/**
- * CSS steps() easing (Easing Level 1). Produces a staircase of `count` intervals
- * whose jumps sit at the domain edges per `position`. Returns a value in [0, 1].
- */
+// CSS steps(): `count` intervals with jumps placed per `position`.
 export function stepEasing(
   t: number,
   count: number,
@@ -188,7 +153,6 @@ export function stepEasing(
   if (position === "jump-start" || position === "jump-both") currentStep += 1;
   if (t >= 0 && currentStep < 0) currentStep = 0;
 
-  // Number of distinct output levels minus one (the denominator).
   const jumps =
     position === "jump-none"
       ? count - 1
@@ -200,14 +164,10 @@ export function stepEasing(
   return currentStep / jumps;
 }
 
-/**
- * Cubic bezier implementation
- * Based on WebKit's implementation
- */
+// Cubic bezier, after WebKit's implementation.
 function cubicBezier(t: number, bezier: CubicBezier): number {
   const { x1, y1, x2, y2 } = bezier;
 
-  // Newton-Raphson iteration to find t for x
   let x = t;
   for (let i = 0; i < 8; i++) {
     const xEst = sampleCurveX(x, x1, x2);

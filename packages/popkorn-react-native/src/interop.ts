@@ -1,7 +1,4 @@
-// RN-free glue between a RenderLoop and the PopkornView host surface. Kept in
-// its own module (no react/react-native imports) so the pure pieces — touch
-// mapping, the imperative host API, the machine-event fan-out — run under
-// `bun test` where the native modules can't load.
+// RN-free glue between a RenderLoop and PopkornView, so it runs under bun test.
 
 import type { RenderLoop, VariableResolver, Viewport } from "@popkorn/player";
 import { deviceToScene } from "@popkorn/player";
@@ -12,19 +9,11 @@ export interface PopkornViewRef {
   setVariable(name: string, value: number | boolean): void;
   /** Read a `--variable`'s current value (undefined if unknown). */
   getVariable(name: string): number | boolean | string | undefined;
-  /**
-   * Fire an event into the scene. A declared `trigger` var fires as one (reads
-   * `true` for a frame); any other name enqueues a machine `on event(name)`.
-   */
+  /** Fire an event: a declared `trigger` var fires as one, else enqueues machine `on event(name)`. */
   fire(name: string): void;
 }
 
-/**
- * Map a touch point (view-local px, as RN reports `locationX`/`locationY`) into
- * scene coordinates through the viewport inverse. `dpr` bridges view px → device
- * px before the inverse; the PoC renders at dpr 1 so it defaults to 1. Reuses the
- * player's `deviceToScene` — no transform math is reimplemented here.
- */
+/** View-local touch px -> scene coords via the player's `deviceToScene` (`dpr` bridges view -> device px). */
 export function touchToScene(
   vp: Viewport,
   x: number,
@@ -34,13 +23,7 @@ export function touchToScene(
   return deviceToScene(vp, x * dpr, y * dpr);
 }
 
-/**
- * Build the imperative host API over a live RenderLoop. `getLoop` is read lazily
- * (the loop is created in an effect, after the ref handle is installed) and
- * `wake` breaks the view's dormancy so a set/fire is painted even while the scene
- * is frozen. Routing matches `<popkorn-player>` exactly: a declared variable is
- * `fire`d as a trigger, anything else is enqueued as a machine event.
- */
+/** Host API over a lazily-read loop; `wake` breaks dormancy. Routing matches `<popkorn-player>`. */
 export function createHostApi(
   getLoop: () => RenderLoop | null,
   wake: () => void,
@@ -68,8 +51,7 @@ export function createHostApi(
   };
 }
 
-// The runner's output union isn't re-exported from the barrel; redeclare the
-// shape we consume (statechange + emit) so this stays import-light.
+// Redeclared: the runner's output union isn't exported from the barrel.
 type MachineOutput =
   | { type: "statechange"; machine: string; from: string; to: string }
   | { type: "emit"; machine: string; name: string };
@@ -79,12 +61,7 @@ export interface MachineEventHandlers {
   onMachineEvent?: (e: { machine: string; name: string }) => void;
 }
 
-/**
- * Fan a RenderLoop machine output out to the host props, mapping `emit` →
- * `onMachineEvent` and `statechange` → `onStateChange` with the same `{machine,
- * from, to}` / `{machine, name}` detail shapes the web component dispatches.
- * `handlers` is a getter so prop changes are picked up without rebuilding the loop.
- */
+/** Fan machine output to `onMachineEvent` / `onStateChange` with the web component's detail shapes. */
 export function makeMachineEventCallback(
   handlers: () => MachineEventHandlers,
 ): (o: MachineOutput) => void {

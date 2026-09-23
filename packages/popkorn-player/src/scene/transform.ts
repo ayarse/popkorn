@@ -19,17 +19,13 @@ import type {
   TransformOriginValue,
 } from "./types.js";
 
-/** Uniform device-space scale of a 3×3 affine matrix (geometric mean of its
- * axis scales, √|det| — a single-value approximation for the elliptical case). */
+/** Uniform scale of an affine matrix: √|det|, the geometric mean of its axis scales. */
 export function matrixScale(m: Matrix3x3): number {
   const det = m[0] * m[4] - m[1] * m[3];
   return Math.sqrt(Math.abs(det));
 }
 
-/**
- * Axis-aligned bounding box of a shape in its local coordinate space.
- * Groups and paths have no intrinsic box, so percentage origins resolve to 0.
- */
+// Local-space AABB; groups and paths have no intrinsic box, so % origins resolve to 0.
 export function getShapeBounds(node: SceneNode): {
   x: number;
   y: number;
@@ -68,9 +64,7 @@ export function getShapeBounds(node: SceneNode): {
     case "text": {
       const t = node.shapeData as TextData;
       const { width, height } = measureText(node, t);
-      // Anchor shifts the box like ctx.textAlign does; baseline is alphabetic,
-      // so the first line sits above the y baseline (top = y - fontSize) and any
-      // further lines extend DOWN, which `height` already accounts for.
+      // Anchor shifts like ctx.textAlign; alphabetic baseline, so the first line sits above y.
       const x =
         t.anchor === "middle"
           ? t.x - width / 2
@@ -84,43 +78,24 @@ export function getShapeBounds(node: SceneNode): {
   }
 }
 
-/**
- * A platform text measurer. Backends whose paint engine measures real glyph
- * advances (e.g. Skia on React Native) register one so the scene layer's boxes
- * match the painted text. Returns null to defer to the next resolution stage
- * (e.g. a headless font manager that can't measure).
- */
+// Platform text measurer (e.g. Skia on RN); null defers to the next stage.
 export type TextMeasurer = (
   text: string,
   style: { fontSize: number; fontFamily: string; fontWeight: number | string },
 ) => { width: number; height: number } | null;
 
 let textMeasurer: TextMeasurer | null = null;
-// Bumped whenever the measurer is swapped. measureText stamps each node's cache
-// with the generation it was measured under, so a measurer registered AFTER some
-// text was already measured (against the estimate) invalidates those caches on
-// next read instead of pinning the stale width. Kept off the node type (module
-// WeakMap) so no per-node field is added.
+// Bumped on measurer swap so text measured under an earlier measurer re-measures on next read.
 let measurerGeneration = 0;
 const measuredGeneration = new WeakMap<SceneNode, number>();
 const measuredText = new WeakMap<SceneNode, string>();
 
-/**
- * Register (or clear, with null) the platform text measurer. Registering after
- * nodes were measured still takes effect — see measurerGeneration above.
- */
 export function setTextMeasurer(fn: TextMeasurer | null): void {
   textMeasurer = fn;
   measurerGeneration++;
 }
 
-/**
- * Measure a text node's width/height, cached on the node (invalidated by the
- * registry when font-size animates, and by a measurer swap via the generation
- * stamp). Resolution order: registered platform measurer (if it returns a box) →
- * a lazily-created scratch 2D context (web; same pattern as the Path2D scratch in
- * runtime/hit-test.ts) → a headless em-estimate.
- */
+// Cached on the node; platform measurer -> scratch 2D context -> headless em-estimate.
 export function measureText(
   node: SceneNode,
   t: TextData,
@@ -135,8 +110,7 @@ export function measureText(
   )
     return node.cachedTextBounds;
 
-  // Multi-line: measure each `\n`-separated line, take the widest, and stack the
-  // heights by line-height (auto = 1.2·em). Single-line height stays fontSize.
+  // Multi-line: widest line, heights stacked by line-height (auto = 1.2em).
   const lines = t.content.split("\n");
   const lh = t.lineHeight > 0 ? t.lineHeight : t.fontSize * 1.2;
   const ls = t.letterSpacing || 0;
@@ -161,7 +135,6 @@ export function measureText(
         w = 0.6 * t.fontSize * line.length;
       }
     }
-    // letter-spacing adds one gap between each pair of glyphs on the line.
     return w + Math.max(0, line.length - 1) * ls;
   };
 
@@ -179,11 +152,7 @@ export function measureText(
 
 let scratchContext: CanvasRenderingContext2D | null | undefined;
 
-/**
- * Lazily-created shared scratch 2D context (null when no DOM/OffscreenCanvas is
- * available, e.g. headless tests). Used for text measurement here and Path2D
- * hit-testing in runtime/hit-test.ts.
- */
+// Lazily-created scratch 2D context for text measurement; null when headless.
 export function getScratchContext(): CanvasRenderingContext2D | null {
   if (scratchContext !== undefined) return scratchContext;
   try {
@@ -211,9 +180,6 @@ function resolveOriginValue(
   return v.unit === "%" ? offset + (v.value / 100) * dimension : v.value;
 }
 
-/**
- * Resolve transform-origin to pixel values in the node's local coordinate space.
- */
 export function resolveTransformOrigin(node: SceneNode): {
   x: number;
   y: number;
@@ -226,14 +192,7 @@ export function resolveTransformOrigin(node: SceneNode): {
   };
 }
 
-/**
- * Compute the local transform matrix, including transform-origin and any CSS
- * Motion Path placement.
- * Order (CSS): translate -> motion-path (offset point -> offset rotate) ->
- * (move to origin -> rotate -> scale -> skew -> move back). The motion-path
- * layer is an independent placement applied after translate and before the
- * node's own TRS.
- */
+// Order (CSS): translate -> motion-path (point, rotate) -> origin sandwich around rotate/scale/skew.
 export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
   const t = node.transform;
   const { x: ox, y: oy } = resolveTransformOrigin(node);
@@ -241,11 +200,7 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
 
   let matrix = translationMatrix(t.translateX, t.translateY);
 
-  // Motion-path placement. With a path, the node is placed at the sampled point
-  // even at distance 0 — per CSS, `offset-distance: 0` sits the node at the path
-  // START, not at the identity offset. (Skipping distance 0 stranded a node at
-  // its bare anchor whenever the offset-distance animation hadn't started yet,
-  // e.g. a Lottie layer holding its first keyframe before its in-window delay.)
+  // With a path, offset-distance 0 still places the node at the path start, per CSS.
   if (node.offsetPath) {
     const s = samplePathAt(node.offsetPath, node.offsetDistance);
     matrix = multiplyMatrices(matrix, translationMatrix(s.x, s.y));
@@ -273,9 +228,6 @@ export function computeLocalMatrix(node: SceneNode): Matrix3x3 {
   return matrix;
 }
 
-/**
- * Compute world transform by multiplying parent's world transform with local transform
- */
 export function computeWorldMatrix(
   node: SceneNode,
   parentWorld: Matrix3x3 = IDENTITY_MATRIX,
@@ -283,11 +235,7 @@ export function computeWorldMatrix(
   return multiplyMatrices(parentWorld, computeLocalMatrix(node));
 }
 
-/**
- * World matrix of a node by folding local matrices down from the root along the
- * parent chain. For callers that don't already have the parent's world matrix
- * in hand (e.g. mask compositing).
- */
+// World matrix folded from the root, for callers without the parent's world matrix (e.g. masks).
 export function computeWorldMatrixFromRoot(node: SceneNode | null): Matrix3x3 {
   if (!node) return IDENTITY_MATRIX;
   const chain: SceneNode[] = [];
@@ -298,14 +246,10 @@ export function computeWorldMatrixFromRoot(node: SceneNode | null): Matrix3x3 {
   return m;
 }
 
-/** Clamp to the [0,1] range. */
 export function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-/**
- * Linear interpolation
- */
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }

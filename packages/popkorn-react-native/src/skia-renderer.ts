@@ -22,10 +22,7 @@ import {
   setTextMeasurer,
 } from "@popkorn/player";
 
-// react-native-skia types only — inline `import(...)` type refs are erased at
-// runtime, so this file loads under `bun test` without the native module. The
-// `Skia` API object is injected via the constructor (see PopkornView for the
-// real wiring, and the test for a mock).
+// Type-only import (erased at runtime) so this loads under bun test; `Skia` is injected via the constructor.
 type SkiaApi = typeof import("@shopify/react-native-skia").Skia;
 type SkCanvas = import("@shopify/react-native-skia").SkCanvas;
 type SkPaint = import("@shopify/react-native-skia").SkPaint;
@@ -37,27 +34,21 @@ type SkFont = import("@shopify/react-native-skia").SkFont;
 type SkFontMgr = import("@shopify/react-native-skia").SkFontMgr;
 type SkImage = import("@shopify/react-native-skia").SkImage;
 
-// Cache entry for a decoded (or decoding) image, keyed by src. `image` stays
-// null until MakeImageFromEncoded lands (guarded by `loaded`).
+// Image cache entry by src; `image` is null until MakeImageFromEncoded lands.
 interface ImageEntry {
   image: SkImage | null;
   loaded: boolean;
   errored: boolean;
 }
 
-// Bounds only feed gradient shaders; a shape with no gradient never reads them,
-// so we hand it this shared zero box instead of scanning its geometry.
+// Only gradient shaders read bounds, so non-gradient shapes share a zero box.
 const ZERO_BOUNDS: PaintBox = { x: 0, y: 0, width: 0, height: 0 };
 
-// Entry caps for the value-keyed caches below (shader, dash). A morphing
-// gradient / dash produces a fresh key every frame; cap + clear keeps those
-// from growing without bound. Static scenes stay well under the cap.
+// Caps for the value-keyed shader/dash caches: morphing values mint a key per frame.
 const SHADER_CACHE_CAP = 64;
 const DASH_CACHE_CAP = 64;
 
-// Mirror the (stable) @shopify/react-native-skia enum values so we never import
-// them at runtime (that would pull the native module into the test). These match
-// the underlying Skia C++ enums and haven't moved.
+// Stable Skia C++ enum values, inlined to avoid importing the native module at runtime.
 const PaintStyle = { Fill: 0, Stroke: 1 } as const;
 const StrokeCap = { butt: 0, round: 1, square: 2 } as const; // SkStrokeCap
 const StrokeJoin = { miter: 0, round: 1, bevel: 2 } as const; // SkStrokeJoin
@@ -68,9 +59,7 @@ const ClipOp_Intersect = 1; // ClipOp.Intersect
 const BlendMode_DstIn = 6; // SkBlendMode.DstIn:  r = d * sa
 const BlendMode_DstOut = 8; // SkBlendMode.DstOut: r = d * (1-sa)
 
-// CSS mix-blend-mode -> SkBlendMode integer (stable Skia C++ enum). `normal` is
-// SrcOver (paint.reset()'s default), so it needn't be set. Covers every CSS
-// separable + non-separable mode — nothing is unmappable on Skia.
+// CSS mix-blend-mode -> SkBlendMode; `normal` is SrcOver (reset default).
 const BLEND_MODE: Record<string, number> = {
   multiply: 24,
   screen: 14,
@@ -89,12 +78,8 @@ const BLEND_MODE: Record<string, number> = {
   luminosity: 28,
 };
 
-// Luminance -> alpha colour matrix (4x5, RGBA row-major, last column = bias).
-// Zeroes RGB and writes Rec.709 luma into alpha, so a luminance matte becomes an
-// alpha matte the DstIn/DstOut blend below consumes. Matches Canvas2DRenderer's
-// luminanceToAlpha coefficients.
-// NOTE: unlike the Canvas2D path this ignores the mask's own alpha (can't
-// express luma*alpha as a linear matrix); fine for the usual opaque luma matte.
+// Luma -> alpha colour matrix (4x5 row-major, Rec.709), turning a luminance matte into an alpha matte.
+// NOTE: ignores the mask's own alpha (luma·alpha isn't linear); pinned divergence vs Canvas2D.
 const LUMA_TO_ALPHA_MATRIX = [
   0,
   0,
@@ -118,62 +103,33 @@ const LUMA_TO_ALPHA_MATRIX = [
   0,
 ];
 
-/**
- * React Native Skia implementation of the Renderer interface (PoC).
- *
- * Draws onto an `SkCanvas` bound per frame via `setCanvas`. Semantics mirror
- * Canvas2DRenderer: pending paint state configured by set* calls, fill-then-
- * stroke (or stroke-then-fill for paint-order: stroke), gradient geometry ported
- * verbatim, opacity multiplied into paint alpha with save/restore nesting.
- */
+/** React Native Skia backend of the Renderer interface, drawing onto a per-frame SkCanvas. */
 export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   private skia: SkiaApi;
   private canvas: SkCanvas | null = null;
   private width: number;
   private height: number;
 
-  // Sticky paint state (fill/stroke/trim/dash/opacity/…) and the JS CTM mirror
-  // (ctm + ctmStack) are inherited from PaintStateRenderer. SkCanvas has no
-  // setMatrix (only relative concat), so setTransform reaches an ABSOLUTE matrix
-  // via the base's setCtmAbsolute (concat of invert(current)·target) — kept
-  // alongside the native save/restore so it never disturbs active clips.
-
-  // Opacity is Skia's missing globalAlpha: the base tracks the value; we push/pop
-  // it with the native save/restore so a group's alpha cascades to its children.
+  // Skia has no globalAlpha: opacity is pushed/popped with native save/restore so it cascades.
   private opacityStack: number[] = [];
 
-  // Reused across every shape so we don't allocate a native SkPaint per draw (the
-  // hot-path allocation the profile flagged). `reset()` returns each to its
-  // default before we reconfigure it; drawRect/drawPath copy the paint state into
-  // the recorded op, so a single instance per role is safe. Parsed colours are
-  // cached too — Skia.Color re-parses the CSS string on every call otherwise.
+  // One reused SkPaint per role (draws copy paint state into the op); parsed colours are cached too.
   private fillPaint: SkPaint;
   private strokePaint: SkPaint;
-  // Lazily pooled compositing paint for compositeMask (reset + reconfigured per
-  // mask, like fill/strokePaint). Allocated on first mask so a mask-free scene
-  // never pays for it.
+  // Pooled mask compositing paint, allocated on first mask.
   private maskPaint: SkPaint | null = null;
   private colorCache = new Map<string, SkColor>();
 
-  // Per-frame rebuild caches. drawPath/buildPath/clip otherwise realize a fresh
-  // SkPath, SkShader and dash PathEffect every frame; these memoize the static
-  // (unchanging) cases so only genuinely animated geometry rebuilds. See each
-  // cache's use site for its key + invalidation rationale.
+  // Memoize static SkPath/SkShader/dash PathEffect so only animated geometry rebuilds.
   private pathCache = new WeakMap<PathCommand[], SkPath>();
   private shaderCache = new Map<string, SkShader>();
   private dashCache = new Map<string, SkPathEffect>();
 
-  // Font realization: the system font manager (lazy — construction touches the
-  // native module, so a text-free scene never pays for it) plus an SkFont cache
-  // keyed by (family, weight, size). matchFamilyStyle is synchronous in RN Skia,
-  // so text paints on the first frame with no async seam. `null` means the
-  // platform has no usable font manager (headless bun); text renders nothing.
+  // Lazy system font manager (null = headless, text renders nothing) + SkFont cache by (family, weight, size).
   private fontMgr: SkFontMgr | null | undefined;
   private fontCache = new Map<string, SkFont>();
-  // Lazily pooled paint for images (reset + alpha per draw, like fill/stroke).
   private imagePaint: SkPaint | null = null;
-  // Image cache keyed by src (mirrors Canvas2DRenderer): transparent until the
-  // async decode lands, decode failure warns once and renders nothing.
+  // Transparent until the async decode lands; decode failure warns once.
   private images = new Map<string, ImageEntry>();
   private pendingImages = new Set<Promise<void>>();
 
@@ -185,12 +141,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     this.fillPaint = skia.Paint();
     this.strokePaint = skia.Paint();
 
-    // Feed the scene layer the SAME advance width drawText uses for anchor
-    // placement, so text hit-boxes, transform-origin %, and text clips line up
-    // with the painted glyphs (the scratch-canvas measurer is null on RN). Reuses
-    // font() — the shared typeface resolver — so no matchFamilyStyle duplication.
-    // NOTE: process-global registration; the last renderer constructed wins. Fine
-    // for the usual single-player app; a shared measurer would need a registry.
+    // Scene-layer text measurement uses drawText's own advance, so hit-boxes and clips match the glyphs.
+    // NOTE: process-global; the last renderer constructed wins.
     setTextMeasurer((text, style) => {
       const font = this.font(
         style.fontFamily,
@@ -219,20 +171,16 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   // --- Frame lifecycle -------------------------------------------------------
 
-  clear(): void {
-    // No-op: each frame records into a fresh (blank) picture canvas.
-  }
+  clear(): void {}
 
   beginFrame(): void {
     this.opacity = 1;
     this.opacityStack.length = 0;
-    // Fresh recorder canvas starts at identity; resync the mirror to match.
+    // Fresh recorder canvas starts at identity; resync the mirror.
     this.resetCtm();
   }
 
-  endFrame(): void {
-    // No-op (immediate mode into the recorder).
-  }
+  endFrame(): void {}
 
   // --- Shapes ----------------------------------------------------------------
 
@@ -246,8 +194,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     corners?: CornerRadii,
   ): void {
     const bounds: PaintBox = { x, y, width: w, height: h };
-    // Per-corner radii: RN Skia exposes no per-corner RRect constructor, so
-    // realize the shared rounded-rect path (same geometry the SVG backend uses).
+    // No per-corner RRect constructor in RN Skia, so use the shared rounded-rect path.
     if (corners) {
       const path = this.buildPath(roundedRectPath(x, y, w, h, corners));
       this.fillAndStroke(bounds, (p) => this.canvas!.drawPath(path, p));
@@ -286,8 +233,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   drawPath(commands: PathCommand[]): void {
     const path = this.buildPath(commands);
     path.setFillType(FillType[this.fillRule]);
-    // Only a gradient paint consumes bounds, so skip the full command scan
-    // (computePathBounds) for the common flat-fill/stroke path.
+    // Only a gradient consumes bounds, so skip computePathBounds otherwise.
     const bounds =
       this.fillGradient || this.strokeGradient
         ? computePathBounds(commands)
@@ -303,21 +249,18 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     fontFamily: string,
     fontWeight: string,
     anchor: TextAnchor,
-    // NOTE: letter-spacing is a pinned no-op here (like Skia's text-measure
-    // approximation) — RN Skia's simple drawText has no per-glyph advance knob.
+    // NOTE: pinned no-op; RN Skia drawText has no per-glyph advance.
     _letterSpacing = 0,
   ): void {
     if (!this.canvas) return;
     const font = this.font(fontFamily, fontWeight, fontSize);
     if (!font) return; // no system font manager (headless): paint nothing
 
-    // Advance width for anchor placement + gradient box. Skia draws left-aligned
-    // from the alphabetic baseline, matching Canvas2D's textAlign:left/baseline;
-    // we shift x ourselves so middle/end anchors line up.
+    // Skia draws left-aligned from the alphabetic baseline; shift x for middle/end anchors.
     const width = font.measureText(text).width;
     const ax =
       anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
-    // Bounding box (for gradients) mirrors Canvas2DRenderer.drawText.
+    // Bounding box (for gradients) matches scene/transform.getShapeBounds.
     const bounds: PaintBox = {
       x: ax,
       y: y - fontSize,
@@ -348,7 +291,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     const img = entry.image;
     const iw = img.width();
     const ih = img.height();
-    // Source-cropped (object-view-box): sample the sub-rect; else the whole bitmap.
+    // Source-cropped (object-view-box): sample the sub-rect.
     const cropped =
       sx !== undefined &&
       sy !== undefined &&
@@ -372,16 +315,14 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     );
   }
 
-  // Resolve (family, weight, size) to a cached SkFont via the system font
-  // manager. matchFamilyStyle is synchronous; an unknown family falls back to
-  // the platform default face (matching CSS's generic-family behaviour).
+  // (family, weight, size) -> cached SkFont; matchFamilyStyle is synchronous, unknown families use the default face.
   private font(family: string, weight: string, size: number): SkFont | null {
     const mgr = this.fontManager();
     if (!mgr) return null;
     const key = `${family}|${weight}|${size}`;
     let font = this.fontCache.get(key);
     if (!font) {
-      // CSS font-family is a comma list; take the first name (unquoted).
+      // CSS font-family is a comma list; take the first name.
       const name = family
         .split(",")[0]
         .trim()
@@ -398,8 +339,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   private fontManager(): SkFontMgr | null {
     if (this.fontMgr === undefined) {
-      // System() touches the native module; guard so headless bun (no font
-      // manager) degrades to text-renders-nothing instead of throwing.
+      // System() touches the native module; headless bun degrades to no text.
       try {
         this.fontMgr = this.skia.FontMgr.System();
       } catch {
@@ -409,10 +349,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     return this.fontMgr;
   }
 
-  // Kick off an async decode, caching the entry immediately so each src decodes
-  // once. Mirrors Canvas2DRenderer.loadImage: transparent until the decode
-  // lands, failure warns once. data: URIs decode synchronously via fromBase64;
-  // http(s)/file URIs go through the async Data.fromURI fetch.
+  // Decode each src once: data: URIs synchronously via fromBase64, else async Data.fromURI.
   private loadImage(src: string): ImageEntry {
     const entry: ImageEntry = { image: null, loaded: false, errored: false };
     this.images.set(src, entry);
@@ -465,17 +402,11 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     });
   }
 
-  // Resolves once no image decodes are in flight (immediately if none). A
-  // seek-driven offline export awaits this after seeking so decoded images
-  // paint; the live loop ignores it and repaints naturally.
   whenImagesSettled(): Promise<void> {
     return Promise.all([...this.pendingImages]).then(() => undefined);
   }
 
-  // True while at least one async image decode (file://, http(s)) is in
-  // flight. Lets a caller that just went dormant on a settled frame know
-  // whether to schedule a wake-up for when the decode lands — data: URIs
-  // decode synchronously so they never appear here.
+  // True while an async (file/http) decode is in flight, so a dormant host can schedule a wake-up.
   hasPendingImages(): boolean {
     return this.pendingImages.size > 0;
   }
@@ -501,14 +432,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     this.canvas.clipPath(path, ClipOp_Intersect, true);
   }
 
-  // Track-matte compositing via nested layers (mirrors Canvas2DRenderer):
-  //   L1 (content layer) <- drawContent
-  //     L2 (mask layer, DstIn/DstOut paint, +luma filter) <- drawMask
-  //   restore L2  => mask alpha keeps/erases content (DstIn: r=d·sa)
-  //   restore L1  => masked content painted onto the canvas (source-over)
-  // The closures each call setTransform (absolute, per the CTM mirror) to place
-  // their subtree at its world position. Everything is bracketed so the CTM and
-  // clip state are clean afterwards.
+  // Nested layers: L1 content, L2 mask (DstIn/DstOut + luma filter); restoring L2 then L1 composites.
   compositeMask(
     mode: MaskMode,
     drawContent: () => void,
@@ -530,12 +454,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     canvas.save(); // outer bracket: restores CTM + clip afterwards
     canvas.saveLayer(); // L1: content
     drawContent();
-    // Re-entrancy: a nested track matte inside drawContent reuses this single
-    // pooled maskPaint, so we must configure it *after* drawContent — right
-    // before the layer that reads it — or the nested call's reset/reconfigure
-    // would clobber our blend + luma filter. saveLayer snapshots the paint into
-    // the layer at call time, so a nested matte in drawMask can't corrupt this
-    // already-opened layer either. (Mirrors Canvas2D's per-depth buffer bands.)
+    // Configure the pooled maskPaint after drawContent: a nested matte there would clobber it.
+    // saveLayer snapshots the paint, so a nested matte in drawMask is safe.
     maskPaint.reset();
     maskPaint.setBlendMode(invert ? BlendMode_DstOut : BlendMode_DstIn);
     if (mode === "luminance" || mode === "luminance-invert") {
@@ -555,12 +475,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
 
   // --- Style -----------------------------------------------------------------
 
-  // Sticky paint state setters are inherited from PaintStateRenderer, except
-  // setDash, which even-izes the interval array for Skia's PathEffect.MakeDash.
   setDash(dashArray: number[], dashOffset: number): void {
-    // PathEffect.MakeDash requires an even-length interval array; an odd array
-    // means [on,off,on] — duplicate it so the pattern repeats correctly (Canvas2D
-    // does this implicitly in setLineDash).
+    // MakeDash needs an even-length array; duplicate an odd one as Canvas2D setLineDash does.
     this.dashArray =
       dashArray.length % 2 ? dashArray.concat(dashArray) : dashArray;
     this.dashOffset = dashOffset;
@@ -580,21 +496,15 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     this.popCtm();
   }
 
-  // Matrix3x3 is row-major [a,b,tx,c,d,ty,0,0,1] — Skia's concat takes exactly
-  // that 3x3 row-major array, so it maps directly (no (a,c,b,d,e,f) shuffle).
+  // Matrix3x3 is row-major [a,b,tx,c,d,ty,0,0,1], exactly what concat takes.
   transform(m: Matrix3x3): void {
-    // concat copies the floats synchronously (never retains/mutates the array),
-    // so pass `m` straight through — no defensive spread.
+    // concat copies synchronously, so no defensive spread.
     this.canvas?.concat(m);
     this.concatCtm(m);
   }
 
-  // ABSOLUTE set (mirrors Canvas2DRenderer.setTransform, which replaces the CTM).
-  // SkCanvas only has relative concat, so reach `m` by pre-cancelling the current
-  // CTM (base.setCtmAbsolute returns that delta). Leaves any active clip untouched,
-  // unlike a restoreToCount reset (mask closures call this mid-walk under clips).
+  // Absolute set via the delta from setCtmAbsolute; unlike restoreToCount it keeps active clips.
   setTransform(m: Matrix3x3): void {
-    // `delta` is a fresh array and concat copies it synchronously.
     this.canvas?.concat(this.setCtmAbsolute(m));
   }
 
@@ -607,8 +517,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   resize(width: number, height: number): void {
-    // The PictureRecorder canvas is bound per frame via setCanvas at the host's
-    // chosen size; we just track the reported dimensions for getWidth/getHeight.
+    // The recorder canvas is bound per frame at the host's size; just track dimensions.
     this.width = width;
     this.height = height;
   }
@@ -660,8 +569,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     return null;
   }
 
-  // Apply the sticky mix-blend-mode onto a freshly-reset paint (SrcOver default
-  // needs nothing). Called by both paint builders so fill and stroke blend alike.
+  // Apply the sticky blend to a freshly-reset paint (SrcOver needs nothing).
   private applyBlend(paint: SkPaint): void {
     const m = BLEND_MODE[this.blendMode];
     if (m !== undefined) paint.setBlendMode(m);
@@ -670,8 +578,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   private makeStrokePaint(bounds: PaintBox): SkPaint | null {
     const hasStroke = this.strokeGradient || this.strokeColor;
     if (!hasStroke) return null;
-    // Trim/dash precedence shared with the other backends (trim wins over an
-    // authored dasharray; an empty trim window strokes nothing).
+    // Trim/dash composition; an empty trim window strokes nothing.
     const dash = resolveStrokeDash(this.trim, this.dashArray, this.dashOffset);
     if (!dash.stroke) return null;
 
@@ -700,18 +607,9 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     return paint;
   }
 
-  /**
-   * Port of Canvas2DRenderer.realizeGradient: resolve a gradient descriptor to a
-   * concrete shader against the shape's local bounding box. Linear angle follows
-   * CSS (0deg = up, 90deg = right); radial is a circle at the box centre with
-   * radius = half the box diagonal, unless explicit geometry is given.
-   */
+  /** Gradient descriptor -> SkShader via the shared resolver. */
   private makeShader(g: GradientData, b: PaintBox): SkShader {
-    // The reset walk deep-copies gradients every frame (scene/types.ts), so the
-    // descriptor's object identity is useless as a key — serialize its value +
-    // the bounds instead. Cheap next to rebuilding the shader (colour parse +
-    // stops arrays) each frame; a morphing gradient produces a fresh key per
-    // frame and rebuilds (capped so it can't grow unbounded).
+    // Gradients are deep-copied per frame, so key by value + bounds, not identity.
     const key = `${JSON.stringify(g)}|${b.x},${b.y},${b.width},${b.height}`;
     const hit = this.shaderCache.get(key);
     if (hit) return hit;
@@ -737,9 +635,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     }
 
     if (r.type === "conic") {
-      // Sweep gradient. Skia's start/end angles are DEGREES from the +x axis
-      // (clockwise) — the same convention resolveGradient's radians use, so just
-      // convert; the [start, start+360] window places offset 0 at startAngle.
+      // Skia sweep angles are degrees from +x clockwise, matching resolveGradient.
       const startDeg = (r.startAngle * 180) / Math.PI;
       return this.skia.Shader.MakeSweepGradient(
         r.cx,
@@ -754,8 +650,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
       );
     }
 
-    // Focal highlight => two-point conical (inner radius 0 at the focal point),
-    // exactly mirroring canvas createRadialGradient(focal, 0, centre, radius).
+    // Focal highlight -> two-point conical, inner radius 0 at the focal point.
     if (r.fx !== r.cx || r.fy !== r.cy) {
       return this.skia.Shader.MakeTwoPointConicalGradient(
         { x: r.fx, y: r.fy },
@@ -776,7 +671,7 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
     );
   }
 
-  /** Memoize the dash PathEffect by interval-contents + offset (rebuilt each frame otherwise). */
+  /** Dash PathEffect memoized by intervals + offset. */
   private dashEffect(intervals: number[], offset: number): SkPathEffect {
     const key = `${intervals.join(",")}|${offset}`;
     let e = this.dashCache.get(key);
@@ -789,22 +684,8 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 
   /**
-   * Realize SVG-style path commands into an SkPath via the shared
-   * applyCommandsToPath, memoized on the commands array *reference*.
-   *
-   * resetNodeToBase copies the base commands array by reference for a static
-   * path (Object.assign), so its reference is stable frame-to-frame and doubles
-   * as a free dirty check — a cache hit is provably the same geometry. An
-   * animated `d` swaps in a fresh array every frame (registry `d.apply`), a
-   * natural miss that rebuilds. The WeakMap lets those transient arrays GC.
-   *
-   * NOTE: clip paths miss every frame — cloneClipPath re-slices their
-   * commands into a fresh array per reset (scene/types.ts), so reference keying
-   * can't hit. They rebuild (as before); caching them would need a per-node
-   * cache seam threaded through drawPath/clip, not worth it while clips are rare
-   * vs draw paths. Fill type is NEVER memoized: every caller re-applies
-   * setFillType (draw and clip use different winding on potentially the same
-   * geometry).
+   * Commands -> SkPath, memoized by array reference (stable for static paths, fresh when animated).
+   * NOTE: clip paths are re-sliced per reset so always miss. Fill type is never memoized.
    */
   private buildPath(commands: PathCommand[]): SkPath {
     let path = this.pathCache.get(commands);
@@ -817,21 +698,14 @@ export class SkiaRenderer extends PaintStateRenderer implements Renderer {
   }
 }
 
-/**
- * Map a CSS font-weight (keyword or numeric string) to the numeric weight
- * SkFontStyle expects. `bold` -> 700, `normal`/anything unrecognized -> 400
- * (bolder/lighter are relative and have no absolute mapping here).
- */
+/** CSS font-weight -> SkFontStyle weight; bold 700, anything else unrecognized 400. */
 function cssFontWeight(weight: string): number {
   if (weight === "bold") return 700;
   const n = parseInt(weight, 10);
   return Number.isFinite(n) && n > 0 ? n : 400;
 }
 
-/**
- * Adapts an SkPath to the PathSink interface so path realization (incl. smooth-
- * curve reflection and arc conversion) reuses @popkorn/player's applyCommandsToPath.
- */
+/** SkPath as a PathSink, so applyCommandsToPath does the realization. */
 class SkPathSink implements PathSink {
   constructor(private path: SkPath) {}
 
@@ -858,9 +732,7 @@ class SkPathSink implements PathSink {
     this.path.quadTo(cpx, cpy, x, y);
   }
 
-  // NOTE: SkPath has no center-parameterized arc that continues from the
-  // current point, so sample the (already SVG->center converted) arc into line
-  // segments. Fine for the rare A command; smooth enough at 24 steps.
+  // NOTE: no current-point-continuing center arc on SkPath; sampled at 24 segments.
   ellipse(
     x: number,
     y: number,

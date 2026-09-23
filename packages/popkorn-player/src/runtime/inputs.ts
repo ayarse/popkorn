@@ -1,6 +1,4 @@
-/**
- * Input tracking for cursor, touch, and scroll — feeds input(cursor.*)/input(scroll.*) bindings.
- */
+/** Cursor, touch and scroll state for input(cursor.*)/input(scroll.*). */
 
 import { deviceToScene, IDENTITY_VIEWPORT, type Viewport } from "./viewport.js";
 
@@ -9,18 +7,13 @@ export interface InputState {
     x: number;
     y: number;
     isDown: boolean;
-    // Latched press edge: set true on every press, cleared once the loop's
-    // per-frame pointer-edge detection consumes it. Survives a press+release
-    // that both land between two frames (a quick tap), which `isDown` alone
-    // loses — the loop samples `isDown` once per frame and would see only the
-    // final `false`, missing the rising edge (no pointerdown/click).
+    // Latched until the loop consumes it, so a tap between frames still edges.
     pressed: boolean;
   };
   scroll: {
     x: number;
     y: number;
-    // Page scroll normalized to 0..1 by the scrollable range; the raw offset
-    // stays available as x/y. Feeds input(scroll.progress) for scrubbing.
+    // 0..1 over the scrollable range; raw offset stays in x/y.
     progress: number;
   };
   time: number;
@@ -34,9 +27,7 @@ export class InputTracker {
   };
 
   private canvas: HTMLCanvasElement | null = null;
-  // Maps pointer coords (CSS px, ×dpr -> device px) back to scene coords, so
-  // hit-testing and input(cursor.*) keep working under any fit / DPR. Default is
-  // identity at dpr 1 (canvas px == scene px).
+  // Device px → scene coords, so hit-testing and input(cursor.*) survive fit/DPR.
   private viewport: Viewport = IDENTITY_VIEWPORT;
   private dpr: number = 1;
   private boundHandlers: {
@@ -83,7 +74,6 @@ export class InputTracker {
     return this.state;
   }
 
-  /** Set the scene<-device mapping so cursor coords resolve to scene space. */
   setViewport(viewport: Viewport, dpr: number): void {
     this.viewport = viewport;
     this.dpr = dpr;
@@ -96,8 +86,7 @@ export class InputTracker {
   private handleMouseMove(e: MouseEvent): void {
     if (!this.canvas) return;
     const rect = this.canvas.getBoundingClientRect();
-    // CSS px within the canvas -> device px (×dpr) -> scene coords (inverse
-    // viewport). getBoundingClientRect is CSS px regardless of backing-store size.
+    // CSS px → device px (×dpr) → scene (inverse viewport).
     const deviceX = (e.clientX - rect.left) * this.dpr;
     const deviceY = (e.clientY - rect.top) * this.dpr;
     const scene = deviceToScene(this.viewport, deviceX, deviceY);
@@ -125,11 +114,7 @@ export class InputTracker {
   }
 }
 
-/**
- * Page scroll normalized to 0..1: scrollY / max(1, scrollHeight - innerHeight).
- * The max(1,…) guards the zero-range case (content shorter than the viewport)
- * so progress stays 0 rather than NaN/Infinity.
- */
+/** scrollY / max(1, range); the max keeps a zero range at 0 rather than NaN. */
 export function scrollProgress(
   scrollY: number,
   scrollHeight: number,

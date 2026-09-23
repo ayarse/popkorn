@@ -1,4 +1,3 @@
-// Color types
 import type { HueMethod } from "./oklab.js";
 import { oklabToRgba, tryParseOklabColor } from "./oklab.js";
 
@@ -11,8 +10,7 @@ export interface RGBAColor {
 
 export type Color = string | RGBAColor;
 
-// Gradient fill/stroke descriptor. Structured (not a raw CSS string) so the
-// renderer can realize it against each shape's local bounding box at draw time.
+// Structured so the renderer realizes it against each shape's local box at draw time.
 export interface GradientStop {
   offset: number; // 0-1
   color: string; // any CSS color string (hex or rgb/rgba)
@@ -24,9 +22,7 @@ export interface GradientPoint {
   y: number;
 }
 
-// `in <space>` (CSS Images 4): the space a gradient's stops interpolate in.
-// Absent = sRGB, matching CSS's default for legacy colors. Densified into plain
-// sRGB stops by gradient-geometry's realizeStops, so no backend sees this.
+// `in <space>` (CSS Images 4); absent = sRGB. Densified to sRGB stops before any backend sees it.
 export interface GradientInterpolation {
   space: "oklab" | "oklch";
   hue?: HueMethod; // oklch only; CSS default is `shorter`
@@ -36,12 +32,10 @@ export interface LinearGradientData {
   type: "linear-gradient";
   angle: number; // CSS degrees: 0 = up, 90 = right
   stops: GradientStop[];
-  // Explicit endpoints in local space (`from x y to x y`). When present the
-  // renderer draws point-to-point and ignores `angle`/the bbox approximation.
+  // Explicit local-space endpoints (`from x y to x y`); override `angle`.
   from?: GradientPoint;
   to?: GradientPoint;
-  // `repeating-linear-gradient()`: the stop run tiles across the axis. Not
-  // interpolable (a mismatch replaces rather than morphs — see registry).
+  // Not interpolable: a mismatch replaces rather than morphs.
   repeating?: boolean;
   interpolate?: GradientInterpolation;
 }
@@ -49,8 +43,7 @@ export interface LinearGradientData {
 export interface RadialGradientData {
   type: "radial-gradient";
   stops: GradientStop[];
-  // Explicit geometry in local space (`circle r at cx cy [from fx fy]`). When
-  // present the renderer draws an exact circle instead of the bbox half-diagonal.
+  // Explicit local-space circle (`circle r at cx cy [from fx fy]`).
   radius?: number;
   at?: GradientPoint;
   focal?: GradientPoint; // inner-circle center (Lottie highlight); defaults to `at`
@@ -72,17 +65,14 @@ export type GradientData =
   | RadialGradientData
   | ConicGradientData;
 
-// Runtime type guard: a GradientData carries a `stops` array. Used by the
-// animation registry to dispatch fill/stroke interpolation by value type
-// (a solid fill is a color string, an animated gradient is this object).
+// A gradient carries `stops`; a solid fill is a color string.
 export function isGradientData(v: unknown): v is GradientData {
   return (
     typeof v === "object" && v !== null && !Array.isArray(v) && "stops" in v
   );
 }
 
-// Deep-copy a gradient so a live (per-frame interpolated) value never aliases
-// the authored base's stop objects. Cheap: gradients have a handful of stops.
+// Deep copy so a live interpolated value never aliases the base's stops.
 export function cloneGradient(g: GradientData | null): GradientData | null {
   if (!g) return null;
   const stops = g.stops.map((s) => ({ offset: s.offset, color: s.color }));
@@ -118,18 +108,14 @@ export function cloneGradient(g: GradientData | null): GradientData | null {
   };
 }
 
-// Resolved trim-path descriptor for the stroke, expressed in the shape's local
-// outline-length units. The scene layer computes this (window -> dash pattern);
-// the renderer just applies it to the stroke via setLineDash/lineDashOffset.
+// Trim-path window as a dash pattern in local outline-length units.
 export interface TrimDescriptor {
   visible: boolean; // false => the trim window is empty, stroke nothing
   dashArray: number[]; // [] => stroke the whole outline (no dashing)
   dashOffset: number; // maps to ctx.lineDashOffset
 }
 
-// A clip-path resolved to concrete local-space geometry (insets already applied
-// against the node's bounding box). Shared by the renderer and hit-test so both
-// clip/reject against identical geometry.
+// Clip-path in local-space geometry, shared by renderer and hit-test.
 export type ResolvedClip =
   | { type: "rect"; x: number; y: number; width: number; height: number }
   | { type: "circle"; cx: number; cy: number; r: number }
@@ -165,19 +151,13 @@ export type PathCommand =
     }
   | { type: "Z" };
 
-// Per-corner rect radii in CSS border-radius order: [top-left, top-right,
-// bottom-right, bottom-left]. Circular only (one radius per corner) — the
-// elliptical slash form is not represented (see roundedRectPath NOTE). Present
-// on a RectData only when the corners differ; a uniform radius stays on rx/ry.
+// [tl, tr, br, bl], circular only; set only when corners differ (uniform stays on rx/ry).
 export type CornerRadii = readonly [number, number, number, number];
 
-// Rec.709 luma coefficients (sRGB), shared by every backend's luminance matte
-// so a luminance mask reads identically across Canvas2D and Skia. (The SVG
-// backend uses feColorMatrix type="luminanceToAlpha", the browser built-in.)
+// Rec.709 luma (sRGB) for Canvas2D and Skia luminance mattes; SVG uses luminanceToAlpha.
 export const LUMA_COEFFICIENTS = { r: 0.2126, g: 0.7152, b: 0.0722 } as const;
 
-// Affine matrix math lives in scene/matrix.ts (the scene layer owns transform
-// math). Re-exported here so `../renderer/types` import paths keep working.
+// Re-exported from scene/matrix.ts, which owns transform math.
 export type { Matrix3x3 } from "../scene/matrix.js";
 export {
   IDENTITY_MATRIX,
@@ -189,7 +169,6 @@ export {
   translationMatrix,
 } from "../scene/matrix.js";
 
-// Helper to convert Color to CSS string
 export function colorToCSS(color: Color): string {
   if (typeof color === "string") {
     return color;
@@ -197,9 +176,7 @@ export function colorToCSS(color: Color): string {
   return `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
 }
 
-// HSL → RGB. Copy of the math in @popkorn/converters
-// (svg2popkorn.ts `hslToRgb`) — deliberately duplicated so the player stays
-// dependency-free; keep the two in sync.
+// Duplicated from converters svg2popkorn.ts `hslToRgb` so the player stays dependency-free; keep in sync.
 function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   h = (((h % 360) + 360) % 360) / 360;
   s = Math.max(0, Math.min(1, s));
@@ -225,10 +202,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   ];
 }
 
-// A pragmatic subset of the CSS named colors — the ones that show up in
-// hand-authored scenes. Copy of @popkorn/converters `NAMED`
-// (svg2popkorn.ts); duplicated to keep the player dependency-free — keep the
-// two in sync. (Deliberately NOT the full 148-name table.)
+// Hand-authoring subset of CSS named colors, duplicated from converters `NAMED`; keep in sync.
 const NAMED_COLORS: Record<string, [number, number, number]> = {
   black: [0, 0, 0],
   white: [255, 255, 255],
@@ -279,12 +253,10 @@ const NAMED_COLORS: Record<string, [number, number, number]> = {
   dodgerblue: [30, 144, 255],
 };
 
-// Parse a color string to RGBA, or null when unrecognized. Handles hex,
-// rgb/rgba, hsl/hsla, and the named-color subset above.
+// Hex, rgb/rgba, hsl/hsla, oklab/oklch and the named subset; null when unrecognized.
 export function tryParseColor(value: string): RGBAColor | null {
   const s = value.trim().toLowerCase();
 
-  // Handle hex colors
   if (s.startsWith("#")) {
     const hex = s.slice(1);
     if (hex.length === 3) {
@@ -307,7 +279,6 @@ export function tryParseColor(value: string): RGBAColor | null {
     return null;
   }
 
-  // Handle rgb/rgba
   const rgbaMatch = s.match(
     /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/,
   );
@@ -320,7 +291,6 @@ export function tryParseColor(value: string): RGBAColor | null {
     };
   }
 
-  // Handle hsl/hsla
   const hslMatch = s.match(/^hsla?\(([^)]*)\)$/);
   if (hslMatch) {
     const parts = hslMatch[1].split(/[\s,/]+/).filter(Boolean);
@@ -338,15 +308,13 @@ export function tryParseColor(value: string): RGBAColor | null {
     if (ok) return oklabToRgba(ok);
   }
 
-  // Named colors
   const named = NAMED_COLORS[s];
   if (named) return { r: named[0], g: named[1], b: named[2], a: 1 };
 
   return null;
 }
 
-// Parse color string to RGBA, defaulting unknown input to opaque black. Kept
-// total (never null) for the render/interpolation hot paths that rely on it.
+// Total (never null) for hot paths: unknown input is opaque black.
 export function parseColor(value: string): RGBAColor {
   return tryParseColor(value) ?? { r: 0, g: 0, b: 0, a: 1 };
 }

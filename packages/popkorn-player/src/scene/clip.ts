@@ -2,14 +2,7 @@ import type { ResolvedClip } from "../renderer/types.js";
 import { getShapeBounds } from "./transform.js";
 import type { SceneNode } from "./types.js";
 
-/**
- * Resolve a node's authored clip-path to concrete local-space geometry.
- * `inset` is applied against the node's bounding box; `circle`/`path` are
- * already in local coordinates. Returns null when the node has no clip.
- *
- * Shared by the renderer (to clip) and hit-testing (to reject points), so both
- * agree on the exact region.
- */
+// Local-space clip geometry (inset against the bbox), shared by renderer and hit-testing.
 export function resolveClip(node: SceneNode): ResolvedClip | null {
   const clip = node.clipPath;
   if (!clip) return null;

@@ -20,42 +20,28 @@ import { planCalcBatches, runCalcLane } from "./calc-batch.js";
 import { type CompiledCalc, compileCalc, runCalc } from "./calc-compile.js";
 import type { InputState } from "./inputs.js";
 
-// Reactive calc() expressions compile to a closure once and are cached by AST
-// identity; the 5000 repeat copies each carry a distinct expr (sibling-index()
-// is folded per node), so this dedups only genuinely shared source — cheap.
+// Keyed by AST identity; repeat copies carry distinct exprs, so only shared source dedups.
 const compiledCalcCache = new WeakMap<CalcExpr, CompiledCalc>();
 
-// Sentinel: a variable name resolved to "not defined" this frame (distinct from
-// a legitimately-cached Value, and from Map's undefined miss).
+// Memoized "not defined", distinct from Map's undefined miss.
 const VAR_UNDEFINED = Symbol("var-undefined");
 
 /** Primitive a host reads/writes through the variable API. */
 export type VariableValue = number | boolean | string;
 
-/**
- * Variable resolution system
- * Handles CSS variables and input bindings
- */
 export class VariableResolver {
   private staticVariables: Map<string, Value> = new Map();
   private dynamicVariables: Map<string, () => number> = new Map();
-  // Host-set overrides (setVariable), authored triggers (`--x: trigger`), and
-  // the triggers fired this frame (fire → read `true` once → endFrame resets).
   private hostOverrides: Map<string, VariableValue> = new Map();
   private triggers: Set<string> = new Set();
   private firedTriggers: Set<string> = new Set();
 
-  // Per-frame variable resolution memo: a reactive calc() may mention the same
-  // var() (e.g. `--t`) at many leaves, and the same var() recurs across the whole
-  // node walk. Resolution is a pure function of (frameEpoch); bumping the epoch
-  // on any state change (frame boundary, setVariable, fire, input update)
-  // invalidates the memo, so `seek(t)` stays a pure function of time.
+  // var() memo, valid for one epoch; every state change bumps the epoch.
   private frameEpoch = 0;
   private varMemo: Map<string, Value | typeof VAR_UNDEFINED> = new Map();
   private varMemoEpoch = -1;
 
-  // Reused per-call so compiled calc() closures allocate nothing to reach the
-  // resolver. (Bound methods, not arrows over `this`, to keep it a stable object.)
+  // One stable object so compiled calc() runs allocate nothing to reach the resolver.
   private readonly calcCtx = {
     resolveCalcVar: (name: string, fallback?: Value): Value =>
       this.resolveVariable(name, fallback),
@@ -63,31 +49,21 @@ export class VariableResolver {
   };
 
   constructor() {
-    // Set up built-in input bindings
     this.setupBuiltinInputs();
   }
 
-  /**
-   * Open a new resolution frame: invalidates the per-frame var() memo. The render
-   * loop calls this once at the top of every draw (live tick, seek, or redraw),
-   * before machines evaluate or nodes resolve, so each frame recomputes fresh.
-   */
+  /** Invalidate the var() memo; called at the top of every draw. */
   beginFrame(): void {
     this.frameEpoch++;
   }
 
-  /**
-   * Initialize with variable definitions from :root
-   */
   setVariables(variables: VariableDefinition[]): void {
     this.staticVariables.clear();
     this.dynamicVariables.clear();
     this.triggers.clear();
 
     for (const v of variables) {
-      // Check if the value is an input() function
       if (isFunctionValue(v.value) && v.value.name === "input") {
-        // Register as a dynamic variable that will be resolved at runtime
         const inputPath = this.getInputPath(v.value.args);
         if (inputPath) {
           this.dynamicVariables.set(v.name, () =>
@@ -95,32 +71,22 @@ export class VariableResolver {
           );
         }
       } else if (isKeywordValue(v.value) && v.value.value === "trigger") {
-        // `--x: trigger` — a momentary event var, false until fired.
         this.triggers.add(v.name);
       } else {
-        // Static variable
         this.staticVariables.set(v.name, v.value);
       }
     }
   }
 
-  // --- Host-writable variable API --------------------------------------------
-  // `setVariable`/`getVariable`/`fire` operate only on author-declared
-  // `--variables`; `input()` paths are read-only and never routed here.
+  // Host API: author-declared `--variables` only; `input()` paths are read-only.
 
-  /**
-   * Set a variable's value from the host, overriding the authored value.
-   * Accepts the name with or without the leading `--`.
-   */
+  /** Override the authored value; `--` prefix optional. */
   setVariable(name: string, value: VariableValue): void {
     this.hostOverrides.set(normalizeVarName(name), value);
-    this.frameEpoch++; // invalidate the memo so a mid-frame host write is seen
+    this.frameEpoch++;
   }
 
-  /**
-   * Read a variable's current resolved value (host override, trigger, input
-   * binding, or authored default). Returns undefined for unknown names.
-   */
+  /** Undefined for unknown names. */
   getVariable(name: string): VariableValue | undefined {
     const key = normalizeVarName(name);
     if (
@@ -134,29 +100,20 @@ export class VariableResolver {
     return valueToPrimitive(this.resolveVariable(key));
   }
 
-  /**
-   * Fire a trigger variable: it reads as `true` for exactly one frame, then
-   * `endFrame()` resets it. Accepts the name with or without the leading `--`.
-   */
+  /** Reads `true` for exactly one frame, until `endFrame()`. */
   fire(name: string): void {
     this.firedTriggers.add(normalizeVarName(name));
-    this.frameEpoch++; // a trigger fired mid-frame must invalidate the memo
+    this.frameEpoch++;
   }
 
-  /**
-   * Reset triggers fired this frame. The render loop MUST call this once per
-   * frame, after resolving the node walk, so triggers are momentary.
-   */
+  /** Must run once per frame after the node walk, so triggers are momentary. */
   endFrame(): void {
     if (this.firedTriggers.size > 0) {
       this.firedTriggers.clear();
-      this.frameEpoch++; // fired triggers read `false` again → invalidate the memo
+      this.frameEpoch++;
     }
   }
 
-  /**
-   * Update input state for dynamic variables
-   */
   private inputState: InputState = {
     cursor: { x: 0, y: 0, isDown: false, pressed: false },
     scroll: { x: 0, y: 0, progress: 0 },
@@ -165,12 +122,9 @@ export class VariableResolver {
 
   updateInputState(state: InputState): void {
     this.inputState = state;
-    this.frameEpoch++; // input-bound vars (`input(time)`, cursor.*) changed
+    this.frameEpoch++;
   }
 
-  /**
-   * Resolve a value, substituting any variable references
-   */
   resolveValue(value: Value): Value {
     if (isVariableRefValue(value)) {
       return this.resolveVariable(value.name, value.fallback);
@@ -181,38 +135,20 @@ export class VariableResolver {
     return value;
   }
 
-  /**
-   * Evaluate a calc() against the live variable/input state. Runs per frame for
-   * reactive calc (var()/input() operands) via the numeric binding path, so a
-   * calc that reads input(cursor.x) re-evaluates like any other binding. Purely
-   * static calc is already folded to a literal at build time, so this only fires
-   * for the reactive case.
-   */
+  /** Reactive calc() only; static calc is folded at build time. */
   private resolveCalc(value: CalcValue): Value {
     const n = this.runCalcValue(value);
     return n ? calcNumericToValue(n) : { type: "number", value: 0 };
   }
 
-  /**
-   * Evaluate one reactive calc(). A program that joined a multi-lane batch (the
-   * `repeat:` clone case — see calc-batch.ts) reads its lane out of the batch,
-   * running the batch first if this epoch hasn't been computed; everything else
-   * runs the scalar VM. Both paths are the same values, evaluated at the same
-   * point in the walk.
-   */
+  /** Batched programs read their lane (calc-batch.ts); others run the scalar VM. */
   private runCalcValue(value: CalcValue): CalcNumeric | null {
     const p = this.compiledFor(value);
     if (p.lane) return runCalcLane(p.lane, this.calcCtx, this.frameEpoch);
     return runCalc(p, this.calcCtx);
   }
 
-  /**
-   * Group the scene's reactive calc() expressions into multi-lane batches. Call
-   * once per scene (the render loop does, at setScene): batching is keyed on
-   * compiled program structure, so it is a pure optimization — an expression
-   * with no structural peers keeps running on the scalar path. Returns how many
-   * of the values joined a batch.
-   */
+  /** Once per scene; a pure optimization. Returns how many values joined a batch. */
   planCalcBatches(values: Value[]): number {
     const programs: CompiledCalc[] = [];
     for (const v of values) {
@@ -230,12 +166,7 @@ export class VariableResolver {
     return compiled;
   }
 
-  /**
-   * Resolve a variable by name. The defined-variable lookup (host override >
-   * trigger > input binding > static) is memoized per frame — a reactive calc()
-   * may reference the same var() dozens of times across the node walk — while the
-   * per-call `fallback` (used only when the name is undefined) is applied fresh.
-   */
+  /** Host override > trigger > input > static, memoized per epoch; `fallback` applies fresh. */
   resolveVariable(name: string, fallback?: Value): Value {
     const defined = this.lookupDefinedVar(name);
     if (defined !== VAR_UNDEFINED) return defined;
@@ -256,34 +187,26 @@ export class VariableResolver {
   }
 
   private computeDefinedVar(name: string): Value | typeof VAR_UNDEFINED {
-    // Host override wins over the authored value (setVariable).
     if (this.hostOverrides.has(name)) {
       return primitiveToValue(this.hostOverrides.get(name)!);
     }
-    // Trigger vars read `true` only on the frame they were fired.
     if (this.triggers.has(name)) {
       return {
         type: "keyword",
         value: this.firedTriggers.has(name) ? "true" : "false",
       };
     }
-    // Dynamic variables (input bindings) resolve to a live number.
     if (this.dynamicVariables.has(name)) {
       return { type: "number", value: this.dynamicVariables.get(name)!() };
     }
-    // Static variables — recursively resolve if the value is itself a var()/calc().
     if (this.staticVariables.has(name)) {
       return this.resolveValue(this.staticVariables.get(name)!);
     }
     return VAR_UNDEFINED;
   }
 
-  /**
-   * Resolve a numeric value (for properties like cx, cy, r, etc.)
-   */
   resolveNumeric(value: Value): number {
-    // Reactive calc() is the hot numeric binding: take the number straight off
-    // the compiled program instead of boxing it into a Value to unwrap again.
+    // Hot path: skip boxing the calc result into a Value.
     if (isCalcValue(value)) {
       const n = this.runCalcValue(value);
       return n ? n.value : 0;
@@ -304,9 +227,6 @@ export class VariableResolver {
     return 0;
   }
 
-  /**
-   * Check if a value contains any variable references
-   */
   hasVariables(value: Value): boolean {
     if (isVariableRefValue(value)) {
       return true;
@@ -333,12 +253,7 @@ export class VariableResolver {
     // These are resolved directly without needing variable definitions
   }
 
-  /**
-   * Resolve a single `input(path)` to a number against the current input state.
-   * Same path set the `--var: input(...)` bindings use — cursor.*, scroll.*
-   * (incl. scroll.progress), time, and media.* with headless fallbacks. Unknown
-   * paths resolve to 0. Public entry for machine guards and animation-timeline.
-   */
+  /** For machine guards and animation-timeline; unknown paths resolve to 0. */
   resolveInput(path: string): number {
     return this.resolveInputPath(path);
   }
@@ -347,7 +262,6 @@ export class VariableResolver {
     if (args.length === 0) return null;
 
     const arg = args[0];
-    // Handle dot notation like cursor.x
     if (isKeywordValue(arg)) {
       return arg.value;
     }
@@ -355,8 +269,7 @@ export class VariableResolver {
   }
 
   private resolveInputPath(path: string): number {
-    // Runs per binding per frame; the path set is small and fixed, so direct
-    // comparison avoids a per-call split() allocation.
+    // Switch, not split(): runs per binding per frame.
     switch (path) {
       case "cursor.x":
         return this.inputState.cursor.x;
@@ -368,8 +281,7 @@ export class VariableResolver {
         return this.inputState.scroll.x;
       case "scroll.y":
         return this.inputState.scroll.y;
-      // NOTE: headless fallback is the InputState default (0); the tracker
-      // only computes real progress from DOM scroll events in a browser.
+      // NOTE: headless stays at the InputState default (0).
       case "scroll.progress":
         return this.inputState.scroll.progress;
       case "time":
@@ -381,11 +293,7 @@ export class VariableResolver {
   }
 }
 
-/**
- * Read a `media.*` built-in input straight from the environment. Static reads
- * per resolve (no subscription) — the values change rarely and lazily.
- * NOTE: headless (no matchMedia/window) falls back to 0 / sensible defaults.
- */
+/** Read per resolve, no subscription. NOTE: headless falls back to 0. */
 function resolveMedia(path: string): number {
   const mm = typeof matchMedia !== "undefined" ? matchMedia : undefined;
   switch (path) {
@@ -402,20 +310,11 @@ function resolveMedia(path: string): number {
   }
 }
 
-/** Normalize a host-supplied variable name to the authored `--name` form. */
 function normalizeVarName(name: string): string {
   return name.startsWith("--") ? name : `--${name}`;
 }
 
-/**
- * A host primitive as an AST Value: booleans become `true`/`false` keywords,
- * numbers stay numbers, strings become string values. A string is untyped at
- * the host boundary (it could be text OR a color like "#f00"); the slot decides
- * — a paint binding runs it through colorStringFromValue, a text/keyword slot
- * reads it verbatim. NOTE: input() stays numeric; when string inputs land, this
- * same StringValue plumbing carries them (dynamicVariables would return a Value
- * instead of a number).
- */
+/** Booleans → keywords; strings stay untyped (text or color) and the binding slot decides. */
 function primitiveToValue(v: VariableValue): Value {
   if (typeof v === "boolean")
     return { type: "keyword", value: v ? "true" : "false" };

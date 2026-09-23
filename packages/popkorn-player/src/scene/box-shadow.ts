@@ -10,9 +10,7 @@ import type {
   ShapeData,
 } from "./types.js";
 
-// A full ellipse (or circle, rx===ry) as four clockwise quarter-arcs — the shape
-// primitives the renderer draws natively don't compose into the compound inset
-// path, so box-shadow geometry expresses circles/ellipses as path commands.
+// Ellipse as four clockwise quarter-arcs so it composes into compound shadow paths.
 function ellipseCommands(
   cx: number,
   cy: number,
@@ -39,8 +37,7 @@ function ellipseCommands(
   ];
 }
 
-// Translate absolute path commands by (dx,dy). Arc radii/flags are unchanged —
-// only the endpoint moves (an arc offset is a rigid translation).
+// Arcs translate rigidly: only endpoints move.
 function translateCommands(
   commands: PathCommand[],
   dx: number,
@@ -84,11 +81,8 @@ function translateCommands(
   });
 }
 
-// The shape's own outline as path commands, moved by (dx,dy) and inflated by
-// `spread` (a negative spread deflates — used for the inset hole). Rect/circle/
-// ellipse inflate exactly; a path/star/polygon only translates (spread is
-// ignored — NOTE: outline offsetting an arbitrary path is out of scope). Returns
-// null only for shapes with no outline (group/text/image).
+// Outline moved by (dx,dy) and inflated by spread; null for group/text/image.
+// NOTE: path/star/polygon only translate; offsetting an arbitrary outline is out of scope.
 export function shapeOutline(
   sd: ShapeData,
   dx: number,
@@ -143,10 +137,7 @@ export function shapeOutline(
   return null;
 }
 
-// The shape's outline as a clip region so an inset shadow shows only inside it.
-// Shape-accurate: a rounded rect and per-corner rect clip to their real outline
-// (path clip), not the bounding box; ellipse/path/star clip to their outline;
-// only a sharp rect and a circle use the cheap native clip primitives.
+// Shape-accurate clip for inset shadows; only sharp rect and circle use native clip primitives.
 export function shapeClip(sd: ShapeData): ResolvedClip | null {
   if (sd.type === "rect") {
     const r = sd as RectData;
@@ -164,9 +155,7 @@ export function shapeClip(sd: ShapeData): ResolvedClip | null {
   return outline ? { type: "path", commands: outline } : null;
 }
 
-// The shape's outline, offset by (dx,dy) and inflated by `spread` — the outer
-// shadow silhouette. Null for shapes without an outline (routes to the filter
-// drop-shadow path instead).
+// Outer shadow silhouette; null routes to the filter drop-shadow path.
 export function outerShadowCommands(
   sd: ShapeData,
   dx: number,
@@ -176,11 +165,7 @@ export function outerShadowCommands(
   return shapeOutline(sd, dx, dy, spread);
 }
 
-// A compound (evenodd) path for an inset shadow: a big cover rect with the shape
-// — deflated by `spread` and offset by (dx,dy) — punched out as a hole. The
-// caller clips to the shape (see shapeClip), so only the inner rim of shadow
-// colour shows; spread shrinks the hole, blur softens it. Null for outline-less
-// shapes.
+// Evenodd cover rect with the deflated, offset shape punched out; caller clips to the shape.
 export function insetShadowCommands(
   sd: ShapeData,
   dx: number,

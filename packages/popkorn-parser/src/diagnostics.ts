@@ -1,13 +1,4 @@
-/**
- * Structured diagnostics for the Popkorn parser.
- *
- * `parse()` collects position-tracked {@link Diagnostic}s alongside the AST so
- * hosts (the playground) can render squiggly underlines and hints for confused
- * CSS authors. This module owns the diagnostic shape, the offset→line/col
- * helper, the vocabularies the checks match against, and the "did you mean"
- * edit-distance suggester. The parser (parser.ts) owns *where* each diagnostic
- * fires and the source spans; this module is pure data + pure helpers.
- */
+// Diagnostic shape, check vocabularies and "did you mean"; parser.ts decides where each fires.
 
 export type Severity = "error" | "warning" | "info";
 
@@ -41,13 +32,7 @@ export function offsetToLineCol(
   return { line, column };
 }
 
-/**
- * Properties Popkorn understands — hand-maintained mirror of the scene
- * builder's declaration vocabulary plus the parser's write-in CSS aliases.
- * NOTE: there's no single machine-readable source (the builder reads props
- * ad hoc), so this list is the source of truth for "unknown property" and is
- * kept in sync by hand; add here when the builder learns a new property.
- */
+// NOTE: hand-synced mirror of the builder's vocabulary (it reads props ad hoc); add new props here.
 export const KNOWN_PROPERTIES = new Set<string>([
   // shape geometry
   "type",
@@ -140,8 +125,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "transition-duration",
   "transition-delay",
   "transition-timing-function",
-  // write-in CSS aliases (rewritten in expandAliases; still "known" so they
-  // don't trip the unknown-property check)
+  // write-in CSS aliases (rewritten in expandAliases)
   "left",
   "top",
   "right",
@@ -177,12 +161,7 @@ export const COLOR_KEYWORDS = new Set<string>([
   "unset",
 ]);
 
-/**
- * The CSS named-color subset Popkorn resolves at render time. Mirror of the
- * player's `NAMED_COLORS` (renderer/types.ts) — kept in sync by hand, same as
- * that table mirrors the converter's. Used only for "did you mean" suggestions,
- * so drift degrades a hint, never correctness.
- */
+// Hand-synced mirror of the player's NAMED_COLORS; only feeds hints, so drift is harmless.
 export const NAMED_COLORS = new Set<string>([
   "black",
   "white",
@@ -233,8 +212,7 @@ export const NAMED_COLORS = new Set<string>([
   "dodgerblue",
 ]);
 
-/** Reserved keyword tokens in an `animation` shorthand (everything that isn't
- * one of these, a number, or a function is taken to be the @keyframes name). */
+/** `animation` shorthand keywords; any other ident is the @keyframes name. */
 const ANIMATION_KEYWORDS = new Set<string>([
   "infinite",
   "normal",
@@ -260,9 +238,7 @@ export function isReservedAnimationKeyword(kw: string): boolean {
   return ANIMATION_KEYWORDS.has(kw);
 }
 
-// Optimal string alignment distance (Levenshtein + adjacent transposition as a
-// single edit, so `rde`→`red` scores 1). Strings here are short property/color
-// names, so a plain full matrix is fine.
+// Optimal string alignment distance: Levenshtein + adjacent transposition (`rde`→`red` = 1).
 function editDistance(a: string, b: string): number {
   const al = a.length;
   const bl = b.length;
@@ -286,11 +262,7 @@ function editDistance(a: string, b: string): number {
   return d[al][bl];
 }
 
-/**
- * The nearest candidate to `word` within a small edit distance, or undefined
- * when nothing is close enough. Threshold scales down for short words so
- * `rde`→`red` suggests but unrelated short typos don't over-suggest.
- */
+/** Nearest candidate within a length-scaled edit distance, or undefined. */
 export function suggest(
   word: string,
   candidates: Iterable<string>,

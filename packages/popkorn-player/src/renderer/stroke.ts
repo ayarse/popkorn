@@ -1,10 +1,7 @@
 import type { PaintOrder } from "../scene/types.js";
 import type { TrimDescriptor } from "./types.js";
 
-// Which dash pattern applies to a stroke, given the sticky trim descriptor and
-// the authored stroke-dasharray. When both are set they compose: the authored
-// dash is realized inside the trim window (both share the single dash slot).
-// `stroke: false` means nothing is visible — stroke nothing.
+// Dash for a stroke: authored dash composes inside the trim window; `stroke: false` = nothing visible.
 export interface StrokeDashDecision {
   stroke: boolean;
   dashArray: number[];
@@ -19,10 +16,7 @@ export function resolveStrokeDash(
   if (trim && !trim.visible)
     return { stroke: false, dashArray: [], dashOffset: 0 };
   if (trim && trim.dashArray.length > 0) {
-    // Both a trim window and an authored dash are present. Compose them:
-    // realize the authored dash *inside* the trim window (dash-of-a-dash),
-    // since they'd otherwise fight over the single dash slot. Falls back to
-    // the plain trim pattern when there's no authored dash to intersect.
+    // Dash-of-a-dash: realize the authored dash inside the trim window (one dash slot).
     if (dashArray.length > 0)
       return composeDashInTrim(trim, dashArray, dashOffset);
     return {
@@ -37,28 +31,19 @@ export function resolveStrokeDash(
 }
 
 const EPS = 1e-6;
-// NOTE: ceiling — a scene with a tiny dash period tiled across a huge outline
-// could generate unbounded segments; cap the intersection and fall back to the
-// plain trim window past this. Real scenes stay far under it.
+// NOTE: caps a tiny dash period over a huge outline; past it, falls back to the plain trim.
 const MAX_TRIM_DASH_SEGMENTS = 10000;
 
 // An arc-length interval [start, end] of visible stroke on the outline.
 type Segment = { start: number; end: number };
 
-// Compose an authored dash pattern within a trim window, both expressed against
-// the outline arc-length. The trim descriptor is already a single-period dash
-// ([visible, hidden] + offset) produced by `computeTrim`, so we reverse it back
-// into the window's arc interval, intersect that with the authored dash's ON
-// intervals, and re-emit the result as one finite dash array + offset that
-// realizes BOTH — a single dash slot every backend can consume unchanged.
+// Intersect the authored dash's ON runs with the trim window (reversed from computeTrim) into one dash + offset.
 function composeDashInTrim(
   trim: TrimDescriptor,
   dashArray: number[],
   dashOffset: number,
 ): StrokeDashDecision {
-  // Reconstruct the trim window in outline arc-length coordinates. `computeTrim`
-  // emits either [visible, total] with offset 0 (window anchored at the seam) or
-  // [visible, total - visible] with offset -windowStart (marching window).
+  // computeTrim emits [visible, total] offset 0 (anchored) or [visible, total - visible] offset -start (marching).
   if (trim.dashArray.length < 2)
     return {
       stroke: true,
@@ -88,9 +73,7 @@ function composeDashInTrim(
   // Trim window as up to two intervals within [0, total) (it may wrap the seam).
   const windows = arcWindows(windowStart, visibleLen, total);
 
-  // Authored ON sub-intervals within one pattern period. `arc = patternPos -
-  // dashOffset`, so an ON run [a, b] in pattern space lands at arc [a, b] shifted
-  // by -dashOffset and repeated every `period`.
+  // ON runs within one period; arc = patternPos - dashOffset, repeating every `period`.
   const onSub: Segment[] = [];
   let cum = 0;
   for (let i = 0; i < pattern.length; i++) {
@@ -130,8 +113,7 @@ function composeDashInTrim(
   return segmentsToDash(segments, total);
 }
 
-// The trim window [start, start+len] on a circle of circumference `total`,
-// normalized into 1–2 non-wrapping intervals within [0, total).
+// Trim window as 1–2 non-wrapping intervals within [0, total).
 function arcWindows(start: number, len: number, total: number): Segment[] {
   if (len >= total - EPS) return [{ start: 0, end: total }];
   let s = start % total;
@@ -144,11 +126,7 @@ function arcWindows(start: number, len: number, total: number): Segment[] {
   ];
 }
 
-// Emit sorted visible segments as a finite dash array + offset over an outline
-// of length `total`. We rotate coordinates so the first segment starts at 0
-// (dashOffset = -firstStart), letting the array begin on an ON dash, then walk
-// on/gap/on/gap… and close with the trailing gap back to `total`. The result is
-// always even-length (Skia's MakeDash requirement).
+// Sorted segments -> dash array starting ON (offset -firstStart); always even-length (Skia MakeDash).
 function segmentsToDash(
   segments: Segment[],
   total: number,
@@ -171,9 +149,7 @@ function segmentsToDash(
   return { stroke: true, dashArray: arr, dashOffset: -shift };
 }
 
-// Fill/stroke paint order for one shape. paint-order: stroke draws the stroke
-// first so the fill sits on top of it (only the stroke's outer edge shows);
-// otherwise fill then stroke.
+// paint-order: stroke draws stroke first so fill sits on top.
 export function paintOrderSequence(
   order: PaintOrder,
 ): readonly ("fill" | "stroke")[] {

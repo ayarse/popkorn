@@ -2,16 +2,8 @@ import type { CornerRadii, PathCommand } from "../renderer/types.js";
 import { polystarToCommands } from "./polystar.js";
 import type { SceneNode, ShapeData } from "./types.js";
 
-/**
- * Outline of a rect with per-corner radii, as path commands, walking clockwise
- * from the top edge. Corner order is CSS border-radius: [tl, tr, br, bl]. Each
- * corner is a circular quarter-arc; a zero-radius corner degrades to a straight
- * miter. Shared by the SVG and Skia backends (Canvas2D uses native roundRect);
- * keeping one geometry source means the backends can't drift on corner shape.
- * NOTE: each radius is clamped independently to half the shorter side — CSS's
- * proportional overflow scaling (shrinking all radii together when they overlap
- * an edge) isn't implemented; the elliptical slash form isn't represented.
- */
+// Per-corner rect outline ([tl, tr, br, bl], clockwise), shared by SVG and Skia so corners can't drift.
+// NOTE: radii clamp independently to half the shorter side; CSS proportional overflow scaling isn't implemented.
 export function roundedRectPath(
   x: number,
   y: number,
@@ -56,9 +48,6 @@ export function roundedRectPath(
   return cmds;
 }
 
-/**
- * Parse SVG path data string into PathCommand array
- */
 export function parsePath(d: string): PathCommand[] {
   const commands: PathCommand[] = [];
   const tokens = tokenizePath(d);
@@ -88,7 +77,7 @@ export function parsePath(d: string): PathCommand[] {
         startX = absX;
         startY = absY;
 
-        // Additional coordinate pairs are treated as lineto
+        // Extra coordinate pairs are implicit lineto.
         while (i < tokens.length && !isNaN(parseFloat(tokens[i]))) {
           const lx = parseFloat(tokens[i++]);
           const ly = parseFloat(tokens[i++]);
@@ -231,10 +220,7 @@ export function parsePath(d: string): PathCommand[] {
       }
 
       case "A": {
-        // Arc flags are single 0/1 chars; svgo/authoring tools glue them onto
-        // the following number (`011.5` = flags 0,1 then x=1.5). Peel one char
-        // off the front of the current token, leaving the remainder in the
-        // stream for the next flag or coordinate.
+        // Compact notation glues arc flags onto the next number (`011.5` = 0,1,1.5): peel one char.
         const readFlag = (): boolean => {
           const tok = tokens[i];
           const flag = tok[0] === "1";
@@ -283,11 +269,7 @@ export function parsePath(d: string): PathCommand[] {
   return commands;
 }
 
-/**
- * A canvas path builder: satisfied by both CanvasRenderingContext2D and Path2D.
- * Lets drawPath, clip-path realization, and hit-testing share one code path so
- * their geometry (including arcs) is identical.
- */
+// Satisfied by CanvasRenderingContext2D and Path2D, so draw, clip and hit-test share geometry.
 export interface PathSink {
   moveTo(x: number, y: number): void;
   lineTo(x: number, y: number): void;
@@ -313,10 +295,7 @@ export interface PathSink {
   closePath(): void;
 }
 
-/**
- * Emit parsed path commands into a PathSink. Mirrors SVG path semantics,
- * including smooth-curve reflection and real elliptical arcs.
- */
+// SVG semantics, including smooth-curve reflection and real elliptical arcs.
 export function applyCommandsToPath(
   sink: PathSink,
   commands: PathCommand[],
@@ -413,7 +392,6 @@ export function applyCommandsToPath(
             seg.counterclockwise,
           );
         } else {
-          // Degenerate arc (zero radius / coincident endpoints) -> straight line.
           sink.lineTo(cmd.x, cmd.y);
         }
         currentX = cmd.x;
@@ -439,14 +417,7 @@ export interface ArcSegment {
   counterclockwise: boolean;
 }
 
-/**
- * Convert an SVG endpoint-parameterized elliptical arc to center parameters
- * suitable for CanvasRenderingContext2D.ellipse / Path2D.ellipse.
- *
- * Implements the SVG spec conversion (Appendix F.6.5 / F.6.6): zero radii or
- * coincident endpoints degenerate to a straight line (returns null); radii too
- * small to span the endpoints are scaled up (F.6.6).
- */
+// SVG endpoint arc to center params (spec F.6.5/F.6.6); null when degenerate, undersized radii scale up.
 export function arcToEllipse(
   x1: number,
   y1: number,
@@ -458,9 +429,7 @@ export function arcToEllipse(
   x2: number,
   y2: number,
 ): ArcSegment | null {
-  // Coincident endpoints: arc reduces to nothing / a line.
   if (x1 === x2 && y1 === y2) return null;
-  // Zero radius: straight line per spec.
   if (rxIn === 0 || ryIn === 0) return null;
 
   let rx = Math.abs(rxIn);
@@ -469,7 +438,7 @@ export function arcToEllipse(
   const cosPhi = Math.cos(phi);
   const sinPhi = Math.sin(phi);
 
-  // Step 1: compute (x1', y1') — midpoint offset in the rotated frame.
+  // Step 1: midpoint offset in the rotated frame.
   const dx = (x1 - x2) / 2;
   const dy = (y1 - y2) / 2;
   const x1p = cosPhi * dx + sinPhi * dy;
@@ -483,7 +452,7 @@ export function arcToEllipse(
     ry *= s;
   }
 
-  // Step 2: compute center (cx', cy') in the rotated frame.
+  // Step 2: center in the rotated frame.
   const rx2 = rx * rx;
   const ry2 = ry * ry;
   const x1p2 = x1p * x1p;
@@ -495,11 +464,10 @@ export function arcToEllipse(
   const cxp = (coef * (rx * y1p)) / ry;
   const cyp = (coef * -(ry * x1p)) / rx;
 
-  // Step 3: back to the untransformed coordinate system.
+  // Step 3: back to user space.
   const cx = cosPhi * cxp - sinPhi * cyp + (x1 + x2) / 2;
   const cy = sinPhi * cxp + cosPhi * cyp + (y1 + y2) / 2;
 
-  // Step 4: start angle and sweep angle.
   const ux = (x1p - cxp) / rx;
   const uy = (y1p - cyp) / ry;
   const vx = (-x1p - cxp) / rx;
@@ -530,11 +498,7 @@ function angleBetween(ux: number, uy: number, vx: number, vy: number): number {
   return ang;
 }
 
-/**
- * Axis-aligned bounds of parsed path commands, from anchor and control points.
- * Approximate (control points overshoot the true curve) but sufficient for
- * anchoring gradients to a path's box.
- */
+// From anchor and control points: conservative, enough for gradient anchoring.
 export function computePathBounds(commands: PathCommand[]): {
   x: number;
   y: number;
@@ -599,18 +563,10 @@ export function computePathBounds(commands: PathCommand[]): {
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-// Samples per curved segment when flattening for length. Fixed-step keeps this
-// allocation-free and deterministic; it is plenty for trim-path visuals.
-// NOTE: adaptive subdivision (error-bounded) would be tighter for extreme curves.
+// NOTE: fixed samples per curve (allocation-free, deterministic); adaptive subdivision would be tighter.
 const LENGTH_SAMPLES = 32;
 
-/**
- * Shared fixed-step flattening walker for parsed path commands: straight
- * segments emit their endpoint; quadratic/cubic beziers and elliptical arcs
- * emit LENGTH_SAMPLES points, with S/T control-point reflection matching
- * applyCommandsToPath so measurements match the curve that gets drawn.
- * `isMove` marks M jumps so each consumer decides whether the gap counts.
- */
+// Fixed-step flattener shared by length, hit-test and motion path; S/T reflection matches applyCommandsToPath.
 function flattenPath(
   commands: PathCommand[],
   emit: (x: number, y: number, isMove: boolean) => void,
@@ -756,11 +712,7 @@ function flattenPath(
   }
 }
 
-/**
- * Total length of a parsed path's outline. Straight segments are exact;
- * curves/arcs are flattened via flattenPath. M jumps between subpaths add no
- * length (SVG getTotalLength semantics).
- */
+// M jumps add no length (SVG getTotalLength semantics).
 export function computePathLength(commands: PathCommand[]): number {
   let total = 0;
   let px = 0;
@@ -773,14 +725,7 @@ export function computePathLength(commands: PathCommand[]): number {
   return total;
 }
 
-/**
- * Flatten parsed path commands into per-subpath polylines (one point array per
- * `M` jump), reusing the shared flattener so hit-testing sees exactly the curve
- * that gets drawn. Each subpath is left open — consumers close it implicitly if
- * their test (e.g. point-in-fill) needs it, matching canvas fill semantics.
- * NOTE: fixed LENGTH_SAMPLES-per-curve, same accepted ceiling as the other
- * flatten consumers; adaptive subdivision would be tighter for extreme curves.
- */
+// One open polyline per subpath, from the shared flattener so hit-testing matches the drawn curve.
 export function flattenToSubpaths(
   commands: PathCommand[],
 ): { x: number; y: number }[][] {
@@ -796,25 +741,14 @@ export function flattenToSubpaths(
   return subpaths;
 }
 
-/**
- * A motion path: the outline flattened to points with a cumulative arc-length
- * table, so a distance 0..1 maps to a position + tangent by binary search.
- * Built once (offset-path is static); see buildMotionPath / samplePathAt.
- */
+// Flattened outline with a cumulative arc-length table; built once (offset-path is static).
 export interface MotionPath {
   points: { x: number; y: number }[];
   cumulative: number[]; // arc length at each point; cumulative[0] === 0
   length: number;
 }
 
-/**
- * Flatten parsed path commands into an arc-length table for CSS Motion Path.
- * M jumps between subpaths contribute zero length (getPointAtLength semantics):
- * distance is measured only along drawn segments. A boundary point carries the
- * same cumulative as the subpath end before it, so samplePathAt's last-index
- * search skips the gap and snaps to the next subpath's start instead of
- * interpolating across it.
- */
+// M jumps add zero length, so samplePathAt snaps across the gap instead of interpolating it.
 export function buildMotionPath(commands: PathCommand[]): MotionPath {
   const points: { x: number; y: number }[] = [];
   const cumulative: number[] = [];
@@ -831,11 +765,7 @@ export function buildMotionPath(commands: PathCommand[]): MotionPath {
   return { points, cumulative, length: total };
 }
 
-/**
- * Position + tangent at a normalized distance (0..1) along a motion path.
- * Binary-searches the cumulative table, lerps the bracketing points, and takes
- * the tangent from the containing segment's direction. Angle is in radians.
- */
+// Angle in radians.
 export function samplePathAt(
   mp: MotionPath,
   distance01: number,
@@ -848,7 +778,6 @@ export function samplePathAt(
   const target = Math.max(0, Math.min(1, distance01)) * mp.length;
   const cum = mp.cumulative;
 
-  // Binary search for the last index with cumulative <= target.
   let lo = 0;
   let hi = cum.length - 1;
   while (lo < hi) {
@@ -856,7 +785,7 @@ export function samplePathAt(
     if (cum[mid] <= target) lo = mid;
     else hi = mid - 1;
   }
-  // Segment [lo, lo+1]; clamp so a target at the very end still has a segment.
+  // Clamp so a target at the very end still has a segment.
   const i = Math.min(lo, pts.length - 2);
   const a = pts[i];
   const b = pts[i + 1];
@@ -870,11 +799,7 @@ export function samplePathAt(
   };
 }
 
-/**
- * Ramanujan's second approximation for an ellipse's perimeter. Exact for a
- * circle (rx === ry); within ~1e-5 relative error for typical eccentricities.
- * Approximate — good enough for trim-path length.
- */
+// Ramanujan II: exact for circles, ~1e-5 relative error otherwise.
 export function ellipsePerimeter(rx: number, ry: number): number {
   const a = Math.abs(rx);
   const b = Math.abs(ry);
@@ -883,11 +808,7 @@ export function ellipsePerimeter(rx: number, ry: number): number {
   return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
 }
 
-/**
- * Total outline length of a shape's geometry. Analytic for circle/ellipse/rect
- * (rounded corners = 4 quarter-ellipse arcs = one full ellipse perimeter);
- * paths are flattened. Groups have no outline.
- */
+// Analytic for circle/ellipse/rect (rounded corners sum to one ellipse perimeter); paths flatten.
 export function shapeOutlineLength(sd: ShapeData): number {
   switch (sd.type) {
     case "circle":
@@ -895,8 +816,7 @@ export function shapeOutlineLength(sd: ShapeData): number {
     case "ellipse":
       return ellipsePerimeter(sd.rx, sd.ry);
     case "rect": {
-      // Per-corner: four independent quarter-circles + the straight runs each
-      // edge has left between its two corners.
+      // Four quarter-circles plus the straight remainder of each edge.
       if (sd.cornerRadii) {
         const cap = Math.min(sd.width, sd.height) / 2;
         const [tl, tr, br, bl] = sd.cornerRadii.map((r) =>
@@ -925,10 +845,7 @@ export function shapeOutlineLength(sd: ShapeData): number {
   }
 }
 
-/**
- * Cached outline length for a node. Recomputed only when a geometry apply has
- * flagged outlineLengthDirty (see the registry), so static shapes measure once.
- */
+// Recomputed only when the registry flags outlineLengthDirty.
 export function outlineLength(node: SceneNode): number {
   if (!node.outlineLengthDirty && node.cachedOutlineLength !== null) {
     return node.cachedOutlineLength;

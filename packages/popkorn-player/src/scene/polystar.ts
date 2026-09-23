@@ -1,16 +1,7 @@
 import type { PathCommand } from "../renderer/types.js";
 import type { PolystarData, SceneNode } from "./types.js";
 
-/**
- * Synthesize a star or polygon into absolute-coordinate PathCommand[], matching
- * lottie-web's convertStarToPath / convertPolygonToPath.
- *
- * Vertices sit on a circle starting straight up (-90deg) plus `rotation`, walked
- * over `sides` (polygon) or `2·sides` alternating outer/inner (star) vertices.
- * When roundness is 0 the edges are straight lines; otherwise each vertex grows a
- * cubic-bezier handle of length `perimSegment · roundness` along the tangent
- * (perpendicular to the radius), giving Lottie's rounded corners.
- */
+// Star/polygon to absolute PathCommand[], matching lottie-web's convertStarToPath/convertPolygonToPath.
 export function polystarToCommands(sd: PolystarData): PathCommand[] {
   const isStar = sd.type === "star";
   const pts = Math.max(2, Math.floor(sd.sides));
@@ -91,10 +82,7 @@ export function polystarToCommands(sd: PolystarData): PathCommand[] {
   return cmds;
 }
 
-/**
- * Cached polystar commands for a node (same lazy pattern as outlineLength):
- * recomputed only when polystarDirty is set by a geometry apply (registry).
- */
+// Cached; recomputed only when the registry sets polystarDirty.
 export function polystarCommands(node: SceneNode): PathCommand[] {
   if (!node.polystarDirty && node.cachedPolystarCommands !== null) {
     return node.cachedPolystarCommands;

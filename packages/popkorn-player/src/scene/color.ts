@@ -9,10 +9,7 @@ import {
 import { oklabToString, tryParseOklabColor } from "../renderer/oklab.js";
 import { tryParseColor } from "../renderer/types.js";
 
-// Resolve any parseable color string to a canonical hex/rgba string, or null if
-// unrecognized. Used to fold hsl()/named colors down to hex at build time (so
-// animation endpoints are already hex, and the per-frame hot path only parses
-// hex/rgb).
+// Canonical hex/rgba or null; folds hsl()/named colors at build time so the hot path only parses hex/rgb.
 export function canonicalColor(raw: string): string | null {
   const c = tryParseColor(raw);
   if (!c) return null;
@@ -23,12 +20,7 @@ export function canonicalColor(raw: string): string | null {
   return `rgba(${c.r}, ${c.g}, ${c.b}, ${c.a})`;
 }
 
-/**
- * Render one color-function argument back to its CSS token. Keeps the
- * component rules (`%`, `none`, `<angle>` units) in tryParseOklabColor rather
- * than duplicating them against the AST here. The parser flattens `/` to a
- * positional arg, so alpha arrives as the 4th token and is re-slashed below.
- */
+// Back to a CSS token so tryParseOklabColor owns component rules; alpha arrives as the 4th arg.
 function colorArgToken(v: Value): string {
   if (v.type === "number") return String(v.value);
   if (v.type === "length") return `${v.value}${v.unit}`;
@@ -51,10 +43,7 @@ function buildColorString(func: FunctionValue): string {
     return `rgba(${r}, ${g}, ${b}, ${a})`;
   }
   if (func.name === "oklab" || func.name === "oklch") {
-    // Normalize to canonical oklab() rather than folding to hex like hsl():
-    // the oklab() spelling is what tells interpolateColor this endpoint does
-    // not interpolate in sRGB (CSS Color 4's rule). Only opted-in colors pay
-    // the wider parse on the hot path.
+    // Kept as oklab(), not hex: the spelling tells interpolateColor to skip sRGB.
     const tokens = func.args.map(colorArgToken);
     const args =
       tokens.length > 3
@@ -64,9 +53,7 @@ function buildColorString(func: FunctionValue): string {
     return ok ? oklabToString(ok) : "#000000";
   }
   if (func.name === "hsl" || func.name === "hsla") {
-    // Fold hsl()/hsla() to canonical hex/rgba once so the per-frame hot path
-    // only parses hex/rgb (s/l args carry a `%` unit, which getNumericValue
-    // strips to 0..100).
+    // s/l carry `%`, which getNumericValue strips to 0..100.
     const h = getNumericValue(func.args[0]);
     const s = getNumericValue(func.args[1]);
     const l = getNumericValue(func.args[2]);
@@ -77,19 +64,14 @@ function buildColorString(func: FunctionValue): string {
   return "#000000";
 }
 
-/**
- * A CSS color string from a color/keyword/rgb()/rgba()/hsl()/hsla() value, else
- * null. Named colors normalize to canonical hex; transparent/currentColor/
- * unknown keywords pass through untouched; `none` -> null (no paint).
- */
+// Named colors -> hex; other keywords pass through; `none` -> null (no paint).
 export function colorStringFromValue(value: Value): string | null {
   if (isColorValue(value)) return value.value;
   if (isKeywordValue(value)) {
     if (value.value === "none") return null;
     return canonicalColor(value.value) ?? value.value;
   }
-  // An untyped host-set string in a paint slot: accept it only if it parses as a
-  // color (canonicalized to hex/rgba); otherwise it's not a color -> null.
+  // Host-set strings count only if they parse as a color.
   if (isStringValue(value)) return canonicalColor(value.value);
   if (
     isFunctionValue(value) &&

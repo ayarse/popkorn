@@ -14,9 +14,7 @@ export interface PaintBox {
   height: number;
 }
 
-// A gradient resolved to concrete geometry — platform-agnostic. Every backend
-// realizes the SAME endpoints/radii from this (CanvasGradient / SVG attrs /
-// SkShader), so the gradient math lives in one place instead of three.
+// A gradient resolved to platform-agnostic geometry that every backend realizes identically.
 export interface ResolvedLinearGradient {
   type: "linear";
   x1: number;
@@ -34,10 +32,7 @@ export interface ResolvedRadialGradient {
   fy: number; // focal = inner-circle centre, radius 0
   stops: { offset: number; color: string }[];
 }
-// Conic (angular) sweep. `startAngle` is in radians measured from the +x axis
-// clockwise — the Canvas `createConicGradient` convention, canonical here (SVG
-// has no conic; Skia converts to its degrees-from-+x sweep). Offset 0 sits at
-// `startAngle`.
+// `startAngle`: radians from +x, clockwise (Canvas convention); offset 0 sits there.
 export interface ResolvedConicGradient {
   type: "conic";
   cx: number;
@@ -50,9 +45,6 @@ export type ResolvedGradient =
   | ResolvedRadialGradient
   | ResolvedConicGradient;
 
-// Colour at fraction `t` between two stop colours (boundary clipping for
-// repeating tiles). Kept here so the shared helper owns every repeating-gradient
-// geometry decision rather than leaning on the animation registry's lerp.
 function rgbaToStopColor(c: {
   r: number;
   g: number;
@@ -62,6 +54,7 @@ function rgbaToStopColor(c: {
   return c.a === 1 ? `rgb(${c.r}, ${c.g}, ${c.b})` : colorToCSS(c);
 }
 
+// Colour at `t` between two stops, for clipping repeating tiles at 0/1.
 function lerpStopColor(a: string, b: string, t: number): string {
   const c1 = parseColor(a);
   const c2 = parseColor(b);
@@ -69,18 +62,12 @@ function lerpStopColor(a: string, b: string, t: number): string {
   const g = Math.round(c1.g + (c2.g - c1.g) * t);
   const bl = Math.round(c1.b + (c2.b - c1.b) * t);
   const al = c1.a + (c2.a - c1.a) * t;
-  // Emit rgb() at full alpha (matching interpolateColor) so a backend that
-  // splits rgba()/hex8 into stop-color + opacity (SVG) doesn't diverge here.
+  // rgb() at full alpha so SVG's stop-color/opacity split doesn't diverge.
   return rgbaToStopColor({ r, g, b: bl, a: al });
 }
 
-// Backends interpolate between stops in sRGB and nothing else (Canvas gradients,
-// SVG <stop>, Skia shaders). An `in oklab`/`in oklch` gradient is realized by
-// inserting intermediate sRGB stops sampled along the requested space, so the
-// visible ramp follows it while every backend stays dumb and byte-identical.
-// NOTE: fixed subdivision. 16 segments keeps the worst-case sRGB chord error
-// under a JND for full-chroma pairs; adaptive subdivision on deltaEOK would cut
-// stop counts on near-neutral ramps if a scene ever makes that matter.
+// Backends only interpolate stops in sRGB, so oklab/oklch ramps are realized as inserted sRGB stops.
+// NOTE: fixed 16 segments (under a JND for full chroma); adaptive on deltaEOK would cut stop counts.
 const OKLAB_SEGMENTS = 16;
 
 function densifyStops(
@@ -113,10 +100,7 @@ function densifyStops(
   return out;
 }
 
-// Realize a gradient's stop list into concrete [0,1] offsets. Non-repeating just
-// clamps; repeating tiles the authored run across the whole 0-1 range (so every
-// backend stays dumb — Canvas has no gradient repeat, and unifying here keeps
-// SVG/Skia byte-identical to it rather than each using a native spread/tile mode).
+// Offsets into [0,1]: clamp, or tile a repeating run here since Canvas has no native repeat.
 function realizeStops(
   authored: GradientStop[],
   repeating: boolean,
@@ -146,8 +130,7 @@ function realizeStops(
       })),
     );
 
-  // Tile the run across [0,1] (a couple of cycles of slack past each edge), then
-  // clip to the unit range, interpolating the colour where a tile crosses 0 or 1.
+  // Tile with slack past each edge, then clip to [0,1] interpolating the crossing colour.
   const raw: { offset: number; color: string }[] = [];
   const kMin = Math.floor((0 - first) / w) - 1;
   const kMax = Math.ceil((1 - first) / w) + 1;
@@ -179,14 +162,7 @@ function realizeStops(
   return finish(out);
 }
 
-/**
- * Resolve a gradient descriptor against a shape's local bounding box.
- *
- * Linear angle follows CSS: 0deg = up, 90deg = right; explicit `from`/`to`
- * endpoints override the angle. Radial is a circle at the box centre with radius
- * = half the box diagonal, unless explicit geometry (`at`/`radius`, optional
- * `focal`) is given. Offsets are clamped to [0,1]; colours pass through verbatim.
- */
+/** Resolve against the local box: linear 0deg = up; radial defaults to box centre, half-diagonal radius. */
 export function resolveGradient(
   g: GradientData,
   b: PaintBox,
@@ -197,8 +173,7 @@ export function resolveGradient(
 
   if (g.type === "conic-gradient") {
     const c = g.at ?? { x: cx, y: cy };
-    // CSS conic 0deg points up and turns clockwise; Canvas's startAngle is from
-    // the +x axis clockwise — so shift by −90°.
+    // CSS conic 0deg is up; Canvas startAngle is from +x, so shift by −90°.
     return {
       type: "conic",
       cx: c.x,
@@ -234,8 +209,7 @@ export function resolveGradient(
   }
 
   if (g.at && g.radius != null) {
-    // Exact circle. Inner circle at the focal point (Lottie highlight offset)
-    // when given, else concentric with the outer.
+    // Inner circle at the focal point when given, else concentric.
     const f = g.focal ?? g.at;
     return {
       type: "radial",

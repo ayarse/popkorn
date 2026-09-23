@@ -1,19 +1,9 @@
 import type { Matrix3x3 } from "../renderer/types.js";
 
-/**
- * How the scene box is fitted into the host element, mirroring CSS object-fit.
- * - contain: letterbox, centered (the default)
- * - cover:   crop to fill, centered
- * - fill:    stretch each axis independently
- * - none:    1:1 scene pixels, top-left (may clip)
- */
+/** CSS object-fit semantics (default contain); `none` is 1:1 pinned top-left. */
 export type FitMode = "contain" | "cover" | "fill" | "none";
 
-/**
- * Per-axis scale plus a device-pixel offset that maps scene coords into the
- * canvas backing store: deviceX = offsetX + sceneX * scaleX (same for y). Scale
- * folds in the fit ratio *and* devicePixelRatio, so the canvas stays crisp.
- */
+/** deviceX = offsetX + sceneX * scaleX; scale folds in both fit ratio and DPR. */
 export interface Viewport {
   scaleX: number;
   scaleY: number;
@@ -28,11 +18,7 @@ export const IDENTITY_VIEWPORT: Viewport = {
   offsetY: 0,
 };
 
-/**
- * Compute the viewport that fits a sceneW×sceneH scene into an elemW×elemH CSS
- * element rendered on a canvas of elemW×elemH*dpr device pixels, per `fit`.
- * Pure: no DOM. A degenerate scene (0 size) falls back to a 1:1 dpr mapping.
- */
+/** Pure; a 0-size scene falls back to a 1:1 dpr mapping. */
 export function computeViewport(
   sceneW: number,
   sceneH: number,

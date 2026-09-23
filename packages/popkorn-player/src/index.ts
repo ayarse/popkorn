@@ -1,5 +1,3 @@
-// Re-export parser
-
 export type {
   CanvasConfig,
   Declaration,
@@ -12,7 +10,6 @@ export type {
   VariableDefinition,
 } from "@popkorn/parser";
 export { parse } from "@popkorn/parser";
-// Animation
 export { applyEasing } from "./animation/easing.js";
 export {
   buildKeyframeTracks,
@@ -22,14 +19,12 @@ export {
   AnimationScheduler,
   computeSceneDuration,
 } from "./animation/scheduler.js";
-// Web Component (main export)
 export type {
   TimelineAnimation,
   TimelineAnimationProperty,
   TimelineTrack,
 } from "./component.js";
 export { PopkornPlayer, registerPopkornPlayer } from "./component.js";
-// Renderer
 export { Canvas2DRenderer } from "./renderer/canvas2d.js";
 export type {
   ClipObs,
@@ -39,8 +34,6 @@ export type {
   NormGradient,
   PaintObs,
 } from "./renderer/conformance.js";
-// Cross-backend renderer conformance suite (shared spec-table; each backend's
-// test package builds a harness and calls registerConformance).
 export {
   CONFORMANCE_CASES,
   MASK_MODES,
@@ -54,7 +47,6 @@ export type {
 } from "./renderer/gradient-geometry.js";
 export { resolveGradient } from "./renderer/gradient-geometry.js";
 export type { Renderer } from "./renderer/interface.js";
-// Shared renderer paint semantics (consumed by every backend, incl. @popkorn/react-native).
 export { PaintStateRenderer } from "./renderer/paint-state.js";
 export type { StrokeDashDecision } from "./renderer/stroke.js";
 export { paintOrderSequence, resolveStrokeDash } from "./renderer/stroke.js";
@@ -90,7 +82,6 @@ export {
   createInteractionManager,
   InteractionManager,
 } from "./runtime/interaction.js";
-// Runtime
 export {
   type ExportLength,
   RenderLoop,
@@ -127,7 +118,6 @@ export {
   resolveTransformOrigin,
   setTextMeasurer,
 } from "./scene/transform.js";
-// Scene
 export type {
   AnimatableValue,
   AnimationDirection,

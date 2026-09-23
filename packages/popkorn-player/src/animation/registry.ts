@@ -19,22 +19,10 @@ import type {
   SceneNode,
 } from "../scene/types.js";
 
-/**
- * Property registry.
- *
- * One table mapping an animatable property name to how it is read from a node's
- * authored base, interpolated, and written to the live node. The keyframe
- * interpolator and the binding resolver both dispatch through this table, so
- * geometry (x/y/width/height/rx/ry/cx/cy/r), stroke, stroke-width, opacity,
- * fill and the individual transform components are all animatable and bindable
- * without any hardcoded per-property branching.
- */
-// 'gradient' and 'path' properties (fill/stroke, `d`) carry object values;
-// interpolateProp dispatches those by value type (a fill can also be a plain
-// color), so the kind is a hint — number/color drive the scalar fast path.
+// Property registry: the only path to animatability; keyframes and bindings both dispatch through it.
+// gradient/path kinds are hints; interpolateProp dispatches object values by type.
 export type PropKind = "number" | "color" | "gradient" | "path";
 
-// A resolved/authored value for any animatable property.
 export type PropValue =
   | number
   | string
@@ -45,19 +33,14 @@ export type PropValue =
 
 export interface PropHandler {
   kind: PropKind;
-  // Base value used as the endpoint when a keyframe omits this property.
+  // Endpoint when a keyframe omits this property.
   readBase(base: NodeBase): PropValue | null;
-  // Write a resolved value into the node's live render fields.
   apply(node: SceneNode, value: PropValue): void;
-  // Read the current LIVE value (this frame's accumulated result). Only present
-  // on numeric handlers; used by animation-composition add/accumulate to add a
-  // sampled value onto what earlier layers already wrote. Object-valued
-  // properties (color/gradient/path) omit it and fall back to replace.
+  // Live value for add/accumulate composition; numeric handlers only.
   readLive?(node: SceneNode): number;
 }
 
-// --- transform components (all plain-number lerp; rotate is direct, matching
-// the existing full-turn animation behaviour) --------------------------------
+// --- transform components ---
 function transformNumber(
   key:
     | "translateX"
@@ -78,7 +61,7 @@ function transformNumber(
   };
 }
 
-// --- geometry (numeric fields living on shapeData) ---------------------------
+// --- geometry (shapeData) ---
 function geometryNumber(key: string): PropHandler {
   return {
     kind: "number",
@@ -89,13 +72,11 @@ function geometryNumber(key: string): PropHandler {
       ((node.shapeData as unknown as Record<string, unknown>)[key] as number) ??
       0,
     apply: (node, value) => {
-      // Geometry keys only exist on the shapes that declare them; the renderer
-      // reads type-specific fields, so a stray assignment is inert.
+      // Stray keys on shapes that don't declare them are inert.
       const sd = node.shapeData as unknown as Record<string, unknown>;
       if (key in sd) {
         sd[key] = value;
-        // Geometry changed -> the cached outline length is stale (trim paths),
-        // and a star/polygon's synthesized path must be regenerated.
+        // Stale: outline length (trim paths) and synthesized polystar path.
         node.outlineLengthDirty = true;
         node.polystarDirty = true;
       }
@@ -103,12 +84,7 @@ function geometryNumber(key: string): PropHandler {
   };
 }
 
-// --- per-corner rect radii (border-radius longhands) -------------------------
-// Each corner (0=tl,1=tr,2=br,3=bl) lives in RectData.cornerRadii; animating one
-// seeds the tuple from the uniform rx and marks the outline length stale (the
-// perimeter depends on the corner arcs). Falls back to rx when no per-corner
-// tuple exists yet, so a rect authored with a uniform rx animates a corner up
-// from that radius.
+// --- per-corner rect radii (0=tl,1=tr,2=br,3=bl); seeds from uniform rx ---
 function cornerRadiusNumber(index: number): PropHandler {
   const read = (sd: {
     type?: string;
@@ -133,7 +109,7 @@ function cornerRadiusNumber(index: number): PropHandler {
   };
 }
 
-// --- trim paths (fractions 0..1 of the outline; render clamps to range) ------
+// --- trim paths (0..1 of the outline) ---
 function trimNumber(key: "trimStart" | "trimEnd" | "trimOffset"): PropHandler {
   return {
     kind: "number",
@@ -146,7 +122,6 @@ function trimNumber(key: "trimStart" | "trimEnd" | "trimOffset"): PropHandler {
 }
 
 export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
-  // transform components
   translateX: transformNumber("translateX"),
   translateY: transformNumber("translateY"),
   rotate: transformNumber("rotate"),
@@ -155,14 +130,8 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   skewX: transformNumber("skewX"),
   skewY: transformNumber("skewY"),
 
-  // display: discrete visibility. 0 => none (node + subtree removed from the
-  // render walk AND hit-testing, like a visibility window), non-zero => visible.
-  // Drivable through the numeric binding/@keyframes path like any scalar.
-  // NOTE: display is discrete in CSS (it flips, never tweens); here interpolation
-  // is a threshold — any fractional sample is non-zero => visible, only an exact
-  // 0 hides — so a keyframe from block→none holds visible until it lands on 0.
-  // Good enough for host-var toggles; a true discrete-step registry kind is the
-  // upgrade path if keyframed display windows ever need per-segment hold.
+  // display: 0 removes node + subtree from render and hit-testing.
+  // NOTE: threshold, not discrete step; only an exact 0 hides. A discrete registry kind is the upgrade.
   display: {
     kind: "number",
     readBase: (base) => (base.displayNone ? 0 : 1),
@@ -172,11 +141,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // z-index: sibling paint order, bound/animated as an integer. CSS interpolates
-  // <integer> by rounding the sampled real value, so apply rounds. The resolve
-  // walk resets it to base first, so a static scene keeps its authored order and
-  // pays no per-frame re-sort (childrenInPaintOrder's fast path); a dynamic one
-  // re-sorts only because the resolve walk refreshes the cached order each frame.
+  // z-index: CSS rounds interpolated <integer>; static scenes keep the no-resort fast path.
   "z-index": {
     kind: "number",
     readBase: (base) => base.zIndex,
@@ -186,7 +151,6 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // opacity
   opacity: {
     kind: "number",
     readBase: (base) => base.opacity,
@@ -196,8 +160,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // colors / gradients. A fill endpoint is either a color string (solid) or a
-  // GradientData (animated gradient stops); apply routes by value type.
+  // A fill endpoint is a color string or GradientData; apply routes by type.
   fill: {
     kind: "color",
     readBase: (base) => base.fillGradient ?? base.fill,
@@ -223,7 +186,6 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // geometry
   x: geometryNumber("x"),
   y: geometryNumber("y"),
   width: geometryNumber("width"),
@@ -238,10 +200,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
   cy: geometryNumber("cy"),
   r: geometryNumber("r"),
 
-  // path morphing: `d` is the command list. Interpolated pairwise when the two
-  // endpoints share a command sequence (see interpolatePath); applying it swaps
-  // in the morphed commands and invalidates the geometry-keyed caches. Bounds
-  // and hit-test read node.shapeData.commands directly, so they follow for free.
+  // path morphing: pairwise when command sequences match; invalidates geometry caches.
   d: {
     kind: "path",
     readBase: (base) =>
@@ -253,10 +212,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // clip-path morphing: reuses the path (command-list) kind exactly like `d`.
-  // Only the path() clip variant is animatable — its commands morph pairwise
-  // (Lottie animated masks). No cache keys off the clip region: resolveClip and
-  // the renderer read node.clipPath live each frame, so no dirty flag is needed.
+  // clip-path: only path() morphs; read live each frame, so no dirty flag.
   "clip-path": {
     kind: "path",
     readBase: (base) =>
@@ -267,11 +223,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // object-view-box: the image source-crop rect. The whole {x,y,w,h} is the
-  // endpoint; interpolateProp lerps it component-wise (so steps() timing pages a
-  // sprite sheet frame-by-frame). Object-endpoint contract like clip-path — the
-  // renderer reads node.shapeData.viewBox live each frame, so no cache/dirty flag
-  // keys off it. `null` (base has no crop) draws the whole bitmap.
+  // object-view-box: lerped component-wise (steps() pages sprite sheets); null draws the whole bitmap.
   "object-view-box": {
     kind: "path",
     readBase: (base) =>
@@ -283,12 +235,11 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // star / polygon geometry (sides is static, so not registered)
+  // sides is static, so not registered.
   "outer-radius": geometryNumber("outerRadius"),
   "inner-radius": geometryNumber("innerRadius"),
   rotation: geometryNumber("rotation"),
 
-  // stroke dashing
   "stroke-dashoffset": {
     kind: "number",
     readBase: (base) => base.strokeDashOffset,
@@ -298,16 +249,11 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // trim paths
   "trim-start": trimNumber("trimStart"),
   "trim-end": trimNumber("trimEnd"),
   "trim-offset": trimNumber("trimOffset"),
 
-  // time-remap scalar (ms): the local-timeline instant this subtree is pinned to.
-  // Animating it (@keyframes / :state()) scrubs a segment of the master timeline;
-  // the resolve walk reads node.timeRemapValue AFTER the state merge to drive the
-  // subtree's local time. No cache keys off it — descendants' own registry setters
-  // own their dirty flags — so no flag is marked here.
+  // time-remap (ms): read after the state merge to drive the subtree's local time; no dirty flag.
   "time-remap": {
     kind: "number",
     readBase: (base) => base.timeRemapValue,
@@ -317,7 +263,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // motion path: position along offset-path, 0..1 of arc length
+  // offset-distance: 0..1 of arc length.
   "offset-distance": {
     kind: "number",
     readBase: (base) => base.offsetDistance,
@@ -327,10 +273,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // filter: the whole FilterOp list is the endpoint. interpolateProp lerps each
-  // op's numerics when two endpoints share the same function sequence, else holds
-  // the departing list (structural replace) — same object-endpoint contract as
-  // gradients/paths, so `kind` is the object hint and readLive is omitted.
+  // filter: ops lerp when function sequences match, else the departing list holds.
   filter: {
     kind: "path",
     readBase: (base) => base.filter,
@@ -339,8 +282,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // box-shadow: a drop-shadow FilterOp list, morphed by the same object-endpoint
-  // path as `filter` (interpolateProp -> interpolateFilter when structures match).
+  // box-shadow: a drop-shadow FilterOp list, morphed like `filter`.
   "box-shadow": {
     kind: "path",
     readBase: (base) => base.boxShadow,
@@ -349,8 +291,7 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
     },
   },
 
-  // text: font-size lives on shapeData under a different key than its property
-  // name, and animating it invalidates the cached text metrics.
+  // font-size lives under a different shapeData key; invalidates text metrics.
   "font-size": {
     kind: "number",
     readBase: (base) =>
@@ -367,14 +308,11 @@ export const PROPERTY_REGISTRY: Record<string, PropHandler> = {
       }
     },
   },
-  // letter-spacing / line-height: px fields on a text node; animating either
-  // shifts the measured box (advance width / line stacking), so mark it stale.
   "letter-spacing": textNumber("letterSpacing"),
   "line-height": textNumber("lineHeight"),
 };
 
-// A numeric text field (letterSpacing/lineHeight) that invalidates text bounds
-// when animated. Inert on non-text nodes (the key won't exist).
+// Numeric text field that invalidates text bounds; inert on non-text nodes.
 function textNumber(key: "letterSpacing" | "lineHeight"): PropHandler {
   const read = (sd: Record<string, unknown>): number =>
     (sd[key] as number) ?? 0;
@@ -396,22 +334,14 @@ export function getPropHandler(property: string): PropHandler | undefined {
   return PROPERTY_REGISTRY[property];
 }
 
-/**
- * Interpolate two endpoint values for a property.
- *
- * Object-valued properties (gradients, paths) dispatch by value type before the
- * scalar/color fast path, because `fill` can be either a color or a gradient.
- * Incompatible object endpoints (different gradient shape, mismatched path
- * command sequence) step to the departing value rather than crash.
- */
+// Incompatible object endpoints step to the departing value rather than crash.
 export function interpolateProp(
   handler: PropHandler,
   from: PropValue | null,
   to: PropValue | null,
   t: number,
 ): PropValue | null {
-  // Image source-crop endpoints ({x,y,width,height}): lerp component-wise. A
-  // half-present pair (crop <-> no crop) steps to the defined rect.
+  // Image crop: half-present pair steps to the defined rect.
   if (isViewBox(from) || isViewBox(to)) {
     if (isViewBox(from) && isViewBox(to)) {
       return {
@@ -424,7 +354,6 @@ export function interpolateProp(
     return (from ?? to) as PropValue;
   }
 
-  // Gradient endpoints.
   if (isGradientData(from) || isGradientData(to)) {
     if (
       isGradientData(from) &&
@@ -436,9 +365,7 @@ export function interpolateProp(
     return from ?? to; // step: hold the departing gradient
   }
 
-  // Filter-list endpoints (checked before the generic array branch, since both
-  // filters and paths are arrays). Compatible = same function sequence; else the
-  // departing list holds (structural replace).
+  // Filters before paths: both are arrays.
   if (isFilterList(from) || isFilterList(to)) {
     if (isFilterList(from) && isFilterList(to) && filtersCompatible(from, to)) {
       return interpolateFilter(from, to, t);
@@ -446,7 +373,6 @@ export function interpolateProp(
     return from ?? to;
   }
 
-  // Path (command-list) endpoints.
   if (Array.isArray(from) || Array.isArray(to)) {
     if (Array.isArray(from) && Array.isArray(to) && pathsCompatible(from, to)) {
       return interpolatePath(from, to, t);
@@ -461,8 +387,7 @@ export function interpolateProp(
   return lerp((from as number) ?? 0, (to as number) ?? 0, t);
 }
 
-// An ImageViewBox {x,y,width,height} — distinguished from gradients (carry
-// `stops`), filters (carry a `type`), and paths (arrays) by having neither.
+// Neither `stops` (gradient), `type` (filter), nor an array (path).
 export function isViewBox(v: PropValue | null): v is ImageViewBox {
   return (
     !!v &&
@@ -474,7 +399,7 @@ export function isViewBox(v: PropValue | null): v is ImageViewBox {
   );
 }
 
-// --- filters ----------------------------------------------------------------
+// --- filters ---
 
 const FILTER_TYPES = new Set<string>([
   "blur",
@@ -489,8 +414,7 @@ const FILTER_TYPES = new Set<string>([
   "hue-rotate",
 ]);
 
-// Distinguish a FilterOp[] from a PathCommand[] (both are arrays) by the first
-// element's tag — filter names are words, path commands are single letters.
+// Filter names are words, path commands single letters.
 export function isFilterList(v: PropValue | null): v is FilterOp[] {
   return (
     Array.isArray(v) &&
@@ -500,15 +424,13 @@ export function isFilterList(v: PropValue | null): v is FilterOp[] {
   );
 }
 
-// Same length and same function at each position (so ops pair up index-for-index).
 export function filtersCompatible(a: FilterOp[], b: FilterOp[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i].type !== b[i].type) return false;
   return true;
 }
 
-// Per-op numeric lerp. Caller guarantees compatibility. Returns a fresh list;
-// never mutates (base snapshots stay immutable).
+// Returns a fresh list; base snapshots stay immutable.
 function interpolateFilter(
   a: FilterOp[],
   b: FilterOp[],
@@ -527,16 +449,13 @@ function interpolateFilter(
         blur: lerp(fa.blur, fb.blur, t),
         color: interpolateColor(fa.color, fb.color, t),
       };
-      // box-shadow extras only when present (a plain `filter: drop-shadow` keeps
-      // its exact shape). spread lerps; inset is discrete (holds the departing
-      // state — a shadow never smoothly crosses from outer to inset).
+      // spread lerps; inset is discrete (holds the departing state).
       if (fa.spread !== undefined || fb.spread !== undefined)
         out.spread = lerp(fa.spread ?? 0, fb.spread ?? 0, t);
       if (fa.inset !== undefined || fb.inset !== undefined)
         out.inset = fa.inset;
       return out;
     }
-    // Color-adjust functions (matched types): lerp the scalar amount.
     return {
       type: fa.type,
       amount: lerp(
@@ -548,23 +467,19 @@ function interpolateFilter(
   });
 }
 
-// --- gradients --------------------------------------------------------------
+// --- gradients ---
 
-// Two gradients interpolate only when they paint the same way: same type and
-// same stop count (so stops pair up index-for-index).
+// Same type and stop count so stops pair index-for-index.
 export function gradientsCompatible(a: GradientData, b: GradientData): boolean {
   if (a.type !== b.type || a.stops.length !== b.stops.length) return false;
-  // The repeating flag is a discrete paint mode, not an interpolable value — a
-  // mismatch replaces rather than morphs (the registry's gradient contract).
+  // repeating is a discrete paint mode: mismatch replaces.
   if (!!a.repeating !== !!b.repeating) return false;
-  // Same for the interpolation space: it decides how the ramp between stops is
-  // realized, so a mismatch would flip the whole ramp partway through a morph.
+  // So is the interpolation space.
   if (
     a.interpolate?.space !== b.interpolate?.space ||
     a.interpolate?.hue !== b.interpolate?.hue
   )
     return false;
-  // Explicit geometry must be present on both (or neither) so fields pair up.
   if (a.type === "linear-gradient" && b.type === "linear-gradient") {
     return !!a.from === !!b.from && !!a.to === !!b.to;
   }
@@ -586,8 +501,7 @@ const lerpPt = (
   y: lerp(a.y, b.y, t),
 });
 
-// Lerp each stop's offset and color (and the linear angle / explicit geometry).
-// Caller guarantees compatibility. Returns a fresh GradientData; never mutates.
+// Returns a fresh GradientData; never mutates.
 export function interpolateGradient(
   a: GradientData,
   b: GradientData,
@@ -631,21 +545,17 @@ export function interpolateGradient(
   };
 }
 
-// --- paths ------------------------------------------------------------------
+// --- paths ---
 
-// Two paths morph only when their command sequences match exactly: same length
-// and same command letter at every index (so numeric args pair up).
+// Morph only when command letters match at every index.
 export function pathsCompatible(a: PathCommand[], b: PathCommand[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i].type !== b[i].type) return false;
   return true;
 }
 
-// Interpolate every numeric argument of each command pairwise. Boolean flags
-// (arc largeArc/sweep) step to the departing value. Caller guarantees the
-// sequences match. Allocates a fresh command list per call.
-// NOTE: path morph isn't a many-instance hot path, so we allocate rather
-// than thread a per-node scratch buffer through the registry's apply signature.
+// Arc flags step to the departing value.
+// NOTE: allocates per call; path morph isn't a many-instance hot path.
 export function interpolatePath(
   a: PathCommand[],
   b: PathCommand[],
@@ -666,15 +576,7 @@ export function interpolatePath(
   return out;
 }
 
-/**
- * Interpolate between two colors.
- *
- * Space follows CSS Color 4: a pair of legacy sRGB colors (hex, named, rgb())
- * interpolates in sRGB, anything else in Oklab. Since oklab()/oklch() survive
- * the build as `oklab(...)` text (see scene/color.ts), the spelling of either
- * endpoint is enough to decide, and scenes that never opt in never leave the
- * hex/rgb fast path.
- */
+// CSS Color 4: legacy sRGB pairs lerp in sRGB, anything with an oklab() endpoint in Oklab.
 export function interpolateColor(
   color1: string,
   color2: string,

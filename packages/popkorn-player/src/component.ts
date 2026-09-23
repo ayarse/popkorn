@@ -19,21 +19,18 @@ import type {
   Transform,
 } from "./scene/types.js";
 
-/** One keyframe stop for the timeline UI: its offset, a short display string
- * for the endpoint value, and the per-keyframe easing (transition FROM here). */
+/** One keyframe stop for the timeline UI; `easing` is the transition FROM here. */
 export interface TimelineKeyframe {
   offset: number; // 0..1
   value: string;
   easing?: TimingFunction;
 }
 
-/** One animated property within an animation, with its keyed stops. */
 export interface TimelineAnimationProperty {
   property: string;
   keyframes: TimelineKeyframe[];
 }
 
-/** One `@keyframes` instance bound to a node, flattened for the timeline UI. */
 export interface TimelineAnimation {
   name: string;
   delay: number; // ms (may be negative)
@@ -42,35 +39,29 @@ export interface TimelineAnimation {
   timingFunction: TimingFunction; // animation-level easing (plain union, as-is)
   direction: AnimationDirection;
   fillMode: AnimationFillMode;
-  // The selector of the rule that declared this animation, e.g. `#btn`,
-  // `.spark`, or `#btn:state(on)` / `#btn:state(door.open)`. Round-trips back
-  // into retimeAnimation as its `selector` argument.
+  // Declaring rule's selector (e.g. `#btn:state(door.open)`); round-trips into retimeAnimation.
   ruleSelector: string;
-  // Set only for animations declared inside a machine `&:state(...)` block;
   // `machine` is null for an un-namespaced `:state(name)`.
   state?: { machine: string | null; state: string };
   properties: TimelineAnimationProperty[];
 }
 
-/** A scene node that carries animations, plus its label. */
 export interface TimelineTrack {
   nodeName: string;
   animations: TimelineAnimation[];
 }
 
-/** A CSS-ish selector label for a node: `.class`, `#id`, or `root`. */
 function nodeLabel(node: SceneNode): string {
   if (node.className) return `.${node.className}`;
   return node.id === "root" ? "root" : `#${node.id}`;
 }
 
-/** Trim a number to a short display string (integers as-is, else ≤3 decimals). */
+/** Integers as-is, else ≤3 decimals. */
 function formatNumber(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
 }
 
-/** Compact one-line summary of a Transform's non-default channels, e.g.
- * `x 20, rot 45°`. Empty (all defaults) reads as `none`. */
+/** Non-default Transform channels, e.g. `x 20, rot 45°`; all defaults read `none`. */
 function formatTransform(t: Transform): string {
   const parts: string[] = [];
   if (t.translateX) parts.push(`x ${formatNumber(t.translateX)}`);
@@ -87,25 +78,19 @@ function formatTransform(t: Transform): string {
   return parts.length ? parts.join(", ") : "none";
 }
 
-/** Short display string for a keyframe's {@link AnimatableValue}: number →
- * trimmed number, string passes through, Transform → compact channel summary,
- * gradient/path/filter → a bare type tag. */
 export function formatAnimatableValue(v: AnimatableValue): string {
   if (typeof v === "number") return formatNumber(v);
   if (typeof v === "string") return v;
   if (Array.isArray(v)) {
-    // PathCommand `type`s are single letters (M/L/C/…); FilterOp `type`s are words.
     const first = v[0] as { type?: string } | undefined;
     return first && /^[A-Za-z]$/.test(first.type ?? "") ? "path" : "filter";
   }
-  // Object: a GradientData (its `type` ends in `-gradient`) or a Transform
-  // (which has no `type` field).
+  // GradientData (`type` ends in `-gradient`) or a Transform (no `type`).
   if ("type" in v && typeof v.type === "string" && v.type.endsWith("gradient"))
     return "gradient";
   return formatTransform(v as Transform);
 }
 
-/** Flatten one animation instance into its serializable timeline shape. */
 function toTimelineAnimation(
   a: AnimationInstance,
   ruleSelector: string,
@@ -115,14 +100,12 @@ function toTimelineAnimation(
     name: a.name,
     delay: a.delay,
     duration: a.duration,
-    // Infinite counts stay Infinity; callers cap it at scene duration.
+    // Infinity stays; callers cap it at scene duration.
     iterationCount: a.iterationCount,
     timingFunction: a.timingFunction,
     direction: a.direction,
     fillMode: a.fillMode,
     ruleSelector,
-    // One timeline row per animated property: the scene's keyframe tracks are
-    // already grouped and sorted that way.
     properties: a.tracks.map((track) => ({
       property: track.property,
       keyframes: track.stops.map((s) => {
@@ -139,57 +122,27 @@ function toTimelineAnimation(
   return anim;
 }
 
-/**
- * PopkornPlayer Web Component
- *
- * Usage — `src` is a URL to fetch (http(s), relative, `data:`, `blob:`):
- * ```html
- * <popkorn-player
- *   src="scene.css"
- *   loop
- *   controls
- *   fit="contain"
- *   background="#1a1a2e"
- * ></popkorn-player>
- * ```
- *
- * Or set the DSL source *text* directly (the inline channel — not a URL):
- * ```js
- * const player = document.querySelector('popkorn-player');
- * player.source = myDslCode;
- * ```
- *
- * The player is responsive: the canvas fills the host, whose default size comes
- * from the scene's `:root` aspect ratio but can be constrained by the parent.
- */
-// Degrade the base class to an inert stub when there's no DOM (RN, bun tests),
-// so importing the package barrel stays headless-safe; it's the real HTMLElement
-// in a browser. The class is only ever instantiated by `customElements`, which
-// only exists where HTMLElement does.
+// Inert stub base class when there's no DOM (RN, bun tests) so the barrel import stays headless-safe.
 const HTMLElementBase: typeof HTMLElement =
   typeof HTMLElement !== "undefined"
     ? HTMLElement
     : (class {} as unknown as typeof HTMLElement);
 
+// <popkorn-player src="scene.css" loop controls fit="contain">; set `.source` for inline DSL text.
 export class PopkornPlayer extends HTMLElementBase {
   private canvas: HTMLCanvasElement;
-  // Live SVG surface, created lazily when renderer="svg" (default is canvas).
+  // Created lazily when renderer="svg".
   private svg: SVGSVGElement | null = null;
-  // The live backend instance. Deliberately NOT named `renderer`: that name is
-  // the public attribute/property, and a field of the same name silently
-  // swallows an embedder's `el.renderer = 'svg'` (React sets custom-element
-  // props as properties) before init ever reads it.
+  // Not named `renderer`: a same-named field would swallow React's `el.renderer = 'svg'` prop write.
   private backend: Canvas2DRenderer | SVGRenderer | null = null;
   private useSvg = false;
   private renderLoop: RenderLoop | null = null;
   private scheduler: AnimationScheduler | null = null;
   private _source: string = "";
-  // Bumped on every load request (a src fetch or a .source set). A fetch that
-  // resolves with a stale token has been superseded and must not clobber the
-  // newer load.
+  // Bumped per load request; a fetch resolving with a stale token is dropped.
   private _loadToken = 0;
 
-  // Intrinsic scene size (from `:root`, falling back to width/height attrs).
+  // From `:root`, falling back to width/height attrs.
   private sceneWidth: number = 400;
   private sceneHeight: number = 300;
 
@@ -197,14 +150,13 @@ export class PopkornPlayer extends HTMLElementBase {
   private _resizeRaf: number | null = null;
   private _lastSize: { bw: number; bh: number; dpr: number } | null = null;
 
-  // Controls UI (shadow DOM).
   private controlsEl: HTMLDivElement;
   private playBtn: HTMLButtonElement;
   private scrub: HTMLInputElement;
   private timeEl: HTMLSpanElement;
   private scrubbing = false;
   private wasPlaying = false;
-  // Last cursor written to the render surface, so we only touch the DOM on change.
+  // Last cursor written, so the DOM is touched only on change.
   private _lastCursor = "";
 
   static get observedAttributes() {
@@ -226,7 +178,6 @@ export class PopkornPlayer extends HTMLElementBase {
 
     const shadow = this.attachShadow({ mode: "open" });
 
-    // Canvas fills the host; the ResizeObserver drives its backing store.
     this.canvas = document.createElement("canvas");
 
     const style = document.createElement("style");
@@ -289,7 +240,6 @@ export class PopkornPlayer extends HTMLElementBase {
       }
     `;
 
-    // Build the controls overlay (hidden unless the `controls` attr is set).
     this.controlsEl = document.createElement("div");
     this.controlsEl.className = "pc-controls";
 
@@ -317,11 +267,8 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   connectedCallback() {
-    // Responsive: repaint + resize the backing store whenever the host resizes.
     if (typeof ResizeObserver !== "undefined") {
-      // Coalesce bursts (splitter drags fire per pointermove) into one
-      // resize+repaint per frame — syncSize reallocs the backing store and
-      // repaints the whole scene, which janks on large scenes if run per tick.
+      // Coalesce resize bursts (splitter drags) into one realloc + repaint per frame.
       this.resizeObserver = new ResizeObserver(() => {
         if (this._resizeRaf !== null) return;
         this._resizeRaf = requestAnimationFrame(() => {
@@ -353,9 +300,7 @@ export class PopkornPlayer extends HTMLElementBase {
     oldValue: string | null,
     newValue: string | null,
   ) {
-    // setAttribute fires this even when the value is unchanged, and a framework
-    // that re-asserts props each render does exactly that. Rebuilding the scene
-    // on a no-op write would discard machine state and in-flight interaction.
+    // Skip no-op attribute writes: a rebuild would discard machine and interaction state.
     if (oldValue === newValue) return;
     switch (name) {
       case "src":
@@ -365,7 +310,7 @@ export class PopkornPlayer extends HTMLElementBase {
         break;
       case "width":
       case "height":
-        // Only a fallback scene size (used when there's no :root stage config); re-fit.
+        // Fallback scene size (no :root stage config); re-fit.
         this.syncSize();
         break;
       case "background":
@@ -383,9 +328,7 @@ export class PopkornPlayer extends HTMLElementBase {
         this.syncSize();
         break;
       case "renderer": {
-        // Swapping the backend rebuilds the surface and the loop, so re-init —
-        // restoring the timeline position and play state, since a backend swap
-        // shouldn't look like a replay.
+        // Backend swap re-inits, restoring timeline position and play state.
         if (!this.renderLoop) break; // not initialized yet; init will read it
         const t = this.currentTime;
         const wasPaused = this.paused;
@@ -395,15 +338,11 @@ export class PopkornPlayer extends HTMLElementBase {
         });
         break;
       }
-      // `autoplay` only affects the initial start, handled in initializePlayer.
+      // `autoplay` only affects the initial start.
     }
   }
 
-  /**
-   * Rendering backend: `"canvas"` (default) or `"svg"`. Reflects the attribute,
-   * so assigning the property (how React passes props to custom elements) also
-   * takes effect.
-   */
+  /** `"canvas"` (default) or `"svg"`; reflected so React's property writes take effect. */
   get renderer(): string | null {
     return this.getAttribute("renderer");
   }
@@ -413,9 +352,6 @@ export class PopkornPlayer extends HTMLElementBase {
     else this.setAttribute("renderer", value);
   }
 
-  /**
-   * Get or set the DSL source code
-   */
   get source(): string {
     return this._source;
   }
@@ -428,11 +364,7 @@ export class PopkornPlayer extends HTMLElementBase {
     }
   }
 
-  /**
-   * The `src` URL to load DSL source from. Reflects the attribute. Accepts any
-   * URL `fetch()` understands — http(s), relative, `data:`, `blob:`. For inline
-   * DSL *text*, set `.source` instead (that's the raw-text channel).
-   */
+  /** Any URL `fetch()` understands; for inline DSL text set `.source`. */
   get src(): string | null {
     return this.getAttribute("src");
   }
@@ -442,7 +374,6 @@ export class PopkornPlayer extends HTMLElementBase {
     else this.setAttribute("src", value);
   }
 
-  /** Fetch DSL source from a URL and load it, guarding against stale fetches. */
   private async loadFromUrl(url: string): Promise<void> {
     const token = ++this._loadToken;
     try {
@@ -461,9 +392,6 @@ export class PopkornPlayer extends HTMLElementBase {
     }
   }
 
-  /**
-   * Get the canvas width
-   */
   get width(): number {
     return this.canvas.width;
   }
@@ -472,9 +400,6 @@ export class PopkornPlayer extends HTMLElementBase {
     this.setAttribute("width", String(value));
   }
 
-  /**
-   * Get the canvas height
-   */
   get height(): number {
     return this.canvas.height;
   }
@@ -483,9 +408,6 @@ export class PopkornPlayer extends HTMLElementBase {
     this.setAttribute("height", String(value));
   }
 
-  /**
-   * Get or set the background color
-   */
   get background(): string | null {
     return this.getAttribute("background");
   }
@@ -498,7 +420,6 @@ export class PopkornPlayer extends HTMLElementBase {
     }
   }
 
-  /** Whether the timeline loops. */
   get loop(): boolean {
     return this.boolAttr("loop");
   }
@@ -508,7 +429,6 @@ export class PopkornPlayer extends HTMLElementBase {
     else this.removeAttribute("loop");
   }
 
-  /** Whether the controls overlay is shown. */
   get controls(): boolean {
     return this.boolAttr("controls");
   }
@@ -518,12 +438,7 @@ export class PopkornPlayer extends HTMLElementBase {
     else this.removeAttribute("controls");
   }
 
-  /**
-   * Whether playback auto-starts. DEVIATION from the HTML-media convention:
-   * default is TRUE — an absent `autoplay` attribute means autoplay unless it is
-   * explicitly `autoplay="false"`. This preserves the historical auto-start
-   * behavior (back-compat wins over the HTML boolean-attribute norm).
-   */
+  /** Default TRUE, unlike HTML media: only `autoplay="false"` disables it. */
   get autoplay(): boolean {
     return this.getAttribute("autoplay") !== "false";
   }
@@ -532,7 +447,7 @@ export class PopkornPlayer extends HTMLElementBase {
     this.setAttribute("autoplay", value ? "true" : "false");
   }
 
-  /** How the scene is fitted into the host (contain | cover | fill | none). */
+  /** contain | cover | fill | none */
   get fit(): FitMode {
     const v = this.getAttribute("fit");
     return v === "cover" || v === "fill" || v === "none" ? v : "contain";
@@ -542,65 +457,42 @@ export class PopkornPlayer extends HTMLElementBase {
     this.setAttribute("fit", value);
   }
 
-  /**
-   * Start playback
-   */
   play(): void {
     if (this.renderLoop) {
       this.renderLoop.start();
     }
   }
 
-  /**
-   * Stop playback
-   */
   stop(): void {
     if (this.renderLoop) {
       this.renderLoop.stop();
     }
   }
 
-  /**
-   * Reset animations to initial state
-   */
   reset(): void {
     if (this.renderLoop) {
       this.renderLoop.reset();
     }
   }
 
-  /**
-   * Freeze the timeline (interaction stays live).
-   */
+  /** Freeze the timeline (interaction stays live). */
   pause(): void {
     this.renderLoop?.pause();
   }
 
-  /**
-   * Resume the timeline from where it was paused.
-   */
   resume(): void {
     this.renderLoop?.resume();
   }
 
-  /**
-   * Jump to a timeline position in milliseconds and render it, even while paused.
-   */
+  /** Jump to `ms` and render it, even while paused. */
   seek(ms: number): void {
     this.renderLoop?.seek(ms);
   }
 
-  // --- Host variable API (state-machine inputs) ------------------------------
-  // Set before the scene loads is remembered and applied on init; fire/get
-  // before load no-op / return undefined (a momentary trigger has no meaning
-  // without a running loop), matching how seek() tolerates the not-loaded case.
+  // --- Host variable API: sets before load are replayed on init; fire/get no-op until loaded ---
   private pendingVariables: Map<string, number | boolean | string> = new Map();
 
-  /**
-   * Set an author-declared `--variable` from the host. Numbers/booleans feed
-   * numeric bindings and state-machine inputs; a string is treated as a color
-   * (for a `fill: var(--x)` / `stroke: var(--x)` paint binding).
-   */
+  /** Numbers/booleans feed bindings and machine inputs; a string is a paint color. */
   setVariable(name: string, value: number | boolean | string): void {
     const resolver = this.renderLoop?.getVariableResolver();
     if (resolver) {
@@ -611,17 +503,11 @@ export class PopkornPlayer extends HTMLElementBase {
     }
   }
 
-  /** Read an author-declared `--variable`'s current value (undefined if unknown). */
   getVariable(name: string): number | boolean | string | undefined {
     return this.renderLoop?.getVariableResolver().getVariable(name);
   }
 
-  /**
-   * Fire an event into the scene. If `name` resolves to an author-declared
-   * `trigger` variable it is fired as one (reads `true` for one frame); any
-   * other name is enqueued as a machine `on event(name)` occurrence. This one
-   * method covers both `--tap` trigger vars and opaque host event names.
-   */
+  /** A `trigger` variable fires for one frame; any other name is a machine `on event(name)`. */
   fire(name: string): void {
     if (!this.renderLoop) return;
     const resolver = this.renderLoop.getVariableResolver();
@@ -632,30 +518,20 @@ export class PopkornPlayer extends HTMLElementBase {
     }
   }
 
-  /**
-   * Current timeline position in milliseconds.
-   */
   get currentTime(): number {
     return this.renderLoop?.currentTime ?? 0;
   }
 
-  /** Scene duration in milliseconds (0 when the scene has no animations). */
+  /** 0 when the scene has no animations. */
   get duration(): number {
     return this.renderLoop?.duration ?? 0;
   }
 
-  /** Whether the timeline is currently frozen. */
   get paused(): boolean {
     return this.renderLoop?.paused ?? true;
   }
 
-  /**
-   * A plain, serializable snapshot of the animated nodes for an external
-   * timeline UI (After Effects–style track rows). Walks the scene graph and
-   * returns one entry per node that carries animations — node label plus each
-   * animation's timing (delay/duration/iterations) and per-property keyframe
-   * offsets. No scene internals leak; it's a copy safe to hold across frames.
-   */
+  /** Serializable per-node animation snapshot for an external timeline UI. */
   getTimelineTracks(): TimelineTrack[] {
     const root = this.renderLoop?.getScene();
     if (!root) return [];
@@ -664,11 +540,9 @@ export class PopkornPlayer extends HTMLElementBase {
     const walk = (node: SceneNode): void => {
       const label = nodeLabel(node);
       const animations: TimelineAnimation[] = [];
-      // Base animations declared on the node itself.
       for (const a of node.animations)
         animations.push(toTimelineAnimation(a, label));
-      // Machine `:state()`-scoped animations, tagged with the owning state and
-      // a `<label>:state(name)` / `<label>:state(machine.name)` selector.
+      // Machine `:state()`-scoped animations, tagged with state and selector.
       for (const ss of node.stateStyles) {
         const scoped = ss.machine ? `${ss.machine}.${ss.name}` : ss.name;
         const selector = `${label}:state(${scoped})`;
@@ -688,13 +562,7 @@ export class PopkornPlayer extends HTMLElementBase {
     return tracks;
   }
 
-  /**
-   * A serializable snapshot of every `@machine`'s current state and the global
-   * timeline ms at which it was entered. The timeline UI uses this to position
-   * active-state animation bars (entryTime + delay) and dim inactive-state
-   * rows; refresh it on the `statechange` event. Empty when the scene has no
-   * machines or isn't loaded.
-   */
+  /** Each machine's current state and entry time (ms); refresh on `statechange`. */
   getMachineStates(): { machine: string; state: string; entryTime: number }[] {
     return this.renderLoop?.getStateMachineRunner().snapshot() ?? [];
   }
@@ -705,9 +573,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 
   private async initializePlayer(): Promise<void> {
-    // Stop any existing loop
     this.stop();
-    // Detach the outgoing loop's input listeners before it's replaced below.
     this.renderLoop?.getInputTracker().detach();
 
     if (!this._source) {
@@ -717,7 +583,6 @@ export class PopkornPlayer extends HTMLElementBase {
     try {
       const ast = parse(this._source);
 
-      // Intrinsic scene size: `:root` wins, else the width/height attrs.
       this.sceneWidth =
         ast.canvas?.width ?? parseInt(this.getAttribute("width") || "400", 10);
       this.sceneHeight =
@@ -733,9 +598,7 @@ export class PopkornPlayer extends HTMLElementBase {
 
       const sceneRoot = buildSceneGraph(ast);
 
-      // Backend: canvas (default) or a retained SVG surface (renderer="svg").
-      // The viewport handling below is identical for both — the fit/DPR matrix
-      // is folded into the transforms the loop hands the renderer.
+      // The fit/DPR viewport folds into loop transforms, so both backends share it.
       this.useSvg = this.getAttribute("renderer") === "svg";
       const surface = this.useSvg ? this.ensureSvg() : this.canvas;
       this.canvas.style.display = this.useSvg ? "none" : "block";
@@ -743,24 +606,20 @@ export class PopkornPlayer extends HTMLElementBase {
       this.backend = this.useSvg
         ? new SVGRenderer(this.svg!)
         : new Canvas2DRenderer(this.canvas);
-      // Fresh renderer surface must be sized even if the element size didn't change.
       this._lastSize = null;
       this.scheduler = new AnimationScheduler();
 
       this.renderLoop = new RenderLoop(this.backend, this.scheduler);
       this.renderLoop.setScene(sceneRoot);
       this.renderLoop.setSceneSize(this.sceneWidth, this.sceneHeight);
-      // Artboard clipping defaults to on (crop to the stage box, like an AE
-      // comp); `:root { overflow: visible }` opts out.
+      // Artboard clipping on by default; `:root { overflow: visible }` opts out.
       this.renderLoop.setClip(ast.canvas?.overflow !== "visible");
       this.renderLoop.setLoop(this.boolAttr("loop"));
       this.renderLoop.setFrameCallback((t) => this.onFrame(t));
-      // Non-looping timeline reached its end -> notify the host once (Lottie's
-      // `complete`). Looping/state-machine scenes never fire it.
+      // Non-looping end -> `complete` once; looping/machine scenes never fire it.
       this.renderLoop.setCompleteCallback(() => {
         this.dispatchEvent(new CustomEvent("popkorn:complete"));
       });
-      // Machine transitions/emits -> DOM events for the host.
       this.renderLoop.setMachineEventCallback((o) => {
         if (o.type === "statechange") {
           this.dispatchEvent(
@@ -776,13 +635,12 @@ export class PopkornPlayer extends HTMLElementBase {
           );
         }
       });
-      // Pointer click edges (press+release on the same node) -> a DOM event for
-      // the host; fires for every scene, machines or not.
+      // Click = press+release on the same node; fires with or without machines.
       this.renderLoop.setClickCallback((detail: ClickDetail) => {
         this.dispatchEvent(new CustomEvent("popkorn:click", { detail }));
       });
 
-      // Background: explicit attr wins, else the authored `:root` background.
+      // Explicit attr wins, else the authored `:root` background.
       const bg =
         this.getAttribute("background") ?? ast.canvas?.background ?? null;
       if (bg) {
@@ -792,23 +650,18 @@ export class PopkornPlayer extends HTMLElementBase {
       const variableResolver = this.renderLoop.getVariableResolver();
       variableResolver.setVariables(ast.variables);
 
-      // Apply any host setVariable() calls made before the scene loaded.
+      // Replay setVariable() calls made before load.
       for (const [name, value] of this.pendingVariables) {
         variableResolver.setVariable(name, value);
       }
       this.pendingVariables.clear();
 
-      // Input stays on the active surface; the inverse-viewport path in
-      // InputTracker works unchanged for either element (only getBoundingClientRect
-      // + pointer listeners, both present on canvas and svg).
       const inputTracker = this.renderLoop.getInputTracker();
       inputTracker.attach(surface as HTMLCanvasElement);
 
-      // Size the backing store and compute the fit viewport before first paint.
       this.syncSize();
 
-      // Autoplay default TRUE (see the `autoplay` getter). When off, keep the
-      // loop running so interaction stays live but freeze the timeline at 0.
+      // Autoplay off: the loop still runs for interaction, timeline frozen at 0.
       this.renderLoop.start();
       if (!this.autoplay) {
         this.renderLoop.pause();
@@ -829,25 +682,20 @@ export class PopkornPlayer extends HTMLElementBase {
     }
   }
 
-  /** Lazily create the SVG surface and append it into the shadow root. */
   private ensureSvg(): SVGSVGElement {
     if (!this.svg) {
       this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      // Insert before the controls overlay so the overlay stays on top.
+      // Before the controls overlay so the overlay stays on top.
       this.shadowRoot!.insertBefore(this.svg, this.controlsEl);
     }
     return this.svg;
   }
 
-  /**
-   * Match the render surface's backing store to the host element × devicePixelRatio
-   * and recompute the fit viewport (shared with the render root and input mapping).
-   */
+  /** Backing store = surface size × DPR; recomputes the fit viewport shared with input mapping. */
   private syncSize(): void {
     if (!this.renderLoop) return;
 
-    // Measure the active render surface (which is inset above the controls bar),
-    // not the host, so the fit viewport matches the real drawable area.
+    // Measure the surface (inset above the controls bar), not the host.
     const surface: Element = this.useSvg && this.svg ? this.svg : this.canvas;
     const rect = surface.getBoundingClientRect();
     const elemW = rect.width || this.sceneWidth;
@@ -856,13 +704,10 @@ export class PopkornPlayer extends HTMLElementBase {
 
     const bw = Math.max(1, Math.round(elemW * dpr));
     const bh = Math.max(1, Math.round(elemH * dpr));
-    // No-op resizes (observer fires without a real size change) skip the
-    // backing-store realloc + full repaint entirely.
+    // Observer fires without a real size change; skip the realloc + repaint.
     const last = this._lastSize;
     if (last && last.bw === bw && last.bh === bh && last.dpr === dpr) return;
     this._lastSize = { bw, bh, dpr };
-    // Both backends work in the same device-px space (viewport folds in DPR/fit);
-    // each backend's resize() sizes its own surface (canvas w/h vs SVG viewBox).
     this.backend?.resize(bw, bh);
 
     const vp = computeViewport(
@@ -876,11 +721,11 @@ export class PopkornPlayer extends HTMLElementBase {
     this.renderLoop.setViewport(viewportMatrix(vp));
     this.renderLoop.getInputTracker().setViewport(vp, dpr);
 
-    // While running, the next rAF frame repaints; when paused/stopped, force one.
+    // Paused/stopped: force a repaint; running loops repaint next frame.
     if (!this.renderLoop.running) this.renderLoop.redraw();
   }
 
-  // --- Controls --------------------------------------------------------------
+  // --- Controls ---
 
   private togglePlay(): void {
     if (!this.renderLoop) return;
@@ -906,39 +751,31 @@ export class PopkornPlayer extends HTMLElementBase {
     this.playBtn.textContent = this.paused ? "▶" : "❚❚";
   }
 
-  /** Per-frame tick from the loop: advance the scrubber + readout (unless dragging). */
+  /** Per-frame tick: advances the scrubber + readout unless dragging. */
   private onFrame(t: number): void {
-    // Notify the host every frame (drives external timelines/scrubbers), even
-    // when the built-in controls bar is hidden.
+    // Fires every frame even with controls hidden (drives external timelines).
     const d = this.duration;
     this.dispatchEvent(
       new CustomEvent("popkorn:timeupdate", {
         detail: { time: d > 0 ? Math.min(t, d) : 0, duration: d },
       }),
     );
-    // Reflect `cursor: pointer` on the hovered node onto the render surface's CSS
-    // cursor (the per-frame hover node is already resolved by the interaction
-    // manager — no extra hit-test). Only written on change.
+    // Mirror the hovered node's `cursor: pointer`; hover is already resolved by the interaction manager.
     this.syncCursor();
     if (!this.boolAttr("controls")) return;
     if (!this.scrubbing) {
       const d = this.duration;
       const finite = isFinite(d);
-      // The loop clamps the timeline to duration when not looping, but a scene
-      // with no animations (d = 0) still free-runs; clamp the readout/scrubber
-      // so they never exceed the total.
+      // Animation-less scenes (d = 0) free-run; clamp the readout.
       const shown = d > 0 ? Math.min(t, d) : 0;
       if (finite) {
         this.scrub.value = String(shown);
         this.timeEl.textContent = `${formatTime(shown)} / ${formatTime(d)}`;
       }
-      // Unbounded scene: scrub input and time readout are both hidden (see
-      // refreshControls) — nothing to update per frame.
+      // Unbounded: scrubber and readout are hidden.
     }
   }
 
-  /** Set the render surface's CSS cursor to `pointer` while the hovered node
-   *  carries `cursor: pointer`, else clear it. Called per frame; DOM only on change. */
   private syncCursor(): void {
     const hovered = this.renderLoop?.getInteractionManager().getHoveredNode();
     const cursor = hovered?.cursorPointer ? "pointer" : "";
@@ -948,21 +785,16 @@ export class PopkornPlayer extends HTMLElementBase {
     surface.style.cursor = cursor;
   }
 
-  /** Sync the controls bar to the current attr + scene state. */
   private refreshControls(): void {
     const show = this.boolAttr("controls");
     this.controlsEl.style.display = show ? "flex" : "none";
-    // Reserve (or release) the bar's height so the surface doesn't render under
-    // it; re-fit since the surface box just changed.
+    // Reserve the bar's height so the surface doesn't render under it; re-fit.
     this.style.setProperty("--pc-controls-h", show ? "32px" : "0px");
     this.syncSize();
     if (!show) return;
     const d = this.duration;
     const finite = isFinite(d);
-    // An unbounded scene has no endpoint to scrub to or elapsed total to read
-    // against (Rive hides the seeker for state machines the same way; a
-    // livestream/video player does likewise) — reduce the bar to play/pause
-    // only, hiding both the range input and the time readout.
+    // Unbounded scenes have no endpoint: play/pause only (like Rive's state machines).
     this.scrub.style.display = finite ? "" : "none";
     this.timeEl.style.display = finite ? "" : "none";
     this.scrub.max = String(finite ? d : 0);
@@ -974,7 +806,7 @@ export class PopkornPlayer extends HTMLElementBase {
   }
 }
 
-/** Format milliseconds as m:ss.t (minutes:seconds.tenths). */
+/** m:ss.t */
 function formatTime(ms: number): string {
   const totalSeconds = Math.max(0, ms) / 1000;
   const minutes = Math.floor(totalSeconds / 60);
@@ -983,9 +815,6 @@ function formatTime(ms: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
-/**
- * Register the custom element
- */
 export function registerPopkornPlayer(): void {
   if (typeof customElements === "undefined") return;
   if (!customElements.get("popkorn-player")) {
@@ -993,10 +822,7 @@ export function registerPopkornPlayer(): void {
   }
 }
 
-// Auto-register when imported. Guard both `window` and `customElements`
-// separately: RN/Hermes environments (e.g. Expo) can have a `window` global
-// polyfill without `customElements`, and this file is reachable from the
-// barrel import, so the ReferenceError would throw at module load.
+// Guard `customElements` separately: RN/Hermes may polyfill `window` without it.
 if (typeof window !== "undefined" && typeof customElements !== "undefined") {
   registerPopkornPlayer();
 }

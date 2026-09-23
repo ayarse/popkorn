@@ -20,16 +20,14 @@ import { SkiaRenderer } from "./skia-renderer.js";
 
 export type { PopkornViewRef } from "./interop.js";
 
-// SkiaViewApi is a native-injected global (not a package export) — the same seam
-// SkiaPictureView uses internally to push its `picture` prop. We read it off
-// global to drive the view imperatively.
+// SkiaViewApi is a native-injected global, the seam SkiaPictureView uses to push its `picture`.
 const getSkiaViewApi = (): ISkiaViewApi | undefined =>
   (globalThis as unknown as { SkiaViewApi?: ISkiaViewApi }).SkiaViewApi;
 
 export interface PopkornViewProps {
   /** Popkorn DSL source (the `.css` scene). */
   source: string;
-  /** Layout size in px (also the Skia backing size for the PoC — dpr 1). */
+  /** Layout size in px, also the Skia backing size (dpr 1). */
   width: number;
   height: number;
   /** Start the timeline on mount (default true). */
@@ -45,18 +43,8 @@ export interface PopkornViewProps {
 }
 
 /**
- * Renders a Popkorn scene through React Native Skia.
- *
- * The SkiaPictureView mounts once; each frame the RenderLoop paints into a fresh
- * PictureRecorder and the finished SkPicture is pushed to the native view
- * IMPERATIVELY (SkiaViewApi.setJsiProperty + requestRedraw) — never through React
- * state, so React re-renders only when `source`/`width`/`height` change. This is
- * the same seam SkiaPictureView uses internally for its own `picture` prop.
- *
- * Touches feed the shared cursor input state (mapped to scene space), which lights
- * up `click()`/`pointerdown`/`pointerup` machine triggers and `input(cursor.*)`
- * bindings; the `ref` exposes `setVariable`/`getVariable`/`fire` for host-driven
- * state, and `onStateChange`/`onMachineEvent` report transitions back out.
+ * Renders a Popkorn scene through React Native Skia. Each frame's SkPicture is
+ * pushed to the native view imperatively, so React re-renders only on source/size change.
  */
 export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
   function PopkornView(
@@ -74,27 +62,20 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
   ) {
     const viewRef = useRef<SkiaPictureView>(null);
     const loopRef = useRef<RenderLoop | null>(null);
-    // The active viewport (scene<-device inverse) for mapping touches; set with the
-    // scene so a touch handler never reimplements the fit/DPR math.
+    // Active viewport for mapping touches (scene <- device inverse).
     const vpRef = useRef<Viewport | null>(null);
     // Breaks the frame loop's dormancy (see `wake` below) after a touch / host call.
     const pokeRef = useRef<(() => void) | null>(null);
 
-    // Latest event-out handlers, read through refs so changing them never rebuilds
-    // the scene (the loop wires one stable callback that dereferences these).
+    // Event-out handlers read through refs so changing them never rebuilds the scene.
     const onStateChangeRef = useRef(onStateChange);
     const onMachineEventRef = useRef(onMachineEvent);
     onStateChangeRef.current = onStateChange;
     onMachineEventRef.current = onMachineEvent;
 
-    // Freeze the timeline (default) unless the caller is actively playing. `paused`
-    // wins when given; otherwise `autoplay: false` starts paused.
+    // `paused` wins when given; otherwise `autoplay: false` starts paused.
     const wantPaused = paused ?? !autoplay;
 
-    // wantPaused is read for the initial state only; runtime toggles go through
-    // the pause effect below so a pause never rebuilds the scene. Excluding it is
-    // deliberate — adding it would tear down and rebuild the whole scene on every
-    // pause/resume.
     // biome-ignore lint/correctness/useExhaustiveDependencies: wantPaused is init-only; runtime toggles use the pause effect below.
     useEffect(() => {
       const ast = parse(source);
@@ -112,8 +93,7 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
       rl.setViewport(viewportMatrix(vp));
       rl.getVariableResolver().setVariables(ast.variables);
       if (ast.canvas?.background) rl.setBackgroundColor(ast.canvas.background);
-      // Machine transitions/emits -> host props (same detail shapes as the web
-      // component's statechange / machine-event events).
+      // Machine transitions/emits -> host props.
       rl.setMachineEventCallback(
         makeMachineEventCallback(() => ({
           onStateChange: onStateChangeRef.current,
@@ -124,12 +104,10 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
 
       const bounds = Skia.XYWHRect(0, 0, width, height);
       let recorder = Skia.PictureRecorder();
-      // Once the resting frame of a static (one-shot, non-interactive) scene is
-      // delivered we unbind the canvas so further ticks paint and push nothing.
+      // After a static scene's resting frame is delivered the canvas is unbound, so ticks do nothing.
       let settled = false;
 
-      // A PictureRecorder is single-use (finishRecordingAsPicture invalidates it),
-      // so each frame gets a fresh one; the canvas it hands out is what render() paints.
+      // PictureRecorder is single-use, so each frame gets a fresh one.
       const bind = () => {
         recorder = Skia.PictureRecorder();
         renderer.setCanvas(recorder.beginRecording(bounds));
@@ -144,16 +122,10 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
         api.requestRedraw(id);
       };
 
-      // Timeline time of the frame currently frozen on screen while paused; null
-      // when the timeline is live. Lets a paused scene go dormant (the scheduler is
-      // frozen, so every tick would otherwise re-record an identical picture).
+      // Frozen timeline time while paused (null when live), so a paused scene can go dormant.
       let frozenAt: number | null = null;
 
-      // Break dormancy after input: rebind the canvas so the next rAF *live* tick
-      // (which evaluates machines + input edges — redraw() does not) paints and
-      // pushes the result. The rAF loop keeps running while paused, so we only need
-      // to reopen the canvas; we deliberately do NOT redraw() here, which would
-      // re-freeze before the live tick processes the pending pointer/machine event.
+      // Rebind so the next live tick (machines + input edges) paints; redraw() here would re-freeze before it.
       const wake = () => {
         if (settled) {
           settled = false;
@@ -165,10 +137,7 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
       };
       pokeRef.current = wake;
 
-      // If a non-data: image was still decoding when a frame settled/froze,
-      // schedule a wake-up for when it lands — otherwise the view stays
-      // dormant on the blank-image frame until an unrelated touch/host call
-      // happens to poke it.
+      // A non-data: image still decoding at settle/freeze: wake when it lands.
       const wakeWhenImagesSettle = () => {
         if (!renderer.hasPendingImages()) return;
         renderer.whenImagesSettled().then(() => pokeRef.current?.());
@@ -182,8 +151,7 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
         if (isStatic && settled) return;
 
         if (isStatic) {
-          // First settled frame: render() just drew the resting state into `recorder`.
-          // Deliver it, then unbind so subsequent ticks do no paint/JSI work.
+          // First settled frame: deliver it, then unbind.
           push();
           renderer.setCanvas(null);
           settled = true;
@@ -192,16 +160,13 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
         }
 
         if (settled) {
-          // Woke back up: the canvas was unbound so nothing was painted this tick.
-          // Rebind and deliver on the next one.
+          // Woke: canvas was unbound this tick; rebind and deliver next.
           settled = false;
           bind();
           return;
         }
 
-        // Paused (dynamic scene, so isStatic is false): the timeline is frozen.
-        // Deliver one frame at the frozen instant, then unbind and stay dormant
-        // until time moves again (resume/seek) or a touch/host call wakes us.
+        // Paused: deliver one frame at the frozen instant, then stay dormant until time moves or a wake.
         if (rl.paused) {
           const t = rl.currentTime;
           if (frozenAt === t) return; // dormant, nothing changed
@@ -237,13 +202,10 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
         vpRef.current = null;
         pokeRef.current = null;
       };
-      // wantPaused is read for the initial state only; runtime toggles go through
-      // the pause effect below so a pause never rebuilds the scene.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [source, width, height, loop]);
 
-    // Pause/resume without tearing down the loop — the loop keeps its rAF so a
-    // settled frame, touch input, and machine transitions stay live while frozen.
+    // Pause/resume without teardown; rAF keeps running so touches and machines stay live.
     useEffect(() => {
       const rl = loopRef.current;
       if (!rl) return;
@@ -251,9 +213,7 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
       else rl.resume();
     }, [wantPaused]);
 
-    // Host API (setVariable / getVariable / fire). getLoop/wake are read lazily
-    // through refs, so the handle is stable and works regardless of when the loop
-    // is created relative to this commit.
+    // Host API; getLoop/wake read through refs, so the handle is stable.
     useImperativeHandle(
       ref,
       () =>
@@ -264,11 +224,7 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
       [],
     );
 
-    // Touch -> shared cursor input state (scene space). The running loop turns the
-    // isDown edges into click/pointerdown/pointerup machine triggers via its own
-    // hit-tester, and resolves input(cursor.*) bindings; `wake` breaks dormancy so
-    // a frozen scene repaints. hoverstart/hoverend can't fire on touch — that's
-    // what media.hover is for.
+    // Touch -> shared cursor state; the loop derives click/pointer triggers and input(cursor.*). No hover on touch.
     const onTouch = (e: GestureResponderEvent) => {
       const rl = loopRef.current;
       const vp = vpRef.current;
@@ -279,9 +235,7 @@ export const PopkornView = forwardRef<PopkornViewRef, PopkornViewProps>(
       cursor.x = p.x;
       cursor.y = p.y;
       cursor.isDown = true;
-      // Latch the press so a quick tap (grant+release between two frames) still
-      // produces a pointerdown/click edge — the loop samples isDown once per
-      // live frame and would otherwise miss a release that beats the next frame.
+      // Latch the press so a tap released before the next frame still produces an edge.
       cursor.pressed = true;
       pokeRef.current?.();
     };

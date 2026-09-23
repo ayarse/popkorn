@@ -1,5 +1,3 @@
-// AST Type Definitions for the CSS-like DSL
-
 import type { Diagnostic } from "./diagnostics.js";
 
 export interface StyleSheet {
@@ -10,15 +8,11 @@ export interface StyleSheet {
   machines: MachineRule[]; // Interactive state machines (@machine)
   canvas?: CanvasConfig;
   variables: VariableDefinition[];
-  // Position-tracked parse/lint diagnostics (unknown props, bad refs, …). Always
-  // present (possibly empty); not part of the AST *value* — the serializer
-  // ignores it and round-trip equality is checked over the rest of the tree.
+  // Not part of the AST value: the serializer and round-trip equality ignore it.
   diagnostics: Diagnostic[];
 }
 
-// A reusable symbol: `@define <name> { <rule body> }`. The body is the same
-// grammar as a rule body (declarations, > children, &:hover/&:active states);
-// the builder instantiates it wherever a rule declares `use: <name>`.
+// `@define <name> { <rule body> }`, instantiated wherever a rule declares `use: <name>`.
 export interface DefinitionRule {
   type: "definition";
   name: string;
@@ -36,21 +30,13 @@ export interface CanvasConfig {
   width: number;
   height: number;
   background?: string;
-  // Artboard clipping. `hidden` (the default when absent) crops scene content to
-  // the width×height stage box, like an AE comp / Lottie player; `visible` lets
-  // content spill past the edge. Only meaningful on `:root`.
+  // `hidden` (default) crops to the stage box like an AE comp; `visible` lets content spill.
   overflow?: "hidden" | "visible";
 }
 
-// Pseudo-class states for interactive elements. `'state'` is the discriminator
-// for a machine `:state(name)` block; `machineState` then carries the details.
 export type PseudoState = "hover" | "active";
 
-// State-specific style rules. `children` holds `> #id { ... }` rules written
-// inside the state block: they style a parent's direct descendant when the
-// parent enters this interaction state (DSL spelling of `#p:hover > #c {…}`).
-// When `state === 'state'` the block is a machine `&:state(name)` selector and
-// `machineState` is set (machine null = un-namespaced `:state(idle)`).
+// `children` style descendants in this state (`#p:hover > #c`); 'state' = machine `&:state(name)`.
 export interface StateRule {
   state: PseudoState | "state";
   machineState?: { machine: string | null; name: string };
@@ -73,10 +59,7 @@ export interface Selector {
   name: string;
 }
 
-// A half-open character-offset range into the original source, same convention
-// as Diagnostic (start/end). Position metadata, not part of the AST *value* —
-// serialize reformats text so offsets shift, so round-trip value-equality
-// ignores spans exactly as it ignores diagnostics.
+// Half-open source offset range; like diagnostics, ignored by round-trip value equality.
 export interface Span {
   start: number;
   end: number;
@@ -86,10 +69,7 @@ export interface Declaration {
   type: "declaration";
   property: string;
   value: Value;
-  // `span` covers the whole declaration (property through value, excluding the
-  // trailing `;`); `valueSpan` covers just the value text. An aliased/expanded
-  // declaration (e.g. border-radius → rx + ry) shares its source declaration's
-  // spans. Serializer-synthesized declarations carry a zero span.
+  // Excludes the trailing `;`; alias expansions share their source spans, synthesized decls are zero.
   span: Span;
   valueSpan: Span;
 }
@@ -106,7 +86,6 @@ export type Value =
   | CalcValue
   | RandomValue;
 
-// Reference to a CSS variable: var(--name)
 export interface VariableRefValue {
   type: "variable";
   name: string; // e.g., '--cursor-x'
@@ -158,33 +137,22 @@ export interface FunctionValue {
 export interface ListValue {
   type: "list";
   values: Value[];
-  // How the items were written. Absent/'space' is the default (e.g. a multi-part
-  // `transform`); 'comma' marks a CSS comma-separated list (e.g. a multi-value
-  // `animation` shorthand), whose items are themselves usually space-lists.
+  // Absent = 'space'; 'comma' marks a CSS comma list (multi-value `animation`) of space-lists.
   separator?: "space" | "comma";
 }
 
-// CSS calc(): an arithmetic expression tree over numeric operands. The AST stays
-// semantics-free — evaluation (unit propagation, var() resolution) lives in
-// evalCalc, shared by the build-time static fold and the per-frame runtime path.
+// Semantics-free; evalCalc evaluates it for both the build-time fold and the runtime path.
 export interface CalcValue {
   type: "calc";
   expr: CalcExpr;
 }
 
-// CSS Values 5 random(): a FIXED random constant (not a live noise source),
-// rolled once at build time and frozen into the node's base snapshot. The AST is
-// semantics-free — the seeded roll + sharing rules live in the player
-// (scene/random.ts). Grammar:
-//   random( [ per-element || <dashed-ident> ]? , <min> , <max> [ , by <step> ]? )
-// `min`/`max`/`step` carry the (compatible) unit the result inherits.
+// CSS Values 5 random(): a constant rolled once at build time (seeding lives in player scene/random.ts).
 export interface RandomValue {
   type: "random";
-  // Each element/instance rolls independently (mixes the node id into the seed);
-  // otherwise every element sharing the declaration gets the SAME roll.
+  // Roll per element (node id mixed into the seed) instead of once per declaration.
   perElement: boolean;
-  // Optional `<dashed-ident>` (e.g. `--k`): calls sharing the same ident + range
-  // share the roll, letting an author correlate properties or selectors.
+  // `--k`: calls sharing ident + range share one roll.
   ident?: string;
   min: Value;
   max: Value;
@@ -200,14 +168,7 @@ export interface CalcBinary {
   right: CalcExpr;
 }
 
-// CSS math functions. Comparison — clamp() is always 3 args (MIN, VAL, MAX),
-// min()/max() take one or more; stepped — round()/mod()/rem(); trig —
-// sin/cos/tan (angle→number) and asin/acos/atan/atan2 (number→angle in deg);
-// exponential — pow/sqrt/exp/log/hypot; sign — abs/sign. Each argument is a full
-// calc sum, so calc and these compose in both directions. sibling-index()/
-// sibling-count() (CSS Values 5 §10) are structural: they carry no args and can't
-// fold statically (they need the node's position, resolved by the scene builder),
-// so evalCalcFunction returns null for them and the player substitutes the count.
+// sibling-index()/sibling-count() take no args and never fold; the scene builder resolves them.
 export type CalcFunctionName =
   | "min"
   | "max"
@@ -265,11 +226,7 @@ export interface KeyframeBlock {
   span: Span; // whole block: selectors through closing brace
 }
 
-// --- State machines (@machine) -------------------------------------------
-//
-// One `@machine <name> { initial: <s>; state <s> { ... } }` at-rule. Multiple
-// machines run concurrently. The AST is a faithful mirror of the source and
-// knows no runtime semantics — the player owns transition evaluation.
+// --- State machines (@machine): concurrent; the player owns transition semantics ---
 
 export interface MachineRule {
   type: "machine";
@@ -284,8 +241,7 @@ export interface MachineState {
   emits: string[]; // `emit: <name>;` events fired on entry
 }
 
-// A `to: <state> [on <trigger>] [when style(<guard>) [and style(<guard>)]*]
-//  [mix <duration> [<easing>]];` transition.
+// `to: <state> [on <trigger>] [when style(<g>) [and style(<g>)]*] [mix <dur> [<easing>]];`
 export interface MachineTransition {
   to: string;
   trigger: MachineTrigger | null;
@@ -302,8 +258,7 @@ export type MachineTrigger =
   | { kind: "complete" }
   | { kind: "event"; name: string };
 
-// A single flat comparison inside `style(...)`. Time values on the right
-// (`500ms`, `2s`) are normalized to milliseconds.
+// One comparison inside `style(...)`; time right-values are normalized to ms.
 export interface MachineGuard {
   left:
     | { kind: "var"; name: string }
@@ -362,14 +317,7 @@ export interface CalcNumeric {
   unit: string;
 }
 
-/**
- * Evaluate a calc() expression tree. `resolveLeaf` maps each operand Value to a
- * {@link CalcNumeric} (or null when it can't be resolved to a number). Returns
- * null on any unresolvable operand or an unsupported unit combination
- * (unit·unit multiply, divide-by-unit, add/subtract of mismatched units) — the
- * caller keeps the original value in that case. Kept lean on purpose: no full
- * unit-algebra system.
- */
+/** Evaluate a calc() tree; null on an unresolvable leaf or unit mismatch (caller keeps the original). */
 export function evalCalc(
   expr: CalcExpr,
   resolveLeaf: (v: Value) => CalcNumeric | null,
@@ -390,9 +338,7 @@ export function evalCalc(
   return evalCalcBinary(expr.op, l, r);
 }
 
-// Apply one calc binary operator to two already-resolved operands. Extracted so
-// the runtime's compiled-calc path shares the interpreter's exact unit rules
-// (mismatched add/subtract, unit·unit multiply, divide-by-unit all → null).
+// Shared with the runtime's compiled-calc path so both use the same unit rules.
 export function evalCalcBinary(
   op: CalcBinary["op"],
   l: CalcNumeric,
@@ -416,16 +362,14 @@ export function evalCalcBinary(
   }
 }
 
-// The `e` and `pi` constants, usable as bare calc operands. Returns null for
-// any other keyword so the leaf resolvers can fall through.
+// The `e`/`pi` calc constants; null for any other keyword.
 export function calcConstant(name: string): CalcNumeric | null {
   if (name === "pi") return { value: Math.PI, unit: "" };
   if (name === "e") return { value: Math.E, unit: "" };
   return null;
 }
 
-// The agreed unit of a set of operands, mirroring +/-'s rule: every non-unitless
-// operand must match. Returns "" when all are unitless, or null on a conflict.
+// Common unit per +/-'s rule: "" if all unitless, null on a conflict.
 function agreedUnit(args: CalcNumeric[]): string | null {
   let unit = "";
   for (const a of args) {
@@ -446,8 +390,7 @@ function toRadians(n: CalcNumeric): number {
       return (n.value * Math.PI) / 200;
     case "turn":
       return n.value * 2 * Math.PI;
-    // NOTE: "" (unitless) and "rad" are already radians; unknown units are
-    // treated as radians rather than rejected — trig operands are numbers/angles.
+    // NOTE: unknown units are treated as radians rather than rejected.
     default:
       return n.value;
   }
@@ -455,13 +398,7 @@ function toRadians(n: CalcNumeric): number {
 
 const radToDeg = (r: number): number => (r * 180) / Math.PI;
 
-// Evaluate a CSS math function against its already-resolved numeric args. Returns
-// null on an unresolvable unit combination (matching +/-'s conservatism).
-/**
- * Write a math-function result. Callers that run per frame (the compiled-calc
- * VM) pass their own scratch object so the hot path allocates nothing; the
- * interpreter passes none and gets a fresh CalcNumeric.
- */
+// Writes into `out` (the per-frame VM's scratch) when given, else allocates.
 function setNumeric(
   out: CalcNumeric | undefined,
   value: number,
@@ -473,21 +410,18 @@ function setNumeric(
   return out;
 }
 
+// Null on an unresolvable unit combination, matching +/-'s conservatism.
 export function evalCalcFunction(
   expr: CalcFunction,
   args: CalcNumeric[],
   out?: CalcNumeric,
 ): CalcNumeric | null {
-  // Hot path: this runs per compiled-calc OP_FUNC, i.e. millions of times a
-  // second in repeat-heavy reactive scenes. Args are read positionally rather
-  // than mapped into an array so the common 1-2 arg cases allocate nothing;
-  // only the variadic branches (min/max/hypot) materialize one.
+  // Hot path (per compiled-calc OP_FUNC): positional args keep 1-2 arg cases allocation-free.
   const n = args.length;
   const v0 = n > 0 ? args[0].value : 0;
   const v1 = n > 1 ? args[1].value : 0;
   switch (expr.name) {
-    // Structural — resolved against the node's sibling position at build time
-    // (scene/sibling.ts), never here. Unresolvable statically, like a var().
+    // Resolved by the scene builder (scene/sibling.ts), never here.
     case "sibling-index":
     case "sibling-count":
       return null;
@@ -568,8 +502,7 @@ export function evalCalcFunction(
   }
 }
 
-// round(strategy, value, step): quantize `value` to a multiple of `step`. A zero
-// step yields NaN (CSS). "nearest" ties toward +∞, matching Math.round.
+// Zero step yields NaN (CSS); "nearest" ties toward +∞ like Math.round.
 function roundTo(strategy: RoundStrategy, value: number, step: number): number {
   if (step === 0) return NaN;
   const q = value / step;
@@ -592,8 +525,6 @@ export function calcNumericToValue(n: CalcNumeric): Value {
     : { type: "number", value: n.value };
 }
 
-// Fold a calc() whose operands are all literal numbers/lengths (no var/input);
-// returns null when anything can't be resolved statically.
 function staticLeaf(v: Value): CalcNumeric | null {
   if (v.type === "number") return { value: v.value, unit: "" };
   if (v.type === "length") return { value: v.value, unit: v.unit };
@@ -602,8 +533,7 @@ function staticLeaf(v: Value): CalcNumeric | null {
   return null;
 }
 
-/** Statically fold a calc() to a length/number Value, or null if it contains
- * unresolved var()/input() operands (which must resolve at runtime instead). */
+/** Fold a calc() to a Value, or null if var()/input() operands need runtime resolution. */
 export function evalCalcStatic(value: CalcValue): Value | null {
   const n = evalCalc(value.expr, staticLeaf);
   return n ? calcNumericToValue(n) : null;

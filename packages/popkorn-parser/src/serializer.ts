@@ -1,17 +1,4 @@
-/**
- * Serialize a {@link StyleSheet} AST back to Popkorn DSL source.
- *
- * Two modes:
- *  - pretty  (default): 2-space indent, one declaration per line, blank line
- *    between top-level blocks — matches the style of `examples/popkorn/*.css`.
- *  - minify: no comments, no optional whitespace, no trailing `;` before `}`.
- *
- * Both are value-preserving: `parse(serialize(parse(src)))` deep-equals
- * `parse(src)`. Number forms are shortened only where that does not change the
- * parsed value (`1.50`→`1.5`, `2.0`→`2`); colors are emitted verbatim because
- * the AST stores the raw color string and collapsing it (`#ffcc00`→`#fc0`)
- * would make the re-parsed value differ.
- */
+// Value-preserving: parse(serialize(parse(src))) deep-equals parse(src), so colors stay verbatim.
 
 import type {
   CalcExpr,
@@ -35,15 +22,12 @@ import type {
 } from "./ast.js";
 import { crush } from "./crush.js";
 
-// Synthetic declarations exist only to be printed (fmtDecl reads property +
-// value, never the span), so they carry a zero source span.
+// Synthetic declarations are only printed, never located.
 const NO_SPAN: Span = { start: 0, end: 0 };
 
 export interface SerializeOptions {
   minify?: boolean;
-  // Destructive: rename identifiers (ids, classes, @keyframes, @define,
-  // custom properties) to short meaningless names. Implies `minify`. The output
-  // renders identically but is no longer human-readable — see crush().
+  // Destructive short-name rename (see crush()); implies `minify`.
   crush?: boolean;
 }
 
@@ -102,8 +86,7 @@ function fmtValue(v: Value, min: boolean): string {
       return `${v.name}(${v.args.map((a) => fmtValue(a, min)).join(sep)})`;
     }
     case "list": {
-      // Space-separated by default; a 'comma' list (e.g. multi-value `animation`)
-      // rejoins with commas so it round-trips back to distinct groups.
+      // A 'comma' list rejoins with commas so it round-trips to distinct groups.
       const sep = v.separator === "comma" ? (min ? "," : ", ") : " ";
       return v.values.map((a) => fmtValue(a, min)).join(sep);
     }
@@ -120,9 +103,7 @@ function fmtValue(v: Value, min: boolean): string {
   }
 }
 
-// A calc() expression. `+`/`-` always keep surrounding spaces (CSS requires
-// them, even minified); `*`/`/` drop them when minifying. Every binary node is
-// parenthesized so precedence round-trips exactly.
+// `+`/`-` keep spaces even minified (CSS requires them); every binary is parenthesized.
 function fmtCalc(expr: CalcExpr, min: boolean): string {
   if (expr.type === "calc-operand") return fmtValue(expr.value, min);
   if (expr.type === "calc-function") {
@@ -242,8 +223,7 @@ function defineBlock(def: DefinitionRule, min: boolean): string {
   return block(`@define ${def.name}`, def, min, 0);
 }
 
-// `:root` carries stage config (width/height/background) followed by custom
-// properties, so it round-trips back to the same StyleSheet on re-parse.
+// `:root` = stage config then custom properties.
 function rootBlock(
   cfg: CanvasConfig | undefined,
   vars: VariableDefinition[],
@@ -348,10 +328,7 @@ function machineState(s: MachineState, min: boolean): string {
   return `state ${header} {\n${inner}\n}`;
 }
 
-// `<state> [on <trigger>] [when style(<g>) [and style(<g>)]*] [mix <dur> [<easing>]]`.
-// Clauses are space-joined in both modes: keyword boundaries need the whitespace
-// (`to:Xon` would tokenize as one ident), and the round-trip is value-, not
-// byte-preserving.
+// Clauses stay space-joined even minified: `to:Xon` would lex as one ident.
 function transition(t: MachineTransition): string {
   let s = t.to;
   if (t.trigger) s += " on " + trigger(t.trigger);
@@ -381,8 +358,7 @@ function guardOperand(l: MachineGuard["left"]): string {
   return "state-time";
 }
 
-// `state-time` right-values are milliseconds; re-suffix so they read naturally
-// (bare numbers also re-parse identically, so this is cosmetic).
+// Cosmetic ms re-suffix for `state-time`; bare numbers re-parse identically.
 function guardValue(v: number | boolean | string, isTime: boolean): string {
   if (typeof v === "number") return isTime ? num(v) + "ms" : num(v);
   if (typeof v === "boolean") return String(v);

@@ -21,9 +21,7 @@ import {
 
 const SVGNS = "http://www.w3.org/2000/svg";
 
-// Bumped per renderer instance so def ids (gradients/clips/masks) can't collide
-// across rebuilds on the same <svg> (the component builds a fresh renderer per
-// scene). The constructor also clears the surface, so this is belt-and-braces.
+// Per-renderer def-id prefix: url(#id) resolves document-wide, so two SVG players' ids must not collide.
 let rendererBuildSeq = 0;
 
 // --- pure helpers (DOM-free; unit-tested headlessly) -------------------------
@@ -68,11 +66,7 @@ export function pathToD(commands: PathCommand[]): string {
   return d;
 }
 
-/**
- * Matrix3x3 [a,b,tx, c,d,ty, …] -> SVG `matrix(a,b,c,d,e,f)`. Mirrors Canvas's
- * setTransform argument order exactly (a=m0, b=m3, c=m1, d=m4, e=m2, f=m5), so
- * SVG output is pixel-comparable to the Canvas backend.
- */
+/** Matrix3x3 [a,b,tx, c,d,ty, …] -> SVG `matrix(a,b,c,d,e,f)` = (m0, m3, m1, m4, m2, m5). */
 export function matrixToSVG(m: Matrix3x3): string {
   return `matrix(${m[0]},${m[3]},${m[1]},${m[4]},${m[2]},${m[5]})`;
 }
@@ -83,12 +77,7 @@ interface GradientRealized {
   stops: { offset: number; color: string; opacity?: number }[];
 }
 
-/**
- * Map a GradientData descriptor to <linearGradient>/<radialGradient> attributes
- * in userSpaceOnUse (local) coords, using the SAME endpoint math as Canvas's
- * realizeGradient so the two backends realize identical gradients. `rgba()`/hex8
- * stop colors are split into stop-color + stop-opacity for SVG 1.1 compat.
- */
+/** GradientData -> userSpaceOnUse gradient attrs; rgba()/hex8 stops split into stop-color + stop-opacity. */
 export function realizeGradientAttrs(
   g: GradientData,
   b: PaintBox,
@@ -131,23 +120,17 @@ export function realizeGradientAttrs(
       stops,
     };
   }
-  // Conic never reaches here — applyPaint intercepts it with conicFallbackColor
-  // (SVG has no conic primitive). Guard so the union is exhaustive.
+  // Conic is intercepted by applyPaint (conicFallbackColor); guard keeps the union exhaustive.
   throw new Error("SVG has no conic-gradient primitive");
 }
 
-// SVG has no conic-gradient primitive (no <conicGradient>, and userSpaceOnUse
-// radial/linear can't express an angular sweep). Rather than rasterize or fake
-// it with dozens of wedge <path>s, the backend degrades a conic to a flat fill
-// of its middle stop — a DELIBERATE divergence pinned in the conformance test.
-// The middle stop reads as the sweep's "average" hue better than the first.
+// NOTE: SVG has no conic primitive; degrades to a flat fill of the middle stop (pinned divergence).
 export function conicFallbackColor(g: GradientData): string {
   if (g.type !== "conic-gradient" || g.stops.length === 0) return "none";
   return g.stops[Math.floor((g.stops.length - 1) / 2)].color;
 }
 
-/** Diff-set an attribute against a per-element cache; null removes. Testable
- *  with any {setAttribute, removeAttribute} stub. */
+/** Diff-set an attribute against a per-element cache; null removes. */
 export function diffAttr(
   el: {
     setAttribute(n: string, v: string): void;
@@ -177,24 +160,11 @@ function arraysEqual(a: string[], b: string[]): boolean {
 
 // --- track-matte plumbing (DOM-free; unit-tested headlessly) -----------------
 
-/** Filter primitives that a mask-mode filter chains, source-graphic first. */
 export type MaskFilterPrimitive = "luminanceToAlpha" | "invertAlpha";
 
 /**
- * Map a track-matte mode to the SVG <mask> plumbing that reproduces the
- * Canvas2D backend's coverage. All four modes reduce to a `mask-type` plus an
- * optional coverage-flipping filter:
- *
- *  - `alpha`             -> alpha mask, no filter (coverage = source alpha).
- *  - `luminance`         -> luminance mask, no filter (coverage = alpha·luma,
- *                           matching canvas2d's `luminanceToAlpha` pixel pass).
- *  - `alpha-invert`      -> alpha mask + `feFuncA "1 0"` (coverage = 1 − alpha).
- *  - `luminance-invert`  -> alpha mask + `luminanceToAlpha` then `feFuncA "1 0"`
- *                           (coverage = 1 − luma).
- *
- * The inverted filters run over the whole (widened) mask region, so they also
- * paint coverage 1 into the *empty* area — that is what makes an inverted matte
- * show through where the source draws nothing (the classic failure otherwise).
+ * Track-matte mode -> `mask-type` + optional coverage filter. Inverted modes run the
+ * filter over the whole widened region so empty area gets coverage 1 and shows through.
  */
 export function maskModePlumbing(mode: MaskMode): {
   maskType: "alpha" | "luminance";
@@ -212,14 +182,7 @@ export function maskModePlumbing(mode: MaskMode): {
   }
 }
 
-/**
- * Axis-aligned bbox of the device rectangle [0,0,w,h] mapped into a user space
- * by `inv` (the inverse of that space's world matrix). Used to size the
- * `userSpaceOnUse` region of a <mask>/<filter> so it always covers the whole
- * surface regardless of the parent transform — essential for inverted mattes
- * (empty area must fall *inside* the region to receive coverage) and for mask
- * sources larger than their own bbox.
- */
+/** Device rect [0,0,w,h] bbox in the user space `inv` maps to; sizes mask/filter regions to cover the surface. */
 export function deviceRegionInUserSpace(
   inv: Matrix3x3,
   w: number,
@@ -247,9 +210,7 @@ export function deviceRegionInUserSpace(
 
 // --- retained group tree -----------------------------------------------------
 
-// One <g> per scene node (plus a persistent root layer). Shapes drawn by the
-// node are its <g>'s first children; child nodes' <g>s nest after them, so
-// document order = paint order without extra bookkeeping.
+// One <g> per scene node: its shapes first, then child <g>s, so document order = paint order.
 interface GroupEntry {
   key: string;
   g: SVGGElement;
@@ -276,9 +237,7 @@ interface ClipEntry extends DefEntry {
   sig: string;
 }
 
-// A track-matte: a <mask> in defs (holding the source subtree) plus the tree
-// <g> that references it. `container` is the pushed group the mask source draws
-// into; `filterEl` is the coverage-flipping filter for inverted modes (else null).
+// A track-matte: <mask> in defs holding the source `container`, plus an optional inverting `filterEl`.
 interface MaskEntry {
   maskEl: SVGElement; // <mask> in defs
   filterG: SVGElement; // <g> child of <mask>; carries the mode filter, holds container
@@ -289,17 +248,8 @@ interface MaskEntry {
 }
 
 /**
- * Retained, diffing SVG implementation of the Renderer interface. Maintains one
- * <g> per scene node (keyed by the loop's stable beginNode key), reused across
- * frames; each draw diffs its shape element's attributes so only changed values
- * touch the DOM. beginFrame/endFrame run a mark/sweep that removes elements for
- * nodes not visited this frame.
- *
- * Transform model (Approach mirrored from Skia's CTM mirror): the loop hands
- * absolute setTransform + relative transform against a flat CTM stack. We mirror
- * that CTM in JS and set each node's <g> transform to its LOCAL matrix
- * (invert(parentWorld) · ctm), letting the nested <g>s recompose the world the
- * same way Canvas's CTM does — so output stays pixel-comparable.
+ * Retained, diffing SVG backend: one <g> per beginNode key, mark/sweep per frame.
+ * Each <g> carries its LOCAL matrix (invert(parentWorld) · ctm) from the CTM mirror.
  */
 export class SVGRenderer extends PaintStateRenderer implements Renderer {
   private svg: SVGSVGElement;
@@ -319,29 +269,16 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   private frame = 0;
   private idp: string; // per-build def-id prefix (see rendererBuildSeq)
 
-  // CTM mirror (ctm + ctmStack) is inherited from PaintStateRenderer, driven by
-  // save/restore/transform/setTransform below (see class doc).
   private groupStack: GroupEntry[] = [];
 
-  // Key namespace pushed while drawing a mask source (see compositeMask). A mask
-  // source shared by several masked nodes has ONE scene-node key, so its beginNode
-  // key would collide across masks and its retained <g> would be re-homed from one
-  // <mask> to the next each frame (only the last mask keeps live content). Prefixing
-  // every beginNode key with the owning mask's id materializes an independent
-  // retained <g> tree per mask; prefixes stack for nested mattes.
+  // Owning-mask key prefix: a source shared by several masks gets an independent <g> tree per mask.
   private keyPrefix = "";
-
-  // Sticky paint state (fill/stroke/trim/dash/opacity/…) is inherited from
-  // PaintStateRenderer, applied at the next draw (same discipline as Canvas2D).
 
   constructor(svg: SVGSVGElement) {
     super();
     this.svg = svg;
     this.idp = `b${rendererBuildSeq++}_`;
-    // The component reuses one <svg> element across scene swaps, building a fresh
-    // renderer each time; clear any prior renderer's defs/root <g> so exactly one
-    // of each exists (else stale gradients/masks accumulate and same-id lookups
-    // resolve to the first, painting shapes with a previous scene's palette).
+    // Clear a prior renderer's defs/root on the reused <svg>, or stale same-id defs win lookups.
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     this.defs = document.createElementNS(SVGNS, "defs");
     const rootG = document.createElementNS(SVGNS, "g") as SVGGElement;
@@ -366,12 +303,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.height = hAttr || 0;
   }
 
-  /** Size the SVG's backing coordinate space (device px), mirroring how the
-   *  component sizes the canvas backing store. The width/height attributes are
-   *  device px but the element is CSS-laid-out at logical px, so a matching
-   *  viewBox maps the device-px user space (into which the loop's fit/DPR
-   *  transforms draw) back onto the logical CSS box — exactly inverting the DPR
-   *  scale, without which geometry overflows the viewport on DPR>1 displays. */
+  /** Width/height in device px with a matching viewBox, so the DPR scale maps back onto the CSS box. */
   resize(width: number, height: number): void {
     this.width = width;
     this.height = height;
@@ -389,8 +321,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   beginFrame(): void {
     this.frame++;
     this.resetCtm();
-    // Reset the root layer for this frame and make it the current group. Loose
-    // draws (the scene background, drawn before any node opens) land here.
+    // Reset the root layer; loose draws (the background) land here.
     this.root.drawCursor = 0;
     this.root.childKeys = [];
     this.root.worldAtOpen = IDENTITY_MATRIX;
@@ -405,8 +336,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
 
   endFrame(): void {
     this.reconcileGroup(this.root);
-    // Sweep nodes/defs not visited this frame (visibility windows, conditional
-    // shapes, gradients/clips whose owner vanished).
+    // Sweep nodes/defs not visited this frame.
     for (const [key, e] of this.groups) {
       if (e.lastFrame !== this.frame) {
         e.g.remove();
@@ -437,14 +367,10 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   // --- retained-node bracket -------------------------------------------------
 
   beginNode(key: string): void {
-    // Flush the parent's <g> transform now (ctm is at the parent's world), then
-    // nest this node's <g> under it.
+    // Flush the parent's <g> transform (ctm is at parent world), then nest.
     this.flushGroupTransform();
     const parent = this.top();
-    // Namespace by the owning mask (empty outside a mask source) so a source
-    // shared by several masked nodes gets an independent retained <g> per mask
-    // instead of one <g> re-homed between their <mask>s each frame. All def ids
-    // (gradients/clips/clip-path) derive from this key, so they separate too.
+    // Mask namespace (see keyPrefix); def ids derive from this key, so they separate too.
     const fullKey = this.keyPrefix + key;
     parent.childKeys.push(fullKey);
 
@@ -467,7 +393,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       };
       this.groups.set(fullKey, e);
     } else if (e.g.parentNode !== parent.g) {
-      // Re-home if the tree moved this node under a different parent (rare).
+      // Re-home if the node moved under a different parent.
       parent.g.appendChild(e.g);
     }
     e.worldAtOpen = this.ctm;
@@ -496,9 +422,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     ry = 0,
     corners?: CornerRadii,
   ): void {
-    // SVG <rect> rx/ry is uniform-only, so per-corner radii emit a <path> from
-    // the shared rounded-rect geometry (pinned as a deliberate divergence in the
-    // SVG conformance test — Canvas/Skia keep a rect/RRect).
+    // NOTE: <rect> rx/ry is uniform-only, so per-corner radii emit a <path> (pinned divergence).
     if (corners) {
       const el = this.allocShape("path");
       this.setAttr(el, "d", pathToD(roundedRectPath(x, y, w, h, corners)));
@@ -596,13 +520,8 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       sh !== undefined;
 
     if (cropped) {
-      // Source-crop (object-view-box) via a nested <svg viewBox>: the inner
-      // viewBox maps source pixels [sx,sy,sw,sh] onto the box, and the nested
-      // viewport clips the overflow, so only the frame shows. The inner <image>
-      // carries no width/height and paints at its intrinsic pixel size (= the
-      // source coordinate space the viewBox is expressed in).
-      // NOTE: relies on SVG2 intrinsic <image> auto-sizing; an SVG 1.1 renderer
-      // would need the decoded natural size stamped on the inner <image>.
+      // Source crop: nested <svg viewBox=sx sy sw sh> clips to the frame.
+      // NOTE: relies on SVG2 intrinsic <image> sizing; SVG 1.1 would need the natural size stamped.
       const outer = this.allocShape("svg");
       this.setAttr(outer, "x", String(x));
       this.setAttr(outer, "y", String(y));
@@ -632,7 +551,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     }
 
     const el = this.allocShape("image");
-    // Stretch to the box (match Canvas drawImage), not aspect-preserving.
+    // Stretch to the box like Canvas drawImage.
     this.setAttr(el, "preserveAspectRatio", "none");
     this.setAttr(el, "x", String(x));
     this.setAttr(el, "y", String(y));
@@ -676,28 +595,15 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   // --- composites: track mattes + CSS filters --------------------------------
 
   /**
-   * Track-matte composite via an SVG <mask>. Both closures set their own
-   * absolute world transform (see loop.renderMask), so we bracket the CTM and
-   * reconstruct each subtree's local matrices against a known base.
-   *
-   * Structure: the content draws normally into an identity `wrapper` <g> under
-   * the parent that references `url(#maskId)`; the source draws into a
-   * `container` <g> nested inside the <mask>. `pw` (the parent world = current
-   * CTM) is the base for both — the wrapper carries identity so `maskUnits`/
-   * `maskContentUnits="userSpaceOnUse"` resolve in `pw` space unambiguously
-   * (the referenced element's own transform can't smear the mask), and the
-   * container's flushed transform composes the source back to its true world.
+   * <mask> composite: content in an identity wrapper <g mask=url()> under the parent,
+   * source in a container inside the <mask>; both based at the parent world `pw`.
    */
   compositeMask(
     mode: MaskMode,
     drawContent: () => void,
     drawMask: () => void,
   ): void {
-    // Flush the parent group's transform first (as beginNode does before nesting
-    // a child): the synthetic wrapper we push below would otherwise be the first
-    // thing under the parent, and if the parent's only rendered child is this
-    // masked node (mask-source siblings are skipped), its transform would never
-    // be written — and never re-diffed as it animates.
+    // Flush the parent's transform first, or a parent whose only child is this masked node never writes it.
     this.flushGroupTransform();
     const parent = this.top();
     const pw = this.ctm; // parent world = mask base (see class/method docs)
@@ -714,12 +620,12 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     );
     const m = this.ensureMask(maskId, pw);
 
-    // Mode plumbing (mask-type + optional coverage filter) — gated on change.
+    // Mode plumbing, gated on change.
     const modeSig = `${plumb.maskType}|${plumb.filter?.join(",") ?? ""}`;
     if (m.modeSig !== modeSig) {
       if (plumb.maskType === "alpha") {
         m.maskEl.setAttribute("mask-type", "alpha");
-        m.maskEl.setAttribute("style", "mask-type:alpha"); // belt-and-braces
+        m.maskEl.setAttribute("style", "mask-type:alpha"); // style form too, for engines that ignore the attribute
       } else {
         m.maskEl.removeAttribute("mask-type");
         m.maskEl.removeAttribute("style");
@@ -743,8 +649,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
 
     this.save();
 
-    // Content -> wrapper <g mask="url(#maskId)"> under the parent. The wrapper
-    // slot stands in for the masked node in the parent's paint order.
+    // Content -> wrapper <g mask=url(#maskId)>, standing in for the node in paint order.
     const wrapper = this.ensureSynthetic(wrapperKey, parent.g, pw);
     parent.childKeys.push(wrapperKey);
     this.setAttr(wrapper.g, "mask", `url(#${maskId})`);
@@ -753,10 +658,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.groupStack.pop();
     this.reconcileGroup(wrapper);
 
-    // Source -> container <g> inside the <mask>. Namespace the source subtree's
-    // keys by this mask (stacking for nested mattes) so a source shared across
-    // masks materializes as an independent retained <g> tree here, not a single
-    // <g> yanked out of the previous mask.
+    // Source -> <mask> container, keys namespaced by this mask (stacks for nested mattes).
     const c = m.container;
     c.worldAtOpen = pw;
     c.drawCursor = 0;
@@ -780,25 +682,14 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     return typeof document !== "undefined";
   }
 
-  // We apply the string as a CSS `filter` on a group in the node's parent user
-  // space, so the browser's CTM supplies the parent scale; the loop hands us a
-  // string scaled by only the node's own scale (see interface.filtersUseUserSpace).
+  // The filter applies on a group in parent user space, so the CTM supplies the parent scale.
   filtersUseUserSpace(): boolean {
     return true;
   }
 
-  /**
-   * CSS-filter composite. The content draws into an identity `wrapper` <g> under
-   * the parent carrying `style="filter:…"`. Because CSS filter functions resolve
-   * their lengths in the element's user space (subject to the CTM), the wrapper's
-   * parent-world CTM scales the string — the loop pre-scaled only the node's local
-   * part, so the product matches Canvas's device-space blur. The wrapper sits
-   * *outside* any mask the node also has (filter is the outermost visual wrapper),
-   * because the mask's own wrapper is created when drawContent re-enters renderNode.
-   */
+  /** CSS filter on an identity wrapper <g> outside any mask wrapper; the parent CTM scales the lengths. */
   compositeFilter(filter: string, drawContent: () => void): void {
-    // Flush the parent group's transform first (see compositeMask): the filter
-    // wrapper we push must not rob the parent of its own transform write.
+    // Flush the parent's transform first (see compositeMask).
     this.flushGroupTransform();
     const parent = this.top();
     const pw = this.ctm;
@@ -808,8 +699,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.save();
     const wrapper = this.ensureSynthetic(wrapperKey, parent.g, pw);
     parent.childKeys.push(wrapperKey);
-    // CSS filter *functions* live in the style, not the `filter` presentation
-    // attribute (which only takes a url() reference).
+    // Filter functions go in style; the `filter` attribute only takes url().
     this.setAttr(wrapper.g, "style", filter ? `filter: ${filter}` : null);
     this.groupStack.push(wrapper);
     drawContent();
@@ -817,8 +707,6 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     this.reconcileGroup(wrapper);
     this.restore();
   }
-
-  // Sticky paint state setters are inherited from PaintStateRenderer.
 
   // --- transform stack (CTM mirror) ------------------------------------------
 
@@ -857,8 +745,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     diffAttr(el, c, name, value);
   }
 
-  /** Set the current group's <g> transform to its local matrix (world composes
-   *  via <g> nesting). Idempotent — diffed, so repeated calls per group are free. */
+  /** Diff-set the current <g> transform to its local matrix. */
   private flushGroupTransform(): void {
     const top = this.top();
     const local = multiplyMatrices(invertMatrix(top.worldAtOpen), this.ctm);
@@ -893,9 +780,8 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
   private applyPaint(el: SVGElement, bounds: PaintBox): void {
     const top = this.top();
 
-    // Fill
     if (this.fillGradient && this.fillGradient.type === "conic-gradient") {
-      // No SVG conic primitive — degrade to a flat fill (pinned divergence).
+      // NOTE: no SVG conic primitive (pinned divergence).
       this.setAttr(el, "fill", conicFallbackColor(this.fillGradient));
     } else if (this.fillGradient) {
       const id = `${this.idp}g_${top.key}_${top.drawCursor - 1}_fill`;
@@ -906,7 +792,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     }
     this.setAttr(el, "fill-rule", this.fillRule);
 
-    // Stroke — trim/dash precedence shared with the other backends.
+    // Stroke: trim/dash via the shared resolver.
     const dashDecision = resolveStrokeDash(
       this.trim,
       this.dashArray,
@@ -955,15 +841,13 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
       "paint-order",
       this.paintOrder === "stroke" ? "stroke" : null,
     );
-    // Group opacity is folded into per-leaf alpha by the loop (parity with
-    // Canvas's globalAlpha); set it on the leaf, never on the <g>.
+    // The loop folds group opacity into per-leaf alpha; set it on the leaf, never the <g>.
     this.setAttr(
       el,
       "opacity",
       this.opacity === 1 ? null : String(this.opacity),
     );
-    // mix-blend-mode is a CSS/style property (SVG has no presentation attr for
-    // it). The keyword is identical to the CSS value; 'normal' clears it.
+    // mix-blend-mode has no presentation attr; 'normal' clears it.
     this.setAttr(
       el,
       "style",
@@ -1043,8 +927,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     e.lastFrame = this.frame;
   }
 
-  /** Get-or-create a track-matte's <mask> (with its filterG + source container).
-   *  `pw` is the mask base = the referencing element's user space. */
+  /** Get-or-create a matte's <mask>; `pw` is the referencing element's user space. */
   private ensureMask(id: string, pw: Matrix3x3): MaskEntry {
     let m = this.masks.get(id);
     if (!m) {
@@ -1083,8 +966,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     return m;
   }
 
-  /** (Re)build the coverage-flipping filter for an inverted mask mode. Runs in
-   *  sRGB so `luminanceToAlpha` matches canvas2d's sRGB luma coefficients. */
+  /** Build the inverting filter, in sRGB so luminanceToAlpha matches canvas2d's luma. */
   private ensureMaskFilter(
     m: MaskEntry,
     filterId: string,
@@ -1123,9 +1005,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     el.setAttribute("height", String(r.height));
   }
 
-  /** Get-or-create a structural (mask/filter) wrapper <g> under `parentG`, keyed
-   *  and reset per frame like a node group so mark/sweep GC and paint-order
-   *  reconciliation reuse it. `worldAtOpen` = the CTM in place at the wrapper. */
+  /** Get-or-create a mask/filter wrapper <g>, swept and reordered like a node group. */
   private ensureSynthetic(
     key: string,
     parentG: SVGGElement,
@@ -1162,8 +1042,7 @@ export class SVGRenderer extends PaintStateRenderer implements Renderer {
     return e;
   }
 
-  /** Trim stale shapes, reconcile the clip-path attr, and re-order child <g>s to
-   *  this frame's paint order (only when the visited-key sequence changed). */
+  /** Trim stale shapes, reconcile clip-path, reorder child <g>s when the key sequence changed. */
   private reconcileGroup(e: GroupEntry): void {
     this.setAttr(
       e.g,

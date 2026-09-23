@@ -1,11 +1,4 @@
-/**
- * Hand-rolled parser for the Popkorn DSL.
- *
- * A tokenizing recursive-descent parser that turns CSS-like source directly
- * into the {@link StyleSheet} AST. Synchronous, zero-dependency — the DSL is a
- * small CSS subset, so a dedicated grammar/parser-generator would be far more
- * machinery than the language needs.
- */
+// Hand-rolled tokenizing recursive-descent parser: a small CSS subset doesn't earn a parser generator.
 
 import type {
   CalcExpr,
@@ -50,9 +43,7 @@ import {
   suggest,
 } from "./diagnostics.js";
 
-// A cross-sheet reference captured with its source span during the single
-// parse pass, resolved against the collected definitions after parsing (the AST
-// carries no spans, so refs remember their own offsets).
+// A cross-sheet reference, resolved against the collected definitions after parsing.
 interface Ref {
   name: string;
   start: number;
@@ -61,16 +52,11 @@ interface Ref {
 
 const IDENT = /[a-zA-Z_][a-zA-Z0-9_-]*/y;
 const CUSTOM = /--[a-zA-Z_][a-zA-Z0-9_-]*/y;
-// Accept a leading-dot fraction (`.5`) as well as `10` / `10.5` — CSS allows it
-// and minifiers (esbuild) emit it by stripping the leading zero.
+// Leading-dot fractions (`.5`) are valid CSS and minifiers emit them.
 const NUMBER = /-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)/y;
-// The trailing boundary matters: without it `#Background` would greedily lex as
-// the hex color `#Bac` (B,a,c are hex) with `kground…` left dangling, instead of
-// a node-id reference (`mask: #Background-…`). A real hex color is never
-// followed by another identifier char, so require a non-[\w-] boundary after it.
+// Trailing boundary stops `#Background` (an id ref) lexing as the color `#Bac`.
 const COLOR = /#[0-9a-fA-F]{3,8}(?![\w-])/y;
-// Longest-first so 'ms' beats 's' and 'rem' beats 'em'. deg/grad/rad/turn are
-// the CSS angle units the trig math functions consume.
+// Longest-first so 'ms' beats 's' and 'rem' beats 'em'.
 const UNITS = [
   "grad",
   "turn",
@@ -85,9 +71,7 @@ const UNITS = [
 
 class Cursor {
   pos = 0;
-  // Diagnostics + the side tables the cross-check pass resolves against. All
-  // live on the cursor so the recursive-descent helpers can push without an
-  // extra threaded context argument.
+  // Diagnostics + cross-check side tables live here so helpers needn't thread a context.
   diagnostics: Diagnostic[] = [];
   declaredKeyframes = new Set<string>();
   declaredDefines = new Set<string>();
@@ -215,9 +199,7 @@ export function parse(source: string): StyleSheet {
     }
     const rule = parseRule(c);
     if (rule.selector.type === "root") {
-      // `:root` holds both stage config (width/height/background) and custom
-      // properties. `canvas` stays undefined when only variables are declared,
-      // so the component keeps falling back to its width/height attributes.
+      // `canvas` stays undefined for a vars-only `:root`, so the component uses its attributes.
       const cfg = extractCanvas(rule);
       if (cfg) sheet.canvas = cfg;
       sheet.variables = extractVariables(rule);
@@ -233,8 +215,7 @@ export function validate(source: string): Diagnostic[] {
   return parse(source).diagnostics;
 }
 
-// Cross-check pass: every reference captured during parsing is resolved against
-// the fully-collected definition sets. Runs once, after the single parse pass.
+// Resolves every captured reference against the fully-collected definition sets.
 function resolveRefs(c: Cursor): void {
   for (const r of c.keyframeRefs) {
     if (!c.declaredKeyframes.has(r.name)) {
@@ -331,9 +312,7 @@ function parseDefine(c: Cursor): DefinitionRule {
   return { type: "definition", name, ...parseRuleBody(c) };
 }
 
-// `@machine <name> { initial: <s>; state <s> { ... } }`. Concurrent machines,
-// one at-rule each. Body is `initial:` plus `state` blocks; a state block holds
-// only `to:` transitions and `emit:` events.
+// `@machine <name> { initial: <s>; state <s> { to: ...; emit: ...; } }`.
 function parseMachine(c: Cursor): MachineRule {
   const name = c.ident();
   c.expect("{");
@@ -381,8 +360,7 @@ function parseMachineState(c: Cursor): MachineState {
   return { name, transitions, emits };
 }
 
-// `<state> [on <trigger>] [when style(<g>) [and style(<g>)]*] [mix <dur> [<easing>]];`
-// The leading `to:` has already been consumed. Clause order is fixed by the grammar.
+// `<state> [on <trigger>] [when style(<g>) [and style(<g>)]*] [mix <dur> [<easing>]];` after `to:`.
 function parseTransition(c: Cursor): MachineTransition {
   const to = c.ident();
   let trigger: MachineTrigger | null = null;
@@ -401,8 +379,7 @@ function parseTransition(c: Cursor): MachineTransition {
   if (c.eat("mix")) {
     const duration = readTime(c);
     c.ws();
-    // Optional easing: slurp verbatim to the terminator (handles `ease-in-out`,
-    // `linear`, `cubic-bezier(...)`, `steps(...)`). `mix` is the last clause.
+    // Easing is slurped verbatim to the terminator; `mix` is the last clause.
     const start = c.pos;
     while (c.pos < c.src.length && c.src[c.pos] !== ";" && c.src[c.pos] !== "}")
       c.pos++;
@@ -487,8 +464,7 @@ function parseGuardValue(c: Cursor): number | boolean | string {
   return kw;
 }
 
-// Read a number with an optional time unit, normalizing to milliseconds
-// (`500ms` → 500, `2s` → 2000). Unitless is returned as-is.
+// A number with optional time unit, in ms; unitless is returned as-is.
 function readTime(c: Cursor): number {
   const n = parseFloat(c.match(NUMBER)!);
   if (c.src.startsWith("ms", c.pos)) {
@@ -515,12 +491,9 @@ function parseRuleBody(c: Cursor): {
 
   while (!c.eat("}")) {
     if (c.eat(">")) {
-      // Nested child rule: `> #child { ... }`
       children.push(parseRule(c));
     } else if (c.eat("&")) {
-      // Pseudo-class state: `&:hover` / `&:active`, or a machine `&:state(name)`
-      // / `&:state(machine.name)` block. The block may contain `> #child { ... }`
-      // rules that style a direct descendant while the parent is in that state.
+      // `&:hover` / `&:active` / `&:state(name)` / `&:state(machine.name)`.
       c.expect(":");
       const kw = c.ident();
       if (kw === "state") {
@@ -542,9 +515,7 @@ function parseRuleBody(c: Cursor): {
   return { declarations, children, states };
 }
 
-/** Parse a `&:state { decls, > children }` block. Same shape as a rule body but
- * without nested `&:state` — a state block styles the node and, via `>` rules,
- * its direct descendants; it does not carry states of its own. */
+/** A rule body minus nested `&:state` blocks. */
 function parseStateBlock(c: Cursor): {
   declarations: Declaration[];
   children: Rule[];
@@ -565,9 +536,7 @@ function parseDeclaration(c: Cursor): Declaration[] {
   const property = c.match(CUSTOM) ?? c.ident();
   const propEnd = c.pos;
   c.expect(":");
-  // A value is one or more comma-separated groups, each a space-separated list
-  // (CSS `animation: a 1s, b 2s`). Comma-free values keep the old shape exactly:
-  // a lone value, or a plain space `list` with no separator.
+  // Comma groups of space lists (`animation: a 1s, b 2s`); comma-free values stay a lone value or space list.
   c.ws();
   const valStart = c.pos;
   const groups: Value[] = [];
@@ -576,8 +545,7 @@ function parseDeclaration(c: Cursor): Declaration[] {
     groups.push(values.length === 1 ? values[0] : { type: "list", values });
     if (!c.eat(",")) break;
   }
-  // Back up over trailing whitespace so valueSpan/span end at the last value
-  // char (peek()'s ws-skip may have advanced pos to the `;`/`}` terminator).
+  // peek()'s ws-skip may have reached the terminator; spans end at the last value char.
   let valEnd = c.pos;
   while (valEnd > valStart && isWs(c.src[valEnd - 1])) valEnd--;
   c.eat(";"); // optional trailing semicolon
@@ -587,8 +555,7 @@ function parseDeclaration(c: Cursor): Declaration[] {
       : { type: "list", values: groups, separator: "comma" };
   lintDeclaration(c, property, value, propStart, propEnd, valStart, valEnd);
   const out = expandAliases(c, property, value, propStart, propEnd);
-  // Every declaration this source line expands to shares its source spans
-  // (`span`: property→value, `valueSpan`: just the value; both exclude `;`).
+  // Alias expansions share the source declaration's spans.
   const span: Span = { start: propStart, end: valEnd };
   const valueSpan: Span = { start: valStart, end: valEnd };
   for (const d of out) {
@@ -598,8 +565,7 @@ function parseDeclaration(c: Cursor): Declaration[] {
   return out;
 }
 
-// Author-confusion checks that don't change the AST: unknown properties (with a
-// "did you mean"), bad color keywords, and cross-sheet reference collection.
+// Non-AST checks: unknown properties, bad color keywords, em/rem, reference collection.
 function lintDeclaration(
   c: Cursor,
   property: string,
@@ -643,9 +609,7 @@ function lintDeclaration(
     }
   }
 
-  // em/rem parse (and round-trip) but have no runtime effect — Popkorn lengths
-  // are unitless scene coordinates, not font-relative. Warn once per
-  // declaration even if several em/rem tokens appear in the value.
+  // em/rem round-trip but do nothing (lengths are scene units); warn once per declaration.
   const fontRelativeUnit = findFontRelativeUnit(value);
   if (fontRelativeUnit) {
     c.report(
@@ -673,9 +637,7 @@ function lintDeclaration(
   }
 }
 
-// The first `em`/`rem` unit found anywhere in a value — lists, function args,
-// calc() operands (including nested calc and var() fallbacks), all descended
-// into so `calc(1em + 2px)` and `translate(1rem, 0)` are caught too.
+// First `em`/`rem` anywhere in a value, descending into lists, function args and calc().
 function findFontRelativeUnit(v: Value): "em" | "rem" | undefined {
   switch (v.type) {
     case "length":
@@ -719,17 +681,14 @@ function findFontRelativeUnitInCalc(expr: CalcExpr): "em" | "rem" | undefined {
   }
 }
 
-// All bare-keyword tokens at any list nesting (functions' args are not
-// descended into — a `url(#x)` inner ref is not a top-level keyword).
+// Bare keywords at any list depth; function args are not descended into.
 function keywordTokens(v: Value): string[] {
   if (v.type === "keyword") return [v.value];
   if (v.type === "list") return v.values.flatMap(keywordTokens);
   return [];
 }
 
-// The @keyframes name an `animation`/`animation-name` value references, or
-// undefined when there isn't exactly one candidate (ambiguous shorthand, `none`,
-// or a bare timing-only shorthand → skip rather than false-positive).
+// The referenced @keyframes name, or undefined unless exactly one candidate (avoids false positives).
 function animationName(value: Value, property: string): string | undefined {
   const kws = keywordTokens(value).filter(
     (k) => !k.startsWith("#") && !k.includes("."),
@@ -739,8 +698,7 @@ function animationName(value: Value, property: string): string | undefined {
   return names.length === 1 ? names[0] : undefined;
 }
 
-// Zero-span placeholder for freshly-built declarations; parseDeclaration
-// overwrites span/valueSpan with the real source offsets before returning.
+// Placeholder span; parseDeclaration overwrites it with real offsets.
 const ZERO_SPAN: Span = { start: 0, end: 0 };
 
 const decl = (property: string, value: Value): Declaration => ({
@@ -751,8 +709,7 @@ const decl = (property: string, value: Value): Declaration => ({
   valueSpan: ZERO_SPAN,
 });
 
-// Recognized border-style keywords, so `border:`'s style keyword can be told
-// apart from a named-color keyword (`red`) in the same value list.
+// Distinguishes `border:`'s style keyword from a named-color keyword.
 const BORDER_STYLES = new Set([
   "none",
   "solid",
@@ -765,15 +722,7 @@ const BORDER_STYLES = new Set([
   "outset",
 ]);
 
-/**
- * Write-in-only CSS alias sugar for CSS artists. Aliases are rewritten to
- * canonical Popkorn properties here at the single parseDeclaration choke point,
- * so the rewrite covers rule bodies, `@keyframes`, `&:hover`/`&:active`, and
- * `@define` alike — and aliased animatable props (e.g. `border-radius` → rx/ry)
- * already speak canonical names before animation matching. The AST/scene/
- * serializer never see alias spellings. Rejected forms warn (Popkorn has no box
- * model / no containing box) rather than vanishing silently.
- */
+/** Rewrites write-in CSS aliases to canonical props at the one declaration choke point; box-model forms warn. */
 function expandAliases(
   c: Cursor,
   property: string,
@@ -799,17 +748,13 @@ function expandAliases(
       );
       return [];
 
-    // Paint sugar. `background`/`color` both fold to `fill`; a `:root` stage
-    // background is read back from the rewritten `fill` in extractCanvas, so its
-    // stage-color meaning is preserved.
+    // `background`/`color` fold to `fill`; extractCanvas reads the stage color back from it.
     case "background":
     case "color":
       return [decl("fill", value)];
 
-    // border-radius: 1–4 values. A single value stays uniform rx/ry (back-compat
-    // + animatable via rx/ry); 2–4 values expand to the per-corner longhands.
-    // NOTE: the elliptical slash form (`10px / 20px`) isn't supported — corners
-    // are circular; a `/` leaves a non-numeric token that trips the guard below.
+    // One value → uniform rx/ry (animatable); 2–4 values → per-corner longhands.
+    // NOTE: elliptical `a / b` corners unsupported; the `/` trips the guard below.
     case "border-radius": {
       const parts = isListValue(value) ? value.values : [value];
       const radii = parts.filter((p) => isLengthValue(p) || isNumberValue(p));
@@ -840,13 +785,10 @@ function expandAliases(
       ];
     }
 
-    // border: <width> solid <color>  ->  stroke-width + stroke.
     case "border":
       return expandBorder(c, value, start, end);
 
-    // Box-model properties Popkorn has no concept of. (`display` is NOT here: it
-    // carries a real visibility meaning — `none` removes the node + subtree,
-    // driven per-frame by a var()/@keyframes value; see the scene builder.)
+    // No box model. `display` is absent on purpose: `none` hides a subtree.
     case "padding":
     case "margin":
     case "position":
@@ -864,8 +806,7 @@ function expandAliases(
   }
 }
 
-/** `border: <width> solid <color>` → `stroke-width` + `stroke`. Only `solid`
- * (and `none`, which clears the stroke) map; other styles warn. */
+/** `border: <width> solid <color>` → `stroke-width` + `stroke`; only `solid`/`none` map. */
 function expandBorder(
   c: Cursor,
   value: Value,
@@ -921,9 +862,7 @@ function parseValue(c: Cursor): Value {
   const ch = c.peek();
 
   if (ch === "#") {
-    // A hex color, or — when the hash isn't hex (e.g. `#myLayer`) — a reference
-    // to a node id (used by `mask: #id ...`). Kept as a keyword so no new AST
-    // node kind is needed; the builder strips the leading '#'.
+    // Non-hex `#myLayer` is a node-id ref kept as a keyword; the builder strips the '#'.
     const col = c.match(COLOR);
     if (col) return { type: "color", value: col };
     c.expect("#");
@@ -940,8 +879,7 @@ function parseValue(c: Cursor): Value {
     return parseCalc(c);
   }
   if (isCalcFunctionName(name) && c.peek() === "(") {
-    // A top-level math function wraps its node in a calc() Value so every
-    // downstream calc path (static fold, reactive resolve) picks it up for free.
+    // Wrapped in a calc() Value so every downstream calc path handles it.
     return { type: "calc", expr: parseCalcFunction(c, name) };
   }
   if (name === "var" && c.peek() === "(") {
@@ -949,16 +887,11 @@ function parseValue(c: Cursor): Value {
     const varName = c.match(CUSTOM)!;
     let fallback: Value | undefined;
     if (c.eat(",")) {
-      // Fallback is a single value; nested var()/input() are allowed since
-      // parseValue already handles those, but a fallback-of-a-fallback list
-      // (`var(--x, 1px, 2px)`) is NOT supported — CSS's comma-list fallback
-      // form is out of scope here (fine-grained property parsing doesn't
-      // need it). Tolerate a trailing comma with no fallback value.
+      // NOTE: single-value fallback only (no `var(--x, 1px, 2px)`); a trailing comma is tolerated.
       if (c.peek() !== ")") fallback = parseValue(c);
     }
     c.expect(")");
-    // Only unfallback'd refs are worth flagging — a fallback means the author
-    // already handled absence.
+    // A fallback means the author already handled absence.
     if (fallback === undefined)
       c.varRefs.push({ name: varName, start: identStart, end: c.pos });
     return { type: "variable", name: varName, fallback };
@@ -970,9 +903,7 @@ function parseValue(c: Cursor): Value {
     c.expect("(");
     const args: Value[] = [];
     while (!c.eat(")")) {
-      // `,` and `/` are both argument separators: modern CSS color functions
-      // put alpha behind a slash (`oklch(L C H / 50%)`, `rgb(r g b / 50%)`).
-      // Both flatten to positional args, so alpha lands last either way.
+      // `/` separates alpha in modern color functions; both flatten to positional args.
       if (c.eat(",") || c.eat("/")) continue;
       args.push(parseValue(c));
     }
@@ -986,17 +917,12 @@ function parseValue(c: Cursor): Value {
   return { type: "keyword", value: name };
 }
 
-// random( [ per-element || <dashed-ident> ]? , <min> , <max> [ , by <step> ]? )
-// A fixed random constant (CSS Values 5) — the seeded roll + sharing rules live
-// in the player; the parser just captures the shape and flags malformed args.
-// `(` already peeked; `start` is the offset of the `random` token (for spans).
+// random( [ per-element || <dashed-ident> ]? , <min> , <max> [ , by <step> ]? ); `(` already peeked.
 function parseRandom(c: Cursor, start: number): RandomValue {
   c.expect("(");
   let perElement = false;
   let ident: string | undefined;
-  // Prelude: `per-element` and/or a `--dashed-ident`, in either order, before
-  // the first comma. Anything else is either the leading `min` (a number) or an
-  // unknown keyword we flag and stop on.
+  // Prelude: `per-element` and/or `--ident` in either order; an unknown keyword is flagged.
   for (let i = 0; i < 2; i++) {
     const cu = c.match(CUSTOM);
     if (cu !== null) {
@@ -1047,17 +973,13 @@ function parseRandom(c: Cursor, start: number): RandomValue {
   return { type: "random", perElement, ident, min, max, step };
 }
 
-// The unit a numeric operand contributes to random()'s type: a length's unit, ""
-// for a plain number, or null when it isn't a static literal (var()/calc() — the
-// unit can't be known at parse time, so unit/range checks are skipped for it).
+// A literal operand's unit ("" for numbers), or null for var()/calc() (checks skipped).
 function randomUnit(v: Value): string | null {
   if (isLengthValue(v)) return v.unit;
   if (isNumberValue(v)) return "";
   return null;
 }
 
-// The scalar of a length/number literal (both carry `.value`); callers guard
-// with randomUnit() !== null first.
 function numericLiteral(v: Value): number {
   return (v as { value: number }).value;
 }
@@ -1095,7 +1017,6 @@ function checkRandomUnits(
       );
     }
   }
-  // Units agree here (we returned above otherwise); both literals carry `.value`.
   if (um !== null && ux !== null && numericLiteral(min) > numericLiteral(max)) {
     c.report(
       "invalid-random",
@@ -1107,14 +1028,7 @@ function checkRandomUnits(
   }
 }
 
-// calc() — a standard CSS arithmetic expression. `(` already peeked; grammar:
-//   sum     := product ( <ws> ('+'|'-') <ws> product )*
-//   product := unary   ( ('*'|'/') unary )*
-//   unary   := '(' sum ')' | <numeric value via parseValue>
-// Per CSS, `+`/`-` REQUIRE surrounding whitespace (so `-3px` reads as a signed
-// operand, not a subtraction); `*`/`/` don't. Operand values (number/length/
-// var()/input()/nested calc()) come straight from parseValue, so calc composes
-// with the rest of the value grammar for free.
+// sum := product (<ws> [+-] <ws> product)*; product := unary ([*/] unary)*; unary := '(' sum ')' | value.
 function parseCalc(c: Cursor): CalcValue {
   c.expect("(");
   const expr = parseCalcSum(c);
@@ -1122,9 +1036,6 @@ function parseCalc(c: Cursor): CalcValue {
   return { type: "calc", expr };
 }
 
-// The CSS math functions Popkorn understands. Each is comma-separated calc sums
-// (parseCalcFunction), so calc composes inside them and (via parseValue) they
-// compose inside calc.
 const CALC_FUNCTIONS = new Set<CalcFunctionName>([
   "min",
   "max",
@@ -1150,8 +1061,7 @@ const CALC_FUNCTIONS = new Set<CalcFunctionName>([
   "sibling-count",
 ]);
 
-// Expected argument count per function: a fixed count, or [min, max] with max
-// Infinity for variadic. round()'s optional strategy is consumed separately.
+// Fixed count or [min, max]; round()'s strategy is consumed separately.
 const CALC_ARITY: Record<CalcFunctionName, number | [number, number]> = {
   min: [1, Infinity],
   max: [1, Infinity],
@@ -1173,8 +1083,7 @@ const CALC_ARITY: Record<CalcFunctionName, number | [number, number]> = {
   exp: 1,
   abs: 1,
   sign: 1,
-  // Structural, zero-arg: their value is the node's 1-based position / total
-  // sibling count, substituted by the scene builder (never folded statically).
+  // Zero-arg; the scene builder substitutes 1-based position / sibling count.
   "sibling-index": 0,
   "sibling-count": 0,
 };
@@ -1190,9 +1099,7 @@ function isCalcFunctionName(name: string): name is CalcFunctionName {
   return CALC_FUNCTIONS.has(name as CalcFunctionName);
 }
 
-// Parse a math function's argument list. `(` already peeked. round() may lead
-// with a rounding strategy keyword (`round(up, x, y)`); everything else is a
-// plain comma-separated list of calc sums, validated against CALC_ARITY.
+// Comma-separated calc sums validated against CALC_ARITY; `(` already peeked.
 function parseCalcFunction(c: Cursor, name: CalcFunctionName): CalcFunction {
   c.expect("(");
   const strategy = name === "round" ? eatRoundStrategy(c) : undefined;
@@ -1218,8 +1125,7 @@ function parseCalcFunction(c: Cursor, name: CalcFunctionName): CalcFunction {
   return { type: "calc-function", name, args, strategy };
 }
 
-// Consume a leading `<strategy> ,` from a round() argument list, if present.
-// Restores the cursor when the first token isn't a strategy keyword.
+// Consume round()'s leading `<strategy> ,`, restoring the cursor if absent.
 function eatRoundStrategy(c: Cursor): RoundStrategy | undefined {
   const save = c.pos;
   const id = c.match(IDENT);
@@ -1262,27 +1168,19 @@ function parseCalcUnary(c: Cursor): CalcExpr {
   return { type: "calc-operand", value: parseValue(c) };
 }
 
-// Consume a whitespace-delimited `+`/`-`, enforcing CSS's rule that both sides
-// carry whitespace. Returns null (without advancing) when the next token isn't a
-// valid additive operator here — e.g. `)` or a `-3px` that belongs to the next
-// operand. Operates on raw source so the whitespace requirement is real; must be
-// tried BEFORE any ws-skipping consume so the leading whitespace is still there.
+// `+`/`-` need whitespace on both sides (so `-3px` is an operand); try before any ws-skipping consume.
 function eatAdditiveOp(c: Cursor): "+" | "-" | null {
   let i = c.pos;
-  // Require at least one whitespace char before the operator.
   if (!isWs(c.src[i])) return null;
   while (isWs(c.src[i])) i++;
   const op = c.src[i];
   if (op !== "+" && op !== "-") return null;
-  // And whitespace after it.
   if (!isWs(c.src[i + 1])) return null;
   c.pos = i + 1;
   return op;
 }
 
-// Consume a `*`/`/` (whitespace around it is optional per CSS). Non-destructive
-// when it doesn't match: c.pos is left untouched so a following eatAdditiveOp
-// still sees the whitespace it needs (c.eat would swallow it).
+// Leaves c.pos untouched on no match so eatAdditiveOp still sees its whitespace.
 function eatMulOp(c: Cursor): "*" | "/" | null {
   let i = c.pos;
   while (isWs(c.src[i])) i++;
@@ -1306,10 +1204,7 @@ function readString(c: Cursor, quote: string): Value {
       c.pos++; // closing quote
       return { type: "string", value: out };
     }
-    // Backslash escapes (CSS): \n \r \t become control chars (so a text `content`
-    // can carry line breaks), a backslash before a quote/backslash escapes it,
-    // and any other \<char> is that char literally. NOTE: \<hex> unicode escapes
-    // aren't unwound. An escaped newline is a line continuation (drops the break).
+    // \n \r \t → control chars, escaped newline = continuation. NOTE: \<hex> escapes not unwound.
     if (ch === "\\" && c.pos + 1 < c.src.length) {
       const next = c.src[c.pos + 1];
       out +=
@@ -1325,9 +1220,7 @@ function readString(c: Cursor, quote: string): Value {
       c.pos += 2;
       continue;
     }
-    // Per CSS, a raw newline terminates an unclosed string as a parse error;
-    // stopping here (rather than swallowing to EOF) lets the rest of the sheet
-    // still parse, so the diagnostic is delivered instead of throwing later.
+    // Per CSS a raw newline ends an unclosed string, so the rest of the sheet still parses.
     if (ch === "\n") break;
     out += ch;
     c.pos++;
@@ -1416,11 +1309,7 @@ function parseKeyframe(c: Cursor): KeyframeBlock {
   return block;
 }
 
-/** Parse `{ decl; decl; }`, hoisting `animation-timing-function` out as `easing`.
- * The easing keeps its parsed {@link Value} verbatim (keyword, cubic-bezier(),
- * steps(), linear()) so the scene builder can resolve it through the one shared
- * timing-function path — the AST stays a faithful mirror and knows no easing
- * semantics. */
+/** Parse `{ decl; decl; }`, hoisting `animation-timing-function` verbatim as `easing`. */
 function parseDeclBlock(c: Cursor): {
   declarations: Declaration[];
   easing?: Value;
@@ -1437,11 +1326,7 @@ function parseDeclBlock(c: Cursor): {
   return { declarations, easing };
 }
 
-/**
- * Extract stage config (width/height/background) from a `:root { ... }` rule.
- * Returns undefined when the rule declares none, so a `:root` that carries only
- * custom properties leaves `sheet.canvas` unset (component sizes from attrs).
- */
+/** Stage config from `:root`, or undefined when it declares none. */
 function extractCanvas(rule: Rule): CanvasConfig | undefined {
   let config: CanvasConfig | undefined;
   const cfg = () => (config ??= { width: 800, height: 600 });
@@ -1450,20 +1335,11 @@ function extractCanvas(rule: Rule): CanvasConfig | undefined {
       cfg().width = decl.value.value;
     else if (decl.property === "height" && decl.value.type === "length")
       cfg().height = decl.value.value;
-    // `background` is rewritten to `fill` by the alias pass before it reaches
-    // here, so read the stage color back from `fill` — its meaning is preserved.
-    // Colors parse as `color` (hex), `keyword` (named colors) or `function`
-    // (rgb()/rgba()); accept all three — stringifyColorValue keeps the raw
-    // text so serializer round-tripping (which just prints `color.value`
-    // verbatim) still works, and the player's parseColor already resolves
-    // named colors and rgb()/rgba() at render time.
+    // The alias pass already rewrote `background` to `fill`.
     else if (decl.property === "fill") {
       const bg = stringifyColorValue(decl.value);
       if (bg !== undefined) cfg().background = bg;
-    }
-    // Artboard clipping toggle (default `hidden` — applied by the player when
-    // the flag is absent). Only `hidden`/`visible` keywords are captured.
-    else if (decl.property === "overflow" && decl.value.type === "keyword") {
+    } else if (decl.property === "overflow" && decl.value.type === "keyword") {
       if (decl.value.value === "hidden" || decl.value.value === "visible")
         cfg().overflow = decl.value.value;
     }
@@ -1471,10 +1347,7 @@ function extractCanvas(rule: Rule): CanvasConfig | undefined {
   return config;
 }
 
-/** Render a color-ish {@link Value} back to CSS text — hex `color`, named
- * `keyword`, or a `function` call (`rgb()`/`rgba()`/`hsl()`/...) with
- * numeric/length args. Returns undefined for anything else (e.g. `var()`),
- * which callers should ignore rather than store a bogus background. */
+/** A color/keyword/color-function Value as raw CSS text; undefined otherwise (e.g. `var()`). */
 function stringifyColorValue(v: Value): string | undefined {
   if (v.type === "color" || v.type === "keyword") return v.value;
   if (v.type === "number") return String(v.value);

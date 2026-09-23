@@ -1,12 +1,5 @@
-// Oklab / Oklch (CSS Color 4). Perceptually uniform, so a mix between two
-// colors keeps its lightness and chroma instead of dipping through the grey,
-// muddy midpoints sRGB gives you (blue -> yellow is the classic offender).
-//
-// Colors authored as oklab()/oklch() stay spelled `oklab(...)` all the way to
-// the interpolation call rather than folding to hex like hsl() does: the
-// spelling IS the marker that says "this pair does not interpolate in sRGB",
-// which is exactly CSS's rule. Everyone who didn't opt in still hits the
-// hex/rgb fast path.
+// Oklab / Oklch (CSS Color 4): perceptual mixes avoid sRGB's muddy midpoints.
+// oklab()/oklch() spellings survive to interpolation as the "don't mix in sRGB" marker.
 
 import type { RGBAColor } from "./types.js";
 
@@ -46,13 +39,7 @@ export function rgbaToOklab(c: RGBAColor): OklabColor {
   };
 }
 
-/**
- * Oklab -> sRGB (0-255 channels). Out-of-gamut results are clipped per channel.
- * NOTE: per-channel clip, not a chroma-reducing gamut map — a saturated wide
- * gamut color clips toward the sRGB cube face rather than desaturating along
- * constant lightness. Upgrade to CSS Color 4 gamut mapping (binary-search
- * chroma against deltaEOK) if authors start feeding real display-p3 values.
- */
+/** Oklab -> sRGB (0-255). NOTE: per-channel clip, not CSS Color 4 chroma-reducing gamut mapping. */
 export function oklabToRgba(c: OklabColor): RGBAColor {
   const l = (c.L + 0.3963377774 * c.a + 0.2158037573 * c.b) ** 3;
   const m = (c.L - 0.1055613458 * c.a - 0.0638541728 * c.b) ** 3;
@@ -94,10 +81,7 @@ export function oklabToOklch(c: OklabColor): {
   return { L: c.L, C, h, alpha: c.alpha };
 }
 
-/**
- * A `<hue>` component: a bare number or an explicitly-united angle. Bare
- * numbers are degrees, as CSS specifies.
- */
+/** `<hue>`: bare numbers are degrees. */
 function parseHue(token: string): number | null {
   const m = token.match(/^(-?[\d.]+)(deg|rad|grad|turn)?$/);
   if (!m) return null;
@@ -115,12 +99,7 @@ function parseHue(token: string): number | null {
   }
 }
 
-/**
- * One oklab()/oklch() component. `%` resolves against `reference`; a bare
- * number is already in the channel's own units. `none` is CSS Color 4's
- * missing-component keyword and resolves to 0, which is its behavior for
- * every interpolation we do.
- */
+/** One oklab()/oklch() component: `%` resolves against `reference`; `none` -> 0. */
 function parseComponent(token: string, reference: number): number | null {
   if (token === "none") return 0;
   if (token.endsWith("%")) {
@@ -140,10 +119,7 @@ function parseAlpha(token: string | undefined): number {
   return Number.isFinite(n) ? clamp01(n) : 1;
 }
 
-/**
- * Parse `oklab(L a b[ / alpha])` or `oklch(L C H[ / alpha])`, returning null
- * when the text is not one of those functions or its components don't parse.
- */
+/** Parse `oklab(L a b[ / alpha])` / `oklch(L C H[ / alpha])`, else null. */
 export function tryParseOklabColor(value: string): OklabColor | null {
   const m = value
     .trim()
@@ -237,8 +213,7 @@ export function mixOklch(
 ): OklabColor {
   const p = oklabToOklch(from);
   const q = oklabToOklch(to);
-  // An achromatic endpoint has no meaningful hue — carry the other's so the
-  // mix runs along constant hue instead of swinging through an arbitrary arc.
+  // An achromatic endpoint takes the other's hue so the mix doesn't swing through an arbitrary arc.
   const ph = p.C < 1e-6 ? q.h : p.h;
   const qh = q.C < 1e-6 ? p.h : q.h;
   const [h1, h2] = resolveHueArc(ph, qh, method);

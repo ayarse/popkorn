@@ -19,15 +19,8 @@ import {
 } from "./types.js";
 
 /**
- * Shared sticky paint state + an opt-in JS CTM mirror for the renderer backends.
- * The loop drives the `set*` calls before each draw; the backend reads these
- * protected fields at draw time. This exists so the ~14 paint fields and their
- * setters live in one place instead of a hand-copied (and drifting) triple.
- *
- * The CTM mirror (ctm + stack) is only used by backends whose surface has no
- * absolute setMatrix — SVG (<g> transforms) and Skia (SkCanvas.concat is
- * relative). Canvas2D delegates save/restore/transform straight to the native
- * ctx and leaves these mirror helpers unused.
+ * Shared sticky paint state (set* before each draw, read at draw time) plus an
+ * opt-in CTM mirror for surfaces without absolute setMatrix (SVG, Skia).
  */
 export abstract class PaintStateRenderer {
   protected fillColor: string | null = "#000000";
@@ -84,9 +77,7 @@ export abstract class PaintStateRenderer {
   setOpacity(opacity: number): void {
     this.opacity = opacity;
   }
-  // Sticky like the rest; the loop sets it before a node's shape draw and resets
-  // it to 'normal' after. Backends read `blendMode` at draw (Canvas gCO, SVG
-  // element style, Skia paint) — a subclass may override to apply it eagerly.
+  // Sticky; the loop sets it before a shape draw and resets to 'normal' after.
   setBlendMode(mode: BlendMode): void {
     this.blendMode = mode;
   }
@@ -103,8 +94,7 @@ export abstract class PaintStateRenderer {
   protected concatCtm(m: Matrix3x3): void {
     this.ctm = multiplyMatrices(this.ctm, m);
   }
-  /** Reach the ABSOLUTE matrix `m` from a relative-only surface: returns the
-   *  delta (invert(ctm)·m) for the backend to concat, and advances the mirror. */
+  /** Delta (invert(ctm)·m) to concat on a relative-only surface to reach absolute `m`. */
   protected setCtmAbsolute(m: Matrix3x3): Matrix3x3 {
     const delta = multiplyMatrices(invertMatrix(this.ctm), m);
     this.ctm = m;

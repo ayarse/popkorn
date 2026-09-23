@@ -1,27 +1,5 @@
-/**
- * State machine runner.
- *
- * One `StateMachineRunner` owns every `@machine` in a scene. Per frame, BEFORE
- * the node walk, `evaluate()` advances each machine at most once: any-state
- * (`*`) transitions are checked first, then the current state's, in declaration
- * order; the first whose trigger fired AND whose guards all pass wins. On a
- * transition the machine records `(newState, entryTime)`, recomputes its
- * `on complete` deadline, and emits `statechange` + any `emit`s.
- *
- * Machine state lives OFF the timeline (instance fields here, never on nodes and
- * never derived from the scheduler), exactly like the InteractionManager's hover
- * tweens. `seek()` therefore does not touch machines: a rendered frame is a pure
- * function of `(timelineTime, machineState)` (invariant 4, generalized).
- *
- * TIME BASE. `entryTime` and the `machineTime` handed to `evaluate()` are both
- * the GLOBAL timeline time (the root's inherited `t`, pre per-subtree scoping).
- * State animations are therefore anchored on the global clock — a per-subtree
- * `time-offset`/`time-scale`/`time-remap` retimes a node's own (base) animations
- * but NOT its state animations. In the common case (no time scoping on a
- * machine-driven node) machineTime == the node's local time, so there is no
- * observable difference; anchoring globally keeps entry a single clock event and
- * avoids threading a parallel scoped entry-time per machine down the walk.
- */
+/** Runs every `@machine`: once per live frame, `*` then current-state transitions, first fired+guarded wins. */
+// State is off the timeline (seek() never touches it) and anchored on the GLOBAL time, not per-subtree scoped time.
 
 import type {
   MachineGuard,
@@ -33,21 +11,17 @@ import { animationsEndTime } from "../animation/scheduler.js";
 import type { SceneNode, TimingFunction } from "../scene/types.js";
 import type { VariableResolver } from "./variables.js";
 
-// A pointer event detected this frame, credited to the top hit node (nearest
-// interactive) — or null for empty canvas (still a `:root` occurrence). Built by
-// the loop from the shared hit-tester; the runner only matches it to triggers.
+// Credited to the nearest interactive hit node, or null for empty canvas (still a `:root` occurrence).
 export interface PointerTriggerEvent {
   event: "click" | "pointerdown" | "pointerup" | "hoverstart" | "hoverend";
   node: SceneNode | null;
 }
 
-// Side effects a transition produces, forwarded by the loop to the host
-// (component) as `statechange` / `machine-event` DOM events.
+// Forwarded to the host as `statechange` / `machine-event` DOM events.
 export type MachineOutput =
   | { type: "statechange"; machine: string; from: string; to: string }
   | { type: "emit"; machine: string; name: string };
 
-// Everything `evaluate()` needs to resolve a frame's triggers and guards.
 export interface MachineEvalContext {
   variableResolver: VariableResolver;
   pointerEvents: PointerTriggerEvent[];
@@ -57,21 +31,15 @@ interface MachineInstance {
   def: MachineRule;
   current: string;
   entryTime: number; // global timeline ms at entry into `current`
-  completeAt: number; // machineTime at which `current`'s animations finish (Infinity if none/looping)
-  // Cross-fade (`mix`) bookkeeping, off the timeline like the rest of machine
-  // state. `prevState` is the state we're fading OUT of; null when no mix is in
-  // flight (a hard-cut transition clears it). The outgoing state keeps sampling
-  // its own animations from `prevEntryTime` for the window's duration.
+  completeAt: number; // Infinity if none/looping
+  // Outgoing `mix` state (null when none in flight); it keeps sampling from `prevEntryTime`.
   prevState: string | null;
   prevEntryTime: number;
   mixDuration: number; // 0 => no mix
   mixEasing: TimingFunction;
 }
 
-// A `:state()` entry's contribution to a node this frame. `side` distinguishes
-// the steady state (`solid`, weight 1) from the two ends of a running mix
-// (`in` = fading in / incoming, `out` = fading out / outgoing). `weight` is the
-// eased blend weight and `entryTime` anchors that state's own animations.
+// `solid` = steady (weight 1); `in`/`out` = ends of a running mix at eased `weight`.
 export interface StateBlend {
   weight: number;
   entryTime: number;
@@ -81,15 +49,10 @@ export interface StateBlend {
 export class StateMachineRunner {
   private root: SceneNode | null = null;
   private instances: MachineInstance[] = [];
-  // External `on event(name)` occurrences enqueued between frames (from
-  // component.fire of a non-variable name); consumed at the end of evaluate().
+  // External `on event(name)` occurrences, consumed by evaluate().
   private queuedEvents: string[] = [];
 
-  /**
-   * Bind the runner to a freshly built scene. Resets every machine to its
-   * initial state, anchored at `now` (the timeline time at scene start, 0 in the
-   * normal case). Called from RenderLoop.setScene — NOT from seek().
-   */
+  /** Reset every machine to its initial state at `now`; called from setScene, never seek(). */
   setScene(root: SceneNode, now = 0): void {
     this.root = root;
     this.queuedEvents = [];
@@ -109,25 +72,19 @@ export class StateMachineRunner {
     });
   }
 
-  /** Whether the scene has any machines (lets the loop skip pointer detection). */
   hasMachines(): boolean {
     return this.instances.length > 0;
   }
 
-  /** Enqueue an external named event for the next evaluate() (see MachineTrigger 'event'). */
   enqueueEvent(name: string): void {
     this.queuedEvents.push(name);
   }
 
-  /** Current state of a machine by name (for tests / introspection). */
   currentState(machine: string): string | undefined {
     return this.instances.find((i) => i.def.name === machine)?.current;
   }
 
-  /**
-   * Read-only snapshot of every machine's current state and its entry time
-   * (global timeline ms), for an external timeline UI. A plain, copy-safe array.
-   */
+  /** Copy-safe snapshot of each machine's state and entry time, for timeline UIs. */
   snapshot(): { machine: string; state: string; entryTime: number }[] {
     return this.instances.map((i) => ({
       machine: i.def.name,
@@ -136,10 +93,7 @@ export class StateMachineRunner {
     }));
   }
 
-  /**
-   * Is a `:state()` set active this frame? `machine === null` (un-namespaced
-   * `:state(name)`) matches that state in ANY machine.
-   */
+  /** `machine === null` (un-namespaced `:state(name)`) matches any machine. */
   isStateActive(machine: string | null, name: string): boolean {
     for (const inst of this.instances) {
       if (
@@ -163,16 +117,7 @@ export class StateMachineRunner {
     return 0;
   }
 
-  /**
-   * The blend contribution of a `:state()` entry `(machine, name)` this frame,
-   * or null if that state is neither current nor a still-fading outgoing state.
-   * Outside a mix window the current state returns a `solid` weight-1
-   * contribution (the hard-cut fast path). During a mix, the incoming state
-   * returns `side:"in"` at eased progress and the outgoing returns `side:"out"`
-   * at `1 - progress`; once the window has elapsed the incoming state collapses
-   * back to `solid`. Pure in `machineTime` — no instance mutation — so seek(t)
-   * twice yields identical contributions.
-   */
+  /** A state's contribution this frame, or null if neither current nor fading out; pure in `machineTime`. */
   stateBlend(
     machine: string | null,
     name: string,
@@ -201,18 +146,12 @@ export class StateMachineRunner {
     return null;
   }
 
-  /**
-   * Advance every machine at most once. Returns the transitions/emits produced,
-   * in order. Consumes the external-event queue and the frame's pointer events
-   * (the caller supplies a fresh `pointerEvents` list each frame).
-   */
+  /** Advance every machine at most once; consumes queued events. */
   evaluate(machineTime: number, ctx: MachineEvalContext): MachineOutput[] {
     const out: MachineOutput[] = [];
     for (const inst of this.instances) {
       this.step(inst, machineTime, ctx, out);
     }
-    // Triggers are momentary: external events are consumed here; the pointer
-    // list is owned (and dropped) by the caller after this returns.
     this.queuedEvents = [];
     return out;
   }
@@ -224,7 +163,6 @@ export class StateMachineRunner {
     out: MachineOutput[],
   ): void {
     const def = inst.def;
-    // Any-state (`*`) transitions are checked before the current state's.
     const anyState = def.states.find((s) => s.name === "*");
     const cur = def.states.find((s) => s.name === inst.current);
     const ordered = [
@@ -242,11 +180,7 @@ export class StateMachineRunner {
       inst.current = tr.to;
       inst.entryTime = machineTime;
       if (tr.mix && tr.mix.duration > 0) {
-        // Start (or, if one was already running, restart from) a cross-fade. On
-        // an interrupted mix we simply re-anchor here: the new outgoing state is
-        // whatever `current` just was — i.e. the interrupted mix's INCOMING
-        // state — so the old outgoing contribution is dropped.
-        // NOTE: acceptable v1 interrupt semantics — no multi-way blend snapshot.
+        // NOTE: an interrupted mix re-anchors from its incoming state; no multi-way blend snapshot.
         inst.prevState = from;
         inst.prevEntryTime = fromEntry;
         inst.mixDuration = tr.mix.duration;
@@ -310,10 +244,7 @@ export class StateMachineRunner {
     }
   }
 
-  // Union of every state animation for (machine, state) across the tree, then
-  // the local time at which they all finish: `entryTime + animationsEndTime(...)`
-  // (Infinity when the state has no animations or any loop forever — such states
-  // never satisfy `on complete`, by design).
+  // Infinity (never `on complete`) when the state has no animations or any loop forever.
   private computeCompleteAt(
     machine: string,
     state: string,
@@ -337,12 +268,7 @@ export class StateMachineRunner {
   }
 }
 
-/**
- * Does the pointer target name this event's node? `:root` matches anywhere on
- * the canvas (any occurrence, including empty-canvas null). An `#id` target
- * matches when it is the credited node or one of its ancestors (bubbling —
- * clicking a shape inside an interactive group counts as clicking the group).
- */
+/** `:root` matches anywhere; `#id` matches the credited node or an ancestor (bubbling). */
 function pointerTargetMatches(
   target: { type: "id" | "root"; name: string },
   node: SceneNode | null,
@@ -354,9 +280,7 @@ function pointerTargetMatches(
   return false;
 }
 
-// Flat comparison for a guard. Equality (`=`/`!=`) compares loosely across
-// number/boolean/string; ordering (`<` `<=` `>` `>=`) coerces to number and
-// fails on non-numeric operands. Booleans read as 1/0.
+// Equality is loose across number/boolean/string; ordering coerces to number (booleans 1/0).
 function compare(
   left: number | boolean | string | undefined,
   op: MachineGuard["op"],

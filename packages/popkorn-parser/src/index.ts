@@ -75,11 +75,7 @@ export function format(source: string): string {
   return serializeSheet(parseSource(source), { minify: false });
 }
 
-/**
- * Crush Popkorn DSL source: minify AND destructively rename identifiers to
- * short names. Render-preserving (the built scene is identical) but lossy —
- * human-readable ids/keyframes/vars are gone. See {@link crush}.
- */
+/** Minify and destructively rename identifiers; render-preserving (see {@link crush}). */
 export function crushSource(source: string): string {
   return serializeSheet(parseSource(source), { crush: true });
 }

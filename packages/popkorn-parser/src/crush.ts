@@ -1,32 +1,5 @@
-/**
- * Crush: destructive identifier minification for a {@link StyleSheet}.
- *
- * Where plain minify() is value-preserving (the output re-parses to the same
- * AST), crush() is *render*-preserving but throws away human-readable names: it
- * renames the sheet's own identifiers to short meaningless ones (`a`, `b`, …
- * `aa`, …). The rename is REFERENCE-AWARE — driven by the AST, never textual —
- * so every declaration site and every use move together and the built scene
- * graph is identical.
- *
- * Renamed (each namespace has its own counter, since `#`/`.`/`--` and the
- * keyframes/symbol namespaces are syntactically distinct):
- *  - element ids (`#id` selectors) + their uses: `> #id` child selectors,
- *    machine `on <pointer>(#id)` targets, and `#id` references in values
- *    (mask, `url(#id)`, …).
- *  - class selectors (`.cls`) — grouping only, matched by `> .cls` children.
- *  - `@keyframes` names + `animation` / `animation-name` references.
- *  - `@define` symbol names + `use:` references.
- *  - custom properties (`--x`) + every `var(--x)` use and machine-guard `--x`.
- *
- * PRESERVED (external meaning — renaming would change behavior, not just bytes):
- *  - standard CSS property names and keyword/color values;
- *  - `input(...)` paths (host-bound runtime state);
- *  - `@machine` / state / `emit` / `event(...)` names — surfaced to the host as
- *    `statechange` / `machine-event` DOM events.
- *
- * This is lossy by design: the original names are gone. It exists only to shave
- * wire size; run it last, on a copy you don't need to read again.
- */
+// Render-preserving, AST-driven rename of ids, classes, @keyframes, @define and --vars to short names.
+// Host-visible names (input() paths, @machine/state/emit/event names) are preserved.
 
 import type {
   CalcExpr,
@@ -50,10 +23,7 @@ import type {
 } from "./ast.js";
 import { isReservedAnimationKeyword } from "./diagnostics.js";
 
-// A short-name generator: a, b, … z, aa, ab, … Skips names that would change
-// meaning if re-parsed — reserved animation keywords (so a crushed @keyframes
-// name never reads as `ease`/`infinite`/…) and hex-color-shaped tokens (so a
-// crushed id referenced as `#name` never lexes as a color instead of an id).
+// a, b, … aa, …; skips animation keywords and hex-color-shaped names, which would re-parse differently.
 function makeNameGen(): () => string {
   let i = 0;
   const enc = (n: number): string => {
@@ -83,9 +53,7 @@ function isHexColorShaped(s: string): boolean {
   );
 }
 
-// One rename namespace: hands out a stable short name per original name.
-// `prefix` is re-attached to every generated name (custom properties keep their
-// `--`, so `--brand` → `--a`, not `a`).
+// One rename namespace; `prefix` keeps custom properties' `--` (`--brand` → `--a`).
 class Renamer {
   private map = new Map<string, string>();
   constructor(
@@ -121,8 +89,7 @@ export function crush(sheet: StyleSheet): StyleSheet {
     vars: new Renamer(makeNameGen(), "--"),
   };
 
-  // Pass 1 — register declaration sites (and var uses, which may name a var
-  // that only the host declares) in document order.
+  // Var uses are registered too: they may name a var only the host declares.
   for (const kf of sheet.keyframes) maps.keyframes.add(kf.name);
   for (const def of sheet.definitions) maps.defines.add(def.name);
   for (const v of sheet.variables) maps.vars.add(v.name);
@@ -136,7 +103,6 @@ export function crush(sheet: StyleSheet): StyleSheet {
   for (const rule of sheet.rules) collectRuleSites(rule, maps);
   for (const m of sheet.machines) collectMachineSites(m, maps);
 
-  // Pass 2 — rewrite.
   return {
     ...sheet,
     variables: sheet.variables.map((v) => renameVarDef(v, maps)),
@@ -173,9 +139,7 @@ function collectDeclSites(decls: Declaration[], maps: Maps): void {
   }
 }
 
-// Custom-property names can appear only in the AST via var() (and machine
-// guards, handled separately); register them so uses of an otherwise-external
-// var still crush consistently.
+// Registers var() names so uses of host-declared vars still crush consistently.
 function collectVarUses(v: Value, maps: Maps): void {
   switch (v.type) {
     case "variable":
@@ -277,9 +241,7 @@ function renameDecl(d: Declaration, maps: Maps): Declaration {
   return { ...d, property, value: renameValue(d.value, maps) };
 }
 
-// Generic value walk: rewrites var() names and `#id` references (keywords, and
-// hex-shaped ids the parser lexed as colors — e.g. in `mask:`). Standard
-// keyword/color/string values are left untouched.
+// Rewrites var() names and `#id` refs, incl. hex-shaped ids the parser lexed as colors.
 function renameValue(v: Value, maps: Maps): Value {
   switch (v.type) {
     case "variable":
@@ -299,8 +261,7 @@ function renameValue(v: Value, maps: Maps): Value {
     case "calc":
       return { ...v, expr: renameCalc(v.expr, maps) };
     case "random":
-      // The `ident` is a random-caching key, not a declared --var, so it's left
-      // as-is; only the numeric operands can carry a renameable var().
+      // `ident` is a random() sharing key, not a declared --var: left as-is.
       return {
         ...v,
         min: renameValue(v.min, maps),
@@ -312,8 +273,7 @@ function renameValue(v: Value, maps: Maps): Value {
   }
 }
 
-// A `#name` token whose name is a known id → the crushed id; anything else
-// (real colors, plain keywords) unchanged.
+// A known `#id` → its crushed name; real colors and keywords unchanged.
 function renameIdRef(v: KeywordValue | ColorValue, maps: Maps): Value {
   const raw = v.value;
   if (raw.startsWith("#") && maps.ids.has(raw.slice(1)))
@@ -333,8 +293,7 @@ function renameCalc(expr: CalcExpr, maps: Maps): CalcExpr {
   };
 }
 
-// An `animation` / `animation-name` value: rewrite keyword/string tokens that
-// name a known @keyframes; timing keywords and everything else pass through.
+// Rewrites only tokens naming a known @keyframes.
 function renameAnimationValue(v: Value, maps: Maps): Value {
   if (v.type === "keyword" || v.type === "string")
     return renameKeyframeToken(v, maps);
@@ -377,8 +336,7 @@ function renameMachineState(s: MachineState, maps: Maps): MachineState {
 }
 
 function renameTransition(t: MachineTransition, maps: Maps): MachineTransition {
-  // NOTE: t.mix.easing is a plain keyword string (ast.ts), not a Value — it
-  // can never carry a var() reference, so there's nothing to rewrite here.
+  // t.mix.easing is a plain string, never a var() reference.
   return {
     ...t,
     trigger: t.trigger ? renameTrigger(t.trigger, maps) : t.trigger,

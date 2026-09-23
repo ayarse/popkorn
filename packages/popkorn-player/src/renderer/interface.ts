@@ -18,26 +18,18 @@ import type {
   TrimDescriptor,
 } from "./types.js";
 
-/**
- * Abstract renderer interface (ThorVG-style)
- * This interface allows swapping between Canvas2D (PoC) and ThorVG (future)
- */
+/** Primitive-level paint interface implemented by the Canvas2D, SVG and Skia backends. */
 export interface Renderer {
   // Frame lifecycle
   clear(): void;
   beginFrame(): void;
   endFrame(): void;
 
-  // Retained-backend hook: brackets all draw calls belonging to one scene node.
-  // Keys are stable across frames and nest to mirror the tree, so a retained
-  // backend (SVG) can get-or-create one element per node and diff it. Immediate-
-  // mode backends (Canvas2D/Skia) omit these entirely.
+  // Brackets one node's draws with a frame-stable key so a retained backend (SVG) can diff per node.
   beginNode?(key: string): void;
   endNode?(): void;
 
-  // Shape rendering. `corners` (CSS per-corner border-radius) overrides rx/ry
-  // when present; each backend realizes it its own way (native roundRect array,
-  // an SVG path, a Skia path) from the shared corner order [tl, tr, br, bl].
+  // `corners` ([tl, tr, br, bl] border-radius) overrides rx/ry when present.
   drawRect(
     x: number,
     y: number,
@@ -50,10 +42,7 @@ export interface Renderer {
   drawCircle(cx: number, cy: number, r: number): void;
   drawEllipse(cx: number, cy: number, rx: number, ry: number): void;
   drawPath(commands: PathCommand[]): void;
-  // One line of text. Multi-line splitting + line spacing happen in the shared
-  // walk (loop.ts), which calls this once per line. `letterSpacing` (px) is
-  // realized per backend (Canvas ctx.letterSpacing, SVG letter-spacing attr,
-  // Skia no-op — a pinned divergence).
+  // One line of text; the shared walk splits lines. NOTE: letterSpacing is a pinned no-op on Skia.
   drawText(
     text: string,
     x: number,
@@ -64,11 +53,7 @@ export interface Renderer {
     anchor: TextAnchor,
     letterSpacing?: number,
   ): void;
-  // Draw a cached image (by src) into the x/y/w/h box. w/h <= 0 means natural
-  // size. Loading/caching is the renderer's concern; nothing paints until the
-  // image decodes (the running loop repaints it in naturally). The optional
-  // sx/sy/sw/sh select a source sub-rect in image pixels (object-view-box crop,
-  // sprite-sheet frames); all four present => 9-arg sample, else the whole bitmap.
+  // w/h <= 0 means natural size; sx/sy/sw/sh (all four) select a source sub-rect. Paints nothing until decoded.
   drawImage(
     src: string,
     x: number,
@@ -80,22 +65,13 @@ export interface Renderer {
     sw?: number,
     sh?: number,
   ): void;
-  // Optional: resolves once no image decodes are in flight (immediately if
-  // none). A seek-driven offline export awaits this between seek and re-render
-  // so decoded images paint; the live loop needn't call it. Callers feature-detect.
+  // Resolves once no image decodes are in flight; offline export awaits it between seek and render.
   whenImagesSettled?(): Promise<void>;
 
   // Clip the current node and its descendants to a region (in local space).
   clip(clip: ResolvedClip): void;
 
-  // Track-mask composite. Paints `drawContent` and `drawMask` into offscreen
-  // buffers (each closure sets its own world transform and draws a subtree),
-  // masks the content by the mask per `mode`, and blits the result to the main
-  // canvas. Degrades to drawing the content alone when offscreen isn't available.
-  // `region` is the device-space box the composite can affect (see
-  // scene/bounds). Optional: a backend that picks its own region (SVG filters
-  // use the element bbox) or has no offscreen at all ignores it, and a caller
-  // that can't compute one omits it for whole-buffer behaviour.
+  // Masks drawContent by drawMask per `mode`; `region` (device px) bounds the composite, omitted = whole buffer.
   compositeMask(
     mode: MaskMode,
     drawContent: () => void,
@@ -103,35 +79,17 @@ export interface Renderer {
     region?: DeviceRect,
   ): void;
 
-  // CSS filter compositing. Optional so backends without a filter concept (or
-  // where the platform ctx.filter is unsupported) simply omit it and the loop
-  // degrades to drawing unfiltered. `supportsFilter` feature-detects at runtime;
-  // `compositeFilter` paints `drawContent` (a subtree, at its own world
-  // transform) into an offscreen and blits it back through `filter` (a CSS
-  // filter string already scaled to device space by the caller).
+  // CSS filter composite; absent or unsupported degrades to drawing unfiltered.
   supportsFilter?(): boolean;
   compositeFilter?(
     filter: string,
     drawContent: () => void,
     region?: DeviceRect,
   ): void;
-  // A device-space-blit backend (Canvas2D) wants the filter string pre-scaled by
-  // the node's full world scale. A retained backend that applies the string as a
-  // CSS `filter` on a group in the node's *parent* user space (SVG) instead gets
-  // the CTM's scale for free, so it wants the string scaled by only the node's
-  // own local scale. Return true for the latter. Feature-detected; default false.
+  // True = filter string is scaled by the node's local scale only (parent CTM applies the rest), not world scale.
   filtersUseUserSpace?(): boolean;
 
-  // Raster cache for composite subtrees. `cacheComposite` runs `draw` (a
-  // compositeFilter/compositeMask call for one subtree) into a dedicated
-  // region-sized raster and blits it; a later call with the same `key`,
-  // `signature` and `region` blits the stored raster WITHOUT running `draw`.
-  // The shared walk owns the decision — it derives the signature from the
-  // subtree's resolved state, world transform, filter string and region — and
-  // the backend owns storage, admission and eviction. Optional: an immediate-
-  // mode backend that can snapshot its own composite output implements both; a
-  // retained backend (SVG, which already diffs its DOM) and one without
-  // offscreen compositing (Skia) omit them and keep the uncached path.
+  // Composite raster cache: same key+signature+region blits the stored raster without running `draw`.
   supportsRasterCache?(): boolean;
   cacheComposite?(
     key: string,
@@ -150,16 +108,14 @@ export interface Renderer {
   setStrokeMiterLimit(limit: number): void;
   // Trim the stroke to a sub-range of the outline; null strokes the whole outline.
   setTrim(trim: TrimDescriptor | null): void;
-  // Stroke dash pattern + offset. Empty array => solid stroke. Ignored while a
-  // trim window is active (trim wins).
+  // Empty array = solid; ignored while a trim is active.
   setDash(dashArray: number[], dashOffset: number): void;
   // Fill winding rule for the next path/star/polygon fill and clip.
   setFillRule(rule: FillRule): void;
   // Paint order for the next shape: 'stroke' draws stroke behind fill.
   setPaintOrder(order: PaintOrder): void;
   setOpacity(opacity: number): void;
-  // CSS mix-blend-mode against the backdrop. The shared walk brackets a node's
-  // shape draw with this (mode then 'normal'); each backend realizes it.
+  // CSS mix-blend-mode; the walk brackets a shape draw with mode then 'normal'.
   setBlendMode(mode: BlendMode): void;
 
   // Transform stack
@@ -171,8 +127,6 @@ export interface Renderer {
   // Canvas dimensions
   getWidth(): number;
   getHeight(): number;
-  // Resize the render surface's backing store to device px. Canvas2D sizes the
-  // canvas element; SVG rewrites width/height + viewBox; Skia updates its
-  // tracked dimensions. Called by the host on layout/DPR changes.
+  // Resize the backing store to device px (host calls on layout/DPR change).
   resize(width: number, height: number): void;
 }

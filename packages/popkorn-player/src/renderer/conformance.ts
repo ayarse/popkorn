@@ -13,51 +13,13 @@ import type { Renderer } from "./interface.js";
 import type { GradientData } from "./types.js";
 
 /**
- * Cross-backend renderer conformance suite.
- *
- * The three `Renderer` backends (Canvas2D, SVG, Skia) share their paint
- * *helpers* (gradient-geometry, stroke, paint-state) but each keeps its own
- * compositing, ordering and state discipline — the code that legitimately stays
- * per-backend. This module pins the SEMANTICS those divergent implementations
- * must agree on, as one table of cases driven through the common `Renderer`
- * interface. Each backend's test package builds a `ConformanceHarness` that runs
- * a case and reports a NORMALIZED trace; the case asserts against a
- * backend-agnostic expectation. A fix that drifts one backend fails its column,
- * and the shared expectation constants keep the three honest against each other.
- *
- * Deliberate divergences (Skia luma·alpha matrix limit, Skia text/image no-ops
- * — letter-spacing included, which RN Skia's simple drawText can't apply —,
- * Skia no CSS-`filter` realization — blur/drop-shadow/color-adjust all degrade
- * unfiltered, while Canvas2D and SVG apply the shared filterToCSS string, SVG in
- * user space and Canvas in device space — and SVG text-measure approximation)
- * are NOT in this table — they live as explicit single-backend tests next to
- * each harness, documenting the disagreement so a silent behavior change still
- * fails.
- *
- * The raster cache isn't in this table either: `cacheComposite` is an
- * optional Canvas2D-only capability (SVG diffs its DOM, Skia has no offscreen
- * to snapshot), and a cached composite is BY CONTRACT the same pixels the
- * direct composite draws — so the semantics under test are the uncached ones
- * already covered here. The opt-outs are pinned as single-backend divergence
- * tests next to the SVG and Skia harnesses, and the cache's own promise
- * (cached frames == uncached frames, command for command) is asserted through
- * the shared walk in runtime/raster-cache.test.ts.
- *
- * `box-shadow` isn't a Renderer primitive: the shared walk (loop.ts) realizes it
- * over drawPath + clip + compositeFilter (all covered here). Its only per-backend
- * divergence — Skia draws the shadow shapes SHARP because it has no filter — is
- * the same pinned no-filter divergence above, so it needs no new case.
- *
- * Cases drive the `Renderer` directly rather than a scene through `RenderLoop`:
- * the loop's `renderNode` walk is itself shared, so the per-backend behavior
- * under test lives in the `Renderer` methods, and exercising them directly is
- * both simpler and a tighter aim.
+ * Cross-backend conformance: one case table run through the `Renderer` interface
+ * against Canvas2D, SVG and Skia, each harness reporting a normalized trace.
+ * Deliberate divergences (Skia luma·alpha, text/image/filter no-ops, SVG text
+ * measure, raster-cache opt-outs) are pinned as single-backend tests per harness.
  */
 
-// A gradient normalized to platform-independent geometry, in the field order the
-// shared `resolveGradient` produces. Every backend's harness reverse-maps its
-// platform gradient (CanvasGradient args / SVG attrs / SkShader args) to this,
-// so all three must realize the SAME endpoints from one GradientData + box.
+// Platform gradient reverse-mapped to shared `resolveGradient` geometry.
 export interface NormGradient {
   type: "linear" | "radial" | "conic";
   // linear: [x1,y1,x2,y2]; radial: [cx,cy,r,fx,fy]; conic: [cx,cy,startAngle]
@@ -65,33 +27,23 @@ export interface NormGradient {
   stops: { offset: number; color: string }[];
 }
 
-// One fill or stroke, in paint order within the frame. Solid paints carry
-// `color` (the shared colorToCSS string every backend applies); gradient paints
-// carry `gradient`. Strokes carry the applied `dashArray` + `dashOffset` (post
-// trim/dash resolution), so dash-inside-trim composition, trim-only, dash-only,
-// and empty-trim→no-stroke are all observable.
+// One fill or stroke in paint order; strokes carry the applied dash after trim composition.
 export interface PaintObs {
   kind: "fill" | "stroke";
   color?: string;
   gradient?: NormGradient;
   dashArray?: number[];
   dashOffset?: number;
-  // Realized mix-blend-mode at this paint (undefined == 'normal'). Each harness
-  // reverse-maps its platform blend (Canvas gCO / SVG style / Skia paint blend).
+  // Realized mix-blend-mode (undefined == 'normal').
   blend?: BlendMode;
 }
 
-// One realized track-matte composite, its platform primitive reverse-mapped to
-// the mode it reproduces (Canvas gCO+luma pass / Skia blend+colorFilter / SVG
-// mask-type+filter chain). Encounter order is per-backend, so mask cases assert
-// the mode MULTISET, not the sequence.
+// One realized track-matte composite; encounter order is per-backend, so assert the multiset.
 export interface MaskObs {
   mode: MaskMode;
 }
 
-// One realized clip region, its platform primitive reverse-mapped to the shared
-// ResolvedClip shape (rect bounds / circle / path). Lets a case assert every
-// backend crops to the SAME geometry the shared walk asks for (artboard clip).
+// One realized clip, reverse-mapped to the ResolvedClip shape.
 export interface ClipObs {
   type: "rect" | "circle" | "path";
   x?: number;
@@ -100,10 +52,7 @@ export interface ClipObs {
   height?: number;
 }
 
-// The normalized observation a harness produces from running one case's ops.
-// `filters` holds the CSS filter string each compositeFilter realized, in
-// encounter order (Canvas: the ctx.filter live at the blit; SVG: the wrapper
-// group's filter style; Skia: always empty — it has no filter realization).
+// Normalized observation of one case; `filters` is each realized compositeFilter string (Skia: none).
 export interface ConformanceTrace {
   paints: PaintObs[];
   masks: MaskObs[];
@@ -113,16 +62,13 @@ export interface ConformanceTrace {
   height: number;
 }
 
-// A backend adapter: runs a case's ops through a fresh renderer wired to a
-// recording surface, and returns the normalized trace. Built in each backend's
-// own test package so the recording surface stays with the backend.
+// Backend adapter: runs a case's ops on a fresh recording renderer, returns the trace.
 export interface ConformanceHarness {
   backend: "canvas2d" | "svg" | "skia";
   run(ops: (r: Renderer) => void): ConformanceTrace;
 }
 
-// Minimal shape of bun:test's `test`/`expect`, injected so this module (exported
-// from the package index) never imports `bun:test` itself.
+// Minimal bun:test surface, injected so this module never imports `bun:test`.
 type ExpectFn = (actual: unknown) => {
   toBe(v: unknown): void;
   toEqual(v: unknown): void;
@@ -139,9 +85,7 @@ interface ConformanceCase {
   name: string;
   ops: (r: Renderer) => void;
   assert: (trace: ConformanceTrace, expect: ExpectFn) => void;
-  // When set, only these backends run the case; the rest are skipped. Unused for
-  // now (every case runs on all three) — kept so a genuinely-unobservable case
-  // can name what it drops instead of silently passing.
+  // When set, only these backends run the case.
   backends?: ConformanceHarness["backend"][];
 }
 
@@ -152,8 +96,7 @@ export const MASK_MODES: readonly MaskMode[] = [
   "luminance-invert",
 ];
 
-// Compare two coordinate lists with float tolerance (gradient endpoints carry
-// √2 half-diagonals etc.).
+// Float-tolerant coordinate-list comparison.
 function expectCoords(
   actual: number[],
   expected: number[],
@@ -229,8 +172,7 @@ const GRAD_CONIC: GradientData = {
     { offset: 1, color: "#0000ff" },
   ],
 };
-// Repeating linear: a quarter-turn stop run tiled across the axis. The shared
-// resolveGradient expands the tile, so every non-conic backend realizes it.
+// Repeating linear: the shared resolveGradient expands the tiled stop run.
 const GRAD_REPEAT_LINEAR: GradientData = {
   type: "linear-gradient",
   angle: 90,
@@ -243,8 +185,7 @@ const GRAD_REPEAT_LINEAR: GradientData = {
 const BOX_20x10 = { x: 0, y: 0, width: 20, height: 10 };
 const BOX_10x10 = { x: 0, y: 0, width: 10, height: 10 };
 
-// Drive the renderer with the clip + evenodd cover/hole an inset shadow emits,
-// exactly as the shared walk (drawBoxShadows) does.
+// Clip + evenodd cover/hole, exactly as drawBoxShadows emits an inset shadow.
 function driveInset(
   r: Renderer,
   sd: RectData | CircleData | EllipseData | PathData,
@@ -292,8 +233,7 @@ const INSET_PATH: PathData = {
   ],
 };
 
-// One inset case: assert the clip GEOMETRY KIND (rect vs shape-outline path) and
-// that the shadow fill is emitted, uniformly across all three backends.
+// Inset case: assert clip geometry kind (rect vs path) and that the shadow fills.
 function insetShadowCases(): ConformanceCase[] {
   const case_ = (
     name: string,
@@ -332,9 +272,7 @@ function insetShadowCases(): ConformanceCase[] {
       4,
       3,
     ),
-    // The exact reported case: a rounded rect with a stroke and a hard-edged
-    // (zero-blur) offset inset shadow. The shadow must clip to the rounded
-    // OUTLINE (a path), and the shape's fill AND stroke both still paint.
+    // Rounded rect + stroke + zero-blur inset: clips to the outline path; fill and stroke both paint.
     {
       name: "zero-blur offset inset on a stroked rounded rect clips to the outline path",
       ops: (r) => {
@@ -382,10 +320,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
 
   // --- per-corner border-radius (shared roundedRectPath geometry) ------------
   {
-    // A rect with four distinct corner radii. Canvas realizes it via native
-    // roundRect's per-corner array, SVG/Skia via the shared rounded-rect path —
-    // three code paths that must all still fill AND stroke the shape (a backend
-    // that ignored or choked on the `corners` arg would drop a paint here).
+    // Four distinct corner radii must still fill AND stroke on every backend.
     name: "per-corner border-radius still fills and strokes on every backend",
     ops: (r) => {
       r.setFill("#0000ff");
@@ -400,10 +335,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
 
   // --- mix-blend-mode: same blend realized on every backend ------------------
   {
-    // A non-normal blend must reach the paint identically across backends
-    // (Canvas gCO, SVG element style, Skia paint blend). Also checks the reset:
-    // after setBlendMode('normal') a later paint carries no blend, so it can't
-    // leak to siblings — exactly how the shared walk brackets a node's shape.
+    // Blend reaches the paint on every backend, and setBlendMode('normal') doesn't leak to later paints.
     name: "mix-blend-mode realizes the same blend on every backend, then resets",
     ops: (r) => {
       r.setBlendMode("multiply");
@@ -418,27 +350,18 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
       const blended = t.paints.find((p) => p.color === "#00ff00");
       const plain = t.paints.find((p) => p.color === "#0000ff");
       expect(blended?.blend).toBe("multiply");
-      // normal blend records as undefined (no gCO / style / non-SrcOver paint).
+      // normal blend records as undefined.
       expect(plain?.blend).toBeUndefined();
     },
   },
 
   // --- inset box-shadow: shape-accurate clip + punched inverse ---------------
-  // The shared walk realizes an inset shadow as `clip to the shape` + an evenodd
-  // cover-with-hole path fill. These cases drive that exact primitive sequence
-  // and assert every backend records the SAME clip GEOMETRY KIND — proving a
-  // rounded rect / ellipse / path clips to its real outline (a `path` clip), not
-  // its bounding box, and that the shadow still fills. Guards the reported bug
-  // where an inset shadow ignored the shape and clipped to a plain rect.
+  // A rounded rect / ellipse / path inset shadow must clip to its outline (`path`), not its bbox.
   ...insetShadowCases(),
 
   // --- #7 artboard clipping (shared walk's overflow:hidden default) ----------
   {
-    // A rect clip at the stage box, then a shape straddling its edge. Under the
-    // clip (overflow:hidden) every backend must record the SAME crop region and
-    // still emit the paint (clipped, not dropped). The `overflow:visible` side
-    // issues no clip() — that's the baseline every other case already shows
-    // (empty `clips`).
+    // Rect clip at the stage box: every backend records the same crop and still paints.
     name: "rect clip records one shared crop region and keeps the paint",
     ops: (r) => {
       r.save();
@@ -455,21 +378,19 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
       expect(c.y).toBe(0);
       expect(c.width).toBe(10);
       expect(c.height).toBe(10);
-      // The shape still paints — clipping crops pixels, it doesn't drop the draw.
+      // Clipping crops pixels; it doesn't drop the draw.
       expect(t.paints.some((p) => p.kind === "fill")).toBe(true);
     },
   },
 
-  // --- #4 sticky-state discipline (paint state is not on the save/restore
-  //        stack; the backend re-applies it at each draw) ---------------------
+  // --- #4 sticky-state discipline (paint state is not on the save/restore stack)
   {
     name: "set* paint state survives save/restore (not stacked)",
     ops: (r) => {
       r.setFill("#ff0000");
       r.setStroke("#00ff00", 3);
       r.save();
-      // Mutate inside the bracket, then restore: restore must NOT revert paint
-      // state, so the mutated values are what the draw below uses.
+      // restore must NOT revert paint state.
       r.setFill("#0000ff");
       r.restore();
       r.drawRect(0, 0, 10, 10);
@@ -477,18 +398,14 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       const fill = t.paints.find((p) => p.kind === "fill");
       const stroke = t.paints.find((p) => p.kind === "stroke");
-      // Fill mutated-then-restored still reads the mutated value (sticky, global).
       expect(fill?.color).toBe("#0000ff");
-      // Stroke set before the bracket survives the restore untouched.
       expect(stroke?.color).toBe("#00ff00");
     },
   },
 
   // --- #2 trim/dash composition; empty trim window strokes nothing -----------
   {
-    // Authored dash composed *inside* the trim window (dash-of-a-dash): trim
-    // window is total 30, arc [5,15]; the [3,3] dash's ON runs land at [6,9] and
-    // [12,15] within it -> [3,3,3,21] offset -6 over the length-30 outline.
+    // Dash inside trim: window 30, arc [5,15]; [3,3] ON runs at [6,9],[12,15] -> [3,3,3,21] offset -6.
     name: "authored dash composes inside a trim window",
     ops: (r) => {
       r.setFill(null);
@@ -508,7 +425,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
   {
-    // Trim-only stays byte-identical to pre-composition behavior.
+    // Trim-only is unchanged by dash composition.
     name: "trim window with no authored dash is unchanged",
     ops: (r) => {
       r.setFill(null);
@@ -527,7 +444,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
   {
-    // Dash-only stays byte-identical: no trim, authored dash passes through.
+    // Dash-only: authored dash passes through.
     name: "authored dash with no trim is unchanged",
     ops: (r) => {
       r.setFill(null);
@@ -546,9 +463,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
   {
-    // Trim offset (marching window) composed with a dash. Window total 40, arc
-    // [10,30]; [5,5] dash ON runs at [10,15],[20,25] within it -> [5,5,5,25]
-    // offset -10.
+    // Trim offset + dash: window 40, arc [10,30]; [5,5] ON at [10,15],[20,25] -> [5,5,5,25] offset -10.
     name: "trim offset composes with a dash",
     ops: (r) => {
       r.setFill(null);
@@ -622,9 +537,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
   },
 
   {
-    // Conic realizes its centre + start angle. SVG has no conic primitive (it
-    // degrades to a flat fill — pinned as a divergence test), so this case is
-    // scoped to the backends that realize an angular sweep.
+    // NOTE: SVG has no conic primitive (pinned divergence), so this is scoped to Canvas/Skia.
     name: "conic gradient realizes centre and start angle",
     backends: ["canvas2d", "skia"],
     ops: (r) => {
@@ -638,8 +551,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
   {
-    // Repeating gradients tile the stop run in the shared helper, so all three
-    // backends realize the SAME expanded stop list (no native spread/tile mode).
+    // Repeating tiles in the shared helper, so all backends get the same expanded stops.
     name: "repeating linear gradient tiles the stop run",
     ops: (r) => {
       r.setFill(null);
@@ -649,7 +561,6 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       const fill = t.paints.find((p) => p.kind === "fill");
       expectGradient(fill?.gradient, GRAD_REPEAT_LINEAR, BOX_20x10, expect);
-      // Sanity: tiling produced more than the two authored stops.
       expect((fill?.gradient?.stops.length ?? 0) > 2).toBe(true);
     },
   },
@@ -677,9 +588,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
   {
     name: "a nested matte inside drawContent does not corrupt the outer mask mode",
     ops: (r) => {
-      // Outer luminance; a nested alpha-invert re-enters compositeMask inside the
-      // outer's content. The outer's realized mode must survive the inner run
-      // (the Skia pooled-paint / Canvas buffer-band / SVG retained-mask hazard).
+      // Nested alpha-invert re-enters compositeMask; the outer mode must survive the inner run.
       r.compositeMask(
         "luminance",
         () => {
@@ -703,11 +612,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
 
   // --- CSS filter: shared string, shared skip -------------------------------
   {
-    // The shared walk collapses adjacent blur()s (sigma = sqrt(sum of squares))
-    // before handing the string to a backend, so a chain and its collapsed
-    // equivalent must realize the SAME filter — and one composite each. Scoped
-    // to the filter-realizing backends; Skia's no-filter degrade is its pinned
-    // divergence, and it would observe two empty strings here.
+    // Adjacent blur()s collapse in the shared walk, so chain and collapsed form realize one identical filter.
     name: "a chained blur realizes the same filter as its collapsed equivalent",
     backends: ["canvas2d", "svg"],
     ops: (r) => {
@@ -733,15 +638,11 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     assert: (t, expect) => {
       expect(t.filters.length).toBe(2);
       expect(t.filters[0]).toBe(t.filters[1]);
-      // One function, not a chain — the whole point of the collapse.
       expect(t.filters[0].split(" ").length).toBe(1);
     },
   },
   {
-    // A blur under half a device pixel is identity, so filterToCSS returns null
-    // and the walk draws the subtree inline: no composite, no filter realized,
-    // the same trace an unfiltered shape produces. Pinned on every backend —
-    // the skip is a decision in the shared walk, not a per-backend degrade.
+    // Sub-half-pixel blur: filterToCSS returns null and the walk draws inline, on every backend.
     name: "a sub-half-pixel blur realizes no filter and paints inline",
     ops: (r) => {
       const css = filterToCSS([{ type: "blur", radius: 0.4 }], 1);
@@ -750,7 +651,6 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
         r.setStroke(null, 0);
         r.drawRect(0, 0, 10, 10);
       };
-      // Exactly the shared walk's branch: null means composite nothing.
       if (css) r.compositeFilter?.(css, draw);
       else draw();
     },
@@ -773,11 +673,7 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
   },
 ];
 
-/**
- * Register every applicable conformance case against one backend's harness.
- * Called from each backend's test file with its `bun:test` `test`/`expect` and
- * the backend adapter.
- */
+/** Register every applicable case against one backend's harness. */
 export function registerConformance(
   runner: TestRunner,
   harness: ConformanceHarness,

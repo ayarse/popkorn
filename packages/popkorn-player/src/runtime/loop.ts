@@ -74,28 +74,22 @@ import {
 } from "./state-machine.js";
 import { createVariableResolver, type VariableResolver } from "./variables.js";
 
-/**
- * Flags set only on the TOP node of a mask composite pass (renderMask). Never
- * propagated to children, so nested mattes resolve independently.
- * - `paintSource`: paint this node even though it is `isMaskSource`.
- * - `skipMask`: skip this node's own `mask` redirect (we are already inside its
- *   composite) — a matte SOURCE is entered WITHOUT this so its own mask applies.
- */
+/** Flags for the TOP node of a mask composite pass only; never propagated, so nested mattes resolve independently. */
 interface RenderOpts {
+  /** Paint this node even though it is `isMaskSource`. */
   paintSource?: boolean;
+  /** Skip this node's own `mask` redirect (already inside its composite). */
   skipMask?: boolean;
 }
 
-/** A filtered node's composite plan for one frame, plus the transform/flag key
- *  it was derived under (a second visit at a different transform re-derives). */
+/** A filtered node's per-frame composite plan, keyed by the transform/flags it was derived under. */
 interface FilterPlan {
   key: string;
   css: string | null;
   region: DeviceRect | null;
 }
 
-/** Detail of a `popkorn:click` — the hit node's id, its ancestor id path (root
- *  → node), and the click point in scene coordinates. */
+/** `popkorn:click` detail: hit node id, root→node id path, and scene-space point. */
 export interface ClickDetail {
   id: string;
   path: string[];
@@ -103,15 +97,7 @@ export interface ClickDetail {
   y: number;
 }
 
-/**
- * Main render loop.
- *
- * Drives requestAnimationFrame and, each frame, runs the value-resolution
- * pipeline per node: reset live fields to the authored base, then layer
- * bindings (var()/input()), animation (keyframe sampling at timeline time),
- * and interaction overrides (:hover/:active) — in that fixed order. The
- * renderer and hit-test read the resulting live fields unchanged.
- */
+/** rAF loop; per node per frame: base → bindings → animation → :hover/:active (fixed order). */
 export class RenderLoop {
   private renderer: Renderer;
   private sceneRoot: SceneNode | null = null;
@@ -122,83 +108,44 @@ export class RenderLoop {
   private inputTracker: InputTracker;
   private variableResolver: VariableResolver;
   private interactionManager: InteractionManager;
-  // State-machine runner: evaluated once per LIVE frame before the walk. Its
-  // state lives off the timeline, so seek() never touches it.
+  // Evaluated once per live frame before the walk; its state is off the timeline, so seek() never touches it.
   private machineRunner: StateMachineRunner = createStateMachineRunner();
-  // Forwarded to the host (component) as statechange / machine-event DOM events.
   private machineEventCallback: ((output: MachineOutput) => void) | null = null;
-  // Pointer-edge state for machine triggers (wall-clock/input driven, off the
-  // timeline — like the InteractionManager's hover tracking).
+  // Pointer-edge state for machine triggers (input-driven, off the timeline).
   private prevIsDown: boolean = false;
   private prevHit: SceneNode | null = null;
   private downHit: SceneNode | null = null;
-  // Full-tree click resolution (crediting the nearest interactive ancestor) at
-  // the last pointerdown edge — matched against the release edge to synthesize a
-  // `popkorn:click`. Runs on edges only, never per-frame.
+  // Click target at the last pointerdown edge, matched on release to synthesize `popkorn:click`.
   private downClick: ReturnType<typeof hitTestClick> = null;
-  // Forwarded to the host (component) as a `popkorn:click` DOM event on a click
-  // edge (press+release on the same node). Fires for machine-less scenes too.
   private clickCallback: ((detail: ClickDetail) => void) | null = null;
-  // Fit-to-container: root transform (scene -> device px) applied each frame, plus
-  // the scene box size the background fills. Default identity = 1:1, no fit.
+  // Root transform (scene → device px); identity = no fit.
   private viewport: Matrix3x3 = IDENTITY_MATRIX;
-  // One-time guard: a node has a `filter` but the renderer can't apply it (old
-  // Safari, or a backend without a filter concept). Warned once, then unfiltered.
+  // Warn once when a `filter` can't be applied by the renderer; then draw unfiltered.
   private filterWarned: boolean = false;
   private sceneWidth: number = 0;
   private sceneHeight: number = 0;
-  // Artboard clipping: crop content to the scene box (AE-comp / Lottie default).
-  // `hidden` unless `:root { overflow: visible }` turns it off. Only actually
-  // clips when the scene is dimensioned (width+height > 0) — see `shouldClip`.
+  // Crop to the scene box unless `:root { overflow: visible }`; see `shouldClip`.
   private clipToScene: boolean = true;
-  // Looping: when on, the timeline wraps once it passes `sceneDuration`.
   private looping: boolean = false;
   private sceneDuration: number = 0;
-  // Cached at setScene: does anything make this scene keep changing on its own
-  // (infinite animation) or in response to input/interaction (bindings, hover/
-  // active)? Drives `isStatic` — an embedder can stop repainting a settled scene.
+  // Infinite animation, bindings or hover/active present; drives `isStatic`.
   private sceneDynamic: boolean = false;
-  // Cached at setScene: does any subtree remap inherited time (time-offset/
-  // time-scale/time-remap)? When it does, `sceneDuration` (a max of animation
-  // end times measured in each subtree's LOCAL time) is not the scene's end on
-  // the root timeline, so the play-once clamp below can't trust it and stays off.
+  // Some subtree remaps time, so `sceneDuration` (local-time ends) isn't a root-timeline bound.
   private sceneTimeScoped: boolean = false;
-  // Cached at setScene: is this scene not a finite clip? True for a state machine
-  // (or any `:state()` set, authorable without a machine) — machine state lives
-  // off the timeline — AND for a scene of only-infinite animations, which has no
-  // honest end either. Such a scene's clock free-runs monotonically; `sceneDuration`
-  // (a max of BASE animation ends) is not a bound, and wrapping it would fold the
-  // clock back — replaying a later state's entry, or snapping every infinite
-  // animation to phase 0 in lockstep. See `sceneIsPerpetual`.
+  // No finite end (machine/`:state()` or only-infinite animations): clock free-runs, never wraps/clamps.
   private sceneUnbounded: boolean = false;
-  // Fires once per rendered frame with the current timeline time (drives the
-  // controls scrubber off the existing loop tick — no extra rAF).
   private frameCallback: ((time: number) => void) | null = null;
-  // Fires once when a non-looping finite timeline first reaches its end. Latched
-  // so the held-at-end frames don't re-fire it; the latch clears when the clock
-  // drops back inside the clip (seek/reset), so a replay can complete again.
+  // Latched once per pass; cleared when the clock drops back inside the clip.
   private completeCallback: (() => void) | null = null;
   private hasCompleted: boolean = false;
-  // Stable per-node keys for the retained-backend bracket (beginNode/endNode).
-  // node.id is a CSS selector name and NOT unique (classes, symbol expansion),
-  // so we stamp a monotonic key on first sight. Nodes are built once and live
-  // for the scene's lifetime, so the WeakMap keeps keys stable across frames.
+  // Stable beginNode/endNode keys; node.id isn't unique (classes, symbol expansion).
   private nodeKeys = new WeakMap<SceneNode, string>();
   private nextNodeKey = 0;
-  // Per-frame memo of each filtered node's composite plan (CSS string + device
-  // region). A mask double-walks its content and source subtrees, so the same
-  // filtered node is commonly reached twice in one frame at the same transform;
-  // both the bounds walk and filterToCSS are non-trivial. Cleared every frame —
-  // it caches nothing across time (invariants 2 and 4).
+  // Per-frame memo (masks walk subtrees twice); cleared every frame, never caches across time.
   private filterPlans = new Map<SceneNode, FilterPlan>();
-  // Per-frame memo of each composite subtree's content token (see
-  // runtime/content-hash). Same lifetime and reasoning as `filterPlans`: a mask
-  // reaches the same subtree twice per frame, and the token is a pure function
-  // of this frame's resolved state, so it must not outlive the frame.
+  // Per-frame memo of composite subtree content tokens; same lifetime as `filterPlans`.
   private contentTokens = new Map<SceneNode, string | null>();
-  // Renderer capability (invariant 7: the decision to cache lives here, the
-  // buffers live in the backend). Resolved on first use — Canvas2D opts in, SVG
-  // and Skia don't.
+  // Lazily resolved renderer capability; the cache decision lives here, buffers in the backend.
   private rasterCacheable: boolean | null = null;
 
   constructor(
@@ -227,7 +174,6 @@ export class RenderLoop {
     return this.interactionManager;
   }
 
-  /** The current scene root (null before a scene is set). Read-only access. */
   getScene(): SceneNode | null {
     return this.sceneRoot;
   }
@@ -237,39 +183,32 @@ export class RenderLoop {
     this.nodeKeys = new WeakMap();
     this.nextNodeKey = 0;
     this.interactionManager.setScene(root);
-    // Machines start at their initial states, anchored at timeline zero.
     this.machineRunner.setScene(root, 0);
     this.prevIsDown = false;
     this.prevHit = null;
     this.downHit = null;
     this.downClick = null;
-    // Batch the reactive calc() bindings that share a structure (repeat clones):
-    // a pure optimization of the bindings step, resolved at the same point in
-    // the walk as the scalar path.
+    // Batch same-structure calc() bindings (repeat clones); pure optimization of the bindings step.
     this.variableResolver.planCalcBatches(collectBindingValues(root));
     this.sceneDuration = computeSceneDuration(root);
     this.hasCompleted = false;
     this.sceneDynamic = sceneHasDynamicContent(root);
     this.sceneTimeScoped = sceneHasTimeScoping(root);
-    // A scene of only-infinite animations free-runs like a state-machine scene:
-    // no honest end to wrap or clamp at. Excluded when time-scoped — a time-remap
-    // curve holds at its endpoints under a non-wrapping clock and needs the wrap.
+    // Not when time-scoped: a time-remap curve holds at its endpoints without the wrap.
     this.sceneUnbounded =
       sceneIsUnbounded(root) ||
       (!this.sceneTimeScoped && sceneIsPerpetual(root));
   }
 
-  /** The scene's state-machine runner (host events, tests). */
   getStateMachineRunner(): StateMachineRunner {
     return this.machineRunner;
   }
 
-  /** Register a callback for machine transitions/emits (component wiring). */
   setMachineEventCallback(cb: ((output: MachineOutput) => void) | null): void {
     this.machineEventCallback = cb;
   }
 
-  /** Register a callback fired on a click edge with the hit node's id/path/point. */
+  /** Fires on press+release over the same node; machine-less scenes too. */
   setClickCallback(cb: ((detail: ClickDetail) => void) | null): void {
     this.clickCallback = cb;
   }
@@ -283,79 +222,59 @@ export class RenderLoop {
     this.backgroundColor = color;
   }
 
-  /** Intrinsic scene size (the :root stage box) the background fills and fit maps. */
   setSceneSize(width: number, height: number): void {
     this.sceneWidth = width;
     this.sceneHeight = height;
   }
 
-  /** Root transform (scene -> device px) applied at the start of each frame. */
   setViewport(matrix: Matrix3x3): void {
     this.viewport = matrix;
   }
 
-  /** Artboard clipping: `true` (default) crops content to the scene box; `false`
-   *  (`:root { overflow: visible }`) lets it spill past the edge. */
   setClip(enabled: boolean): void {
     this.clipToScene = enabled;
   }
 
-  /** Whether this frame actually clips: clipping on AND the scene is dimensioned.
-   *  Unbounded/undimensioned scenes never clip (there's no artboard to clip to). */
+  /** Undimensioned scenes never clip. */
   private shouldClip(): boolean {
     return this.clipToScene && this.sceneWidth > 0 && this.sceneHeight > 0;
   }
 
-  /** Enable/disable timeline looping (wraps at `duration`). */
   setLoop(enabled: boolean): void {
     this.looping = enabled;
   }
 
-  /** Register a per-frame callback (current timeline time in ms). */
   setFrameCallback(cb: ((time: number) => void) | null): void {
     this.frameCallback = cb;
   }
 
-  /** Register a callback fired once when a play-once timeline reaches its end. */
+  /** Fires once when a play-once timeline reaches its end. */
   setCompleteCallback(cb: (() => void) | null): void {
     this.completeCallback = cb;
   }
 
-  /** Scene duration in ms. `Infinity` for an unbounded (state-machine or
-   *  all-infinite) scene — it free-runs and has no honest end. Otherwise the
-   *  finite nominal value (max animation end time; infinite counts as one
-   *  iteration), used internally for the wrap/clamp logic below. */
+  /** Ms; `Infinity` for unbounded scenes, else max animation end (infinite counts once). */
   get duration(): number {
     if (this.sceneUnbounded) return Infinity;
     return this.sceneDuration;
   }
 
-  /** Whether the rAF loop is currently running. */
   get running(): boolean {
     return this.isRunning;
   }
 
-  /** Whether the timeline is frozen (paused). */
   get paused(): boolean {
     return this.scheduler.isPaused();
   }
 
-  /**
-   * True when the scene can produce no further visual change on its own, so an
-   * embedder may stop repainting until a prop change re-mounts the loop. Honest
-   * about reactivity: a looping timeline, any infinite animation, or any
-   * input()/var() binding or :hover/:active style keeps it non-static — only a
-   * one-shot scene whose timeline has run past its duration settles.
-   */
+  /** True when no further visual change is possible; only a finished one-shot, non-reactive scene settles. */
   isStatic(): boolean {
     if (!this.sceneRoot) return true;
-    // An unbounded (state-machine) scene never finishes — it can always still
-    // transition — so it's never static regardless of the clock.
     if (this.looping || this.sceneDynamic || this.sceneUnbounded) return false;
     return this.currentTime >= this.sceneDuration;
   }
 
-  /** Repaint one frame at the current timeline time (for resize while paused/stopped). */
+  /** Repaint at the current time (resize while paused/stopped). */
   redraw(): void {
     this.drawFrame(performance.now());
   }
@@ -386,7 +305,6 @@ export class RenderLoop {
     this.scheduler.pause();
   }
 
-  /** Resume the timeline from where it was paused. */
   resume(): void {
     this.scheduler.resume();
   }
@@ -395,15 +313,10 @@ export class RenderLoop {
   seek(ms: number): void {
     const now = performance.now();
     this.scheduler.seek(ms, now);
-    // Render exactly one frame at the seeked instant, synchronously. seek is a
-    // pure function of time (invariant 4) and that includes the canvas: a paused
-    // loop may never get another rAF tick (a backgrounded tab throttles rAF to
-    // nothing), so relying on the next frame leaves the displayed frame stale.
-    // While playing, this one extra draw is idempotent and the loop continues.
+    // Draw synchronously: a paused/backgrounded loop may never get another rAF tick.
     this.drawFrame(now);
   }
 
-  /** Current timeline time in milliseconds. */
   get currentTime(): number {
     return this.scheduler.time();
   }
@@ -411,8 +324,7 @@ export class RenderLoop {
   private loop = (timestamp: number): void => {
     if (!this.isRunning) return;
 
-    // Update interaction state (hover, active). `timestamp` anchors any
-    // transition a state flip starts.
+    // `timestamp` anchors any transition a hover/active flip starts.
     this.interactionManager.update(
       this.inputTracker.getState(),
       timestamp,
@@ -421,36 +333,18 @@ export class RenderLoop {
         : null,
     );
 
-    // Resolve the whole scene at the current timeline time, then paint. `live`
-    // gates the parts that must run only on a real rAF tick — machine evaluation
-    // and momentary-trigger reset — so seek()/redraw() stay pure functions of
-    // (time, machineState).
+    // `live` gates machine evaluation and trigger reset so seek()/redraw() stay pure.
     this.drawFrame(timestamp, true);
-
-    // Schedule next frame
     this.animationFrameId = requestAnimationFrame(this.loop);
   };
 
-  /** Resolve every node's live values at the current timeline time and render. */
   private drawFrame(now: number, live: boolean = false): void {
-    // Open a fresh variable-resolution frame: invalidates the per-frame var()
-    // memo before machines evaluate or nodes resolve, so each draw (live tick,
-    // seek, or redraw) recomputes from current input/host state.
+    // Invalidate the per-frame var() memo before machines or nodes resolve.
     this.variableResolver.beginFrame();
     if (this.sceneRoot) {
       let t = this.scheduler.time(now);
-      // Clear the completion latch whenever the clock sits inside the clip, so a
-      // seek-back or reset lets `complete` fire again on the next pass.
       if (t < this.sceneDuration) this.hasCompleted = false;
-      // Looping: once the timeline runs past the scene's duration, fold it back
-      // into [0, duration) and re-anchor the scheduler. Re-anchoring (rather than
-      // just sampling the wrapped t) resets fill-forward states cleanly and keeps
-      // currentTime bounded. Skipped while paused so scrubbing to the end holds.
-      // Unbounded (state-machine) scenes opt out of BOTH the wrap and the
-      // play-once clamp: the clock is monotonic so state-animation entry anchors
-      // (machineTime - entryTime) never fold negative and replay. The `loop`
-      // attribute is inert for them. (Sits alongside the sceneTimeScoped opt-out
-      // below — same "sceneDuration isn't a root-timeline bound" reasoning.)
+      // Wrap by re-anchoring the scheduler (keeps currentTime bounded); not while paused or unbounded.
       if (this.looping && !this.scheduler.isPaused() && !this.sceneUnbounded) {
         const wrapped = wrapTime(t, this.sceneDuration, true);
         if (wrapped !== t) {
@@ -464,13 +358,7 @@ export class RenderLoop {
         this.sceneDuration > 0 &&
         t > this.sceneDuration
       ) {
-        // Not looping: hold at the end of one full pass ("play once and stop").
-        // Without this, t free-runs past duration and any infinite animation
-        // keeps cycling. Re-anchor (like the wrap above) so currentTime stays
-        // bounded and the frozen frame is a pure function of time — seeking past
-        // the end shows this same clamped final frame whether playing or paused.
-        // Skipped for time-scoped scenes (see sceneTimeScoped): their duration
-        // isn't a root-timeline bound, so they keep their old free-run behavior.
+        // Play once: hold at the end, re-anchored so the frozen frame is a pure function of time.
         this.scheduler.seek(this.sceneDuration, now);
         t = this.sceneDuration;
         if (!this.hasCompleted) {
@@ -483,16 +371,7 @@ export class RenderLoop {
       this.inputTracker.update(t);
       this.variableResolver.updateInputState(this.inputTracker.getState());
 
-      // Machines evaluate once per LIVE frame, BEFORE the node walk. `t` (the
-      // wrapped/clamped timeline time) is the machine time base — the same value
-      // the walk anchors state animations against. Pointer triggers come from
-      // the shared hit-tester; the outputs are forwarded to the host.
-      // Pointer edges drive machine triggers AND the `popkorn:click` DOM event.
-      // detectPointerEvents runs every live frame (not just for machine scenes)
-      // so clicks resolve with no opt-in; it only runs the expensive full-tree
-      // click hit-test on press/release edges. Machine evaluation consumes its
-      // (interactive-only) hover/pointer events, and is skipped when there are
-      // no machines.
+      // Machines evaluate before the walk with `t` as time base; pointer edges also drive `popkorn:click`.
       if (live) {
         const events = this.detectPointerEvents();
         if (this.machineRunner.hasMachines()) {
@@ -508,45 +387,26 @@ export class RenderLoop {
       this.resolveNode(this.sceneRoot, t, now, t);
     }
     this.render();
-    // Momentary triggers (fire()) read `true` for exactly this frame; reset them
-    // after the whole walk so both machine guards and node bindings saw them.
+    // fire() triggers read true for exactly this frame; reset after the whole walk.
     if (live) this.variableResolver.endFrame();
     this.frameCallback?.(this.currentTime);
   }
 
-  /**
-   * Value-resolution pipeline for one node:
-   * base -> bindings -> machine :state() merge -> animation -> interaction.
-   * `machineTime` is the global timeline time (threaded unchanged) used to
-   * anchor state animations; `t` is this node's inherited (scoped) time.
-   */
+  /** base → bindings → :state() → animation → interaction; `t` is inherited scoped time, `machineTime` global. */
   private resolveNode(
     node: SceneNode,
     t: number,
     now: number,
     machineTime: number,
   ): void {
-    // Visibility window: a node outside [from, until) is hidden this frame, and
-    // the render walk / hit-testing skip it and its subtree. Evaluated against
-    // the INCOMING time `t` (this node's containing scope) — not the local time
-    // below — because a layer's visibility lives in its parent comp's timeline,
-    // while time-offset/time-scale only remap time for the node's own content.
+    // Visibility uses the incoming (parent-scope) time; time scoping remaps only this node's content.
     node.hidden = t < node.visibleFrom || t >= node.visibleUntil;
 
     resetNodeToBase(node);
     this.applyBindings(node);
-    // Machine :state() sets merge in here (static decls + entry-anchored state
-    // animations), between bindings and the node's own animation sampling.
     if (node.stateStyles.length > 0) this.applyMachineStates(node, machineTime);
 
-    // Per-subtree time scoping: shift then scale the inherited time into this
-    // node's local timeline, which applies to the node and all descendants.
-    // Nested scopes compose because the scoped time is what recurses down.
-    // Defaults (0, 1) leave `t` unchanged. Derived AFTER the :state() merge so a
-    // machine-animated `time-remap` scalar (set this frame) drives the subtree;
-    // reading it before the merge would pick up the previous frame's stale value
-    // and break seek() purity. Priority: post-merge scalar (a state playing a
-    // segment of the master timeline) > static curve (Lottie `tm`) > offset/scale.
+    // After the :state() merge so a machine-set time-remap is this frame's; scalar > curve > offset/scale.
     const local =
       node.timeRemapValue !== null
         ? node.timeRemapValue
@@ -554,8 +414,6 @@ export class RenderLoop {
           ? sampleTimeRemap(node.timeRemap, t)
           : (t - node.timeOffset) * node.timeScale;
 
-    // Base (node-level) animations: scrub to a 0..1 timeline reference when the
-    // node declares animation-timeline, else sample on the clock at local time.
     if (node.animationTimeline && node.animations.length > 0) {
       sampleNodeAtProgress(
         node,
@@ -570,24 +428,12 @@ export class RenderLoop {
       this.resolveNode(child, local, now, machineTime);
     }
 
-    // Cache this frame's sibling paint order now every child's z-index is
-    // resolved — the single source of truth the render walk and hit-testing both
-    // read (never sorting twice or disagreeing). Cheap for the static all-zero
-    // case (childrenInPaintOrder's fast path returns the array untouched).
+    // Paint order once z-indexes resolve; render walk and hit-testing both read it.
     refreshSortedChildren(node);
   }
 
-  /**
-   * Merge every active `:state()` set on a node. Steady state (no `mix` in
-   * flight) is a straight apply of each active entry — static declarations plus
-   * entry-anchored animations. During a `mix` cross-fade window the outgoing and
-   * incoming states are each fully resolved into the node in turn, then blended
-   * channel-by-channel at the mix's eased progress (invariant #2: this all
-   * happens inside the state-override step, between bindings and the node's own
-   * animation sampling).
-   */
+  /** Apply active `:state()` sets; during a `mix`, resolve both ends and blend per channel. */
   private applyMachineStates(node: SceneNode, machineTime: number): void {
-    // Contribution of each active :state() entry, in document order.
     const active: {
       entry: SceneNode["stateStyles"][number];
       blend: StateBlend;
@@ -605,16 +451,13 @@ export class RenderLoop {
     }
     if (active.length === 0) return;
 
-    // Fast path: no cross-fade — apply every active state directly (also the
-    // hard-cut path when a transition carried no `mix`).
     if (!mixing) {
       for (const { entry, blend } of active)
         this.applyStateEntry(node, entry, blend.entryTime, machineTime);
       return;
     }
 
-    // Cross-fade. Solid contributions (other machines' steady states) apply
-    // first and form the baseline both mix ends share.
+    // Solid states (other machines) form the baseline both mix ends share.
     for (const { entry, blend } of active)
       if (blend.side === "solid")
         this.applyStateEntry(node, entry, blend.entryTime, machineTime);
@@ -623,38 +466,30 @@ export class RenderLoop {
     for (const { entry, blend } of active)
       if (blend.side !== "solid") involvedStateKeys(entry, keys);
 
-    // Baseline (post-bindings + solid states) each mix end starts from.
     const baseline = new Map<string, ReturnType<typeof readLiveProp>>();
     for (const key of keys) baseline.set(key, readLiveProp(node, key));
 
-    // Outgoing end: apply the fading-out states, snapshot the result.
     for (const { entry, blend } of active)
       if (blend.side === "out")
         this.applyStateEntry(node, entry, blend.entryTime, machineTime);
     const from = new Map<string, ReturnType<typeof readLiveProp>>();
     for (const key of keys) from.set(key, readLiveProp(node, key));
 
-    // Reset the involved channels to baseline, then apply the incoming end.
     for (const key of keys) writeProp(node, key, baseline.get(key) ?? null);
     for (const { entry, blend } of active)
       if (blend.side === "in")
         this.applyStateEntry(node, entry, blend.entryTime, machineTime);
 
-    // Eased blend weight: the incoming ("in") weight is the mix progress; with
-    // no incoming entry on this node it's 1 minus the outgoing weight.
     const inSide = active.find((a) => a.blend.side === "in");
     const outSide = active.find((a) => a.blend.side === "out");
-    // NOTE: concurrent mixes on the same node (multiple machines) share this one
-    // progress; rare enough to not warrant per-machine channel partitioning.
+    // NOTE: concurrent mixes on one node share this progress; per-machine partitioning if needed.
     const e = inSide
       ? inSide.blend.weight
       : outSide
         ? 1 - outSide.blend.weight
         : 1;
 
-    // Blend each involved channel from the outgoing snapshot toward the incoming
-    // (now-live) value. Incompatible gradients/paths step at the eased midpoint
-    // (blendProp), matching the incompatible-gradient stepping precedent.
+    // Incompatible gradients/paths step at the eased midpoint (blendProp).
     for (const key of keys) {
       const handler = getPropHandler(key);
       if (!handler) continue;
@@ -666,13 +501,7 @@ export class RenderLoop {
     }
   }
 
-  /**
-   * Apply one `:state()` entry onto a node: its static declarations, then its
-   * animations entry-anchored on the global machine clock (`machineTime -
-   * entryTime`). Reuses the scheduler's documented `sampleNode(node, t -
-   * entryTime)` anchoring by temporarily pointing `node.animations` at the
-   * state's instances.
-   */
+  /** Static decls, then animations anchored at `machineTime - entryTime` via a temporary `node.animations` swap. */
   private applyStateEntry(
     node: SceneNode,
     entry: SceneNode["stateStyles"][number],
@@ -688,11 +517,7 @@ export class RenderLoop {
     }
   }
 
-  /**
-   * Resolve an `animation-timeline` value source to a raw 0..1 progress.
-   * `var(--x)` (and literals) go through the variable resolver; `input(path)`
-   * uses its public per-path input reader (kept in sync via updateInputState).
-   */
+  /** Raw 0..1 progress of an `animation-timeline` source (var/literal or `input(path)`). */
   private resolveTimelineProgress(value: Value): number {
     if (isFunctionValue(value) && value.name === "input") {
       const arg = value.args[0];
@@ -706,9 +531,7 @@ export class RenderLoop {
   private applyBindings(node: SceneNode): void {
     const resolve = (v: Value) => this.variableResolver.resolveNumeric(v);
     for (const binding of node.bindings) {
-      // Transform channels aren't scalar-registry properties: re-extract the
-      // whole transform value each frame, resolving var()/input() operands
-      // through the live resolver (the reactive-transform binding path).
+      // Transforms aren't scalar-registry props: re-extract the whole value each frame.
       if (binding.property === "transform") {
         extractTransform(
           binding.value,
@@ -719,9 +542,7 @@ export class RenderLoop {
         );
         continue;
       }
-      // Image source-crop: re-extract the xywh() rect each frame, resolving its
-      // var()/input()/calc() operands live (so a host `--frame`/`--row` pages the
-      // sprite sheet). Same reactive-value contract as the transform channels.
+      // Re-extract xywh() live so a host `--frame` can page a sprite sheet.
       if (binding.property === "object-view-box") {
         if (node.shapeData.type === "image") {
           node.shapeData.viewBox = extractImageViewBox(binding.value, resolve);
@@ -743,10 +564,7 @@ export class RenderLoop {
         );
         continue;
       }
-      // Paint channels carry colors, not numbers: resolve the bound var() to a
-      // color string through the same live resolver and swap the solid paint.
-      // (A gradient var() is out of scope — colors only. `none` clears paint.) A
-      // non-color value (e.g. a string var in a paint slot) degrades to ignore.
+      // Solid colors or `none` only; gradients and non-colors are ignored.
       if (binding.property === "fill" || binding.property === "stroke") {
         const resolved = this.variableResolver.resolveValue(binding.value);
         const color = colorStringFromValue(resolved);
@@ -759,9 +577,7 @@ export class RenderLoop {
         }
         continue;
       }
-      // String/keyword properties (content, font-family, fill-rule, …): re-apply
-      // the resolved, var-free value through the builder switch. Discrete — no
-      // interpolation. A numeric var here degrades however that property parses.
+      // String/keyword props re-apply through the builder switch (discrete).
       if (binding.applyString) {
         binding.applyString(
           node,
@@ -770,43 +586,20 @@ export class RenderLoop {
         continue;
       }
       const handler = getPropHandler(binding.property);
-      // Remaining bindings resolve to numbers; skip anything without a numeric
-      // handler (a mistyped var in a numeric slot resolves to 0 — see
-      // resolveNumeric — which is the documented graceful-degradation path).
       if (!handler || handler.kind !== "number") continue;
       handler.apply(node, resolve(binding.value));
     }
   }
 
-  /**
-   * Detect this frame's pointer edges. Runs every LIVE frame (regardless of
-   * machines) so the `popkorn:click` DOM event resolves with no opt-in, but the
-   * expensive full-tree click hit-test only runs on press/release edges.
-   *
-   * Two hit-testers, kept distinct on purpose (invariant: no reimplemented
-   * hit-testing):
-   * - Machine triggers use the per-frame INTERACTIVE-only {@link hitTest} (only
-   *   built when there are machines to feed) and its credited nearest-interactive
-   *   node — machine pointer targets are flagged interactive at build time.
-   * - `popkorn:click` uses the FULL-TREE {@link hitTestClick}, resolving the
-   *   topmost shape and crediting the nearest interactive ancestor; run on edges
-   *   only.
-   *
-   * Returns the machine trigger events (empty when there are no machines). Edge
-   * state is wall-clock/input driven and lives off the timeline.
-   */
+  /** Pointer edges: machine triggers use interactive-only hitTest; `popkorn:click` uses full-tree hitTestClick on edges only. */
   private detectPointerEvents(): PointerTriggerEvent[] {
     const events: PointerTriggerEvent[] = [];
     if (!this.sceneRoot) return events;
     const st = this.inputTracker.getState();
     const point = { x: st.cursor.x, y: st.cursor.y };
-    // A clipped-out pointer can't hit content the artboard hides.
     const clippedOut = this.clippedOut(point.x, point.y);
     const hasMachines = this.machineRunner.hasMachines();
 
-    // Interactive-only hover hit — only feeds machine hover/pointer triggers, so
-    // it's skipped entirely for machine-less scenes (the :hover path itself
-    // lives in InteractionManager and runs regardless).
     const hit =
       hasMachines && !clippedOut ? hitTest(this.sceneRoot, point) : null;
     if (hasMachines && hit !== this.prevHit) {
@@ -815,10 +608,7 @@ export class RenderLoop {
     }
 
     const down = st.cursor.isDown;
-    // `pressed` latches a press that happened since the last frame even if the
-    // release already flipped `isDown` back to false — so a quick tap whose
-    // down+up both land between two frames still produces a rising edge (and a
-    // matching falling edge + click). Consumed here, once per frame.
+    // Latched press so a tap whose down+up land between frames still edges; consumed here.
     const pressed = st.cursor.pressed;
     st.cursor.pressed = false;
     const downEdge = (down || pressed) && !this.prevIsDown;
@@ -829,8 +619,6 @@ export class RenderLoop {
         events.push({ event: "pointerdown", node: hit });
         this.downHit = hit;
       }
-      // Full-tree click resolution (edge only): topmost shape, credited to its
-      // nearest interactive ancestor.
       this.downClick = clippedOut ? null : hitTestClick(this.sceneRoot, point);
     }
     if (upEdge) {
@@ -840,7 +628,6 @@ export class RenderLoop {
           events.push({ event: "click", node: hit });
         this.downHit = null;
       }
-      // Click edge: press and release resolved to the same credited node.
       const up = clippedOut ? null : hitTestClick(this.sceneRoot, point);
       if (up && this.downClick && up.node === this.downClick.node) {
         this.clickCallback?.({
@@ -858,8 +645,7 @@ export class RenderLoop {
     return events;
   }
 
-  /** True when clipping is on and (x, y) scene coords fall outside the artboard,
-   *  so a pointer there hits nothing (matches the visual crop). */
+  /** Pointer outside the clipped artboard hits nothing. */
   private clippedOut(x: number, y: number): boolean {
     return (
       this.shouldClip() &&
@@ -867,19 +653,8 @@ export class RenderLoop {
     );
   }
 
-  /**
-   * Run one composite through the renderer's raster cache when it can be
-   * content-addressed, else run it directly. The signature is everything the
-   * composite's pixels depend on: the subtree's resolved state (content token),
-   * the transform(s) it is painted under, the inherited alpha(s), the composite
-   * parameters (filter string / mask mode), and the device region — so a hit
-   * means the raster is what this frame would have drawn.
-   *
-   * NOTE: an ancestor transform change misses even when it only translates the
-   * subtree (the raster is unchanged, just moved). Reusing it would mean
-   * blitting at an offset, which is only sound for whole-device-pixel deltas —
-   * left for later; a wrong hit here freezes a sublayer.
-   */
+  /** Raster-cached composite; `signature` must cover everything the pixels depend on besides the content token. */
+  // NOTE: pure translations miss the cache; offset blits would only be sound for whole-pixel deltas.
   private composite(
     node: SceneNode,
     kind: string,
@@ -903,8 +678,7 @@ export class RenderLoop {
     );
   }
 
-  /** This frame's content token for a composite subtree (memoized — a mask
-   *  walks the same subtree twice). Null when the subtree can't be hashed. */
+  /** Memoized per frame; null when the subtree can't be hashed. */
   private contentToken(node: SceneNode): string | null {
     let token = this.contentTokens.get(node);
     if (token === undefined) {
@@ -919,16 +693,10 @@ export class RenderLoop {
     this.contentTokens.clear();
     this.renderer.beginFrame();
 
-    // beginFrame clears the whole device buffer at identity, so letterbox
-    // margins stay clear; the viewport (fit + DPR) then becomes the root
-    // transform for the background and scene, which draw in scene space.
+    // beginFrame cleared the device buffer at identity; the viewport is now the root transform.
     this.renderer.setTransform(this.viewport);
 
-    // Artboard clipping: crop the background + scene walk to the scene box, so
-    // content never spills into the letterbox bands or past the stage (AE-comp /
-    // Lottie default). Applied in scene space (post-viewport). Undimensioned or
-    // `overflow: visible` scenes skip the clip. This lives ONLY in the shared
-    // walk — backends just realize the `clip()` primitive (invariant 7).
+    // Artboard clip in scene space; lives only in the shared walk.
     const clipping = this.shouldClip();
     if (clipping) {
       this.renderer.save();
@@ -941,8 +709,7 @@ export class RenderLoop {
       });
     }
 
-    // Draw background — fills the scene box (not the device buffer) so it
-    // letterboxes with the scene under contain/none.
+    // Background fills the scene box, not the device buffer, so it letterboxes.
     if (this.backgroundColor) {
       this.renderer.setFill(this.backgroundColor);
       this.renderer.setFillGradient(null);
@@ -953,8 +720,6 @@ export class RenderLoop {
       const h = this.sceneHeight || this.renderer.getHeight();
       this.renderer.drawRect(0, 0, w, h);
     }
-
-    // Render scene graph
     if (this.sceneRoot) {
       this.renderNode(this.sceneRoot);
     }
@@ -970,35 +735,21 @@ export class RenderLoop {
     inheritedAlpha: number = 1,
     skipFilter: boolean = false,
   ): void {
-    // `paintSource` and `skipMask` are set only on the TOP node of a composite
-    // pass (renderMask) and must NOT propagate to descendants — a nested matte
-    // still needs its source skipped and its own mask composited.
     const paintSource = opts.paintSource ?? false;
     const skipMask = opts.skipMask ?? false;
 
-    // Outside its visibility window, or with `display: none` this frame, the
-    // node (and its subtree) paints nothing — both gate render and hit-testing
-    // identically (invariant 5).
     if (node.hidden || node.displayNone) return;
 
-    // A mask source is painted only via its dependent's composite; `paintSource`
-    // is the composite pass telling it to paint the source (or the masked
-    // content, which may itself be a source) rather than skip it.
+    // Mask sources paint only via their dependent's composite.
     if (!paintSource && node.isMaskSource) return;
 
-    // filter is the outermost visual wrapper: composite this node's subtree
-    // offscreen and blit it back through ctx.filter (so it wraps the masked
-    // result too). skipFilter guards the re-entry from renderFilter itself.
-    // Outer, no-spread box-shadows ride the SAME CSS drop-shadow filter path
-    // (nearly free); spread/inset shadows draw geometrically in the normal walk.
+    // Filter is the outermost wrapper (also wraps the mask); outer no-spread box-shadows ride it.
     const filterOps = skipFilter ? null : effectiveFilterOps(node);
     if (filterOps) {
       if (this.renderer.supportsFilter?.() && this.renderer.compositeFilter) {
         this.renderFilter(node, opts, inheritedAlpha, filterOps);
         return;
       }
-      // Renderer can't apply filters — warn once, then fall through to draw the
-      // node unfiltered (preserving the normal transform discipline).
       if (!this.filterWarned) {
         this.filterWarned = true;
         console.warn(
@@ -1007,57 +758,34 @@ export class RenderLoop {
       }
     }
 
-    // A node with a mask is composited offscreen against its source. `skipMask`
-    // is set only when re-entering the very node whose composite we are already
-    // inside (avoids infinite recursion); a matte SOURCE that carries its own
-    // mask is entered with skipMask=false so its mask composites correctly —
-    // this is what stops a chained/nested matte source from painting whole.
+    // A masked matte source is entered with skipMask=false so chained mattes composite.
     if (!skipMask && node.mask) {
       this.renderMask(node);
       return;
     }
 
-    // Retained-backend bracket: opens this node's element before its own
-    // save/transform and closes it after its subtree. Placed on the normal draw
-    // path (past the filter/mask redirects), so a filtered/masked node is still
-    // bracketed exactly once — inside the composite closure that re-enters here.
+    // Past the filter/mask redirects, so a composited node is bracketed exactly once.
     this.renderer.beginNode?.(this.nodeKey(node));
 
     this.renderer.save();
 
-    // Cascade opacity: a group's opacity should dim its children too, so we
-    // carry the accumulated product down the walk rather than setting each
-    // node's opacity in isolation.
-    // NOTE: this multiplies alpha per-node rather than compositing the
-    // group offscreen and fading it as one, so overlapping children in a
-    // translucent group show through each other (wrong per CSS/Lottie
-    // semantics) — upgrade path is an offscreen group composite.
+    // NOTE: per-node alpha product, not a group composite; overlapping children show through.
     const alpha = inheritedAlpha * node.opacity;
 
-    // Apply the node's local transform (translate/rotate/scale around transform-origin).
-    // Multiplying onto the current (parent) transform yields the world transform.
     this.renderer.transform(computeLocalMatrix(node));
 
-    // Fill rule is set before the clip so a multi-path (union) mask clips with
-    // the intended winding, then reused by the shape fill below.
+    // Before the clip so a union clip-path uses the intended winding.
     this.renderer.setFillRule(node.fillRule);
 
-    // Clip this node and its descendants (applied in local space, after the
-    // transform, before drawing — the save/restore below brackets it).
     const clip = resolveClip(node);
     if (clip) this.renderer.clip(clip);
 
-    // Outer geometric box-shadows (spread on a rect/circle/ellipse) paint behind
-    // the shape — before its own paint state is set, so they can't disturb it.
+    // Outer geometric shadows paint behind, before the node's paint state is set.
     if (node.boxShadow) this.drawBoxShadows(node, alpha, false);
 
-    // mix-blend-mode: composite this node's shape against the backdrop. Bracketed
-    // tight around the shape (reset to 'normal' after) — simple per-shape blend,
-    // no group isolation (see BlendMode NOTE).
+    // Per-shape blend, no group isolation.
     const blend = node.mixBlendMode;
     if (blend !== "normal") this.renderer.setBlendMode(blend);
-
-    // Set style
     this.renderer.setFill(node.fill);
     this.renderer.setFillGradient(node.fillGradient);
     this.renderer.setStroke(node.stroke, node.strokeWidth);
@@ -1069,8 +797,6 @@ export class RenderLoop {
     this.renderer.setDash(node.strokeDashArray, node.strokeDashOffset);
     this.renderer.setPaintOrder(node.paintOrder);
     this.renderer.setOpacity(alpha);
-
-    // Draw shape
     switch (node.shapeData.type) {
       case "rect": {
         const r = node.shapeData as RectData;
@@ -1107,8 +833,7 @@ export class RenderLoop {
         break;
       case "text": {
         const t = node.shapeData as TextData;
-        // Multi-line: `\n` splits lines, stacked by line-height (auto = 1.2·em).
-        // The decision lives here so backends stay single-line primitives.
+        // Lines split here so backends stay single-line primitives.
         const lines = t.content.split("\n");
         const lh = t.lineHeight > 0 ? t.lineHeight : t.fontSize * 1.2;
         for (let i = 0; i < lines.length; i++) {
@@ -1129,13 +854,8 @@ export class RenderLoop {
         const im = node.shapeData as ImageData;
         const vb = im.viewBox;
         if (vb) {
-          // Degenerate crop (zero/negative source size): nothing to sample, so
-          // skip the draw entirely. An out-of-bounds crop passes through — the
-          // backend draws only the overlapping region (fully-out => nothing).
           if (vb.width <= 0 || vb.height <= 0) break;
-          // Crop math lives here (shared walk, invariant 7); backends only
-          // realize the source→dest sample. A 0 dest w/h falls back to the
-          // crop's own pixel size (not the whole bitmap's).
+          // A 0 dest size falls back to the crop's size, not the bitmap's.
           const dw = im.width > 0 ? im.width : vb.width;
           const dh = im.height > 0 ? im.height : vb.height;
           this.renderer.drawImage(
@@ -1155,17 +875,13 @@ export class RenderLoop {
         break;
       }
       case "group":
-        // Groups don't render themselves, just their children
         break;
     }
 
-    // End the blend bracket before inset shadows / children so it doesn't leak.
     if (blend !== "normal") this.renderer.setBlendMode("normal");
 
-    // Inset box-shadows paint on top of the shape, clipped to it (rim of colour).
     if (node.boxShadow) this.drawBoxShadows(node, alpha, true);
 
-    // Render children in paint order (z-index ascending, document order ties).
     for (const child of childrenInPaintOrder(node)) {
       this.renderNode(child, undefined, alpha);
     }
@@ -1174,7 +890,6 @@ export class RenderLoop {
     this.renderer.endNode?.();
   }
 
-  /** Stable retained-backend key for a node (monotonic, stamped on first sight). */
   private nodeKey(node: SceneNode): string {
     let key = this.nodeKeys.get(node);
     if (key === undefined) {
@@ -1184,16 +899,10 @@ export class RenderLoop {
     return key;
   }
 
-  /**
-   * Composite a node against its track-mask source. Both subtrees are rendered
-   * in the canvas-root frame (each closure re-establishes its own world
-   * transform), so alignment is exact regardless of where the source lives.
-   */
+  /** Each closure sets its own world transform, so content/source align wherever the source lives. */
   private renderMask(node: SceneNode): void {
     const source = node.mask!.source;
-    // Fold the viewport into each subtree's world transform: the mask closures
-    // call setTransform (bypassing the render-root viewport), so without this the
-    // mask would render at 1:1 while the rest of the scene is fit-scaled.
+    // setTransform bypasses the root viewport, so fold it in.
     const contentParent = multiplyMatrices(
       this.viewport,
       computeWorldMatrixFromRoot(node.parent),
@@ -1205,11 +914,7 @@ export class RenderLoop {
     const contentAlpha = worldAlpha(node.parent);
     const maskAlpha = worldAlpha(source.parent);
 
-    // Scope the composite to the pixels it can actually affect. The output is
-    // always a subset of the content, so content bounds alone are sufficient;
-    // the mask only narrows it further when the mode isn't inverted (an
-    // inverted mask preserves content by being TRANSPARENT, so content outside
-    // the mask's own box survives and intersecting would clip it away).
+    // Region = content box, intersected with the mask box only when not inverted.
     const mode = node.mask!.mode;
     const inverted = mode === "alpha-invert" || mode === "luminance-invert";
     const w = this.renderer.getWidth();
@@ -1219,7 +924,7 @@ export class RenderLoop {
       inverted ? null : subtreeDeviceBounds(source, maskParent, w, h, true),
       inverted,
     );
-    if (!region) return; // content lands nowhere on the buffer
+    if (!region) return;
 
     this.composite(
       node,
@@ -1230,10 +935,6 @@ export class RenderLoop {
       () =>
         this.renderer.compositeMask(
           mode,
-          // Content: paint it (even if it is itself a source), but skip its own
-          // mask redirect — we ARE that composite. Source: paint it, but keep its
-          // own mask (skipMask=false) so a chained matte composites instead of
-          // painting solid.
           () => {
             this.renderer.setTransform(contentParent);
             this.renderNode(
@@ -1251,17 +952,7 @@ export class RenderLoop {
     );
   }
 
-  /**
-   * Composite a node's subtree offscreen and blit it back through ctx.filter.
-   * The content is rendered at its full world transform (viewport folded in, like
-   * renderMask), so the offscreen holds device-space pixels; the filter is then
-   * applied at the blit in device space. We therefore pre-scale the filter's
-   * lengths (blur radius, shadow offset/blur) by the node's world scale, so a
-   * scaled element's blur scales with it — matching CSS, and independent of
-   * whether the platform ctx.filter honors the CTM (browsers diverge on that).
-   * The re-entry passes skipFilter=true so it doesn't recurse on this same node
-   * (its mask, if any, still composites inside the offscreen).
-   */
+  /** Offscreen at device space; filter lengths are pre-scaled by world scale since ctx.filter CTM handling varies. */
   private renderFilter(
     node: SceneNode,
     opts: RenderOpts,
@@ -1274,9 +965,6 @@ export class RenderLoop {
       computeWorldMatrixFromRoot(node.parent),
     );
     const paintSource = opts.paintSource ?? false;
-    // The plan (CSS + region) depends only on the node's state this frame and
-    // the transform it is drawn under, so a second visit at the same transform
-    // reuses it instead of re-deriving the scale and re-walking the subtree.
     const planKey = `${parentWorld.join(",")}|${paintSource}`;
     let plan = this.filterPlans.get(node);
     if (!plan || plan.key !== planKey) {
@@ -1286,22 +974,16 @@ export class RenderLoop {
       };
       this.filterPlans.set(node, plan);
     }
-    // Every op is identity at this scale (a blur under half a device pixel, a
-    // 1× color multiplier, a transparent shadow): the composite would cost a
-    // buffer swap, clear, clip, subtree re-walk and filtered blit to reproduce
-    // the unfiltered pixels. Draw inline instead — same result, no offscreen.
+    // All ops identity at this scale: draw inline, skip the offscreen.
     const { css, region } = plan;
     if (css === null) {
       this.renderNode(node, opts, inheritedAlpha, true /* skipFilter */);
       return;
     }
-    if (!region) return; // subtree lands nowhere on the buffer
+    if (!region) return;
     this.composite(
       node,
-      // The same node can be composited under different render options in one
-      // frame (as a mask's content, and again in the normal walk), each with its
-      // own raster — so the variant belongs in the KEY, not just the signature,
-      // or the two would evict each other every frame.
+      // Variant in the key so mask-content and normal-walk rasters don't evict each other.
       `filter${paintSource ? "S" : ""}${opts.skipMask ? "M" : ""}`,
       () =>
         `${css}|${parentWorld.join(",")}|${inheritedAlpha}|${regionKey(region)}`,
@@ -1318,9 +1000,6 @@ export class RenderLoop {
     );
   }
 
-  /** Derive a filtered node's composite plan: the CSS filter string at the
-   *  right scale (null when every op is identity) and the device region the
-   *  blit covers (null when the subtree lands off-buffer). */
   private planFilter(
     node: SceneNode,
     parentWorld: Matrix3x3,
@@ -1331,17 +1010,12 @@ export class RenderLoop {
       this.viewport,
       computeWorldMatrixFromRoot(node),
     );
-    // Device-space blit (Canvas): prescale by the full world scale. User-space
-    // CSS filter (SVG): the wrapper sits at parentWorld, so the browser scales by
-    // the parent's scale — hand it only the node's own (local) scale and the two
-    // multiply back to the world scale, matching Canvas.
+    // User-space filters (SVG) already get the parent's scale; pass only the local part.
     const scale = this.renderer.filtersUseUserSpace?.()
       ? matrixScale(world) / (matrixScale(parentWorld) || 1)
       : matrixScale(world);
     const css = filterToCSS(ops, scale);
     if (css === null) return { css: null, region: null };
-    // Bounds include this node's own filter bleed, so the blit region has room
-    // for the blur/shadow to spread instead of cutting it off at the geometry.
     const region = subtreeDeviceBounds(
       node,
       parentWorld,
@@ -1352,15 +1026,7 @@ export class RenderLoop {
     return { css, region };
   }
 
-  /**
-   * Draw the geometric box-shadows (spread outer, or inset) for one node, in the
-   * `inset` phase requested. Each shadow is an inflated (outer) or punched-out
-   * (inset, evenodd + clip) shape filled with the shadow colour and blurred via
-   * the same compositeFilter path `filter` uses — so a backend without filters
-   * (Skia) draws them sharp, consistent with its pinned no-filter divergence.
-   * The shadow paint is set inside its own bracket; the sticky fill it leaves is
-   * reset by the node's own setFill (outer runs before it) or by each child.
-   */
+  /** Inflated (outer) or punched-out (inset) shapes, blurred via compositeFilter; sharp without filter support. */
   private drawBoxShadows(node: SceneNode, alpha: number, inset: boolean): void {
     if (!node.boxShadow) return;
     const shadows = node.boxShadow.filter(
@@ -1398,11 +1064,7 @@ export class RenderLoop {
         this.renderer.restore();
       };
       const blur = s.blur * scale;
-      // NOTE: no region is passed, so this composite claims the whole device
-      // buffer — and composite buffers grow monotonically per band, so one
-      // geometric blurred shadow sizes its band up for the rest of the frame's
-      // composites. Upgrade path: bound the shadow's own device rect (shape
-      // bounds + offset + spread + blur bleed) and pass it here.
+      // NOTE: no region, so this claims the full buffer; pass the shadow's device rect to fix.
       if (
         blur > 0 &&
         this.renderer.supportsFilter?.() &&
@@ -1418,11 +1080,7 @@ export class RenderLoop {
   }
 }
 
-// A box-shadow that must draw as a geometric shape rather than ride the CSS
-// drop-shadow filter. Inset shadows always draw geometrically (clip to the shape
-// + punched inverse) for any shape with an outline; outer shadows only when they
-// carry spread AND the shape can be inflated exactly (rect/circle/ellipse).
-// Everything else (outer/no-spread, outer-spread on a path) rides the filter.
+// Inset (any outlined shape) or spread-on-rect/circle/ellipse shadows draw geometrically; others ride the filter.
 function isGeometricShadow(node: SceneNode, s: FilterOp): boolean {
   if (s.type !== "drop-shadow") return false;
   const t = node.shapeData.type;
@@ -1438,16 +1096,14 @@ function isGeometricShadow(node: SceneNode, s: FilterOp): boolean {
   return inflatable && (s.spread ?? 0) !== 0;
 }
 
-// The filter ops the CSS drop-shadow path renders for a node: its authored
-// `filter` plus every box-shadow NOT handled geometrically. Inset shadows on a
-// non-inflatable shape are unsupported and dropped (NOTE). Null when empty.
+// Authored `filter` plus non-geometric shadows. NOTE: non-geometric inset shadows are dropped.
 function effectiveFilterOps(node: SceneNode): FilterOp[] | null {
   const authored = node.filter ?? [];
   const shadows: FilterOp[] = [];
   if (node.boxShadow) {
     for (const s of node.boxShadow) {
       if (s.type !== "drop-shadow" || isGeometricShadow(node, s)) continue;
-      if (s.inset) continue; // inset needs a clip we only do for inflatable shapes
+      if (s.inset) continue;
       shadows.push(s);
     }
   }
@@ -1455,11 +1111,7 @@ function effectiveFilterOps(node: SceneNode): FilterOp[] | null {
   return ops.length > 0 ? ops : null;
 }
 
-/**
- * A blur whose device-space radius is under half a pixel spreads nothing a
- * viewer can see, so it counts as identity and the whole composite it would
- * force can be dropped.
- */
+/** Sub-half-pixel device blur is invisible, so it counts as identity. */
 const MIN_DEVICE_BLUR_PX = 0.5;
 
 /** The amount at which each single-scalar color function is a no-op. */
@@ -1474,7 +1126,6 @@ const COLOR_FN_IDENTITY: Record<ColorFilterFn, number> = {
   "hue-rotate": 0,
 };
 
-/** A fully transparent paint contributes nothing wherever it lands. */
 function isTransparentColor(color: string): boolean {
   if (color === "transparent") return true;
   const rgba = color.match(/^rgba?\(([^)]*)\)$/);
@@ -1482,15 +1133,12 @@ function isTransparentColor(color: string): boolean {
     const parts = rgba[1].split(/[,/]/);
     return parts.length === 4 && Number(parts[3].trim()) === 0;
   }
-  // #rgba / #rrggbbaa — the alpha nibble/byte is the tail.
   if (/^#[0-9a-f]{4}$/i.test(color)) return color[4] === "0";
   if (/^#[0-9a-f]{8}$/i.test(color)) return color.slice(7) === "00";
   return false;
 }
 
-// Does this op leave the composited pixels untouched at `scale`? A drop-shadow
-// only qualifies when its color is fully transparent — a zero-blur, zero-offset
-// shadow still paints an opaque silhouette *under* translucent content.
+// A zero-offset shadow still paints under translucent content, so only a transparent one is identity.
 function isIdentityOp(op: FilterOp, scale: number): boolean {
   if (op.type === "blur") return op.radius * scale < MIN_DEVICE_BLUR_PX;
   if (op.type === "drop-shadow") return isTransparentColor(op.color);
@@ -1498,22 +1146,10 @@ function isIdentityOp(op: FilterOp, scale: number): boolean {
   return op.amount === COLOR_FN_IDENTITY[op.type];
 }
 
-/**
- * Build a CSS filter string from the ops, scaling every length to device px —
- * or null when every op is identity there, which lets the caller skip the
- * composite and draw the subtree inline (pixel-equivalent: opacity is applied
- * per primitive inside the buffer and the blit runs at globalAlpha 1).
- *
- * Runs of ADJACENT blurs collapse into one, since independent Gaussians compose
- * as σ = √(Σσᵢ²): a chained `ctx.filter` string falls off the browsers'
- * single-function fast path and costs 15-20× a lone blur. Never across a
- * non-blur op — `blur() drop-shadow() blur()` is order-dependent. This relies on
- * scene/bounds.ts summing 3σ of bleed PER blur, which is strictly wider than the
- * collapsed blur's reach, so the composite region stays a superset (invariant 6).
- */
+/** Device-px filter string or null if all identity; adjacent blurs merge (σ = √Σσᵢ²), safe as bounds.ts pads 3σ per blur. */
 export function filterToCSS(ops: FilterOp[], scale: number): string | null {
   const parts: string[] = [];
-  let blurSigmaSq = 0; // running Σσᵢ² over the current adjacent-blur run
+  let blurSigmaSq = 0;
   const flushBlur = (): void => {
     const sigma = Math.sqrt(blurSigmaSq);
     if (sigma >= MIN_DEVICE_BLUR_PX) parts.push(`blur(${sigma}px)`);
@@ -1532,10 +1168,8 @@ export function filterToCSS(ops: FilterOp[], scale: number): string | null {
         `drop-shadow(${op.dx * scale}px ${op.dy * scale}px ${op.blur * scale}px ${op.color})`,
       );
     } else if (op.type === "hue-rotate") {
-      // Scale-free (angle, not a length).
       parts.push(`hue-rotate(${op.amount}deg)`);
     } else {
-      // Color-adjust functions: a scale-free plain-number multiplier.
       parts.push(`${op.type}(${op.amount})`);
     }
   }
@@ -1543,12 +1177,7 @@ export function filterToCSS(ops: FilterOp[], scale: number): string | null {
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
-/**
- * Every value the bindings step resolves each frame, flattened over the tree —
- * including the operands of the composite bindings (transform, object-view-box),
- * which resolve their own nested calc()s. The batch planner picks the reactive
- * calc()s out of it.
- */
+/** Every binding value and nested operand, flattened for the calc() batch planner. */
 function collectBindingValues(root: SceneNode): Value[] {
   const out: Value[] = [];
   const push = (v: Value): void => {
@@ -1563,15 +1192,8 @@ function collectBindingValues(root: SceneNode): Value[] {
   return out;
 }
 
-/**
- * Does any node in the tree keep the scene changing beyond a one-shot timeline —
- * an infinite (looping) animation, a var()/input() binding, an interactive
- * :hover/:active style, a state machine that could still transition, a
- * conditional `:state()` set, or an animation-timeline scrub binding? Scanned
- * once at setScene so `isStatic` stays O(1).
- */
+/** Anything that changes beyond a one-shot timeline; scanned once so `isStatic` is O(1). */
 function sceneHasDynamicContent(root: SceneNode): boolean {
-  // Any machine (root only) keeps the loop live so it can still transition.
   if (root.machines.length > 0) return true;
   if (root.bindings.length > 0) return true;
   if (root.hoverStyles || root.activeStyles || root.interactive) return true;
@@ -1583,12 +1205,7 @@ function sceneHasDynamicContent(root: SceneNode): boolean {
   return false;
 }
 
-/**
- * Does any node remap inherited time (a time-remap curve, or a non-default
- * time-offset/time-scale)? Such a subtree measures its animation end times in a
- * local timeline, so `computeSceneDuration` (which maxes those local ends) isn't
- * the scene's end on the root clock. Scanned once at setScene.
- */
+/** Any time-remap/offset/scale, which makes `computeSceneDuration` a local-time max, not a root bound. */
 function sceneHasTimeScoping(root: SceneNode): boolean {
   if (
     root.timeRemap ||
@@ -1602,12 +1219,7 @@ function sceneHasTimeScoping(root: SceneNode): boolean {
   return false;
 }
 
-/**
- * Is this scene driven by a state machine — a `@machine` on the root, or any
- * `:state()` set on a node (which the parser allows even without a machine, in
- * which case it simply never activates)? Such a scene is unbounded: it has no
- * clip end to hold, wrap, or finish at. Scanned once at setScene.
- */
+/** A `@machine` or any `:state()` set (legal without a machine): no clip end to hold, wrap or finish at. */
 function sceneIsUnbounded(root: SceneNode): boolean {
   if (root.machines.length > 0) return true;
   return subtreeHasStateStyles(root);
@@ -1620,19 +1232,7 @@ function subtreeHasStateStyles(node: SceneNode): boolean {
   return false;
 }
 
-/**
- * Is this scene nothing but perpetual animation — at least one animation, EVERY
- * animation in the tree `infinite`, and no node carrying a visibility window?
- * Such a scene has no honest end: `computeSceneDuration` counts each infinite
- * animation as ONE iteration, yielding an arbitrary finite period whose wrap
- * would snap every animation back to phase 0 in lockstep (a visible jump). Like
- * a state-machine scene it opts into a free-running clock (see `sceneUnbounded`)
- * so the animations cycle independently forever, as CSS `infinite` animations
- * do in a browser. A `visible-from`/`visible-until` window bars it: under a
- * monotonic clock that window would open once and never come round again.
- * (Callers additionally require the scene NOT be time-scoped — a time-remap
- * curve holds at its endpoints under a non-wrapping clock, so it needs the wrap.)
- */
+/** All animations `infinite` and no visibility windows: free-runs rather than snapping to phase 0 at a nominal wrap. */
 export function sceneIsPerpetual(root: SceneNode): boolean {
   let sawAnimation = false;
   const visit = (node: SceneNode): boolean => {
@@ -1687,11 +1287,7 @@ function subtreeReadsTime(
 const MAX_SEAMLESS_LOOP_MS = 30_000;
 const DEFAULT_TIME_EXPORT_MS = 5_000;
 
-/**
- * Shortest length after which every (infinite) animation is back at its phase-0
- * state: the LCM of the cycle periods, `alternate` counting two iterations.
- * NOTE: a positive animation-delay's pre-delay frames never recur, so that loop isn't seamless.
- */
+/** LCM of cycle periods (`alternate` counts two). NOTE: positive delays make this not seamless. */
 function seamlessLoopMs(root: SceneNode): number {
   const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
   let lcm = 1;
@@ -1713,12 +1309,7 @@ export type ExportLength =
   | { fixed: true; ms: number }
   | { fixed: false; suggestedMs: number };
 
-/**
- * Frame range an offline export (GIF/MP4/Lottie) should cover. `fixed`: the
- * timeline has an honest end (0 = one static frame). Open: perpetual,
- * state-machine or input(time)-driven scenes, where the host picks a length and
- * `suggestedMs` is a default. null: a state machine with no timeline animation.
- */
+/** Offline export range: `fixed` has an honest end (0 = one frame); open suggests a length; null = machine without timeline animation. */
 export function sceneExportLength(
   root: SceneNode,
   variables: readonly VariableDefinition[],
@@ -1739,34 +1330,23 @@ export function sceneExportLength(
   };
 }
 
-/** Accumulated (multiplied) opacity of a node's ancestor chain, root down to `node` inclusive. */
-/** A device region, flattened for a cache signature. */
 function regionKey(r: DeviceRect): string {
   return `${r.x},${r.y},${r.width},${r.height}`;
 }
 
+/** Product of opacities from `node` up to the root. */
 function worldAlpha(node: SceneNode | null): number {
   let alpha = 1;
   for (let n: SceneNode | null = node; n; n = n.parent) alpha *= n.opacity;
   return alpha;
 }
 
-/**
- * Fold a timeline time into [0, duration) for looping. A no-op when looping is
- * off, the scene has no duration, or `t` is still within the first pass.
- */
 export function wrapTime(t: number, duration: number, loop: boolean): number {
   if (loop && duration > 0 && t >= duration) return t % duration;
   return t;
 }
 
-/**
- * Evaluate a time-remap curve: map the inherited time `t` (ms) to a local time
- * (ms). A pure function of `t` (invariant 4), mirroring keyframe sampling —
- * bracket by input, ease the local fraction with the departing stop's easing,
- * lerp the outputs. Outside the domain the endpoints hold. `stops` must be
- * sorted by input (the builder guarantees this).
- */
+/** Inherited → local ms via the departing stop's easing; endpoints hold; `stops` sorted by input. */
 export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
   const n = stops.length;
   if (n === 0) return t;
@@ -1786,39 +1366,26 @@ export function sampleTimeRemap(stops: TimeRemapStop[], t: number): number {
   return stops[n - 1].output;
 }
 
-/**
- * Resolve a node's trim-* fractions into a stroke dash descriptor, or null when
- * the whole outline is stroked (the common, untrimmed case). Inputs are clamped
- * to [0,1]; start >= end yields an empty (invisible) stroke. The dash pattern
- * [visible, hidden] plus a negative dashOffset naturally handles wrap-around for
- * closed shapes (marching via trim-offset).
- */
+/** trim-* → dash descriptor; null when untrimmed. Negative dashOffset handles seam wrap on closed shapes. */
 export function computeTrim(node: SceneNode): TrimDescriptor | null {
   const start = clamp01(node.trimStart);
   const end = clamp01(node.trimEnd);
   const offset = clamp01(node.trimOffset);
 
-  // Untrimmed: stroke the whole outline, no dashing needed.
   if (start <= 0 && end >= 1 && offset === 0) return null;
 
   const total = outlineLength(node);
   if (total <= 0) return null;
 
-  // Empty window -> nothing to stroke.
   if (end <= start) return { visible: false, dashArray: [], dashOffset: 0 };
 
-  // Full window (offset has no visible effect when everything is drawn).
   if (start <= 0 && end >= 1)
     return { visible: true, dashArray: [], dashOffset: 0 };
 
   const visible = (end - start) * total;
   const startPos = start + offset;
 
-  // A window that doesn't wrap the seam gets a trailing gap of 2x`total`: with an
-  // exact `total` period the previous repeat ends at x=0 (a zero-length dash whose
-  // round cap paints a dot at the path start), and Canvas measures a marginally
-  // longer arc than outlineLength (a repeat at the path end). Only a window that
-  // wraps a closed shape's seam keeps the exact [visible, hidden] period.
+  // Non-wrapping window: 2x gap, since an exact period leaves a round-cap dot at either end.
   if (end + offset <= 1) {
     return {
       visible: true,

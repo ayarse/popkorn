@@ -8,21 +8,18 @@ import type {
 import { cloneGradient } from "../renderer/types.js";
 import type { MotionPath } from "./path-parser.js";
 
-// CSS Motion Path offset-rotate: `auto` follows the path tangent; `angle` adds a
-// fixed offset (auto + angle) or a fixed orientation (angle only, auto = false).
+// `auto` follows the tangent; `angle` is an offset (auto) or fixed orientation.
 export interface OffsetRotate {
   auto: boolean;
   angle: number; // degrees
 }
 
-// Authored clip-path. Insets are stored relative to the node's bounding box and
-// resolved to concrete geometry at render/hit-test time (see scene/clip.ts).
+// Insets resolve against the node's bounding box at render/hit-test (clip.ts).
 export type ClipPathData =
   | { type: "circle"; r: number; x: number; y: number }
   | { type: "inset"; top: number; right: number; bottom: number; left: number }
   | { type: "path"; commands: PathCommand[] };
 
-// Scene node types
 export type ShapeType =
   | "group"
   | "rect"
@@ -34,22 +31,15 @@ export type ShapeType =
   | "polygon"
   | "image";
 
-// Track-mask modes (Lottie tt): the mask source's alpha or luminance drives
-// the masked node's visibility; the *-invert variants flip it.
+// Track-mask modes (Lottie tt); *-invert flips the source's alpha/luminance.
 export type MaskMode =
   | "alpha"
   | "alpha-invert"
   | "luminance"
   | "luminance-invert";
 
-// CSS `filter` functions (the supported subset). blur/drop-shadow carry lengths
-// authored in the node's LOCAL space; the renderer scales those by the node's
-// world scale so a scaled element's blur/shadow scales with it (CSS semantics).
-// The color-adjust functions (brightness…hue-rotate) are scale-free: `amount` is
-// a fraction (1 = 100%) for all of them except hue-rotate, whose `amount` is an
-// angle in degrees. The whole list animates via the registry's `filter` handler
-// (per-op numeric lerp when two endpoints share the same function sequence, else
-// a structural replace — see interpolateFilter).
+// Lengths are local and scale with the node's world scale (CSS); color-adjust
+// `amount` is a fraction (1 = 100%) except hue-rotate's, which is degrees.
 export type FilterOp =
   | { type: "blur"; radius: number }
   | {
@@ -58,12 +48,7 @@ export type FilterOp =
       dy: number;
       blur: number;
       color: string;
-      // box-shadow extras (a CSS `filter: drop-shadow()` leaves both at their
-      // defaults). `spread` inflates the shadow shape; `inset` draws it inside
-      // the box. Both are realized in the shared walk (see renderBoxShadows),
-      // not expressible through the CSS-filter drop-shadow the outer/no-spread
-      // case rides. The `box-shadow` list reuses this op so it animates through
-      // the same interpolateFilter path as `filter`.
+      // box-shadow extras, realized in the shared walk (renderBoxShadows).
       spread?: number;
       inset?: boolean;
     }
@@ -83,11 +68,8 @@ export type ColorFilterFn =
 // Fill winding rule; maps straight to CanvasFillRule / isPointInPath's ruleset.
 export type FillRule = "nonzero" | "evenodd";
 
-// CSS mix-blend-mode. Every keyword is shared by all three backends: Canvas2D
-// globalCompositeOperation (normal -> 'source-over'), SVG `mix-blend-mode` style,
-// Skia BlendMode. No CSS separable/non-separable mode is unmappable, so nothing
-// is dropped. NOTE: applied per shape against the current backdrop (no group
-// isolation) — a group's own mix-blend-mode doesn't composite its subtree as one.
+// CSS mix-blend-mode; every keyword maps to all three backends.
+// NOTE: per shape against the backdrop; no group isolation.
 export type BlendMode =
   | "normal"
   | "multiply"
@@ -106,34 +88,22 @@ export type BlendMode =
   | "color"
   | "luminosity";
 
-// Text alignment; maps to CanvasRenderingContext2D.textAlign (left/center/right).
+// Maps to CanvasRenderingContext2D.textAlign.
 export type TextAnchor = "start" | "middle" | "end";
 
-// Stroke line cap, maps straight to CanvasRenderingContext2D.lineCap.
 export type StrokeLineCap = "butt" | "round" | "square";
 
-// Stroke line join, maps straight to CanvasRenderingContext2D.lineJoin.
 export type StrokeLineJoin = "miter" | "round" | "bevel";
 
-// Paint order for a shape's own fill/stroke. 'normal' paints fill then stroke
-// (stroke on top); 'stroke' paints stroke then fill (stroke behind the fill),
-// matching SVG `paint-order: stroke`. Used when a Lottie group stroke sits below
-// the fills it covers, so only the exposed edge (a seam) shows.
+// 'stroke' paints stroke behind the fill (SVG `paint-order: stroke`).
 export type PaintOrder = "normal" | "stroke";
 
-// CSS pointer-events (subset). `none` excludes a node's geometry from hit-testing
-// AND removes its whole subtree from consideration — its descendants can't hit or
-// bubble either. Static: not animatable, not state-block-overridable. Unlike CSS
-// we do NOT support re-enabling: `pointer-events: auto` on a descendant of a
-// `none` node is ignored (the subtree stays excluded).
+// `none` excludes the whole subtree from hit-testing; `auto` can't re-enable it.
 export type PointerEvents = "auto" | "none";
 
-// Interaction state types
 export type InteractionState = "normal" | "hover" | "active";
 
-// One resolved CSS transition: property `all` or a transitionable group name
-// ('fill' | 'stroke' | 'stroke-width' | 'opacity' | 'transform'); duration/delay
-// in ms. Governs how the property tweens when interaction state flips.
+// `property` is `all` or a transitionable group name; times in ms.
 export interface TransitionSpec {
   property: string;
   duration: number; // ms
@@ -141,11 +111,7 @@ export interface TransitionSpec {
   delay: number; // ms
 }
 
-// A machine `:state()` conditional declaration set attached to a node. While the
-// referenced machine is in the named state, `styles` (static declarations) apply
-// and `animations` sample entry-anchored (see the StateMachineRunner + loop).
-// `machine: null` = un-namespaced `:state(name)`, matching that state in ANY
-// machine; a set name only matches its own machine.
+// Applies while its machine is in `name`; `machine: null` matches any machine.
 export interface NodeStateStyle {
   machine: string | null;
   name: string;
@@ -153,12 +119,7 @@ export interface NodeStateStyle {
   animations: AnimationInstance[];
 }
 
-// State-specific styles for interactive elements. Paint comes in two mutually
-// exclusive forms per channel: a solid `fill`/`stroke` string, OR a
-// `fillGradient`/`strokeGradient` when the state declares a gradient. Whichever
-// is present replaces the base paint outright (a gradient override clears the
-// solid channel and vice-versa; see applyStateStyles). `undefined` = not
-// declared by this state, leave the base paint alone.
+// Solid and gradient paint are exclusive per channel; `undefined` = not declared.
 export interface StateStyles {
   fill?: string | null;
   stroke?: string | null;
@@ -167,21 +128,14 @@ export interface StateStyles {
   strokeWidth?: number;
   opacity?: number;
   transform?: Partial<Transform>;
-  // Generic registry-backed overrides for every animatable property outside the
-  // legacy channels above (geometry, trim, dash offset, offset-distance, `d`,
-  // clip-path, filter, font-size, …). Keyed by CSS property name, valued by the
-  // parsed endpoint the property's registry handler applies. Instant-snapped in
-  // applyStateStyles (stage 1); replace semantics, same as fill.
+  // Registry-animatable overrides keyed by property name, snapped in applyStateStyles.
   overrides?: Record<string, PropValue>;
-  // Discrete text-string overrides (content, font-family, …), each re-applied
-  // through the builder's declaration switch. Snap only; base-reset reverts them.
+  // Discrete string overrides (content, font-family, …); base-reset reverts them.
   discrete?: ((node: SceneNode) => void)[];
-  // Transitions declared inside this state block; when entering this state they
-  // override the node-level transitions (CSS asymmetric enter/exit timing).
+  // Override node-level transitions when entering this state.
   transitions?: TransitionSpec[];
 }
 
-// Transform origin types
 export type TransformOriginUnit = "px" | "%";
 
 export interface TransformOriginValue {
@@ -194,15 +148,10 @@ export interface TransformOrigin {
   y: TransformOriginValue;
 }
 
-// Property binding - stores a variable reference for dynamic resolution
 export interface PropertyBinding {
   property: string; // e.g., 'cx', 'cy', 'r', 'opacity'
   value: Value; // The variable reference or input() function
-  // For string/keyword-valued properties (content, font-family, fill-rule, …)
-  // that are neither numeric-registry nor color-paint bindings: re-apply the
-  // resolved, var-free value through the builder's declaration switch each
-  // frame. Set at build time for those properties; absent for transform/
-  // numeric/color bindings, which applyBindings realizes inline.
+  // String props: re-applies the resolved value via the builder's declaration switch.
   applyString?: (node: SceneNode, value: Value) => void;
 }
 
@@ -222,211 +171,131 @@ export interface SceneNode {
   className?: string;
   type: ShapeType;
 
-  // Hierarchy
   parent: SceneNode | null;
   children: SceneNode[];
 
-  // Transform (local, relative to parent)
+  // Local, relative to parent
   transform: Transform;
 
-  // Appearance
   fill: string | null;
   stroke: string | null;
   strokeWidth: number;
   opacity: number;
 
-  // Trim paths (Lottie-style): stroke-only, expressed as fractions 0..1 of the
-  // outline length. start/end select the visible window; offset rotates the
-  // start point around the outline (marching effect on closed shapes). All
-  // three are animatable (see the registry's trim-* handlers).
+  // Trim paths: stroke-only fractions (0..1) of the outline length; offset rotates.
   trimStart: number;
   trimEnd: number;
   trimOffset: number;
   strokeLineCap: StrokeLineCap;
   strokeLineJoin: StrokeLineJoin;
-  // Miter limit for miter joins (maps to CanvasRenderingContext2D.miterLimit).
-  // Canvas defaults to 10; SVG/Lottie default to 4, so sharp corners bevel
-  // sooner. Only meaningful when strokeLineJoin is 'miter'.
+  // Canvas defaults to 10; SVG/Lottie use 4, so sharp corners bevel sooner.
   strokeMiterLimit: number;
 
-  // Stroke dashing (independent of trim). strokeDashArray is static (a repeating
-  // dash/gap pattern in local units); strokeDashOffset is animatable (registry).
-  // When both a trim window and a dash array are present, trim wins and the dash
-  // array is ignored (see canvas2d.applyFillAndStroke).
+  // Static dash pattern + animatable offset; trim wins over dashing when both set.
   strokeDashArray: number[];
   strokeDashOffset: number;
 
-  // Fill winding rule (static); applies to path/star/polygon fill, hit-test and clip.
+  // Applies to path/star/polygon fill, hit-test and clip.
   fillRule: FillRule;
 
-  // Paint order of this node's own fill/stroke (static). Default 'normal'.
   paintOrder: PaintOrder;
 
-  // CSS mix-blend-mode: how this node's shape composites against the backdrop
-  // already drawn. Default 'normal'. Set at build (or via a var() binding); the
-  // shared walk brackets the shape draw with setBlendMode, backends realize it.
+  // Shared walk brackets the shape draw with setBlendMode.
   mixBlendMode: BlendMode;
 
-  // Whether this node (and its subtree) participate in hit-testing (static).
-  // 'none' skips them entirely; see PointerEvents. Default 'auto'.
   pointerEvents: PointerEvents;
 
-  // Cached total outline length (local units). Invalidated by the registry's
-  // geometry apply functions (they set outlineLengthDirty); recomputed lazily
-  // by outlineLength() so static shapes never pay per frame.
+  // Lazy caches; the registry's geometry handlers set the dirty flags.
   cachedOutlineLength: number | null;
   outlineLengthDirty: boolean;
 
-  // Cached measured text metrics (text nodes only; same lazy pattern as the
-  // outline length). Invalidated when font-size animates (see the registry).
   cachedTextBounds: { width: number; height: number } | null;
   textBoundsDirty: boolean;
 
-  // Cached synthesized path commands for star/polygon nodes (same lazy pattern
-  // as the outline-length cache). Invalidated when an animatable polystar
-  // geometry prop is applied (see the registry); recomputed by polystarCommands().
   cachedPolystarCommands: PathCommand[] | null;
   polystarDirty: boolean;
 
-  // Gradient fill/stroke (static; when set, wins over the solid color above).
+  // Wins over the solid color when set.
   fillGradient: GradientData | null;
   strokeGradient: GradientData | null;
 
-  // Clip region for this node and its descendants (static).
+  // Clips this node and its descendants.
   clipPath: ClipPathData | null;
 
-  // Track mask: this node is composited against `source`'s alpha/luminance.
-  // `source` is resolved by id at build time (any node in the scene). When set,
-  // the renderer composites the two subtrees offscreen (see runtime/loop).
+  // Composited against `source`'s alpha/luminance (resolved by id at build).
   mask: { source: SceneNode; mode: MaskMode } | null;
-  // True when this node is referenced as some node's mask source: it is not
-  // painted in the normal walk, only sampled as a mask.
+  // Referenced as a mask source: only sampled, never painted in the walk.
   isMaskSource: boolean;
 
-  // CSS `filter`: an ordered list of filter functions (blur/drop-shadow). When
-  // set, the renderer composites this node's subtree to an offscreen and blits
-  // it back through ctx.filter (see runtime/loop renderFilter). Null = no filter.
+  // Composites the subtree offscreen through ctx.filter (loop renderFilter).
   filter: FilterOp[] | null;
 
-  // CSS `box-shadow`: a list of drop-shadow FilterOps (each may carry spread /
-  // inset). Rendered in the shared walk (renderBoxShadows) — outer, no-spread
-  // shadows ride the same CSS-filter drop-shadow path as `filter`; spread and
-  // inset draw geometric shadow shapes. Null = no box-shadow.
+  // Drop-shadow ops; spread/inset draw geometric shadows (renderBoxShadows).
   boxShadow: FilterOp[] | null;
 
-  // CSS Motion Path. offsetPath is the (static) motion path with a cached
-  // arc-length table, in the node's local space; offsetDistance is the animated
-  // position along it (0..1); offsetRotate controls tangent-following rotation.
-  // Folded into computeLocalMatrix, so render and hit-test share it.
+  // Motion path (local space, arc-length cached); folded into computeLocalMatrix.
   offsetPath: MotionPath | null;
   offsetDistance: number;
   offsetRotate: OffsetRotate;
 
-  // Per-subtree time scoping (static). During the per-frame walk this node's
-  // inherited timeline time t is transformed to a local time
-  // (t - timeOffset) * timeScale, applied to this node AND its descendants.
-  // Defaults (0, 1) are the identity, so untouched nodes are unaffected.
-  // timeOffset is in milliseconds; timeScale must be > 0.
+  // Subtree local time = (t - timeOffset) * timeScale; ms, scale > 0.
   timeOffset: number;
   timeScale: number;
 
-  // Per-subtree time remap (static): a monotonic keyframe curve mapping the
-  // inherited timeline time (ms) to a local time (ms) for this node AND its
-  // descendants. When present it REPLACES timeOffset/timeScale (a remap curve
-  // already defines the full time mapping). Stops are sorted by input; outside
-  // the domain the endpoints hold. Null = no remap.
+  // Monotonic curve mapping inherited → local time (ms); replaces offset/scale.
   timeRemap: TimeRemapStop[] | null;
 
-  // Animatable scalar remap (ms): when set, it pins this subtree's local time to
-  // a fixed master-timeline instant, subsuming the static curve and offset/scale.
-  // Written by the `time-remap` registry handler — from a static bare `<time>`
-  // (base) or a @keyframes/`:state()` animation — and derived in the resolve walk
-  // AFTER the machine :state() merge. Null = fall back to the curve / offset+scale.
+  // Pins subtree time to a fixed instant (ms); derived after the :state() merge.
   timeRemapValue: number | null;
 
-  // Sibling paint order. Siblings paint in ascending z-index (document order
-  // breaks ties); the same order drives hit-testing. Default 0. Negative values
-  // are valid and are the main use — painting a node behind its siblings.
-  // Part of the immutable base (reset per frame) so it can be bound/animated.
+  // Ascending z-index, document order breaks ties; drives paint and hit-test order.
   zIndex: number;
 
-  // Per-frame sibling paint order, cached by the resolve walk once z-index is
-  // resolved. The single source of truth both the render walk and hit-testing
-  // read (so they never sort twice or disagree). Null before the first resolve;
-  // childrenInPaintOrder falls back to computing it on demand.
+  // Per-frame sort cached by the resolve walk; see childrenInPaintOrder.
   sortedChildren: SceneNode[] | null;
 
-  // `display: none` removes this node and its subtree from BOTH the render walk
-  // and hit-testing, exactly like being outside a visibility window. Part of the
-  // base (reset per frame) so a var()/input()/@keyframes value can toggle it —
-  // 0 => none, non-zero => visible, through the numeric registry handler.
+  // Removes the subtree from render + hit-test; bindable (0 => none).
   displayNone: boolean;
 
-  // Visibility window in milliseconds, compared against the time this node
-  // INHERITS (its containing/parent scope), before this node's own
-  // time-offset/time-scale apply — visibility lives in the parent comp's
-  // timeline. Outside [visibleFrom, visibleUntil) the node and its subtree are
-  // skipped by both the render walk and hit-testing. Defaults (-Infinity,
-  // +Infinity) => always visible. `hidden` is the per-frame evaluation, set
-  // during the resolve walk.
+  // Visibility window (ms) against the INHERITED time, before own time scoping;
+  // `hidden` is its per-frame result.
   visibleFrom: number;
   visibleUntil: number;
   hidden: boolean;
 
-  // Shape-specific data
   shapeData: ShapeData;
 
-  // Animation state
   animations: AnimationInstance[];
 
-  // Immutable authored snapshot. The value-resolution pipeline resets the live
-  // fields to this every frame before layering bindings/animation/interaction.
+  // Immutable authored snapshot; live fields reset to it every frame.
   base: NodeBase;
 
-  // Dynamic property bindings (variables, input() functions)
   bindings: PropertyBinding[];
 
-  // Interaction state
   interactionState: InteractionState;
   hoverStyles: StateStyles | null;
   activeStyles: StateStyles | null;
-  interactive: boolean; // Whether this node responds to mouse events
-  // `cursor: pointer` — static, non-animatable. Also sets `interactive` so the
-  // node is hit-tested; the component reads this on the hovered node to set the
-  // canvas CSS cursor to `pointer`.
+  interactive: boolean;
+  // `cursor: pointer`: the component sets the canvas cursor on hover.
   cursorPointer: boolean;
-  // Node-level CSS transitions (apply to interaction state changes, both enter
-  // and exit). Empty = state overrides snap. Runtime tween state is held in the
-  // InteractionManager, so the timeline stays a pure function of time.
+  // Empty = state overrides snap; tween state lives in the InteractionManager.
   transitions: TransitionSpec[];
-  // Direct children this node's &:state blocks target (`#p:hover > #c {…}`).
-  // When this node's interaction state flips, each child's hover/activeStyles
-  // apply/unapply too, anchored on THIS node's flip (see interaction.ts). The
-  // children stay non-`interactive` — being targeted doesn't make them
-  // independently hit-testable.
+  // Children targeted by `&:hover > #c`; driven by this node's flip (interaction.ts).
   stateChildren: SceneNode[];
 
-  // Machine `:state()` conditional declaration sets targeting this node (its own
-  // `&:state(...)` blocks plus any parent's `&:state(...) > #this`). Merged in
-  // during the resolve walk when the owning machine is in the matching state.
+  // Own `&:state()` blocks plus a parent's `&:state() > #this`, merged in the walk.
   stateStyles: NodeStateStyle[];
 
-  // `animation-timeline: var(--x) | input(path)` reference (a 0..1 value source).
-  // When set, this node's own `animation:`s scrub to that progress via
-  // sampleNodeAtProgress instead of playing on the clock. Null = clock-driven.
+  // 0..1 progress source (var()/input()) scrubbing this node's animations.
   animationTimeline: Value | null;
 
-  // Scene-level interactive state machines. Populated on the ROOT node only
-  // (empty elsewhere); consumed by the StateMachineRunner.
+  // Root only; consumed by the StateMachineRunner.
   machines: MachineRule[];
 }
 
 // Complete authored snapshot of a node's animatable render state.
 export interface NodeBase {
   transform: Transform;
-  // Sibling paint order and display flag live in the base so they reset each
-  // frame before a binding/@keyframes/state override, like every other
-  // animatable field (see the `z-index`/`display` registry handlers).
   zIndex: number;
   displayNone: boolean;
   fill: string | null;
@@ -438,23 +307,13 @@ export interface NodeBase {
   trimOffset: number;
   strokeDashOffset: number;
   offsetDistance: number;
-  // Scalar time-remap (ms), or null for no constant remap. Part of the immutable
-  // base so the resolve walk resets to it before a :state()/@keyframes override.
   timeRemapValue: number | null;
   shapeData: ShapeData;
-  // Gradient paints are animatable in @keyframes; the base holds a deep copy so
-  // per-frame interpolation never mutates authored stops (see reset/snapshot).
+  // Deep copies, so per-frame morphs never mutate the authored values.
   fillGradient: GradientData | null;
   strokeGradient: GradientData | null;
-  // Clip region; animatable when authored as path() keyframes (Lottie animated
-  // masks). Held as a copy so per-frame command morphs never mutate the authored
-  // clip (same discipline as gradients above).
   clipPath: ClipPathData | null;
-  // Filter list (blur/drop-shadow). Copied per frame so the registry's `filter`
-  // handler can morph the blur radius on the live node without touching the base.
   filter: FilterOp[] | null;
-  // box-shadow list, copied per frame like `filter` so an animated shadow writes
-  // into the node copy, never the authored base.
   boxShadow: FilterOp[] | null;
 }
 
@@ -468,10 +327,7 @@ export type ShapeData =
   | PolystarData
   | ImageData;
 
-// A sub-rect of the source bitmap, in image pixels (CSS object-view-box
-// `xywh()`). Selects the region of `src` drawn into the node's dest box —
-// sprite-sheet frame cropping. Animatable/bindable component-wise (registry key
-// `object-view-box`); `null` = draw the whole bitmap.
+// Source-bitmap sub-rect in image pixels (object-view-box `xywh()`).
 export interface ImageViewBox {
   x: number;
   y: number;
@@ -479,10 +335,7 @@ export interface ImageViewBox {
   height: number;
 }
 
-// Image node: draws `src` into the x/y/width/height box. width/height of 0 mean
-// "use the loaded image's natural size" (resolved in the renderer once decoded);
-// with a `viewBox` crop, 0 means the crop's own pixel size instead. `viewBox`
-// (object-view-box) crops the source to a sub-rect before scaling into the box.
+// width/height 0 = natural size (or the viewBox crop's own size).
 export interface ImageData {
   type: "image";
   x: number;
@@ -493,10 +346,7 @@ export interface ImageData {
   viewBox: ImageViewBox | null;
 }
 
-// Star (alternating outer/inner radius over 2·sides vertices) or regular
-// polygon (sides vertices at the outer radius). Synthesized into PathCommand[]
-// at render/hit-test time (see scene/polystar.ts), so it reuses the whole path
-// pipeline (trim, bounds, fill-rule, hit-test). Geometry matches lottie/AE.
+// Star or regular polygon, synthesized into a path (scene/polystar.ts); matches AE.
 export interface PolystarData {
   type: "star" | "polygon";
   sides: number; // vertex count (static)
@@ -518,12 +368,9 @@ export interface TextData {
   fontFamily: string;
   fontWeight: string; // keyword ('bold') or numeric weight as a string ('700')
   anchor: TextAnchor;
-  // Extra advance between glyphs, px (CSS letter-spacing). Default 0. Canvas2D
-  // realizes it via ctx.letterSpacing, SVG via the letter-spacing attribute;
-  // Skia leaves it a no-op (pinned divergence, like its text-measure).
+  // px; Skia leaves it a no-op (pinned divergence).
   letterSpacing: number;
-  // Line box height in px for multi-line content (`\n`-separated). 0 = auto,
-  // resolved to ~1.2·fontSize at render/measure time.
+  // Multi-line (`\n`) line box in px; 0 = auto (~1.2·fontSize).
   lineHeight: number;
 }
 
@@ -539,9 +386,7 @@ export interface RectData {
   height: number;
   rx: number;
   ry: number;
-  // Per-corner radii (CSS `border-radius: tl tr br bl`). Set only when the four
-  // corners differ; a uniform radius stays on rx/ry (native roundRect / rect
-  // rx). When present it overrides rx/ry. Circular only — see roundedRectPath.
+  // Set only when corners differ; overrides rx/ry. Circular only (roundedRectPath).
   cornerRadii?: CornerRadii;
 }
 
@@ -550,8 +395,7 @@ export interface CircleData {
   cx: number;
   cy: number;
   r: number;
-  // Builder-internal scratch for `x`/`y` bounding-box sugar (left/top alias
-  // input). Never read past buildNode — see resolveCircleEllipseBoxPosition.
+  // Builder-only scratch for `x`/`y` box sugar (resolveCircleEllipseBoxPosition).
   __boxX?: number;
   __boxY?: number;
   __cxSet?: boolean;
@@ -576,7 +420,6 @@ export interface PathData {
   d: string; // Original SVG path string
 }
 
-// Animation types
 export interface AnimationInstance {
   name: string;
   duration: number; // ms
@@ -585,13 +428,9 @@ export interface AnimationInstance {
   direction: AnimationDirection;
   delay: number;
   fillMode: AnimationFillMode;
-  // CSS animation-composition: how this animation's sampled value composites with
-  // the value already written this frame (base + bindings + prior animations).
-  // 'add'/'accumulate' add numeric channels; color/gradient/path fall back to
-  // 'replace' (see interpolateKeyframes). Not part of the `animation` shorthand.
+  // Non-numeric channels fall back to 'replace'; not in the `animation` shorthand.
   composition: CompositeOperation;
 
-  // Keyframe data, one track per animated property (see KeyframeTrack).
   tracks: KeyframeTrack[];
 }
 
@@ -625,10 +464,7 @@ export interface CubicBezier {
   y2: number;
 }
 
-// CSS steps() easing (Easing Level 1). `count` is the number of intervals; the
-// jump position controls whether the stair jumps at the start/end/both/neither
-// of the [0,1] domain. `step-start`/`step-end` keywords are steps(1, jump-start)
-// / steps(1, jump-end).
+// `count` intervals; `step-start`/`step-end` are steps(1, jump-start/jump-end).
 export type StepPosition =
   | "jump-start"
   | "jump-end"
@@ -641,11 +477,7 @@ export interface StepsEasing {
   position: StepPosition;
 }
 
-// CSS linear() easing (Easing Level 2): a piecewise-linear curve through
-// control points. `input` positions are normalized to [0,1] and sorted
-// ascending (with equal inputs allowed for flat/discontinuous segments) at
-// build time; `output` values are unclamped so a linear() can overshoot 1 to
-// approximate springs/bounces. The `linear` keyword (a string) stays distinct.
+// linear() points: inputs sorted into [0,1] at build; outputs unclamped (overshoot).
 export interface LinearEasingPoint {
   input: number;
   output: number;
@@ -656,45 +488,33 @@ export interface LinearEasing {
   points: LinearEasingPoint[];
 }
 
-// One stop of a `time-remap` curve: at inherited time `input` (ms) the local
-// timeline reads `output` (ms). `easing` (departing-keyframe convention, like
-// KeyframeData.easing) shapes the segment from this stop to the next.
+// `easing` shapes the segment to the next stop (departing convention).
 export interface TimeRemapStop {
   input: number;
   output: number;
   easing?: TimingFunction;
 }
 
-// One authored `@keyframes` block: every property it declares at one offset.
-// Grouped into per-property KeyframeTracks by buildKeyframeTracks before it
-// reaches the sampler.
+// One authored `@keyframes` block; regrouped into tracks by buildKeyframeTracks.
 export interface KeyframeData {
   offset: number; // 0-1
   properties: Record<string, AnimatableValue>;
   easing?: TimingFunction; // Per-keyframe easing (controls transition FROM this keyframe to the next)
 }
 
-// One stop of a property's own keyframe track: the value that property takes at
-// `offset`, and the easing (departing-keyframe convention) shaping the segment
-// from here to the next stop OF THE SAME TRACK.
+// `easing` shapes the segment to the next stop of the SAME track.
 export interface KeyframeStop {
   offset: number; // 0-1
   value: AnimatableValue;
   easing?: TimingFunction;
 }
 
-// One animated property's timeline: only the keyframes that declare it, sorted
-// by offset. Sampling brackets per track (CSS/WAAPI property-specific
-// keyframes), so a property omitted from an intermediate keyframe interpolates
-// across it; the base value enters only through a synthesized 0/1 edge.
+// A property's own keyframes, so omitting it mid-way interpolates across (CSS/WAAPI).
 export interface KeyframeTrack {
   property: string;
   stops: KeyframeStop[]; // at least one, ascending by offset
 }
 
-// A keyframe endpoint value. Beyond scalars/colors/transforms, gradients
-// (fill/stroke) and path command lists (`d`, morphing) are animatable; the
-// registry dispatches interpolation by value type.
 export type AnimatableValue =
   | number
   | string
@@ -704,7 +524,6 @@ export type AnimatableValue =
   | FilterOp[]
   | ImageViewBox;
 
-// Default transform origin (0 0, matching CSS behavior)
 export function createDefaultTransformOrigin(): TransformOrigin {
   return {
     x: { value: 0, unit: "px" },
@@ -712,7 +531,6 @@ export function createDefaultTransformOrigin(): TransformOrigin {
   };
 }
 
-// Helper to create default transform
 export function createDefaultTransform(): Transform {
   return {
     translateX: 0,
@@ -726,7 +544,6 @@ export function createDefaultTransform(): Transform {
   };
 }
 
-// Helper to clone transform
 export function cloneTransform(t: Transform): Transform {
   return {
     ...t,
@@ -752,19 +569,14 @@ export function copyTransform(src: Transform, dst: Transform): void {
   dst.transformOrigin.y.unit = src.transformOrigin.y.unit;
 }
 
-// Shallow clone of shape data (numeric geometry + type; path commands shared).
+// Shallow clone (path commands shared); the image crop is deep-copied.
 export function cloneShapeData(sd: ShapeData): ShapeData {
   const copy = { ...sd };
-  // Deep-copy the image crop so a per-frame object-view-box morph writes into a
-  // node-local rect, never the authored base (same discipline as gradients).
   if (copy.type === "image" && copy.viewBox) copy.viewBox = { ...copy.viewBox };
   return copy;
 }
 
-// Clone a clip-path for the base snapshot. The `path` variant's command list is
-// copied (the array reference is swapped, never mutated in place, by the
-// registry's clip-path apply) so an animated clip can't corrupt the authored
-// base; circle/inset carry only numbers.
+// Clip commands are copied so an animated clip can't corrupt the base.
 export function cloneClipPath(clip: ClipPathData | null): ClipPathData | null {
   if (!clip) return null;
   if (clip.type === "path")
@@ -772,13 +584,10 @@ export function cloneClipPath(clip: ClipPathData | null): ClipPathData | null {
   return { ...clip };
 }
 
-// Deep-copy a filter list so the registry's per-frame blur-radius morph writes
-// into a node-local copy, never the authored base (same discipline as gradients).
 export function cloneFilter(filter: FilterOp[] | null): FilterOp[] | null {
   return filter ? filter.map((f) => ({ ...f })) : null;
 }
 
-// Capture the current authored render state of a node as its immutable base.
 export function snapshotNode(node: SceneNode): NodeBase {
   return {
     transform: cloneTransform(node.transform),
@@ -803,7 +612,7 @@ export function snapshotNode(node: SceneNode): NodeBase {
   };
 }
 
-// Reset a node's live render fields to its base, in place (per-frame, hot path).
+// Per-frame hot path.
 export function resetNodeToBase(node: SceneNode): void {
   const b = node.base;
   copyTransform(b.transform, node.transform);
@@ -820,20 +629,14 @@ export function resetNodeToBase(node: SceneNode): void {
   node.offsetDistance = b.offsetDistance;
   node.timeRemapValue = b.timeRemapValue;
   Object.assign(node.shapeData, b.shapeData);
-  // Deep-copy gradients so a per-frame gradient interpolation writing into
-  // node.fillGradient can never corrupt the authored base stops.
+  // Fresh copies so per-frame morphs never touch the base.
   node.fillGradient = cloneGradient(b.fillGradient);
   node.strokeGradient = cloneGradient(b.strokeGradient);
-  // Fresh clip copy each frame so an animated clip-path morph writes into a node
-  // copy, never the authored base (mirrors the gradient reset above).
   node.clipPath = cloneClipPath(b.clipPath);
-  // Fresh filter copy each frame so an animated blur radius writes into a node
-  // copy, never the authored base.
   node.filter = cloneFilter(b.filter);
   node.boxShadow = cloneFilter(b.boxShadow);
 }
 
-// Helper to create a default scene node
 export function createSceneNode(id: string, type: ShapeType): SceneNode {
   const transform = createDefaultTransform();
   return {
@@ -921,37 +724,22 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
   };
 }
 
-/**
- * Sort siblings into paint order: ascending z-index, document order breaking
- * ties. Returns the original array untouched (no allocation) in the common case
- * where every child sits at the default z-index 0 — the static fast path.
- */
+// Ascending z-index, stable for ties; returns the same array when all are 0.
 export function sortByZIndex(children: SceneNode[]): SceneNode[] {
   for (let i = 0; i < children.length; i++) {
     if (children[i].zIndex !== 0) {
-      // Array.prototype.sort is stable, so equal z-indexes keep document order.
       return [...children].sort((a, b) => a.zIndex - b.zIndex);
     }
   }
   return children;
 }
 
-/**
- * Recompute a node's per-frame sibling paint order and cache it on the node.
- * Called by the resolve walk after every child's z-index is resolved, so the
- * cached order reflects this frame's (possibly bound/animated) z-indexes.
- */
+// Cache this frame's (possibly animated) sibling order.
 export function refreshSortedChildren(node: SceneNode): void {
   node.sortedChildren = sortByZIndex(node.children);
 }
 
-/**
- * Children in paint order: ascending z-index, document order breaking ties.
- * Both the render walk and hit-testing read this cached order (populated by the
- * resolve walk) so painted stacking and hit priority always agree and neither
- * re-sorts. Falls back to computing it for callers running outside a resolved
- * frame (e.g. a hitTest before the first frame).
- */
+// Cached paint order shared by render and hit-test; computes it before the first frame.
 export function childrenInPaintOrder(node: SceneNode): SceneNode[] {
   return node.sortedChildren ?? sortByZIndex(node.children);
 }

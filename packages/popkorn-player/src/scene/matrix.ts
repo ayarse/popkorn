@@ -1,12 +1,6 @@
-// 3x3 affine matrix primitives — the low-level algebra beneath transform.ts.
-// These live in scene/ (not renderer/) to honor the invariant that transform
-// math is owned by the scene layer; renderer/types.ts re-exports them so every
-// existing `../renderer/types` import path keeps working.
+// 3x3 affine matrix primitives beneath transform.ts; renderer/types.ts re-exports them.
 
-// 3x3 transformation matrix (row-major)
-// [a, b, c]
-// [d, e, f]
-// [g, h, i]
+// Row-major [a, b, c, d, e, f, g, h, i].
 export type Matrix3x3 = [
   number,
   number,
@@ -19,10 +13,8 @@ export type Matrix3x3 = [
   number,
 ];
 
-// Identity matrix
 export const IDENTITY_MATRIX: Matrix3x3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
-// Matrix multiplication
 export function multiplyMatrices(a: Matrix3x3, b: Matrix3x3): Matrix3x3 {
   return [
     a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
@@ -37,30 +29,27 @@ export function multiplyMatrices(a: Matrix3x3, b: Matrix3x3): Matrix3x3 {
   ];
 }
 
-// Create translation matrix
 export function translationMatrix(tx: number, ty: number): Matrix3x3 {
   return [1, 0, tx, 0, 1, ty, 0, 0, 1];
 }
 
-// Create rotation matrix (angle in radians)
+// Angle in radians.
 export function rotationMatrix(angle: number): Matrix3x3 {
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
   return [cos, -sin, 0, sin, cos, 0, 0, 0, 1];
 }
 
-// Create scale matrix
 export function scaleMatrix(sx: number, sy: number): Matrix3x3 {
   return [sx, 0, 0, 0, sy, 0, 0, 0, 1];
 }
 
-// Create skew matrix (angles in radians). ax shears x along y, ay shears y
-// along x — matching CSS skew(ax, ay)/skewX/skewY.
+// Radians; matches CSS skew(ax, ay): ax shears x along y, ay shears y along x.
 export function skewMatrix(ax: number, ay: number): Matrix3x3 {
   return [1, Math.tan(ax), 0, Math.tan(ay), 1, 0, 0, 0, 1];
 }
 
-// Invert a 3x3 matrix (returns identity if non-invertible)
+// Returns identity if non-invertible.
 export function invertMatrix(m: Matrix3x3): Matrix3x3 {
   const det =
     m[0] * (m[4] * m[8] - m[5] * m[7]) -
@@ -81,7 +70,6 @@ export function invertMatrix(m: Matrix3x3): Matrix3x3 {
   ];
 }
 
-// Apply an affine matrix to a point
 export function transformPoint(
   m: Matrix3x3,
   x: number,

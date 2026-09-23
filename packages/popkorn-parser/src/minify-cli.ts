@@ -1,16 +1,5 @@
 #!/usr/bin/env bun
-/**
- * Minify (or pretty-print) a Popkorn DSL file by round-tripping it through the
- * parser and serializer. The output is guaranteed to parse to the same AST as
- * the input — minification is value-preserving, not lossy.
- *
- *   popkorn-minify <in.css> [-o out.css] [--pretty | --crush]
- *
- * Default minifies; --pretty reformats (2-space indent); --crush additionally
- * renames identifiers to short names (destructive, render-preserving — see
- * crush()). With -o the result is written to a file, otherwise it goes to
- * stdout. Byte counts are printed to stderr either way.
- */
+// Minify/format/crush a Popkorn file via parse → serialize; byte counts go to stderr.
 import { readFileSync, writeFileSync } from "node:fs";
 import { crushSource, format, minify } from "./index.js";
 

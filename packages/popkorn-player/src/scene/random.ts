@@ -1,23 +1,4 @@
-/**
- * CSS Values 5 random() → a FIXED random constant, rolled once at build time and
- * frozen into the node's base snapshot (invariant #4 holds trivially: the value
- * is constant, so `seek(t)` twice gives identical frames). random() is NOT a
- * live noise source — it never re-evaluates per frame.
- *
- * Seeding is fully deterministic (never wall-clock, never bare Math.random) so a
- * build is reproducible: re-parsing the IDENTICAL source yields the IDENTICAL
- * frame (demo hot-reload of an unchanged file never flickers). The seed mixes:
- *   - a DOCUMENT seed: a hash of the canonical serialization of the whole sheet,
- *     so identical source (reformatting aside) rolls identically; editing any
- *     part may reshuffle every roll (spec-consistent, same-source stability is
- *     the hard requirement);
- *   - a CALL-SITE key: the `<dashed-ident>` if given (calls sharing the same
- *     ident + range correlate), else the property name + the occurrence index of
- *     this random() within its declaration value (two calls in one value differ);
- *   - for `per-element`: the instance's node id, so each element/instance rolls
- *     independently (the particle-scatter knob). Ids — not tree position — are
- *     the stable identity in this DSL.
- */
+// random() rolls once at build time; seed = source hash + call-site key (+ node id for per-element).
 
 import type {
   CalcExpr,
@@ -27,7 +8,6 @@ import type {
 } from "@popkorn/parser";
 import { getNumericValue, isLengthValue } from "@popkorn/parser";
 
-/** 32-bit FNV-1a hash of a string → an unsigned seed component. */
 export function hashString(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -37,8 +17,7 @@ export function hashString(s: string): number {
   return h >>> 0;
 }
 
-// mulberry32, single-shot: a tiny deterministic PRNG mapping one 32-bit seed to
-// one value in [0, 1). No state, no clock — the roll is a pure function of seed.
+// mulberry32, single-shot: pure function of seed to [0, 1).
 function rand01(seed: number): number {
   let t = (seed + 0x6d2b79f5) | 0;
   t = Math.imul(t ^ (t >>> 15), t | 1);
@@ -46,24 +25,21 @@ function rand01(seed: number): number {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-/** Context a random() call is rolled against — the seed inputs beyond the call itself. */
 export interface RandomContext {
   documentSeed: number;
   nodeId: string;
   property: string;
 }
 
-/** The unit a numeric operand contributes ("" for a plain number). */
+/** "" for a plain number. */
 function unitOf(v: Value): string {
   return isLengthValue(v) ? v.unit : "";
 }
 
-/** A stable signature of a numeric operand, for the range part of the call key. */
 function sig(v: Value): string {
   return `${getNumericValue(v)}${unitOf(v)}`;
 }
 
-/** Roll a single random() to its fixed literal (length or number). */
 function rollRandom(
   rv: RandomValue,
   ctx: RandomContext,
@@ -83,9 +59,7 @@ function rollRandom(
   const max = getNumericValue(rv.max);
   let out: number;
   if (rv.step) {
-    // `by <step>`: quantize to the discrete set {min, min+step, …} ≤ max, drawn
-    // uniformly. floor(t·(buckets+1)) can only reach `buckets` at t→1, and it's
-    // clamped there, so the result never exceeds max.
+    // `by <step>`: uniform over {min, min+step, ...} <= max; the clamp keeps t->1 in range.
     const step = getNumericValue(rv.step);
     if (step > 0 && max > min) {
       const buckets = Math.floor((max - min) / step);
@@ -104,12 +78,7 @@ function rollRandom(
     : { type: "number", value: out };
 }
 
-/**
- * Replace every random() leaf in a value tree with the fixed literal it rolls to
- * for this node/declaration. Non-random values pass through unchanged (returning
- * the same object when nothing was frozen). Use {@link valueHasRandom} first to
- * skip trees with no random() at all.
- */
+/** Returns the same object when nothing was frozen. */
 export function freezeRandom(value: Value, ctx: RandomContext): Value {
   return freeze(value, ctx, { n: 0 });
 }
@@ -153,7 +122,6 @@ function freezeCalc(
   };
 }
 
-/** True when a value tree contains any random() call. */
 export function valueHasRandom(v: Value): boolean {
   switch (v.type) {
     case "random":
