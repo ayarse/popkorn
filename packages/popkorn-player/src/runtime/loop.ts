@@ -46,7 +46,7 @@ import {
 } from "../scene/transform-values.js";
 import type { FilterOp, NodeStateStyle, SceneNode } from "../scene/types.js";
 import { subtreeToken } from "./content-hash.js";
-import { hitTest, hitTestClick } from "./hit-test.js";
+import { hitTestClick } from "./hit-test.js";
 import { InputTracker, inputPathOf } from "./inputs.js";
 import {
   applyStateStyles,
@@ -112,6 +112,8 @@ export class RenderLoop {
   private prevIsDown: boolean = false;
   private prevHit: SceneNode | null = null;
   private downHit: SceneNode | null = null;
+  // Computed once per live frame; shared by hover and pointer-edge detection.
+  private pointerClippedOut = false;
   // Click target at the last pointerdown edge, matched on release to synthesize `popkorn:click`.
   private downClick: ReturnType<typeof hitTestClick> = null;
   private clickCallback: ((detail: ClickDetail) => void) | null = null;
@@ -311,13 +313,9 @@ export class RenderLoop {
     if (!this.isRunning) return;
 
     // `timestamp` anchors any transition a hover/active flip starts.
-    this.interactionManager.update(
-      this.inputTracker.getState(),
-      timestamp,
-      this.shouldClip()
-        ? { width: this.sceneWidth, height: this.sceneHeight }
-        : null,
-    );
+    const st = this.inputTracker.getState();
+    this.pointerClippedOut = this.clippedOut(st.cursor.x, st.cursor.y);
+    this.interactionManager.update(st, timestamp, this.pointerClippedOut);
 
     // `live` gates machine evaluation and trigger reset so seek()/redraw() stay pure.
     this.drawFrame(timestamp, true);
@@ -569,17 +567,16 @@ export class RenderLoop {
     }
   }
 
-  /** Pointer edges: machine triggers use interactive-only hitTest; `popkorn:click` uses full-tree hitTestClick on edges only. */
+  /** Pointer edges: machine triggers reuse this frame's hover hit; `popkorn:click` uses full-tree hitTestClick on edges only. */
   private detectPointerEvents(): PointerTriggerEvent[] {
     const events: PointerTriggerEvent[] = [];
     if (!this.sceneRoot) return events;
     const st = this.inputTracker.getState();
     const point = { x: st.cursor.x, y: st.cursor.y };
-    const clippedOut = this.clippedOut(point.x, point.y);
+    const clippedOut = this.pointerClippedOut;
     const hasMachines = this.machineRunner.hasMachines();
 
-    const hit =
-      hasMachines && !clippedOut ? hitTest(this.sceneRoot, point) : null;
+    const hit = hasMachines ? this.interactionManager.getHoveredNode() : null;
     if (hasMachines && hit !== this.prevHit) {
       if (this.prevHit) events.push({ event: "hoverend", node: this.prevHit });
       if (hit) events.push({ event: "hoverstart", node: hit });

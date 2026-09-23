@@ -617,6 +617,50 @@ test("tap between frames fires machine click (pressed edge latch)", () => {
   }
 });
 
+// Machine hover triggers share the hover hit-test, so leaving the artboard over overhanging paint ends hover.
+test("machine hoverstart/hoverend follow the clipped hover hit", () => {
+  const g = globalThis as unknown as {
+    requestAnimationFrame?: (cb: (t: number) => void) => number;
+    cancelAnimationFrame?: (id: number) => void;
+  };
+  const prevRaf = g.requestAnimationFrame;
+  const prevCancel = g.cancelAnimationFrame;
+  const q: ((t: number) => void)[] = [];
+  g.requestAnimationFrame = (cb) => q.push(cb);
+  g.cancelAnimationFrame = () => {};
+  try {
+    const root = buildSceneGraph(
+      parse(`
+        :root { width: 100px; height: 100px; }
+        @machine m {
+          initial: off;
+          state off { to: on on hoverstart(#pad); }
+          state on { to: off on hoverend(#pad); }
+        }
+        #pad { type: circle; cx: 90; cy: 50; r: 30; }
+      `),
+    );
+    const loop = new RenderLoop(createRecordingRenderer());
+    loop.setScene(root);
+    loop.setSceneSize(100, 100);
+    const cursor = loop.getInputTracker().getState().cursor;
+    cursor.x = 95;
+    cursor.y = 50;
+    loop.start();
+    q.shift()?.(16);
+    expect(loop.getStateMachineRunner().currentState("m")).toBe("on");
+
+    cursor.x = 110; // still over the circle, but outside the artboard clip
+    q.shift()?.(32);
+    q.shift()?.(48);
+    expect(loop.getStateMachineRunner().currentState("m")).toBe("off");
+    loop.stop();
+  } finally {
+    g.requestAnimationFrame = prevRaf;
+    g.cancelAnimationFrame = prevCancel;
+  }
+});
+
 // --- typed var() bindings (colors + strings) ---------------------------------
 
 // Build a scene, wire :root vars into a fresh resolver, and drive one frame.

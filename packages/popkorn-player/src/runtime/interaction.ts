@@ -307,7 +307,7 @@ export class InteractionManager {
   update(
     inputState: InputState,
     now: number = performance.now(),
-    clipBounds: { width: number; height: number } | null = null,
+    clippedOut: boolean = false,
   ): void {
     if (!this.sceneRoot || !this.hasInteractive) return;
 
@@ -317,13 +317,6 @@ export class InteractionManager {
     };
 
     // Clipped-out cursor still runs so hover/active clear on leave.
-    const clippedOut =
-      clipBounds !== null &&
-      (mousePoint.x < 0 ||
-        mousePoint.y < 0 ||
-        mousePoint.x > clipBounds.width ||
-        mousePoint.y > clipBounds.height);
-
     const hitNode = clippedOut ? null : hitTest(this.sceneRoot, mousePoint);
 
     const isPressed = inputState.cursor.isDown;
