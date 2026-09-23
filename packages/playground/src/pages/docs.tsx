@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowUpRight,
   ChevronLeft,
@@ -7,30 +7,26 @@ import {
   Menu,
   Pencil,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { DocsSceneBlock } from "@/components/docs-scene-block";
 import { Button } from "@/components/ui/button";
 import { useToc } from "@/hooks/use-toc";
 import { DOC_GROUPS, docNeighbors, findDoc, GITHUB_REPO } from "@/lib/docs";
-import { renderDoc } from "@/lib/docs-render";
 import { cn } from "@/lib/utils";
+
+const route = getRouteApi("/docs/{-$section}");
 
 export default function Docs() {
   const navigate = useNavigate();
-  const { section } = useParams({ strict: false });
+  const { section } = route.useParams();
+  const { segments, toc } = route.useLoaderData();
   const activeDoc = findDoc(section);
   const active = activeDoc.key;
-  const segments = useMemo(() => renderDoc(activeDoc.file), [activeDoc.file]);
   const { prev, next } = docNeighbors(active);
   const [navOpen, setNavOpen] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
-  const proseRef = useRef<HTMLDivElement>(null);
-  const { toc, activeId, scrollToHeading } = useToc(
-    proseRef,
-    scrollRef,
-    activeDoc.file,
-  );
+  const { activeId, scrollToHeading } = useToc(scrollRef, toc);
 
   // Scroll the content to top when switching sections.
   // biome-ignore lint/correctness/useExhaustiveDependencies: active is the re-run trigger — scroll to top on section switch
@@ -38,23 +34,23 @@ export default function Docs() {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [active]);
 
-  // Delegated clicks inside rendered markdown: copy buttons, and client-side
-  // navigation for links into other docs pages.
+  // Delegated clicks inside the static markdown HTML: copy buttons, and
+  // client-side navigation for links into other docs pages.
+  async function copyBlock(button: HTMLElement) {
+    const text =
+      button.closest(".code-block")?.querySelector("code")?.textContent ?? "";
+    await navigator.clipboard.writeText(text);
+    button.textContent = "Copied";
+    setTimeout(() => {
+      button.textContent = "Copy";
+    }, 1500);
+  }
+
   function onProseClick(e: React.MouseEvent) {
     const target = e.target as HTMLElement;
-    const copy = target.closest<HTMLButtonElement>("[data-copy]");
+    const copy = target.closest<HTMLElement>("[data-copy]");
     if (copy) {
-      const block = copy.closest(".code-block");
-      const text =
-        block?.querySelector("textarea")?.value ??
-        block?.querySelector("code")?.textContent ??
-        "";
-      void navigator.clipboard.writeText(text).then(() => {
-        copy.textContent = "Copied";
-        setTimeout(() => {
-          copy.textContent = "Copy";
-        }, 1500);
-      });
+      void copyBlock(copy).catch(() => {});
       return;
     }
     const a = target.closest<HTMLAnchorElement>("a[href^='/docs']");
@@ -84,7 +80,7 @@ export default function Docs() {
         <nav className="ml-auto flex items-center gap-1 text-[13px]">
           <Link
             to="/"
-            className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
           >
             Playground
           </Link>
@@ -92,7 +88,7 @@ export default function Docs() {
             href={GITHUB_REPO}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
           >
             GitHub
             <ArrowUpRight className="size-3.5" />
@@ -127,7 +123,7 @@ export default function Docs() {
                   {docs.map((d) => (
                     <li key={d.key}>
                       <Link
-                        to="/docs/$section"
+                        to="/docs/{-$section}"
                         params={{ section: d.key }}
                         onClick={() => setNavOpen(false)}
                         className={cn(
@@ -153,7 +149,7 @@ export default function Docs() {
               {activeDoc.group}
             </p>
             {/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: delegated handler for real <a>/<button> children */}
-            <div ref={proseRef} className="docs-prose" onClick={onProseClick}>
+            <div className="docs-prose" onClick={onProseClick}>
               {segments.map((s, i) =>
                 s.kind === "html" ? (
                   <div
@@ -236,7 +232,7 @@ function PagerLink({
 }) {
   return (
     <Link
-      to="/docs/$section"
+      to="/docs/{-$section}"
       params={{ section: doc.key }}
       className={cn(
         "group rounded-lg border border-border px-4 py-3 transition-colors hover:border-primary/60",

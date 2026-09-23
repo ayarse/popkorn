@@ -11,8 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CommunityRouteImport } from './routes/community'
-import { Route as DocsIndexRouteImport } from './routes/docs.index'
-import { Route as DocsSectionRouteImport } from './routes/docs.$section'
+import { Route as DocsChar123SectionChar125RouteImport } from './routes/docs.{-$section}'
 import { Route as ExamplesKeyRouteImport } from './routes/examples.$key'
 import { Route as SIdRouteImport } from './routes/s.$id'
 
@@ -26,16 +25,12 @@ const CommunityRoute = CommunityRouteImport.update({
   path: '/community',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: '/docs/',
-  path: '/docs/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DocsSectionRoute = DocsSectionRouteImport.update({
-  id: '/docs/$section',
-  path: '/docs/$section',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const DocsChar123SectionChar125Route =
+  DocsChar123SectionChar125RouteImport.update({
+    id: '/docs/{-$section}',
+    path: '/docs/{-$section}',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ExamplesKeyRoute = ExamplesKeyRouteImport.update({
   id: '/examples/$key',
   path: '/examples/$key',
@@ -50,62 +45,46 @@ const SIdRoute = SIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
-  '/docs/$section': typeof DocsSectionRoute
+  '/docs/{-$section}': typeof DocsChar123SectionChar125Route
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
-  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
-  '/docs/$section': typeof DocsSectionRoute
+  '/docs/{-$section}': typeof DocsChar123SectionChar125Route
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
-  '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/community': typeof CommunityRoute
-  '/docs/$section': typeof DocsSectionRoute
+  '/docs/{-$section}': typeof DocsChar123SectionChar125Route
   '/examples/$key': typeof ExamplesKeyRoute
   '/s/$id': typeof SIdRoute
-  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/community'
-    | '/docs/$section'
-    | '/examples/$key'
-    | '/s/$id'
-    | '/docs/'
+    '/' | '/community' | '/docs/{-$section}' | '/examples/$key' | '/s/$id'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/community'
-    | '/docs/$section'
-    | '/examples/$key'
-    | '/s/$id'
-    | '/docs'
+  to: '/' | '/community' | '/docs/{-$section}' | '/examples/$key' | '/s/$id'
   id:
     | '__root__'
     | '/'
     | '/community'
-    | '/docs/$section'
+    | '/docs/{-$section}'
     | '/examples/$key'
     | '/s/$id'
-    | '/docs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CommunityRoute: typeof CommunityRoute
-  DocsSectionRoute: typeof DocsSectionRoute
+  DocsChar123SectionChar125Route: typeof DocsChar123SectionChar125Route
   ExamplesKeyRoute: typeof ExamplesKeyRoute
   SIdRoute: typeof SIdRoute
-  DocsIndexRoute: typeof DocsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -124,18 +103,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CommunityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/': {
-      id: '/docs/'
-      path: '/docs'
-      fullPath: '/docs/'
-      preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs/$section': {
-      id: '/docs/$section'
-      path: '/docs/$section'
-      fullPath: '/docs/$section'
-      preLoaderRoute: typeof DocsSectionRouteImport
+    '/docs/{-$section}': {
+      id: '/docs/{-$section}'
+      path: '/docs/{-$section}'
+      fullPath: '/docs/{-$section}'
+      preLoaderRoute: typeof DocsChar123SectionChar125RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/examples/$key': {
@@ -158,10 +130,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CommunityRoute: CommunityRoute,
-  DocsSectionRoute: DocsSectionRoute,
+  DocsChar123SectionChar125Route: DocsChar123SectionChar125Route,
   ExamplesKeyRoute: ExamplesKeyRoute,
   SIdRoute: SIdRoute,
-  DocsIndexRoute: DocsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

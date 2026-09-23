@@ -1,19 +1,24 @@
 import { useState } from "react";
 import Editor from "react-simple-code-editor";
 import { ScenePreview } from "@/components/scene-preview";
-import { highlight } from "@/lib/docs-render";
-
-const highlightCss = (code: string) => highlight(code, "css");
+import { highlightCss } from "@/lib/docs-highlight";
 
 /** A docs scene: the running scene above its source, editable in place. */
 export function DocsSceneBlock({ source }: { source: string }) {
   const [code, setCode] = useState(source);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const edited = code !== source;
 
   function update(next: string) {
     setError(null);
     setCode(next);
+  }
+
+  async function copy() {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   }
 
   return (
@@ -36,8 +41,12 @@ export function DocsSceneBlock({ source }: { source: string }) {
                 Reset
               </button>
             )}
-            <button type="button" className="code-copy" data-copy>
-              Copy
+            <button
+              type="button"
+              className="code-copy"
+              onClick={() => void copy().catch(() => {})}
+            >
+              {copied ? "Copied" : "Copy"}
             </button>
           </span>
         </div>

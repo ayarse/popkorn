@@ -1,11 +1,11 @@
-import { docDescription, findDoc } from "@/lib/docs";
+import { findDoc } from "@/lib/docs";
 import { SITE } from "@/routes/__root";
 
-/** Per-section title/description/canonical for the two docs routes. */
+/** Per-section title/description/canonical for the docs route. */
 export function docsHead(section: string | undefined) {
   const doc = findDoc(section);
   const title = `${doc.label} — Popkorn docs`;
-  const description = docDescription(doc.file);
+  const { description } = doc;
   const url = `${SITE}/docs/${doc.key}`;
   return {
     meta: [

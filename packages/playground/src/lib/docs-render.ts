@@ -10,7 +10,32 @@ import "prismjs/components/prism-typescript";
 import "prismjs/components/prism-tsx";
 import "prismjs/components/prism-bash";
 import "prismjs/components/prism-json";
-import { DOCS, docDiagram, docSource, GITHUB_REPO } from "@/lib/docs";
+import { DOCS, GITHUB_REPO } from "@/lib/docs";
+import { escapeHtml } from "@/lib/docs-highlight";
+
+const files = import.meta.glob<string>("../../../../docs/*.md", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+
+const diagrams = import.meta.glob<string>("../../../../docs/diagrams/*.svg", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+});
+
+/** Raw SVG for a docs-relative `diagrams/*.svg` path, if it exists. */
+function docDiagram(href: string): string | undefined {
+  const name = href.replace(/^\.\//, "");
+  const path = Object.keys(diagrams).find((p) => p.endsWith(`/docs/${name}`));
+  return path ? diagrams[path] : undefined;
+}
+
+function docSource(file: string): string {
+  const path = Object.keys(files).find((p) => p.endsWith(`/${file}`));
+  return path ? files[path] : `# ${file}\n\nSource file not found.`;
+}
 
 // Prism's bash grammar only knows common coreutils; color any line-leading
 // command (`bun`, `popkorn-convert`) too.
@@ -22,12 +47,19 @@ Prism.languages.insertBefore("bash", "function", {
   },
 });
 
-// Docs markdown → HTML segments, rendered identically on server and client.
-// Highlighting happens here (not in a client effect) so SSR ships colored code.
+// Docs markdown → HTML segments plus the on-this-page outline. Server-only
+// (see `docs-content.ts`); highlighting happens here so the HTML ships colored.
 
 export type DocSegment =
   | { kind: "html"; html: string }
   | { kind: "scene"; source: string };
+
+export type TocItem = { id: string; text: string; indent: number };
+
+export interface RenderedDoc {
+  segments: DocSegment[];
+  toc: TocItem[];
+}
 
 const LANG_ALIAS: Record<string, string> = {
   sh: "bash",
@@ -39,14 +71,6 @@ const LANG_ALIAS: Record<string, string> = {
   svg: "markup",
 };
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -57,7 +81,7 @@ function slugify(text: string): string {
 }
 
 /** Highlighted HTML for `text`, or escaped text when the language is unknown. */
-export function highlight(text: string, lang: string): string {
+function highlight(text: string, lang: string): string {
   const key = LANG_ALIAS[lang] ?? lang;
   const grammar = Prism.languages[key];
   return grammar ? Prism.highlight(text, grammar, key) : escapeHtml(text);
@@ -92,6 +116,7 @@ function rewriteHref(href: string): string {
 const CALLOUT = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/;
 
 let slugCounts = new Map<string, number>();
+let headings: { id: string; text: string; depth: number }[] = [];
 
 const md = new Marked({ gfm: true, breaks: false });
 md.use({
@@ -102,12 +127,12 @@ md.use({
     heading({ tokens, depth }: Tokens.Heading) {
       const inner = this.parser.parseInline(tokens);
       if (depth === 1) return `<h1>${inner}</h1>\n`;
-      const base =
-        slugify(tokens.map((t) => ("text" in t ? t.text : "")).join("")) ||
-        "section";
+      const text = tokens.map((t) => ("text" in t ? t.text : "")).join("");
+      const base = slugify(text) || "section";
       const n = (slugCounts.get(base) ?? 0) + 1;
       slugCounts.set(base, n);
       const id = n === 1 ? base : `${base}-${n}`;
+      if (depth <= 4) headings.push({ id, text, depth });
       return `<h${depth} id="${id}">${inner}<a class="heading-anchor" href="#${id}" aria-label="Link to this section"></a></h${depth}>\n`;
     },
     // Diagrams inline so they take the site's theme (on GitHub they stay <img>).
@@ -135,8 +160,9 @@ function isScene(t: Token): t is Tokens.Code {
   );
 }
 
-export function renderDoc(file: string): DocSegment[] {
+export function renderDoc(file: string): RenderedDoc {
   slugCounts = new Map();
+  headings = [];
   const tokens = md.lexer(docSource(file));
   md.walkTokens(tokens, (t) => {
     if (t.type === "link") t.href = rewriteHref(t.href);
@@ -154,5 +180,12 @@ export function renderDoc(file: string): DocSegment[] {
     } else buf.push(t);
   }
   flush();
-  return out;
+  // Heading levels vary per doc, so indent relative to the shallowest one.
+  const min = Math.min(...headings.map((h) => h.depth));
+  const toc = headings.map(({ id, text, depth }) => ({
+    id,
+    text,
+    indent: depth - min,
+  }));
+  return { segments: out, toc };
 }
