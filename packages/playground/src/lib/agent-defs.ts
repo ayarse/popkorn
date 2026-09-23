@@ -89,7 +89,7 @@ export const SYSTEM_PROMPT = [
   "- Keyword/percent transform-origin resolves to (0,0) on paths and groups (no intrinsic box); use numeric px there. Keep every animation-* property intact.",
   "- Never modify @keyframes unless the request is about motion; the existing pivots and distances depend on the old shape's bounds.",
   "- A rejected edit returns the reason (non-unique match with line numbers, or the closest region to copy verbatim); fix it and retry.",
-  "- Finish with one or two short sentences on what changed. A pure question needs no tools, just answer.",
+  "- Finish with a brief note on what changed, sized for a chat bubble the user skims next to the canvas. A pure question needs no tools, just answer.",
   "",
   "=== Popkorn authoring guide ===",
   "",

@@ -171,6 +171,12 @@ function cacheParams(cfg: AgentConfig): Record<string, unknown> {
   return params;
 }
 
+// Thinking can't be disabled on these; "off" falls back to the lowest effort.
+const ALWAYS_THINKS = [
+  "anthropic/claude-opus-5.5",
+  "anthropic/claude-fable-5.1",
+];
+
 export async function runAgent(
   cfg: AgentConfig,
   messages: { role: string; content: string }[],
@@ -187,7 +193,9 @@ export async function runAgent(
   // Omitted entirely for the model default.
   const reasoning =
     cfg.reasoning === "off"
-      ? { enabled: false }
+      ? ALWAYS_THINKS.includes(cfg.model)
+        ? { effort: "low" }
+        : { enabled: false }
       : cfg.reasoning && cfg.reasoning !== "default"
         ? { effort: cfg.reasoning }
         : undefined;
@@ -235,6 +243,8 @@ export async function runAgent(
 
     let text = "";
     const calls: ToolCallAccum[] = [];
+    // Echoed back with the tool calls; the provider needs the model's own reasoning.
+    const reasoningDetails: unknown[] = [];
     await readSSE(res.body!, (data) => {
       if (data === "[DONE]") return;
       let parsed: any;
@@ -257,6 +267,8 @@ export async function runAgent(
       // Never appended to the answer text.
       const reasoningDelta = delta.reasoning || delta.reasoning_content;
       if (reasoningDelta) opts.onReasoning?.(reasoningDelta);
+      if (delta.reasoning_details)
+        reasoningDetails.push(...delta.reasoning_details);
       if (delta.tool_calls) {
         for (const tc of delta.tool_calls) {
           const i = tc.index ?? 0;
@@ -276,6 +288,9 @@ export async function runAgent(
     running.push({
       role: "assistant",
       content: text || null,
+      ...(reasoningDetails.length
+        ? { reasoning_details: reasoningDetails }
+        : {}),
       tool_calls: toolCalls.map((c) => ({
         id: c.id,
         type: "function",

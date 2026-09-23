@@ -310,6 +310,44 @@ describe("runAgent", () => {
     expect(calls[0].body.reasoning).toEqual({ enabled: false });
   });
 
+  test('reasoning "off" falls back to low effort where thinking is mandatory', async () => {
+    const calls = mockFetch([sseStream(textFrames(["hi"]))]);
+    await runAgent(
+      { ...CFG, model: "anthropic/claude-opus-5.5", reasoning: "off" },
+      [{ role: "user", content: "q" }],
+      { ...noopOpts(), executeTool: () => "" },
+    );
+    expect(calls[0].body.reasoning).toEqual({ effort: "low" });
+  });
+
+  test("reasoning_details are echoed back on the tool-call turn", async () => {
+    const detail = (text: string) =>
+      JSON.stringify({
+        choices: [
+          { delta: { reasoning_details: [{ type: "reasoning.text", text }] } },
+        ],
+      });
+    const calls = mockFetch([
+      sseStream([
+        detail("a"),
+        detail("b"),
+        toolFrame(0, '{"query":"x"}', { id: "c1", name: "search" }),
+      ]),
+      sseStream(textFrames(["done"])),
+    ]);
+    await runAgent(CFG, [{ role: "user", content: "q" }], {
+      ...noopOpts(),
+      executeTool: () => "ok",
+    });
+    const assistant = calls[1].body.messages.find(
+      (m: any) => m.role === "assistant",
+    );
+    expect(assistant.reasoning_details).toEqual([
+      { type: "reasoning.text", text: "a" },
+      { type: "reasoning.text", text: "b" },
+    ]);
+  });
+
   test("no reasoning key when unset", async () => {
     const calls = mockFetch([sseStream(textFrames(["hi"]))]);
     await runAgent(CFG, [{ role: "user", content: "q" }], {
