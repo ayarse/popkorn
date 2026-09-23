@@ -4,6 +4,7 @@ import { dark } from "@clerk/themes";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import favicon from "@/assets/favicon.svg?url";
+import { Toaster } from "@/components/ui/sonner";
 import appCss from "@/globals.css?url";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/700.css";
@@ -65,7 +66,7 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/svg+xml", href: favicon },
     ],
-    // ponytail: dev builds ship no analytics at all, so localhost never counts.
+    // NOTE: dev builds ship no analytics at all, so localhost never counts.
     scripts: import.meta.env.DEV
       ? []
       : [
@@ -99,6 +100,7 @@ function RootDocument({ children }: { children: ReactNode }) {
         </head>
         <body>
           {children}
+          <Toaster />
           <Scripts />
         </body>
       </html>
