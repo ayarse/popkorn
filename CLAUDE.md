@@ -30,6 +30,17 @@ shape semantics) → `@popkorn/player` `buildSceneGraph` → scene tree →
 TanStack Start app on Cloudflare Workers (usepopkorn.dev) wrapping the
 `<popkorn-player>` web component.
 
+Packages: `popkorn-parser` (`parser.ts`, `ast.ts`, AST-contract tests in
+`parser.test.ts`), `popkorn-player` (`scene/`, `animation/`, `runtime/`,
+`renderer/`, `component.ts`), `popkorn-converters` (Lottie/SVG + CLI),
+`popkorn-react-native` (Skia backend) + `expo-demo`, `popkorn-figma-plugin`,
+`playground`, `config` (shared tsconfig).
+
+A DSL feature is a pipeline change: a new AST node kind ripples through the
+AST types, parser, scene builder and renderer together, so name every layer it
+lands in before editing. The render loop is a hot path — no per-frame
+allocation.
+
 Invariants that keep the system correct — violating any of these is how bugs
 have actually happened here:
 
@@ -101,7 +112,9 @@ separate fills; layer `ip`/`op` → `visible-from`/`until`.
 clean/warn/blocked counts are the scoreboard (baseline: 142/11/7/0 as of
 2026-07-17; only rare shape modifiers pb/op/zz/rd remain blocked,
 deliberately — shipping players skip them too). Real-file smoke
-checks live in the sticker/demo files under `examples/lottie/`.
+checks live in the sticker/demo files under `examples/lottie/`. Precomp
+time remap (layer `tm`) maps to `time-remap`, which runs a subtree's inherited
+time through a keyframe curve (AE tm semantics).
 
 ## SVG converter
 
@@ -125,10 +138,6 @@ supported), offset/zig-zag/pucker/round-corner modifiers, 3D/camera, effects
 beyond what Canvas2D gives nearly free. These match what shipping Lottie
 players actually support; revisit only with real files that need them.
 
-Precomp time remap (layer `tm`) IS supported: the `time-remap` property maps a
-subtree's inherited time through a keyframe curve (AE tm semantics), and the
-converter emits it for precomp layers.
-
 ## Workflow
 
 - **bun**, not npm/pnpm: `bun install`, `bun run test`, `bun run build`,
@@ -136,6 +145,9 @@ converter emits it for precomp layers.
   always an accident.
 - Tests are bun-native and DOM-free by design (headless fallbacks are marked
   `NOTE:`); a few Path2D-dependent tests skip under bun — that's expected.
+  Non-trivial parser/transform/interpolation logic leaves one runnable check;
+  extend the existing suite (e.g. the parser's AST-contract tests) rather than
+  adding a harness.
 - Deliberate-simplification / known-ceiling comments use the `NOTE:` prefix
   (e.g. `// NOTE: adaptive subdivision would be tighter here`) — name the
   ceiling and the upgrade path. Never use a tool/plugin brand as the prefix
@@ -158,8 +170,9 @@ converter emits it for precomp layers.
   `packages/expo-demo/examples.gen.ts` — never hand-edit that file; run
   `bun --filter @popkorn/expo-demo gen` after touching `examples/popkorn/`.
 - Commits: straight to main, short conventional messages, no attribution
-  trailers. When multiple agents work in parallel, fence them to disjoint
-  files and make each run the corpus gate.
+  trailers. Parallel agents get disjoint file fences, each runs the corpus
+  gate, and only the coordinator commits: the pre-commit hook re-stages whole
+  working-tree files, so one agent's commit would swallow another's hunks.
 
 ## Releasing
 
