@@ -4,11 +4,11 @@ import { SITE } from "@/routes/__root";
 import { Playground } from "@/routes/-playground";
 
 export const Route = createFileRoute("/s/$id")({
-  // Only the head is server-rendered; the editor fetches the CSS itself.
+  // The scene feeds both the server-rendered head and the editor (useScene).
   loader: async ({ params }) => {
     const scene = await getScene({ data: params.id });
     if (!scene) throw notFound();
-    return { id: scene.id, title: scene.title, author: scene.author };
+    return scene;
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {};

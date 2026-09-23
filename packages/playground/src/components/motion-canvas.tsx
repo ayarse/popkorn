@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import "@popkorn/player"; // This registers the web component
 import type { PopkornPlayer } from "@popkorn/player";
 
@@ -65,36 +65,30 @@ export function MotionCanvas({
     player.setAttribute("fit", fit);
   }, [controls, loop, fit]);
 
-  // Handle events
+  // Latest callbacks without resubscribing: listeners attach once per mount.
+  const handleReady = useEffectEvent(() => onSceneReady?.());
+  const handleError = useEffectEvent((e: Event) =>
+    onError?.((e as CustomEvent<{ error: Error }>).detail.error),
+  );
+  const exposePlayer = useEffectEvent((p: PopkornPlayer | null) =>
+    onPlayerReady?.(p),
+  );
+
   useEffect(() => {
     const player = playerRef.current;
     if (!player) return;
-
-    const handleReady = () => {
-      onSceneReady?.();
-    };
-
-    const handleError = (e: Event) => {
-      const customEvent = e as CustomEvent<{ error: Error }>;
-      onError?.(customEvent.detail.error);
-    };
-
-    player.addEventListener("popkorn:ready", handleReady);
-    player.addEventListener("popkorn:error", handleError);
-
+    const ready = () => handleReady();
+    const error = (e: Event) => handleError(e);
+    player.addEventListener("popkorn:ready", ready);
+    player.addEventListener("popkorn:error", error);
+    // Expose the element upward for the mount's lifetime.
+    exposePlayer(player);
     return () => {
-      player.removeEventListener("popkorn:ready", handleReady);
-      player.removeEventListener("popkorn:error", handleError);
+      player.removeEventListener("popkorn:ready", ready);
+      player.removeEventListener("popkorn:error", error);
+      exposePlayer(null);
     };
-  }, [onSceneReady, onError]);
-
-  // Expose the player element upward for the mount's lifetime (the element is
-  // stable across re-renders; kept in its own effect so unstable event-handler
-  // props above don't tear the reference down).
-  useEffect(() => {
-    onPlayerReady?.(playerRef.current);
-    return () => onPlayerReady?.(null);
-  }, [onPlayerReady]);
+  }, []);
 
   return (
     <popkorn-player

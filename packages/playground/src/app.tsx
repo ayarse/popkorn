@@ -5,7 +5,6 @@ import AgentChat from "@/components/agent/agent-chat";
 import { AppHeader } from "@/components/app-header";
 import { ImportModal } from "@/components/import-modal";
 import { PlayerPanel } from "@/components/player-panel";
-import { useSplit } from "@/components/resize-handle";
 import { ShareModal } from "@/components/share-modal";
 import { SourcePanel } from "@/components/source-panel";
 import { TimelinePanel } from "@/components/timeline-panel";
@@ -13,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useScene } from "@/hooks/use-scene";
 import { maybeStartTour } from "@/lib/tour";
+import { cn } from "@/lib/utils";
 
 function App() {
   const scene = useScene();
@@ -20,10 +20,9 @@ function App() {
   const [showShare, setShowShare] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [player, setPlayer] = useState<PopkornPlayer | null>(null);
-  // Desktop: editor left / player right (horizontal split). Mobile: player on
-  // top / editor below (vertical stack), no timeline.
+  // Desktop: editor left / player right. Mobile: player on top / editor
+  // below, no timeline.
   const isMobile = useIsMobile();
-  const split = useSplit(isMobile);
   // Arriving on a community scene (`/s/$id`) is a viewing intent, so the editor
   // starts collapsed — the source is a click away, not in the way.
   const [sourceCollapsed, setSourceCollapsed] = useState(
@@ -36,28 +35,6 @@ function App() {
     const t = window.setTimeout(maybeStartTour, 600);
     return () => window.clearTimeout(t);
   }, []);
-
-  const playerNode = (
-    <PlayerPanel
-      source={scene.source}
-      community={scene.community}
-      error={scene.error}
-      onError={scene.setError}
-      onPlayerReady={setPlayer}
-    />
-  );
-  const sourceNode = (
-    <SourcePanel
-      source={scene.source}
-      onSourceChange={scene.editSource}
-      sizeDelta={scene.sizeDelta}
-      minified={scene.minified}
-      onToggleMinify={scene.toggleMinify}
-      onCrush={scene.crush}
-      collapsed={sourceCollapsed}
-      onToggleCollapse={() => setSourceCollapsed((v) => !v)}
-    />
-  );
 
   return (
     <TooltipProvider delayDuration={400}>
@@ -74,11 +51,9 @@ function App() {
           onToggleChat={() => setChatOpen((v) => !v)}
         />
 
-        {/* Desktop: [editor | handle | player]. Mobile: [player / handle /
-            editor] stacked. The first slot holds whichever panel leads
-            (editor on desktop, player on mobile) and the handle's frac sizes
-            it. When the editor collapses, it shrinks to its rail (0 0 auto)
-            and the other panel takes the rest — independent of orientation. */}
+        {/* DOM order is fixed [editor | divider | player] so neither panel
+            remounts on a breakpoint change; mobile stacks the player on top
+            via `order`. A collapsed editor shrinks to its rail. */}
         <div
           className={
             isMobile
@@ -87,44 +62,50 @@ function App() {
           }
         >
           <div
-            data-tour={isMobile ? "player" : "source"}
-            className="flex min-h-0 min-w-0 overflow-hidden"
-            style={{
-              // First slot is the editor on desktop, the player on mobile.
-              flex: sourceCollapsed
-                ? isMobile
-                  ? "1 1 0"
-                  : "0 0 auto"
-                : `${split.frac} 1 0`,
-            }}
+            data-tour="source"
+            className={cn(
+              "flex min-h-0 min-w-0 overflow-hidden",
+              sourceCollapsed ? "flex-none" : "flex-1",
+            )}
           >
-            {isMobile ? playerNode : sourceNode}
+            <SourcePanel
+              source={scene.source}
+              onSourceChange={scene.editSource}
+              sizeDelta={scene.sizeDelta}
+              minified={scene.minified}
+              onToggleMinify={scene.toggleMinify}
+              onCrush={scene.crush}
+              collapsed={sourceCollapsed}
+              onToggleCollapse={() => setSourceCollapsed((v) => !v)}
+            />
           </div>
 
-          {/* ponytail: panel resizing is off for now — static divider. Swap
-              back to <ResizeHandle {...split} vertical={isMobile} /> to
-              re-enable; useSplit still supplies the fixed 50/50 frac. */}
           {!sourceCollapsed && (
             <div
               className={
-                isMobile ? "h-px shrink-0 bg-border" : "w-px shrink-0 bg-border"
+                isMobile
+                  ? "-order-1 h-px shrink-0 bg-border"
+                  : "w-px shrink-0 bg-border"
               }
             />
           )}
 
           <div
-            data-tour={isMobile ? "source" : "player"}
-            className="flex min-h-0 min-w-0 overflow-hidden"
-            style={{
-              // Second slot is the editor on mobile, the player on desktop.
-              flex: sourceCollapsed
-                ? isMobile
-                  ? "0 0 auto"
-                  : "1 1 0"
-                : `${1 - split.frac} 1 0`,
-            }}
+            data-tour="player"
+            className={cn(
+              "flex min-h-0 min-w-0 flex-1 overflow-hidden",
+              isMobile && "-order-2",
+            )}
           >
-            {isMobile ? sourceNode : playerNode}
+            <PlayerPanel
+              source={scene.source}
+              playerSource={scene.playerSource}
+              community={scene.community}
+              error={scene.error}
+              onError={scene.setError}
+              player={player}
+              onPlayerReady={setPlayer}
+            />
           </div>
 
           {/* Agent chat — sidebar on desktop, fullscreen drawer on mobile */}
@@ -142,7 +123,7 @@ function App() {
           <TimelinePanel
             player={player}
             source={scene.source}
-            onEditSource={scene.editSource}
+            onEditSource={scene.replaceSource}
           />
         )}
 
@@ -154,7 +135,9 @@ function App() {
               });
             }}
             onText={(text) => {
-              if (scene.importText(text)) setShowImport(false);
+              void scene.importText(text).then((ok) => {
+                if (ok) setShowImport(false);
+              });
             }}
             onClose={() => setShowImport(false)}
           />

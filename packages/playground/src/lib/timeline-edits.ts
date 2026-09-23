@@ -3,6 +3,7 @@ import {
   type KeyframeRule,
   parse,
   type Rule,
+  type StyleSheet,
 } from "@popkorn/parser";
 
 // Span-based source edits for the editor timeline. Each function re-parses the
@@ -144,6 +145,21 @@ function resolveDeclarations(
 
 // --- validation gate ---------------------------------------------------------
 
+const errorCount = (sheet: StyleSheet): number =>
+  sheet.diagnostics.filter((d) => d.severity === "error").length;
+
+/** Parse the current source with its error count, or the failure message. */
+function parseCurrent(
+  source: string,
+): { sheet: StyleSheet; errs: number } | string {
+  try {
+    const sheet = parse(source);
+    return { sheet, errs: errorCount(sheet) };
+  } catch (e) {
+    return `current source does not parse: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
 /** Re-parse the edited source; accept only if it adds no error-severity diag. */
 function commitValidated(
   edited: string,
@@ -151,9 +167,7 @@ function commitValidated(
 ): TimelineEditResult {
   let errsAfter: number;
   try {
-    errsAfter = parse(edited).diagnostics.filter(
-      (d) => d.severity === "error",
-    ).length;
+    errsAfter = errorCount(parse(edited));
   } catch (e) {
     return fail(
       `edit produced unparseable source: ${e instanceof Error ? e.message : String(e)}`,
@@ -283,19 +297,11 @@ export function retimeAnimation(
   if (changes.delay === undefined && changes.duration === undefined)
     return fail("no changes requested");
 
-  let errsBefore: number;
-  let rules: Rule[];
-  try {
-    const sheet = parse(source);
-    errsBefore = sheet.diagnostics.filter((d) => d.severity === "error").length;
-    rules = sheet.rules;
-  } catch (e) {
-    return fail(
-      `current source does not parse: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
+  const cur = parseCurrent(source);
+  if (typeof cur === "string") return fail(cur);
+  const errsBefore = cur.errs;
 
-  const resolved = resolveDeclarations(rules, selector);
+  const resolved = resolveDeclarations(cur.sheet.rules, selector);
   if ("error" in resolved) return fail(resolved.error);
   const decls = resolved.declarations;
 
@@ -371,17 +377,10 @@ export function moveKeyframe(
   oldOffset: number,
   newOffset: number,
 ): TimelineEditResult {
-  let errsBefore: number;
-  let kf: KeyframeRule | undefined;
-  try {
-    const sheet = parse(source);
-    errsBefore = sheet.diagnostics.filter((d) => d.severity === "error").length;
-    kf = sheet.keyframes.find((k) => k.name === name);
-  } catch (e) {
-    return fail(
-      `current source does not parse: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
+  const cur = parseCurrent(source);
+  if (typeof cur === "string") return fail(cur);
+  const errsBefore = cur.errs;
+  const kf = cur.sheet.keyframes.find((k) => k.name === name);
   if (!kf) return fail(`@keyframes '${name}' not found`);
 
   const oldPct = round2(oldOffset * 100);

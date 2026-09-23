@@ -5,7 +5,7 @@ import {
   validate,
 } from "@popkorn/parser";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 const SEVERITY_RANK: Record<Severity, number> = {
   error: 3,
@@ -227,6 +227,7 @@ export function ProblemsStrip({
   onJump: (d: Diagnostic) => void;
 }) {
   const [open, setOpen] = useState(true);
+  const listId = useId();
   if (diags.length === 0) return null;
 
   const counts: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
@@ -245,7 +246,9 @@ export function ProblemsStrip({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 px-3 py-1 text-left text-muted-foreground hover:bg-muted/40"
+        aria-expanded={open}
+        aria-controls={listId}
+        className="flex w-full items-center gap-1.5 px-3 py-1 text-left text-muted-foreground hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         {open ? (
           <ChevronDown className="size-3 shrink-0" />
@@ -258,7 +261,7 @@ export function ProblemsStrip({
         </span>
       </button>
       {open && (
-        <div className="max-h-32 overflow-auto">
+        <div id={listId} className="max-h-32 overflow-auto">
           {diags.map((d) => {
             const { line, column } = offsetToLineCol(source, d.start);
             return (

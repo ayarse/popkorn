@@ -1,8 +1,7 @@
-import { convertLottie, convertSvg } from "@popkorn/converters";
 import { parse, serialize } from "@popkorn/parser";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { examples } from "@/examples";
+import { useMatch, useNavigate, useParams } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { findExample } from "@/examples";
 import { track } from "@/lib/analytics";
 import {
   buildImportResult,
@@ -11,15 +10,14 @@ import {
   type ImportResult,
   type SizeDelta,
 } from "@/lib/import-size";
-import { getScene } from "@/lib/scenes";
 
 // Detects pasted SVG markup (vs Lottie JSON) — leading xml decl / comments then <svg.
 const SVG_RE =
   /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*<(svg|!DOCTYPE svg)/i;
 
-// Owns the playground's scene state — the source, its format flags, and the
-// import/minify logic that loads and transforms it. App keeps only view state
-// (which modal/sidebar is open) and wires these into the panels.
+/** How long typing must pause before the player reloads the scene. */
+const TYPING_DEBOUNCE_MS = 150;
+
 /** A community submission opened in the editor, for the header's byline and
  *  report button. Null for examples and for scratch scenes. */
 export interface CommunityScene {
@@ -31,123 +29,137 @@ export interface CommunityScene {
   mine: boolean;
 }
 
+// Owns the playground's scene state — the source, its format flags, and the
+// import/minify logic that loads and transforms it. App keeps only view state.
 export function useScene() {
-  // Deep links are the `/examples/$key` and `/s/$id` routes; `/` falls back to
-  // the default scene.
+  // Each playground route's loader fetches its scene: `/examples/$key` and
+  // `/` an example source, `/s/$id` a community scene.
   const navigate = useNavigate();
-  const params = useParams({ strict: false });
-  const routeKey = params.key;
-  const routeSceneId = params.id;
-  const defaultExample =
-    examples.find((e) => e.key === routeKey) ??
-    examples.find((e) => e.key === "trim-path") ??
-    examples[0];
+  const routeKey = useParams({ strict: false }).key;
+  const loaded = useMatch({ from: "/s/$id", shouldThrow: false })?.loaderData;
+  const exampleSource = useMatch({ from: "/examples/$key", shouldThrow: false })
+    ?.loaderData?.source;
+  const home = useMatch({ from: "/", shouldThrow: false })?.loaderData;
+
+  const [initial] = useState(() => {
+    if (loaded) return { css: loaded.css, example: null };
+    if (routeKey && exampleSource !== undefined)
+      return { css: exampleSource, example: routeKey };
+    return { css: home?.source ?? "", example: home?.key ?? null };
+  });
   const [currentExample, setCurrentExample] = useState<string | null>(
-    defaultExample.key,
+    initial.example,
   );
-  const [source, setSource] = useState(defaultExample.source);
+  const [source, setSource] = useState(initial.css);
+  // What the player renders: trails `source` while typing, else in lockstep.
+  const [playerSource, setPlayerSource] = useState(initial.css);
   const [error, setError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [minified, setMinified] = useState(false);
   const [sizeDelta, setSizeDelta] = useState<SizeDelta | null>(null);
-  const [community, setCommunity] = useState<CommunityScene | null>(null);
+  const [community, setCommunity] = useState<CommunityScene | null>(
+    loaded ? toCommunity(loaded) : null,
+  );
+  const typingTimer = useRef<number | undefined>(undefined);
 
-  // Load a fresh scene from anywhere but an example (import / copilot): clears
-  // the example selection and the format/size state that no longer applies.
-  function loadSource(css: string) {
-    setCurrentExample(null);
-    setCommunity(null);
+  useEffect(() => () => clearTimeout(typingTimer.current), []);
+
+  /** Programmatic source change: the player follows immediately. */
+  function commit(css: string) {
+    clearTimeout(typingTimer.current);
     setSource(css);
+    setPlayerSource(css);
+  }
+
+  // A fresh scene replaces the format/size state that no longer applies.
+  function loadScene(css: string, example: string | null) {
+    commit(css);
+    setCurrentExample(example);
+    setCommunity(null);
     setMinified(false);
     setSizeDelta(null);
   }
 
-  // `/s/$id` opens a community submission in this same editor — there is no
-  // separate viewer. The route SSRs the head; the CSS is fetched here.
+  function loadExample(key: string, css: string) {
+    loadScene(css, key);
+    setImportResult(null);
+    setError(null);
+  }
+
+  // `/s/$id` opens a community submission in this same editor.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the scene id alone
+  useEffect(() => {
+    if (!loaded || loaded.id === community?.id) return;
+    loadScene(loaded.css, null);
+    setCommunity(toCommunity(loaded));
+  }, [loaded?.id]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the URL alone
   useEffect(() => {
-    if (!routeSceneId || routeSceneId === community?.id) return;
-    void getScene({ data: routeSceneId }).then((s) => {
-      if (!s) {
-        setError("That shared scene no longer exists.");
-        return;
-      }
-      loadSource(s.css);
-      setCommunity({
-        id: s.id,
-        title: s.title,
-        author: s.author,
-        tags: s.tags,
-        mine: s.mine,
-      });
-    });
-  }, [routeSceneId]);
+    if (!routeKey || routeKey === currentExample || exampleSource === undefined)
+      return;
+    loadExample(routeKey, exampleSource);
+  }, [routeKey]);
 
-  // Editor edits: the byte-delta badge is only meaningful right after a
-  // minify/format, so any manual edit clears it.
+  // Typing: the byte-delta badge only means something right after a
+  // minify/format, and the player reload waits for a pause.
   function editSource(value: string) {
     setSource(value);
     setSizeDelta(null);
+    clearTimeout(typingTimer.current);
+    typingTimer.current = window.setTimeout(
+      () => setPlayerSource(value),
+      TYPING_DEBOUNCE_MS,
+    );
   }
 
-  // Picking an example is a navigation; the effect below is what actually
-  // loads it, so the back button and a pasted URL take the same path.
-  function selectExample(key: string) {
-    if (!examples.some((e) => e.key === key)) return;
-    track("example_view", { example: key });
-    void navigate({ to: "/examples/$key", params: { key } });
-  }
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the URL alone
-  useEffect(() => {
-    if (!routeKey || routeKey === currentExample) return;
-    const ex = examples.find((e) => e.key === routeKey);
-    if (!ex) return;
-    setCurrentExample(ex.key);
-    setCommunity(null);
-    setSource(ex.source);
-    setMinified(false);
+  /** Programmatic edit of the current scene (timeline drag). */
+  function replaceSource(value: string) {
+    commit(value);
     setSizeDelta(null);
-    setImportResult(null);
-    setError(null);
-  }, [routeKey]);
+  }
 
-  function toggleMinify() {
+  // Picking an example is a navigation, so back/forward and pasted URLs take
+  // the same path; re-picking the current URL's example loads it directly.
+  function selectExample(key: string) {
+    if (!findExample(key)) return;
+    track("example_view", { example: key });
+    if (key === routeKey && exampleSource !== undefined)
+      loadExample(key, exampleSource);
+    else void navigate({ to: "/examples/$key", params: { key } });
+  }
+
+  function reserialize(
+    opts: Parameters<typeof serialize>[1],
+    minifiedAfter: boolean,
+    verb: string,
+  ) {
     try {
-      const next = serialize(parse(source), { minify: !minified });
+      const next = serialize(parse(source), opts);
       setSizeDelta({ before: bytes(source), after: bytes(next) });
-      setSource(next);
-      setMinified(!minified);
+      commit(next);
+      setMinified(minifiedAfter);
       setError(null);
     } catch (e: any) {
-      setError(`Could not format: ${e.message}`);
+      setError(`Could not ${verb}: ${e.message}`);
     }
   }
+
+  const toggleMinify = () =>
+    reserialize({ minify: !minified }, !minified, "format");
 
   // Destructive: minify AND rename every id/class/@keyframes/@define/custom
-  // property to a short meaningless name. Render-preserving but one-way — the
-  // human names are gone. The UI confirms before calling this.
-  function crush() {
-    try {
-      const next = serialize(parse(source), { crush: true });
-      setSizeDelta({ before: bytes(source), after: bytes(next) });
-      setSource(next);
-      setMinified(true);
-      setError(null);
-    } catch (e: any) {
-      setError(`Could not crush: ${e.message}`);
-    }
-  }
+  // property to a short meaningless name. The UI confirms before calling this.
+  const crush = () => reserialize({ crush: true }, true, "crush");
 
   function applyImport(
     format: string,
     label: string,
     text: string,
-    css: string,
-    warnings: string[],
-    blocked: string[],
+    converted: { css: string; warnings: string[]; blocked: string[] },
   ) {
-    loadSource(css);
+    const { css, warnings, blocked } = converted;
+    loadScene(css, null);
     track("import", {
       format,
       blocked: blocked.length,
@@ -166,7 +178,8 @@ export function useScene() {
     );
   }
 
-  function importLottie(text: string, label: string): boolean {
+  // Converters load on demand, keeping them out of the main chunk.
+  async function importLottie(text: string, label: string): Promise<boolean> {
     setError(null);
     let lottie: any;
     try {
@@ -176,8 +189,8 @@ export function useScene() {
       return false;
     }
     try {
-      const { css, warnings, blocked } = convertLottie(lottie);
-      applyImport("Lottie", label, text, css, warnings, blocked);
+      const { convertLottie } = await import("@popkorn/converters");
+      applyImport("Lottie", label, text, convertLottie(lottie));
       return true;
     } catch (e: any) {
       setError(`Lottie conversion failed: ${e.message}`);
@@ -185,11 +198,11 @@ export function useScene() {
     }
   }
 
-  function importSvg(text: string, label: string): boolean {
+  async function importSvg(text: string, label: string): Promise<boolean> {
     setError(null);
     try {
-      const { css, warnings, blocked } = convertSvg(text);
-      applyImport("SVG", label, text, css, warnings, blocked);
+      const { convertSvg } = await import("@popkorn/converters");
+      applyImport("SVG", label, text, convertSvg(text));
       return true;
     } catch (e: any) {
       setError(`SVG conversion failed: ${e.message}`);
@@ -197,43 +210,38 @@ export function useScene() {
     }
   }
 
-  // Pasted markup: sniff SVG vs Lottie JSON. Returns success so the caller can
-  // dismiss the import modal.
-  function importText(text: string): boolean {
+  // Pasted markup: sniff SVG vs Lottie JSON. Resolves to success so the caller
+  // can dismiss the import modal.
+  function importText(text: string): Promise<boolean> {
     return SVG_RE.test(text)
       ? importSvg(text, "pasted SVG")
       : importLottie(text, "pasted JSON");
   }
 
-  function importFile(file: File): Promise<boolean> {
+  async function importFile(file: File): Promise<boolean> {
     const isSvg = /\.svg$/i.test(file.name) || file.type === "image/svg+xml";
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        resolve(
-          isSvg
-            ? importSvg(text, `"${file.name}"`)
-            : importLottie(text, `"${file.name}"`),
-        );
-      };
-      reader.onerror = () => {
-        setError(`Could not read file: ${file.name}`);
-        resolve(false);
-      };
-      reader.readAsText(file);
-    });
+    let text: string;
+    try {
+      text = await file.text();
+    } catch {
+      setError(`Could not read file: ${file.name}`);
+      return false;
+    }
+    return isSvg
+      ? importSvg(text, `"${file.name}"`)
+      : importLottie(text, `"${file.name}"`);
   }
 
   // Copilot-generated scene.
   function applyGenerated(css: string) {
-    loadSource(css);
+    loadScene(css, null);
     setImportResult(null);
     setError(null);
   }
 
   return {
     source,
+    playerSource,
     error,
     importResult,
     currentExample,
@@ -242,6 +250,7 @@ export function useScene() {
     sizeDelta,
     setError,
     editSource,
+    replaceSource,
     selectExample,
     dismissImport: () => setImportResult(null),
     toggleMinify,
@@ -249,5 +258,21 @@ export function useScene() {
     importText,
     importFile,
     applyGenerated,
+  };
+}
+
+function toCommunity(s: {
+  id: string;
+  title: string;
+  author: string | null;
+  tags: string[];
+  mine: boolean;
+}): CommunityScene {
+  return {
+    id: s.id,
+    title: s.title,
+    author: s.author,
+    tags: s.tags,
+    mine: s.mine,
   };
 }

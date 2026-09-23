@@ -1,5 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { examples } from "@/examples";
+import { findExample, loadExampleSource } from "@/examples";
 import { SITE } from "@/routes/__root";
 import { Playground } from "@/routes/-playground";
 
@@ -9,10 +9,11 @@ import { Playground } from "@/routes/-playground";
  * per scene instead of a `#key` fragment nothing indexes.
  */
 export const Route = createFileRoute("/examples/$key")({
-  loader: ({ params }) => {
-    const ex = examples.find((e) => e.key === params.key);
+  // The source rides along so the editor's first render has the real scene.
+  loader: async ({ params }) => {
+    const ex = findExample(params.key);
     if (!ex) throw notFound();
-    return { label: ex.label };
+    return { label: ex.label, source: (await loadExampleSource(ex.key)) ?? "" };
   },
   head: ({ loaderData, params }) => {
     if (!loaderData) return {};
