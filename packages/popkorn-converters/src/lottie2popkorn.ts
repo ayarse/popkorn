@@ -291,6 +291,7 @@ type Sample = Partial<{
   rot: number;
   sx: number;
   sy: number;
+  skx: number;
   opacity: number;
   cx: number;
   cy: number;
@@ -400,6 +401,52 @@ function unionKfs(props: (Prop | null)[]): Kf[] {
     const src = tracks.map((tk) => tk.find((kf) => kf.t === t)).find(Boolean);
     return { t, i: src?.i, o: src?.o, h: src?.h };
   });
+}
+
+/**
+ * A skewed layer's rotate/scale/skew as Popkorn's rotate·scale·skewX. lottie-web's
+ * linear part is R(r)·R(−sa)·shearX(−tan sk)·R(sa)·S; R(r) stays out of the
+ * decomposition so animated rotation never wraps. Static props give `fixed`,
+ * animated ones one channel on the union of their keyframes.
+ */
+function lottieSkew(
+  r: Prop | null,
+  s: Prop | null,
+  sk: Prop,
+  sa: Prop | null,
+): {
+  fixed?: { rot: number; sx: number; sy: number; skew: number };
+  channel?: Channel;
+} {
+  const rad = Math.PI / 180;
+  const at = (t: number) => {
+    const sv = s ? s.at(t) : [];
+    const sx = (sv[0] ?? 100) / 100,
+      sy = (sv[1] ?? 100) / 100;
+    const k = -Math.tan((sk.at(t)[0] || 0) * rad);
+    const c = Math.cos((sa?.at(t)[0] || 0) * rad),
+      sn = Math.sin((sa?.at(t)[0] || 0) * rad);
+    // R(−sa)·shearX(k)·R(sa) = I + k·[c·s, c²; −s², −c·s], then ·diag(sx, sy).
+    const dec = decompose2x2([
+      (1 + k * c * sn) * sx,
+      -k * sn * sn * sx,
+      k * c * c * sy,
+      (1 - k * c * sn) * sy,
+    ]);
+    return { ...dec, rot: (r?.at(t)[0] || 0) + dec.rot };
+  };
+  const kfs = unionKfs([r, s, sk, sa]);
+  if (!kfs.length) return { fixed: at(0) };
+  return {
+    channel: {
+      priority: 4,
+      kfs,
+      sample: (t) => {
+        const d = at(t);
+        return { rot: d.rot, sx: d.sx, sy: d.sy, skx: d.skew };
+      },
+    },
+  };
 }
 
 /**
@@ -1614,9 +1661,10 @@ export class Converter {
     const ax = av[0] || 0,
       ay = av[1] || 0;
 
-    // Skew is not representable.
-    if (this.nonZeroStatic(ks.sk) || (ks.sk && ks.sk.a === 1))
-      this.warnOnce(`skew on '${rule.id}' skipped`);
+    const hasSkew = this.nonZeroStatic(ks.sk) || (ks.sk && ks.sk.a === 1);
+    if (hasSkew && is3d) this.warnOnce(`skew on 3D layer '${rule.id}' skipped`);
+    const skewed =
+      hasSkew && !is3d ? lottieSkew(r, s, prop(ks.sk)!, prop(ks.sa)) : null;
 
     if (ax !== 0 || ay !== 0)
       rule.decls.push(`transform-origin: ${num(ax)}px ${num(ay)}px`);
@@ -1671,23 +1719,38 @@ export class Converter {
       if (tx !== 0 || ty !== 0)
         tf.push(`translate(${num(tx)}px, ${num(ty)}px)`);
     }
-    const rot = flat?.rot ?? (r && !r.animated ? r.at(0)[0] || 0 : 0);
-    if (rot !== 0) tf.push(`rotate(${num(rot)}deg)`);
+    const rot = skewed
+      ? (skewed.fixed?.rot ?? 0)
+      : (flat?.rot ?? (r && !r.animated ? r.at(0)[0] || 0 : 0));
+    // Skew decompositions need more precision than plain rotate/scale.
+    const dp = skewed ? 4 : 2;
+    if (rot !== 0) tf.push(`rotate(${num(rot, dp)}deg)`);
     const scaleAt =
       flat?.scaleAt ??
       ((t: number) => {
         const v = s ? s.at(t) : [];
         return [(v[0] ?? 100) / 100, (v[1] ?? 100) / 100];
       });
-    const scaleKfs = flat ? flat.scaleKfs : s?.animated ? s.kfs : null;
-    if (!scaleKfs) {
-      const [sx, sy] = scaleAt(0);
+    const scaleKfs = skewed
+      ? null
+      : flat
+        ? flat.scaleKfs
+        : s?.animated
+          ? s.kfs
+          : null;
+    if (!scaleKfs && !skewed?.channel) {
+      const [sx, sy] = skewed?.fixed
+        ? [skewed.fixed.sx, skewed.fixed.sy]
+        : scaleAt(0);
       if (sx !== 1 || sy !== 1)
         tf.push(
-          sx === sy ? `scale(${num(sx)})` : `scale(${num(sx)}, ${num(sy)})`,
+          sx === sy
+            ? `scale(${num(sx, dp)})`
+            : `scale(${num(sx, dp)}, ${num(sy, dp)})`,
         );
     }
-    if (flat?.skew) tf.push(`skewX(${num(flat.skew)}deg)`);
+    const skx = skewed?.fixed?.skew ?? flat?.skew;
+    if (skx) tf.push(`skewX(${num(skx, dp)}deg)`);
     if (tf.length) rule.decls.push(`transform: ${tf.join(" ")}`);
 
     if (o && !o.animated) {
@@ -1706,7 +1769,8 @@ export class Converter {
         },
       });
     }
-    if (r && r.animated && r.kfs && flat?.rot === undefined) {
+    if (skewed?.channel) rule.channels.push(skewed.channel);
+    if (r && r.animated && r.kfs && flat?.rot === undefined && !skewed) {
       rule.channels.push({
         priority: 3,
         kfs: r.kfs,
@@ -2827,9 +2891,11 @@ function declsFromSample(s: Sample): string[] {
   // the single-axis longhand rather than folding both onto one translate().
   if (s.txx !== undefined) tf.push(`translateX(${num(s.txx)}px)`);
   if (s.txy !== undefined) tf.push(`translateY(${num(s.txy)}px)`);
-  if (s.rot !== undefined) tf.push(`rotate(${num(s.rot)}deg)`);
+  const dp = s.skx !== undefined ? 4 : 2;
+  if (s.rot !== undefined) tf.push(`rotate(${num(s.rot, dp)}deg)`);
   if (s.sx !== undefined || s.sy !== undefined)
-    tf.push(`scale(${num(s.sx ?? 1)}, ${num(s.sy ?? 1)})`);
+    tf.push(`scale(${num(s.sx ?? 1, dp)}, ${num(s.sy ?? 1, dp)})`);
+  if (s.skx !== undefined) tf.push(`skewX(${num(s.skx, dp)}deg)`);
   if (tf.length) out.push(`transform: ${tf.join(" ")}`);
   if (s.opacity !== undefined) out.push(`opacity: ${num(s.opacity, 3)}`);
   if (s.cx !== undefined) out.push(`cx: ${num(s.cx)}px`);

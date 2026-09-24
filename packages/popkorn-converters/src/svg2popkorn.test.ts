@@ -1,4 +1,10 @@
 import { expect, test } from "bun:test";
+import { parse } from "@popkorn/parser";
+import {
+  buildSceneGraph,
+  computeLocalMatrix,
+  type SceneNode,
+} from "@popkorn/player";
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
 import { Converter, convertSvg, validate } from "./svg2popkorn.js";
@@ -253,14 +259,26 @@ test("shear-free matrix() decomposes; no bake", () => {
   expect(block(css, "rect1")).toContain("type: rect");
 });
 
-test("sheared transform bakes geometry into a transformed path + does not emit a transform", () => {
-  const { css } = conv(
-    `<svg viewBox="0 0 100 100"><g transform="skewX(-18)"><rect x="20" y="90" width="80" height="30" fill="#f00"/></g></svg>`,
+/** Local matrix of the node with `id`, as SVG's [a b c d e f]. */
+function svgMatrixOf(css: string, id: string): number[] {
+  const find = (n: SceneNode): SceneNode | undefined =>
+    n.id === id ? n : n.children.map(find).find(Boolean);
+  const m = computeLocalMatrix(find(buildSceneGraph(parse(css)))!);
+  return [m[0], m[3], m[1], m[4], m[2], m[5]];
+}
+
+test("sheared transform decomposes onto the node as skewX; geometry stays native", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 100 100"><g transform="translate(10 5) skewY(30) skewX(-18)"><rect x="20" y="90" width="80" height="30" fill="#f00"/></g></svg>`,
   );
-  // The rect became a path; the group carries no transform.
-  expect(css).toContain("type: path");
-  expect(block(css, "g1")).not.toContain("transform:");
-  expect(css).toContain("fill: #ff0000");
+  expect(warnings).toEqual([]);
+  expect(block(css, "g2")).toContain("skewX(");
+  expect(css).toContain("type: rect"); // not baked to a path
+  const t = (deg: number) => Math.tan((deg * Math.PI) / 180);
+  // translate(10 5)·skewY(30)·skewX(-18) = [1, t30, t(-18), 1 + t30·t(-18), 10, 5]
+  const want = [1, t(30), t(-18), 1 + t(30) * t(-18), 10, 5];
+  const have = svgMatrixOf(css, "g2");
+  for (let i = 0; i < 6; i++) expect(have[i]).toBeCloseTo(want[i], 2);
 });
 
 test("svgo compact separators (minus/dot) still parse the transform", () => {
@@ -704,17 +722,30 @@ test("referencing an undefined @keyframes warns and drops the animation", () => 
   expect(css).not.toContain("animation:");
 });
 
-test("animated transform on a sheared/baked element is NOT baked live — dropped with warning", () => {
-  // The outer skew forces geometry baking; the inner element's animated
-  // transform can't ride the baked path, so it must degrade with a warning
-  // (never silently apply in the wrong space).
+test("animated transform under a sheared parent stays live (no baking)", () => {
   const { css, warnings } = conv(
     `<svg viewBox="0 0 100 100"><style>@keyframes r { to{transform:rotate(90deg)} }</style><g transform="skewX(20)"><rect class="s" width="10" height="10" style="animation:r 1s linear infinite"/></g></svg>`,
   );
-  expect(warnings.some((m) => m.includes("baked/sheared"))).toBe(true);
-  // Geometry stayed baked to a path; no transform channel emitted.
-  expect(css).toContain("type: path");
-  expect(css).not.toContain("transform: rotate(90deg)");
+  expect(warnings).toEqual([]);
+  expect(css).toContain("type: rect");
+  expect(css).toContain("transform: rotate(90deg)");
+});
+
+test("SMIL animateTransform skewX maps to skewX keyframes", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 100 100"><rect width="10" height="10"><animateTransform attributeName="transform" type="skewX" values="0;25;0" dur="2s" repeatCount="indefinite"/></rect></svg>`,
+  );
+  expect(warnings).toEqual([]);
+  expect(css).toContain("transform: skewX(25deg)");
+});
+
+test("CSS @keyframes skew() and matrix() transforms pass through", () => {
+  const { css, warnings } = conv(
+    `<svg viewBox="0 0 100 100"><style>@keyframes k { from{transform:skew(10deg, 5deg)} to{transform:matrix(1,0,0.3,1,4,0)} }</style><rect width="10" height="10" style="animation:k 1s linear"/></svg>`,
+  );
+  expect(warnings).toEqual([]);
+  expect(css).toContain("transform: skew(10deg,5deg)");
+  expect(css).toContain("transform: matrix(1,0,0.3,1,4,0)");
 });
 
 test("animated transform on an un-sheared element stays live (native shape kept)", () => {

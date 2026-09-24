@@ -1764,3 +1764,133 @@ test("a child of an st-offset parent samples its keyframes in comp frames", () =
   const want = 100 - 260 * lottieEase(DOT_EASE, (8 + 3) / 19);
   expect(Math.abs(xAt(css, "m", 8) - want)).toBeLessThan(0.5);
 });
+
+// --- skew (sk/sa) maps onto rotate·scale·skewX, matching lottie-web's matrix.
+
+/** lottie-web's 2D layer matrix (TransformProperty order), as Popkorn's [a c tx b d ty]. */
+function lottieLayerMatrix(k: {
+  p: number[];
+  a: number[];
+  s: number[];
+  r: number;
+  sk: number;
+  sa: number;
+}): number[] {
+  const d = Math.PI / 180;
+  // 2D row-vector affine [a b c d e f]: x' = a·x + c·y + e, y' = b·x + d·y + f.
+  let m = [1, 0, 0, 1, 0, 0];
+  const t = (n: number[]) => {
+    const [a, b, c, dd, e, f] = m;
+    m = [
+      a * n[0] + b * n[2],
+      a * n[1] + b * n[3],
+      c * n[0] + dd * n[2],
+      c * n[1] + dd * n[3],
+      e * n[0] + f * n[2] + n[4],
+      e * n[1] + f * n[3] + n[5],
+    ];
+  };
+  // Mirrors lottie-web: translate(-a) scale(s) skewFromAxis(-sk, sa) rotate(-r) translate(p).
+  t([1, 0, 0, 1, -k.a[0], -k.a[1]]);
+  t([k.s[0] / 100, 0, 0, k.s[1] / 100, 0, 0]);
+  const ax = -k.sk * d,
+    c = Math.cos(k.sa * d),
+    s = Math.sin(k.sa * d);
+  t([c, s, -s, c, 0, 0]);
+  t([1, 0, Math.tan(ax), 1, 0, 0]);
+  t([c, -s, s, c, 0, 0]);
+  const rc = Math.cos(-k.r * d),
+    rs = Math.sin(-k.r * d);
+  t([rc, -rs, rs, rc, 0, 0]);
+  t([1, 0, 0, 1, k.p[0], k.p[1]]);
+  return [m[0], m[2], m[4], m[1], m[3], m[5]];
+}
+
+function skewedLayer(ks: any) {
+  const doc: any = shapeLayer([
+    {
+      ty: "gr",
+      it: [
+        {
+          ty: "rc",
+          p: { a: 0, k: [0, 0] },
+          s: { a: 0, k: [10, 10] },
+          r: { a: 0, k: 0 },
+        },
+        { ty: "fl", c: { a: 0, k: [1, 0, 0, 1] }, o: { a: 0, k: 100 } },
+        IDENTITY_TR,
+      ],
+    },
+  ]);
+  doc.layers[0].ks = { ...doc.layers[0].ks, ...ks };
+  return doc;
+}
+
+function layerMatrixAt(css: string, frame: number): number[] {
+  const find = (n: SceneNode): SceneNode | undefined =>
+    n.id === "m" ? n : n.children.map(find).find(Boolean);
+  const node = find(buildSceneGraph(parse(css)))!;
+  new AnimationScheduler().sampleNode(node, (frame / 30) * 1000);
+  const g = computeLocalMatrix(node);
+  return [g[0], g[1], g[2], g[3], g[4], g[5]];
+}
+
+test("static skew with a skew axis matches lottie-web's layer matrix", () => {
+  const k = { p: [50, 40], a: [5, 7], s: [80, 120], r: 25, sk: 20, sa: 35 };
+  const conv = new Converter();
+  const css = conv.convert(
+    skewedLayer({
+      p: { a: 0, k: k.p },
+      a: { a: 0, k: k.a },
+      s: { a: 0, k: k.s },
+      r: { a: 0, k: k.r },
+      sk: { a: 0, k: k.sk },
+      sa: { a: 0, k: k.sa },
+    }),
+  );
+  expect(css).toContain("skewX(");
+  expect(conv.warnings.some((w) => w.includes("skew"))).toBe(false);
+  const want = lottieLayerMatrix(k);
+  const have = layerMatrixAt(css, 0);
+  for (let i = 0; i < 6; i++) expect(have[i]).toBeCloseTo(want[i], 3);
+});
+
+test("animated skew and rotation sample to lottie-web's matrix at keyframes", () => {
+  const lin = { o: { x: [0], y: [0] }, i: { x: [1], y: [1] } };
+  const css = new Converter().convert(
+    skewedLayer({
+      r: {
+        a: 1,
+        k: [
+          { t: 0, s: [0], ...lin },
+          { t: 30, s: [270] },
+        ],
+      },
+      sk: {
+        a: 1,
+        k: [
+          { t: 0, s: [0], ...lin },
+          { t: 15, s: [30], ...lin },
+          { t: 30, s: [-10] },
+        ],
+      },
+      sa: { a: 0, k: 15 },
+    }),
+  );
+  for (const [f, r, sk] of [
+    [0, 0, 0],
+    [15, 135, 30],
+    [30, 270, -10],
+  ]) {
+    const want = lottieLayerMatrix({
+      p: [50, 50],
+      a: [0, 0],
+      s: [100, 100],
+      r,
+      sk,
+      sa: 15,
+    });
+    const have = layerMatrixAt(css, f);
+    for (let i = 0; i < 6; i++) expect(have[i]).toBeCloseTo(want[i], 4);
+  }
+});

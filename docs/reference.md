@@ -1201,14 +1201,15 @@ mapping is the natural one:
 - `<linearGradient>`/`<radialGradient>` (incl. `objectBoundingBox` units,
   `gradientTransform`, and `stop-opacity`) → Popkorn gradient fills.
 - `transform` (`matrix`/`translate`/`rotate(a cx cy)`/`scale`/`skewX`/`skewY`)
-  is decomposed onto each node's `transform`; shear bakes into geometry.
+  is decomposed onto each node's `transform`, shear included as `skewX`.
 - `<clipPath>` and luminance `<mask>` → Popkorn clip/mask.
 
 **Animation imports too** — CSS `@keyframes` from `<style>` blocks and basic
 SMIL `<animate>`/`<animateTransform>` map into Popkorn `@keyframes` +
 `animation-*` (opacity/fill/stroke/transform/dash channels). Unmappable cases
 degrade to a warning: `@media`-wrapped keyframes, gradient keyframes, `<set>`,
-`<animateMotion>`, event/sync-base begins, additive/accumulate, and skew.
+`<animateMotion>`, event/sync-base begins, and additive/accumulate. Animated
+skew (`skewX`/`skewY`, `skew()`/`matrix()` keyframes) imports as-is.
 Deliberately skipped, matching the Lottie skips: `<pattern>`, `<marker>`,
 `<foreignObject>`, and `<textPath>`.
 

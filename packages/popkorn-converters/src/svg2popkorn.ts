@@ -10,8 +10,8 @@
  * The high-level model: the SVG's `viewBox` becomes the `:root` stage (with a
  * root translate baked when its min corner is non-zero); each drawable element
  * becomes one rule. Representable `transform`s (translate/rotate/scale, incl.
- * `rotate(a cx cy)` and shear-free `matrix()`) decompose onto the node; a
- * sheared transform bakes into the geometry instead. Presentation attributes,
+ * `rotate(a cx cy)`, `skewX/Y` and `matrix()`) decompose onto the node, shear
+ * as skewX. Presentation attributes,
  * `<style>` rules and inline `style=""` cascade into one computed style per
  * element; inheritable paint flows down the tree. `<use>`/`<symbol>` expand
  * inline; gradients/clipPaths/masks/filters resolve from `<defs>`.
@@ -19,7 +19,7 @@
  * Phase 2 (part 1): CSS `@keyframes` from `<style>` blocks import into Popkorn
  * `@keyframes` + `animation-*` decls (opacity/fill/stroke/transform/dash channels;
  * timing/easing/iteration/direction/fill-mode). Unmappable properties, gradient
- * keyframes, `@media`-wrapped keyframes, and animated transforms on baked/sheared
+ * keyframes, `@media`-wrapped keyframes, and animated transforms on baked
  * geometry degrade to a warning.
  *
  * Phase 2 (part 2): SMIL `<animate>`/`<animateTransform>` import through the same
@@ -27,8 +27,8 @@
  * translate/rotate/scale become transform keyframes (rotate center → transform-
  * origin). values/keyTimes, from/to/by, calcMode spline/discrete/paced, dur,
  * clock-value begin, repeatCount, and fill="freeze" are honored. `<set>`,
- * `<animateMotion>`, event/sync-base begins, additive/accumulate, and skew
- * degrade to a warning.
+ * `<animateMotion>`, event/sync-base begins, and additive/accumulate degrade to
+ * a warning.
  */
 import { parsePath, tryParseColor } from "@popkorn/player";
 import {
@@ -157,7 +157,7 @@ function parseTransform(s: string): Mat {
   return m;
 }
 
-/** Decompose a shear-free affine matrix into translate/rotate(deg)/scale. */
+/** Decompose an affine matrix into translate/rotate(deg)/scale plus its shear. */
 function decompose(m: Mat): {
   tx: number;
   ty: number;
@@ -191,6 +191,11 @@ function decompose(m: Mat): {
     shear = -shear;
   }
   return { tx, ty, rot: Math.atan2(b, a) / DEG, sx, sy, shear };
+}
+
+/** skewX angle (deg) completing decompose() as Popkorn's rotate·scale·skewX. */
+function skewXOf(d: { sx: number; sy: number; shear: number }): number {
+  return d.sx === 0 ? 0 : Math.atan((d.shear * d.sy) / d.sx) / DEG;
 }
 
 // ---------------------------------------------------------------------------
@@ -958,10 +963,9 @@ export class Converter {
     const tf = el.attrs.get("transform") || style.transform;
     const localM = tf ? parseTransform(tf) : IDENTITY;
     const dec = decompose(localM);
-    const sheared = Math.abs(dec.shear) > 1e-4;
-    // Under an active bake (or a sheared local transform) we fold into geometry;
-    // otherwise the representable transform decomposes onto the node.
-    const baking = !isIdentity(bakeM) || sheared;
+    // Under an active bake we fold into geometry; otherwise the transform
+    // (shear included, as skewX) decomposes onto the node.
+    const baking = !isIdentity(bakeM);
     let childBake = bakeM,
       childEmit = emitCTM;
     const transformDecls: string[] = [];
@@ -1554,10 +1558,6 @@ export class Converter {
         return null;
       }
       const type = (a.attrs.get("type") || "translate").toLowerCase();
-      if (type === "skewx" || type === "skewy") {
-        warn(`animated transform '${type}' not supported — dropped`);
-        return null;
-      }
       let center: string | null = null;
       for (const v of rawValues) {
         const r = smilTransformValue(type, v, warn);
@@ -2153,6 +2153,7 @@ function decls_transform(d: {
   rot: number;
   sx: number;
   sy: number;
+  shear: number;
 }): string {
   const parts: string[] = [];
   if (Math.abs(d.tx) > 1e-6 || Math.abs(d.ty) > 1e-6)
@@ -2164,6 +2165,8 @@ function decls_transform(d: {
         ? `scale(${num(d.sx)})`
         : `scale(${num(d.sx)}, ${num(d.sy)})`,
     );
+  const k = skewXOf(d);
+  if (Math.abs(k) > 1e-4) parts.push(`skewX(${num(k)}deg)`);
   return parts.length ? `transform: ${parts.join(" ")}` : "";
 }
 
@@ -2247,6 +2250,10 @@ function mapAnimTransform(
     "scale",
     "scalex",
     "scaley",
+    "skew",
+    "skewx",
+    "skewy",
+    "matrix",
   ]);
   const re = /([a-zA-Z]+)\s*\(([^)]*)\)/g;
   const parts: string[] = [];
@@ -2431,6 +2438,10 @@ function smilTransformValue(
         ty = p[1] ?? 0;
       return { value: `translate(${num(tx)}px, ${num(ty)}px)` };
     }
+    case "skewx":
+      return { value: `skewX(${num(p[0] ?? 0)}deg)` };
+    case "skewy":
+      return { value: `skewY(${num(p[0] ?? 0)}deg)` };
     case "scale": {
       const sx = p[0] ?? 1;
       const sy = p.length > 1 ? p[1] : sx;

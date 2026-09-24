@@ -75,8 +75,8 @@ is an `oklab()`/`oklch()` color.
 
 ## Transforms: 2D only
 
-`translate`, `rotate`, `scale`, and `skew`/`skewX`/`skewY`, all animatable. No
-3D, no `perspective`, no camera. Transform angles are degrees: `rad`, `grad`,
+`translate`, `rotate`, `scale`, `skew`/`skewX`/`skewY` and `matrix()`, all
+animatable. No 3D, no `perspective`, no camera. Transform angles are degrees: `rad`, `grad`,
 and `turn` convert inside the trig functions and `oklch()` hues, but
 `rotate(0.5turn)` reads as half a degree. Rotation interpolates linearly with no
 shortest-arc logic, deliberately, so `rotate(0deg)` to `rotate(360deg)` spins a

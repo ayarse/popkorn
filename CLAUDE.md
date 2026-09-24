@@ -126,8 +126,9 @@ button branches on file type into either. **Animation imports too:** CSS
 `@keyframes` from `<style>` blocks and basic SMIL `<animate>`/`<animateTransform>`
 map into Popkorn `@keyframes` + `animation-*` (opacity/fill/stroke/transform/dash);
 unmappable channels degrade to a warning (`@media`-wrapped keyframes, gradient
-keyframes, `<set>`, `<animateMotion>`, event/sync-base begins, additive/accumulate,
-skew). Static skips mirror Lottie's plus SVG-only ones: `<pattern>`,
+keyframes, `<set>`, `<animateMotion>`, event/sync-base begins, additive/accumulate).
+Shear and skew (static and animated) map onto the node's `skewX`, never baked
+into geometry. Static skips mirror Lottie's plus SVG-only ones: `<pattern>`,
 `<marker>`, `<foreignObject>`, `<textPath>`. Batch gate: run `--batch
 examples/svg` over the fixtures in `examples/svg/` before/after converter changes.
 
