@@ -44,6 +44,7 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 4. Set paint: `fill` and `stroke` **both default to `none`** — a shape with only `stroke-width` shows nothing.
 5. Animate via `@keyframes name {…}` + the `animation:` shorthand (or the `animation-*` longhands, which compose per CSS: later declarations win per sub-property).
 6. Verify by parsing (see below) — the parser won't catch dead properties, so cross-check names against reference.md.
+7. Look at it: render the key poses (rest, each motion extreme, any reveal) and fix what you see — gaps between parts that should meet, wrong paint order, clipped or lopsided composition, stiff poses. Parsing clean says nothing about how it looks.
 
 ## Quick reference
 
@@ -83,6 +84,104 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 | Visibility window | `visible-from: 1s; visible-until: 3s` — show node + subtree only in that scene-local window |
 | Embed options | `<popkorn-player loop controls autoplay fit="contain">` (`fit`: contain/cover/fill/none) |
 
+## Motion craft: make it feel designed
+
+Stiff motion comes from defaults: one transform per element, evenly spaced
+keyframes, `ease-in-out` everywhere, everything on one shared clock, rigid
+shapes. Plan like an animator before writing keyframes:
+
+1. **Beats, not one repeated move.** Split the cycle into anticipation →
+   action → follow-through → settle → hold, each with its own time range.
+   Land the main event around a quarter to a third in, and leave a short rest
+   so the loop breathes. Everything else reacts to that event.
+2. **Hierarchy and overlap.** The parent moves first. Children echo it later
+   and smaller: the same keyframes with a 0.03–0.1s `animation-delay`, or their
+   own lagging swing. Loose parts (ornaments, ears, tails, hair, bells) trail
+   the parent and overshoot it: a small `rotate` spring around their attach
+   point, or a tiny looping `offset-path`.
+3. **Easing carries the physics.** Set `animation-timing-function` per
+   keyframe: fast-out launches `cubic-bezier(0.2, 0, 0, 1)`, falls
+   `cubic-bezier(0.5, 0, 1, 1)`, and overshoot or wind-up inside the curve
+   (y outside 0–1: `cubic-bezier(0.34, 1.56, 0.64, 1)` overshoots,
+   `cubic-bezier(0.36, -0.6, 0.7, 0)` winds up first) instead of extra
+   keyframes. Space keyframes unevenly; a segment's length matches the move's
+   size and weight.
+4. **Squash and stretch keep volume**: `scale(1.12, 0.88)`, never
+   `scale(1.12, 1)`. Pivot at the contact point (feet, base), not the center.
+5. **Soft things deform.** Cloth, hems, blobs, mouths: animate `d` between
+   poses drawn as copies of one path (same command list, moved points). A
+   rigidly rotated soft shape reads as cardboard.
+6. **Reveal with masks, not paint order.** Something peeking from behind a
+   cover gets `mask: #cover alpha-invert` (or a `clip-path`), so it is hidden
+   exactly where the cover is at every angle.
+7. **No two alike.** Vary amplitude, delay and period per element
+   (`random(per-element, …)`, `sibling-index()` staggers, co-prime idle
+   periods like 3s and 3.7s). Synchronized identical motion reads mechanical.
+8. **Accents on the beat.** Secondary motion punctuates the main event: a
+   blink, a mouth change, a squash on landing, sparkles popping
+   (scale 0 → 1 → 0 with a spin, 0.5–0.7s, staggered).
+9. **Faces act.** Blink by collapsing eye height, keep pupils inside the eye
+   with `mask`, morph the mouth between expressions, glance at the action.
+
+Drawing like an illustrator:
+
+- Silhouettes are custom `path`s with tapered, slightly asymmetric Béziers.
+  Keep `rect`/`circle` for things that really are geometric.
+- One light direction: gradients with explicit `from … to`, balls with an
+  offset highlight (`radial-gradient(circle 30px at 0px 0px from -10px -10px,
+  #fff6b0, #e3cb00 90%)`), a cast shadow where one part overlaps another.
+- Compose, don't center: overlap objects, vary sizes, let supporting pieces
+  crop off the stage edge, give the focal element room.
+- Patterns (stripes, dots) are shapes clipped to their container with
+  `clip-path: path('…')` in the container's local coordinates.
+
+The core moves in one piece (a hop with wind-up, squash on landing, a
+lagging hat, and a mouth that morphs):
+
+```css
+@keyframes hop {
+  0% { transform: translate(0px, 0px) scale(1, 1); animation-timing-function: cubic-bezier(0.36, -0.6, 0.7, 0); }
+  18% { transform: translate(0px, 0px) scale(1.14, 0.86); animation-timing-function: cubic-bezier(0.2, 0, 0, 1); }
+  42% { transform: translate(0px, -110px) scale(0.9, 1.12); animation-timing-function: cubic-bezier(0.5, 0, 1, 1); }
+  60% { transform: translate(0px, 0px) scale(1.2, 0.8); animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
+  76% { transform: translate(0px, 0px) scale(1, 1); }
+  100% { transform: translate(0px, 0px) scale(1, 1); }
+}
+@keyframes hat-lag {
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(0deg); }
+  34% { transform: rotate(-16deg); }
+  50% { transform: rotate(10deg); }
+  66% { transform: rotate(-12deg); }
+  82% { transform: rotate(4deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes grin {
+  0% { d: 'M -14 0 Q 0 8 14 0'; }
+  30% { d: 'M -14 0 Q 0 8 14 0'; }
+  45% { d: 'M -18 -2 Q 0 20 18 -2'; }
+  70% { d: 'M -18 -2 Q 0 20 18 -2'; }
+  90% { d: 'M -14 0 Q 0 8 14 0'; }
+  100% { d: 'M -14 0 Q 0 8 14 0'; }
+}
+#blob {
+  transform: translate(240px, 320px);
+  > #blob-hop {
+    animation: hop 2.4s infinite;
+    > #body { type: path; d: 'M -60 0 C -64 -58 -34 -96 0 -96 C 36 -96 62 -56 58 0 Z'; fill: linear-gradient(from -40px -90px to 40px 0px, #7ee0c3, #1f9b86); }
+    > #mouth { type: path; d: 'M -14 0 Q 0 8 14 0'; transform: translate(0px, -34px); fill: none; stroke: #173a33; stroke-width: 4; stroke-linecap: round; animation: grin 2.4s infinite; }
+    > #hat {
+      transform: translate(4px, -94px);
+      > #hat-swing {
+        animation: hat-lag 2.4s ease-out infinite;
+        animation-delay: 0.05s;
+        > #hat-shape { type: path; d: 'M -26 0 L 22 0 L 2 -54 Z'; fill: #ff5a3c; }
+      }
+    }
+  }
+}
+```
+
 ## Common mistakes
 
 - **Shape invisible** → `fill` defaults to `none`. Set a fill (or stroke *color*, not just width).
@@ -93,6 +192,8 @@ Pipeline: `source → parse() → StyleSheet AST → buildSceneGraph() → Rende
 - **A color bound via `var()` doesn't tween** → it snaps instead of interpolating (the color-binding path re-resolves rather than lerping); numeric `var()`/`input()` still interpolate normally. (Solid colors, gradient stops, and path `d` *do* animate in `@keyframes` — gradients/paths only between compatible endpoints; see reference.md §12.)
 - **`letter-spacing` looks fine on web but does nothing on RN/Skia** — pinned backend divergence, not a bug.
 - **fill-mode surprise** → Popkorn defaults to `forwards` (holds final frame), unlike CSS's `none`.
+- **A pose drifts through a keyframe it should hold** → each transform channel (`translateX/Y`, `rotate`, `scaleX/Y`) animates off only the keyframes that set it, so `0% { transform: translate(0px, 0px) }  20% { transform: scale(1.2, 0.8) }  40% { transform: translate(0px, -100px) }` starts rising at 0%, not 20%. Restate every channel a keyframe must pin (`translate(0px, 0px) scale(1.2, 0.8)`).
+- **`0%, 20% { … }` holds nothing** → unlike CSS, a multi-selector keyframe block takes only its first offset. Write the hold as two blocks with the same values.
 
 <!-- repo-only -->
 ## Verify a scene parses
