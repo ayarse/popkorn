@@ -5,6 +5,7 @@ export interface Example { key: string; label: string; source: string; }
 export const examples: Example[] = [
   { key: "01-shapes.css", label: "Shapes", source: `/* Author: AI Generated */
 /* Shapes — gradients, polystar, rounded rects, text, clip-path */
+
 :root {
   width: 800px;
   height: 600px;
@@ -24,7 +25,6 @@ export const examples: Example[] = [
   stroke-width: 2px;
 }
 
-/* Radial-gradient orb */
 #orb {
   type: circle;
   cx: 230px;
@@ -33,7 +33,7 @@ export const examples: Example[] = [
   fill: radial-gradient(#ffe66d 0%, #ff6b6b 100%);
 }
 
-/* A five-point star (polystar geometry) with a gradient fill */
+/* Polystar geometry */
 #star {
   type: star;
   sides: 5;
@@ -51,10 +51,41 @@ export const examples: Example[] = [
   type: group;
   clip-path: circle(60 at 590 300);
 
-  > #b1 { type: rect; x: 528px; y: 240px; width: 124px; height: 30px; fill: #4ecdc4; }
-  > #b2 { type: rect; x: 528px; y: 270px; width: 124px; height: 30px; fill: #ffe66d; }
-  > #b3 { type: rect; x: 528px; y: 300px; width: 124px; height: 30px; fill: #f472b6; }
-  > #b4 { type: rect; x: 528px; y: 330px; width: 124px; height: 30px; fill: #60a5fa; }
+  > #b1 {
+    type: rect;
+    x: 528px;
+    y: 240px;
+    width: 124px;
+    height: 30px;
+    fill: #4ecdc4;
+  }
+
+  > #b2 {
+    type: rect;
+    x: 528px;
+    y: 270px;
+    width: 124px;
+    height: 30px;
+    fill: #ffe66d;
+  }
+
+  > #b3 {
+    type: rect;
+    x: 528px;
+    y: 300px;
+    width: 124px;
+    height: 30px;
+    fill: #f472b6;
+  }
+
+  > #b4 {
+    type: rect;
+    x: 528px;
+    y: 330px;
+    width: 124px;
+    height: 30px;
+    fill: #60a5fa;
+  }
 }
 
 /* Text takes a gradient fill just like a shape */
@@ -79,7 +110,7 @@ export const examples: Example[] = [
   fill: #8b8ba7;
 }
 
-/* Conic-gradient pie, tucked in the top-left corner outside the card */
+/* Conic-gradient pie */
 #pie {
   type: circle;
   cx: 50px;
@@ -91,7 +122,7 @@ export const examples: Example[] = [
     #ffe66d 220deg, #ffe66d 360deg);
 }
 
-/* Repeating-conic sunburst, mirrored into the top-right corner */
+/* Repeating-conic sunburst */
 #sunburst {
   type: circle;
   cx: 755px;
@@ -101,7 +132,7 @@ export const examples: Example[] = [
     #fbbf24 0deg, #fbbf24 12deg, #7c3aed 12deg, #7c3aed 24deg);
 }
 
-/* Repeating-linear barber-pole stripes, tucked below the card */
+/* Repeating-linear stripes */
 #stripes {
   type: rect;
   x: 300px;
@@ -114,39 +145,23 @@ export const examples: Example[] = [
 }
 ` },
   { key: "02-basics--bounce-and-cascade.css", label: "Basics: Bounce and cascade", source: `/* Author: AI Generated */
-/* Basics — per-keyframe easing, squash & stretch, and a staggered cascade.
-   A ball drops in from off-stage, bounces twice on the shelf, then rolls the
-   length of it and topples a colour cascade. Two lessons in one phrase: the
-   entry shows easing set *per keyframe* (accelerate down, decelerate up) with
-   squash on its own track, and the dominoes show choreography by negative
-   \`animation-delay\` — one shared @keyframes, eight phase-shifted copies. */
+/* Basics — per-keyframe easing, squash & stretch, and a staggered cascade:
+   a ball bounces in and topples eight dominoes driven by one @keyframes
+   phase-shifted with negative \`animation-delay\`. */
+
 :root {
   width: 800px;
   height: 600px;
 }
 
-/*
- * Channels are split across a small hierarchy, the way a real rig is: the outer
- * node carries horizontal travel, its child the vertical arc, its child the
- * squash, its child the spin. Keeping them on separate nodes is what lets the
- * ball ease vertically (gravity) while its horizontal speed stays dead
- * constant — a projectile doesn't hang in the air at the top of its arc.
- */
-
-/* Horizontal travel: one linear sweep at 200px/s from off-stage left to
-   off-stage right, so every timing below is just a position divided by that
-   speed. The last 5% parks it off-stage, hidden, while the loop reseeds. */
+/* Linear 200px/s sweep across the stage; the last 5% parks it off-stage */
 @keyframes travel {
   0%   { transform: translateX(100px); }
   95%  { transform: translateX(860px); }
   100% { transform: translateX(860px); }
 }
 
-/* The vertical arc. Impacts land at 10% (x=180), 22.5% (x=280) and 28.75%
-   (x=330, the first domino) — each one the moment \`travel\` puts the ball there.
-   The beziers are the tangents AE artists use for gravity: accelerate into the
-   floor, decelerate out of it. After the third landing the ball is rolling, so
-   the height simply holds. */
+/* Vertical arc: impacts at 10%, 22.5% and 28.75% (first domino); ease in, ease out */
 @keyframes hop {
   0%     { transform: translateY(-60px); animation-timing-function: cubic-bezier(0.333, 0, 1, 1); }
   10%    { transform: translateY(418px); animation-timing-function: cubic-bezier(0, 0, 0.667, 1); }
@@ -157,9 +172,7 @@ export const examples: Example[] = [
   100%   { transform: translateY(418px); }
 }
 
-/* Squash lives on its own track so the ball stays round through the flight and
-   deforms only on contact — stretched thin by the long first fall, flattened
-   hardest by the heaviest landing, then progressively less as it loses energy. */
+/* Deforms only on contact, less with each landing */
 @keyframes squash {
   0%, 3%        { transform: scaleX(1) scaleY(1); }
   6%            { transform: scaleX(0.9) scaleY(1.12); }
@@ -171,16 +184,14 @@ export const examples: Example[] = [
   30.5%, 100%   { transform: scaleX(1) scaleY(1); }
 }
 
-/* 760px of travel over a 44px ball is 5.5 turns — linear, because the
-   horizontal speed is constant, so the roll never slips. */
+/* 760px over a 44px ball is 5.5 turns, so the roll never slips */
 @keyframes spin {
   0%   { transform: rotate(0deg); }
   95%  { transform: rotate(1980deg); }
   100% { transform: rotate(1980deg); }
 }
 
-/* The contact shadow stays on the ground and reads the ball's height: tight and
-   faint at the top of an arc, wide and dark at each impact. */
+/* Ground shadow: tight and faint at the apex, wide and dark on impact */
 @keyframes contactShadow {
   0%     { transform: scaleX(0.35); opacity: 0;    }
   10%    { transform: scaleX(1.3);  opacity: 0.45; }
@@ -191,11 +202,7 @@ export const examples: Example[] = [
   100%   { transform: scaleX(1.1);  opacity: 0.4;  }
 }
 
-/* Stand and wait, then fall fast (gravity), snap-rebound on impact, lie still
-   (the held beat), and stand back up. The fall sits at 45% of the timeline so
-   the delays below can aim it at the frame the ball arrives. Each keyframe
-   carries the easing for the segment departing from it, which is why the beats
-   are keyed individually. */
+/* Wait, fall at 45%, rebound, lie still, stand back up */
 @keyframes topple {
   0%   { transform: rotate(0deg);  animation-timing-function: linear; }
   45%  { transform: rotate(0deg);  animation-timing-function: cubic-bezier(0.5, 0, 0.85, 0.35); }
@@ -206,36 +213,97 @@ export const examples: Example[] = [
   100% { transform: rotate(0deg); }
 }
 
-#shelf { type: rect; x: 140px; y: 440px; width: 600px; height: 8px; rx: 4px; fill: #23233f; }
+#shelf {
+  type: rect;
+  x: 140px;
+  y: 440px;
+  width: 600px;
+  height: 8px;
+  rx: 4px;
+  fill: #23233f;
+}
 
-/* A standing tile, pivoting about its base so it topples like a domino */
+/* Pivots about its base so it topples */
 @define domino {
-  type: rect; y: 344px; width: 20px; height: 96px; rx: 3px;
+  type: rect;
+  y: 344px;
+  width: 20px;
+  height: 96px;
+  rx: 3px;
   transform-origin: center bottom;
 }
 
-/* The ball starts rolling at x=330 (28.75% of the 4s loop) and covers the 55px
-   between tiles in 0.275s, so tile k is reached at 1.15s + 0.275s·k. Each tile's
-   fall sits at 45% of its own cycle, so its delay is that arrival minus 1.8s —
-   then shifted a whole period negative. Negative (phase-shifted) delays keep
-   every animation inside the same 4s loop instead of stretching the scene to fit
-   the cascade, so the loop stays seam-free. */
-#d1 { use: domino; x: 330px; fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%); animation: topple 4s linear infinite -4.65s; }
-#d2 { use: domino; x: 385px; fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%); animation: topple 4s linear infinite -4.375s; }
-#d3 { use: domino; x: 440px; fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%); animation: topple 4s linear infinite -4.10s; }
-#d4 { use: domino; x: 495px; fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%); animation: topple 4s linear infinite -3.825s; }
-#d5 { use: domino; x: 550px; fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%); animation: topple 4s linear infinite -3.55s; }
-#d6 { use: domino; x: 605px; fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%); animation: topple 4s linear infinite -3.275s; }
-#d7 { use: domino; x: 660px; fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%); animation: topple 4s linear infinite -3.00s; }
-#d8 { use: domino; x: 715px; fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%); animation: topple 4s linear infinite -2.725s; }
+/* Tile k is hit at 1.15s + 0.275s·k; delay = that − 1.8s (the 45% fall), minus
+   one 4s period so every tile stays inside the same seamless loop. */
+#d1 {
+  use: domino;
+  x: 330px;
+  fill: linear-gradient(180deg, #4ecdc4 0%, #2f8f88 100%);
+  animation: topple 4s linear infinite -4.65s;
+}
 
+#d2 {
+  use: domino;
+  x: 385px;
+  fill: linear-gradient(180deg, #60a5fa 0%, #3567b0 100%);
+  animation: topple 4s linear infinite -4.375s;
+}
+
+#d3 {
+  use: domino;
+  x: 440px;
+  fill: linear-gradient(180deg, #818cf8 0%, #4c53b0 100%);
+  animation: topple 4s linear infinite -4.10s;
+}
+
+#d4 {
+  use: domino;
+  x: 495px;
+  fill: linear-gradient(180deg, #a855f7 0%, #6b2fa8 100%);
+  animation: topple 4s linear infinite -3.825s;
+}
+
+#d5 {
+  use: domino;
+  x: 550px;
+  fill: linear-gradient(180deg, #f472b6 0%, #a83f7c 100%);
+  animation: topple 4s linear infinite -3.55s;
+}
+
+#d6 {
+  use: domino;
+  x: 605px;
+  fill: linear-gradient(180deg, #fb7185 0%, #b03f52 100%);
+  animation: topple 4s linear infinite -3.275s;
+}
+
+#d7 {
+  use: domino;
+  x: 660px;
+  fill: linear-gradient(180deg, #ffa94d 0%, #c06e26 100%);
+  animation: topple 4s linear infinite -3.00s;
+}
+
+#d8 {
+  use: domino;
+  x: 715px;
+  fill: linear-gradient(180deg, #ffe66d 0%, #bfa32f 100%);
+  animation: topple 4s linear infinite -2.725s;
+}
+
+/* Travel, arc, squash and spin nest separately so the arc eases while x stays linear */
 #ball {
   type: group;
   animation: travel 4s linear infinite;
 
-  /* Shares the ball's horizontal travel but never leaves the ground. */
+  /* Shares the horizontal travel but stays on the ground */
   > #ballShadow {
-    type: ellipse; cx: 0; cy: 444px; rx: 26px; ry: 6px; fill: #000000;
+    type: ellipse;
+    cx: 0;
+    cy: 444px;
+    rx: 26px;
+    ry: 6px;
+    fill: #000000;
     transform-origin: center;
     animation: contactShadow 4s linear infinite;
   }
@@ -254,43 +322,29 @@ export const examples: Example[] = [
         transform-origin: center;
         animation: spin 4s linear infinite;
 
-        > #ballBody { type: circle; cx: 0; cy: 0; r: 22px; fill: radial-gradient(#ffffff 0%, #ff8f5e 100%); }
-        > #ballMark { type: circle; cx: 11px; cy: 0; r: 5px; fill: #c94f2a; }
+        > #ballBody {
+          type: circle;
+          cx: 0;
+          cy: 0;
+          r: 22px;
+          fill: radial-gradient(#ffffff 0%, #ff8f5e 100%);
+        }
+
+        > #ballMark {
+          type: circle;
+          cx: 11px;
+          cy: 0;
+          r: 5px;
+          fill: #c94f2a;
+        }
       }
     }
   }
 }
 ` },
   { key: "03-hierarchy.css", label: "Hierarchy", source: `/* Author: AI Generated */
-/* ============================================================
-   HIERARCHY — a solar system, nested groups 3–5 deep.
-
-   The lesson: every group contributes exactly ONE motion, and a
-   child inherits ALL of its ancestors'. So the Moon at the bottom
-   of the Earth branch rides two spinning frames at once — Earth's
-   orbit and the Moon's own orbit — without a single coordinate of
-   its own doing the work. Transform inheritance composes down the
-   tree.
-
-   TREE  (→ = the motion that group adds to everything inside it):
-
-   #system                       static frame, centres the stage
-    ├─ starfield / guide rings    static + twinkle decoration
-    ├─ #sun                       → breathes (scale pulse)
-    ├─ #mercuryOrbit              → revolves (fast)
-    ├─ #earthOrbit          L1    → revolves
-    │   └─ #earth           L2    positions Earth on the ring
-    │       ├─ #earthBody   L3    → spins  (Earth's day)
-    │       └─ #moonOrbit   L3    → revolves (Moon around Earth)
-    │           └─ #moon    L4    positions the Moon
-    │               └─ #moonBody  the leaf, rides both orbits
-    ├─ #marsOrbit                 → revolves; body spins
-    └─ #saturnOrbit         L1    → revolves
-        └─ #saturnCarrier   L2    positions Saturn on the ring
-            └─ #saturnUpright L3  → COUNTER-rotates the orbit away
-                so the tilted ring stays level in screen space
-                while the orbit still sweeps Saturn around.
-   ============================================================ */
+/* Hierarchy — a solar system nested 3–5 groups deep: each group adds one motion
+   and children inherit all of their ancestors', so the Moon rides two orbits. */
 
 :root {
   width: 800px;
@@ -298,131 +352,283 @@ export const examples: Example[] = [
   background: #05060f;
 }
 
-/* One turn. Reused by every revolution AND every spin — the only
-   difference between "orbits the sun" and "spins in place" is
-   which group in the tree the animation is attached to. */
+/* One turn, reused for every orbit and every spin */
 @keyframes orbit {
   0%   { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-/* The sun's slow breath — a symmetric 0%/100% keyframe loops clean. */
 @keyframes sunPulse {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.06); }
 }
 
-/* Corona glow, pulsing a touch out of phase with the body. */
+/* Corona, pulsing a touch out of phase with the body */
 @keyframes glowPulse {
   0%, 100% { transform: scale(1);    opacity: 0.5; }
   50%      { transform: scale(1.15); opacity: 0.8; }
 }
 
-/* A few background stars fade in and out. */
 @keyframes twinkle {
   0%, 100% { opacity: 0.25; }
   50%      { opacity: 1;    }
 }
 
-/* ── #system — the root frame. Purely positional (moves the whole
-      universe to canvas centre); every orbit below inherits it. ── */
+/* Root frame: centres the stage; every orbit inherits it */
 #system {
   type: group;
   transform: translate(400px, 300px);
 
-  /* Starfield — cheap depth: static dots at varied size/opacity,
-     a couple wired to \`twinkle\`. Coords are relative to centre. */
-  > #s1  { type: circle; cx: -350px; cy: -230px; r: 1.5px; fill: #ffffff; opacity: 0.7; }
-  > #s2  { type: circle; cx: -280px; cy:  180px; r: 1px;   fill: #cdd6ff; opacity: 0.5; }
-  > #s3  { type: circle; cx: -180px; cy: -120px; r: 1.2px; fill: #ffffff;
-           animation: twinkle 3s ease-in-out infinite; }
-  > #s4  { type: circle; cx:  330px; cy: -200px; r: 1.5px; fill: #fff2cc; opacity: 0.8; }
-  > #s5  { type: circle; cx:  300px; cy:  120px; r: 1px;   fill: #ffffff; opacity: 0.45; }
-  > #s6  { type: circle; cx:  210px; cy:  250px; r: 1.3px; fill: #cdd6ff;
-           animation: twinkle 2.4s ease-in-out infinite; }
-  > #s7  { type: circle; cx: -320px; cy:   40px; r: 1px;   fill: #ffffff; opacity: 0.5; }
-  > #s8  { type: circle; cx:  120px; cy: -250px; r: 1.4px; fill: #fff2cc; opacity: 0.7; }
-  > #s9  { type: circle; cx: -110px; cy:  230px; r: 1px;   fill: #ffffff;
-           animation: twinkle 3.6s ease-in-out infinite; }
-  > #s10 { type: circle; cx:  360px; cy:   10px; r: 1.2px; fill: #cdd6ff; opacity: 0.6; }
-  > #s11 { type: circle; cx:   40px; cy:  270px; r: 1px;   fill: #ffffff; opacity: 0.5; }
-  > #s12 { type: circle; cx: -250px; cy: -260px; r: 1.3px; fill: #fff2cc; opacity: 0.65; }
+  /* Starfield, coords relative to centre */
+  > #s1 {
+    type: circle;
+    cx: -350px;
+    cy: -230px;
+    r: 1.5px;
+    fill: #ffffff;
+    opacity: 0.7;
+  }
 
-  /* Faint guide rings — one per orbit radius, so the nesting reads
-     even when a planet is on the far side. Stroke only, no fill. */
-  > #ringMercury { type: circle; cx: 0; cy: 0; r: 90px;  fill: none; stroke: #141b33; stroke-width: 1px; }
-  > #ringEarth   { type: circle; cx: 0; cy: 0; r: 150px; fill: none; stroke: #141b33; stroke-width: 1px; }
-  > #ringMars    { type: circle; cx: 0; cy: 0; r: 205px; fill: none; stroke: #141b33; stroke-width: 1px; }
-  > #ringSaturn  { type: circle; cx: 0; cy: 0; r: 262px; fill: none; stroke: #141b33; stroke-width: 1px; }
+  > #s2 {
+    type: circle;
+    cx: -280px;
+    cy: 180px;
+    r: 1px;
+    fill: #cdd6ff;
+    opacity: 0.5;
+  }
 
-  /* Corona — big soft radial faded to transparent (8-digit alpha),
-     behind the sun. No filters; the gradient alpha IS the glow. */
+  > #s3 {
+    type: circle;
+    cx: -180px;
+    cy: -120px;
+    r: 1.2px;
+    fill: #ffffff;
+    animation: twinkle 3s ease-in-out infinite;
+  }
+
+  > #s4 {
+    type: circle;
+    cx: 330px;
+    cy: -200px;
+    r: 1.5px;
+    fill: #fff2cc;
+    opacity: 0.8;
+  }
+
+  > #s5 {
+    type: circle;
+    cx: 300px;
+    cy: 120px;
+    r: 1px;
+    fill: #ffffff;
+    opacity: 0.45;
+  }
+
+  > #s6 {
+    type: circle;
+    cx: 210px;
+    cy: 250px;
+    r: 1.3px;
+    fill: #cdd6ff;
+    animation: twinkle 2.4s ease-in-out infinite;
+  }
+
+  > #s7 {
+    type: circle;
+    cx: -320px;
+    cy: 40px;
+    r: 1px;
+    fill: #ffffff;
+    opacity: 0.5;
+  }
+
+  > #s8 {
+    type: circle;
+    cx: 120px;
+    cy: -250px;
+    r: 1.4px;
+    fill: #fff2cc;
+    opacity: 0.7;
+  }
+
+  > #s9 {
+    type: circle;
+    cx: -110px;
+    cy: 230px;
+    r: 1px;
+    fill: #ffffff;
+    animation: twinkle 3.6s ease-in-out infinite;
+  }
+
+  > #s10 {
+    type: circle;
+    cx: 360px;
+    cy: 10px;
+    r: 1.2px;
+    fill: #cdd6ff;
+    opacity: 0.6;
+  }
+
+  > #s11 {
+    type: circle;
+    cx: 40px;
+    cy: 270px;
+    r: 1px;
+    fill: #ffffff;
+    opacity: 0.5;
+  }
+
+  > #s12 {
+    type: circle;
+    cx: -250px;
+    cy: -260px;
+    r: 1.3px;
+    fill: #fff2cc;
+    opacity: 0.65;
+  }
+
+  /* Faint guide rings, one per orbit radius */
+  > #ringMercury {
+    type: circle;
+    cx: 0;
+    cy: 0;
+    r: 90px;
+    fill: none;
+    stroke: #141b33;
+    stroke-width: 1px;
+  }
+
+  > #ringEarth {
+    type: circle;
+    cx: 0;
+    cy: 0;
+    r: 150px;
+    fill: none;
+    stroke: #141b33;
+    stroke-width: 1px;
+  }
+
+  > #ringMars {
+    type: circle;
+    cx: 0;
+    cy: 0;
+    r: 205px;
+    fill: none;
+    stroke: #141b33;
+    stroke-width: 1px;
+  }
+
+  > #ringSaturn {
+    type: circle;
+    cx: 0;
+    cy: 0;
+    r: 262px;
+    fill: none;
+    stroke: #141b33;
+    stroke-width: 1px;
+  }
+
+  /* Corona: the gradient's 8-digit alpha is the glow, no filter */
   > #sunGlow {
-    type: circle; cx: 0; cy: 0; r: 95px;
+    type: circle;
+    cx: 0;
+    cy: 0;
+    r: 95px;
     fill: radial-gradient(#ffcf7a 0%, #ffcf7a00 70%);
     transform-origin: center;
     animation: glowPulse 4s ease-in-out infinite;
   }
 
-  /* ── #sun (L1 motion: breathe) ──────────────────────────────── */
   > #sun {
-    type: circle; cx: 0; cy: 0; r: 42px;
+    type: circle;
+    cx: 0;
+    cy: 0;
+    r: 42px;
     fill: radial-gradient(#fff6d5 0%, #ffb02e 100%);
     transform-origin: center;
     animation: sunPulse 4s ease-in-out infinite;
   }
 
-  /* ── Mercury — one group, one motion: a fast tight revolution.
-        No moon, no spin; it's the speed contrast for the others. ── */
+  /* Mercury: one group, one fast revolution */
   > #mercuryOrbit {
     type: group;
     animation: orbit 5s linear infinite;
+
     > #mercury {
-      type: circle; cx: 90px; cy: 0; r: 7px;
+      type: circle;
+      cx: 90px;
+      cy: 0;
+      r: 7px;
       fill: radial-gradient(#b8b0a8 0%, #6b6560 100%);
     }
   }
 
-  /* ── Earth system — the deep branch. Read it top to bottom:
-        each \`> \` step adds one more spinning frame of reference. ── */
+  /* Earth: the deep branch, each level adds one frame of reference */
   > #earthOrbit {                         /* L1 → revolves round the sun */
     type: group;
     animation: orbit 12s linear infinite;
 
-    > #earth {                            /* L2 — carrier: just positions Earth */
+    > #earth {                            /* L2 — positions Earth */
       type: group;
       transform: translate(150px, 0);
 
-      /* L3 → Earth's own spin. It's a GROUP so the continents turn
-         with it while the moon (a sibling, below) is unaffected —
-         that separation is the whole point: spin ≠ orbit. */
+      /* L3 → Earth's spin, on a sibling of the moon so spin ≠ orbit */
       > #earthBody {
         type: group;
         animation: orbit 6s linear infinite;
 
-        > #ocean    { type: circle;  cx: 0; cy: 0; r: 15px;
-                      fill: radial-gradient(#7fc4ff 0%, #1b5fa8 100%); }
-        > #land1    { type: ellipse; cx: -5px; cy: -4px; rx: 6px; ry: 4px; fill: #3f9c5a; }
-        > #land2    { type: ellipse; cx:  6px; cy:  5px; rx: 4px; ry: 5px; fill: #4caf6a; }
-        > #land3    { type: ellipse; cx:  7px; cy: -6px; rx: 3px; ry: 2px; fill: #3f9c5a; }
+        > #ocean {
+          type: circle;
+          cx: 0;
+          cy: 0;
+          r: 15px;
+          fill: radial-gradient(#7fc4ff 0%, #1b5fa8 100%);
+        }
+
+        > #land1 {
+          type: ellipse;
+          cx: -5px;
+          cy: -4px;
+          rx: 6px;
+          ry: 4px;
+          fill: #3f9c5a;
+        }
+
+        > #land2 {
+          type: ellipse;
+          cx: 6px;
+          cy: 5px;
+          rx: 4px;
+          ry: 5px;
+          fill: #4caf6a;
+        }
+
+        > #land3 {
+          type: ellipse;
+          cx: 7px;
+          cy: -6px;
+          rx: 3px;
+          ry: 2px;
+          fill: #3f9c5a;
+        }
       }
 
-      /* L3 → the Moon's revolution. Sits at Earth's position
-         (inherited) but NOT Earth's spin, so its orbit plane is
-         steady while the planet turns underneath. */
+      /* L3 → the Moon's revolution: inherits Earth's position, not its spin */
       > #moonOrbit {
         type: group;
         animation: orbit 3.2s linear infinite;
 
-        > #moon {                         /* L4 — carrier: positions the Moon */
+        > #moon {                         /* L4 — positions the Moon */
           type: group;
           transform: translate(38px, 0);
 
-          /* The leaf: no motion of its own, yet its screen path is
-             the sum of two inherited rotations (Earth's orbit + the
-             Moon's) over a single 38px offset above. */
+          /* The leaf: no motion of its own, yet it rides two inherited rotations */
           > #moonBody {
-            type: circle; cx: 0; cy: 0; r: 6px;
+            type: circle;
+            cx: 0;
+            cy: 0;
+            r: 6px;
             fill: radial-gradient(circle 8px at -2px -2px, #eef0f4 0%, #9aa0aa 100%);
           }
         }
@@ -430,8 +636,7 @@ export const examples: Example[] = [
     }
   }
 
-  /* ── Mars — revolves, and its body spins to show a polar cap.
-        Two levels: orbit group → spinning body group. ── */
+  /* Mars: orbit group → spinning body group */
   > #marsOrbit {
     type: group;
     animation: orbit 18s linear infinite;
@@ -441,20 +646,27 @@ export const examples: Example[] = [
       transform: translate(205px, 0);
       animation: orbit 9s linear infinite;   /* Mars' day */
 
-      > #marsBody { type: circle;  cx: 0; cy: 0; r: 11px;
-                    fill: radial-gradient(#ff9e7d 0%, #b23a1e 100%); }
-      > #marsCap  { type: ellipse; cx: 0; cy: -8px; rx: 4px; ry: 2.5px; fill: #ffe3d6; }
+      > #marsBody {
+        type: circle;
+        cx: 0;
+        cy: 0;
+        r: 11px;
+        fill: radial-gradient(#ff9e7d 0%, #b23a1e 100%);
+      }
+
+      > #marsCap {
+        type: ellipse;
+        cx: 0;
+        cy: -8px;
+        rx: 4px;
+        ry: 2.5px;
+        fill: #ffe3d6;
+      }
     }
   }
 
-  /* ── Saturn — the COUNTER-ROTATION lesson. ────────────────────
-        #saturnOrbit spins the whole subtree round the sun. Inside,
-        #saturnUpright runs the SAME orbit in \`reverse\`, so the two
-        rotations cancel (parent +θ, child −θ → net 0). Result:
-        Saturn keeps a fixed screen orientation — the flat ring
-        stays level as it's carried around, instead of tumbling.
-        Position still orbits, because the translate lives ABOVE
-        the counter-rotation, on #saturnCarrier. ── */
+  /* Saturn: #saturnUpright runs the same orbit in reverse, cancelling the rotation
+     so the ring stays level while the translate above still carries it round. */
   > #saturnOrbit {                         /* L1 → revolves */
     type: group;
     animation: orbit 26s linear infinite;
@@ -467,24 +679,39 @@ export const examples: Example[] = [
         type: group;
         animation: orbit 26s linear infinite reverse;
 
-        /* Ring behind the body (document order) — a stroked ellipse
-           reads as a tilted disc; the body hides its front centre. */
+        /* Behind the body in document order, so the body hides its front */
         > #saturnRing {
-          type: ellipse; cx: 0; cy: 0; rx: 34px; ry: 11px;
-          fill: none; stroke: #e7cf9c; stroke-width: 4px; opacity: 0.85;
+          type: ellipse;
+          cx: 0;
+          cy: 0;
+          rx: 34px;
+          ry: 11px;
+          fill: none;
+          stroke: #e7cf9c;
+          stroke-width: 4px;
+          opacity: 0.85;
         }
+
         > #saturnBody {
-          type: circle; cx: 0; cy: 0; r: 16px;
+          type: circle;
+          cx: 0;
+          cy: 0;
+          r: 16px;
           fill: radial-gradient(#f5d9a0 0%, #c99a54 100%);
         }
 
-        /* A small moon riding INSIDE the upright frame — its orbit
-           plane is steady too, thanks to the counter-rotation. */
+        /* Inside the upright frame, so its orbit plane stays steady too */
         > #titanOrbit {
           type: group;
           animation: orbit 4s linear infinite;
-          > #titan { type: circle; cx: 30px; cy: 0; r: 4px;
-                     fill: radial-gradient(#ffd9a0 0%, #c98a4a 100%); }
+
+          > #titan {
+            type: circle;
+            cx: 30px;
+            cy: 0;
+            r: 4px;
+            fill: radial-gradient(#ffd9a0 0%, #c98a4a 100%);
+          }
         }
       }
     }
@@ -492,39 +719,26 @@ export const examples: Example[] = [
 }
 ` },
   { key: "04-symbols-and-motion-path.css", label: "Symbols and motion path", source: `/* Author: AI Generated */
-/* Symbols and motion path — a night circuit where one route does four jobs.
-   The pedagogical payload: \`--circuit\` holds the track geometry ONCE, and every
-   node that needs it (the asphalt, the racing line, the cars, the marshal
-   posts) folds the same string in. \`@define\` a car once, \`use:\` it four times,
-   override only what differs (colour, lap time, grid slot) at the use-site.
-   Then the same \`offset-path\` shows both of its faces: animated
-   \`offset-distance\` drives the cars around, while a STATIC \`offset-distance\`
-   computed from \`sibling-index()\` distributes fourteen repeated posts evenly
-   along the circuit — placement by arc length, not by hand-typed coordinates.
-   \`offset-rotate: auto\` aims both at the tangent, so cars steer through the
-   corners and posts stand square to the kerb. */
+/* Symbols and motion path — one \`--circuit\` route shared by track, cars and posts:
+   animated \`offset-distance\` drives the cars, a static one spaces the posts. */
+
 :root {
   width: 800px;
   height: 600px;
   background: #0b0e14;
 
-  /* One closed circuit, referenced four times below. A :root var used in a
-     structural property (\`d\`, \`offset-path\`, \`clip-path\`, \`mask\`) is folded to
-     its literal at build time, so this is deduplication, not a live binding. */
+  /* Structural props fold :root vars at build time: dedup, not a live binding */
   --circuit: "M 380 490 C 310 483 250 470 190 470 C 120 470 90 400 120 340 C 150 280 260 300 300 250 C 340 200 340 130 400 110 C 470 88 560 120 620 160 C 700 215 720 330 660 410 C 610 478 480 500 380 490 Z";
 }
 
-/* Infield: the same path, filled instead of stroked, to sink the middle. */
+/* The same path, filled instead of stroked */
 #infield {
   type: path;
   d: var(--circuit);
   fill: #0f1420;
 }
 
-/* Kerb: two fatter copies of the same path, stacked under the asphalt so only
-   their 8px rim shows on each side. The red one is dashed, so the white one
-   below shows through the gaps — a striped kerb the whole way round, from a
-   \`stroke-dasharray\` instead of a hundred hand-placed blocks. */
+/* Kerb: fatter strokes under the asphalt; the dashed red over white makes the stripes */
 #kerb-white {
   type: path;
   d: var(--circuit);
@@ -533,6 +747,7 @@ export const examples: Example[] = [
   stroke-width: 72px;
   stroke-linejoin: round;
 }
+
 #kerb-red {
   type: path;
   d: var(--circuit);
@@ -543,9 +758,7 @@ export const examples: Example[] = [
   stroke-dasharray: 22px 22px;
 }
 
-/* Asphalt: one fat round-joined stroke. Track width 56px sets every other
-   measurement in the scene — the cars are 45px long, the checkers span 4 rows
-   of 14px, the posts stand 44px off the centreline (just clear of the verge). */
+/* Track width 56px sets every other measurement in the scene */
 #asphalt {
   type: path;
   d: var(--circuit);
@@ -555,7 +768,7 @@ export const examples: Example[] = [
   stroke-linejoin: round;
 }
 
-/* Racing line: same path again, hairline and dashed. */
+/* Racing line: hairline and dashed */
 #racing-line {
   type: path;
   d: var(--circuit);
@@ -565,16 +778,13 @@ export const examples: Example[] = [
   stroke-dasharray: 16px 22px;
 }
 
-/* Start/finish checkers. Four dashed rows, alternating the dash phase by half a
-   period, make a checkerboard out of one repeated node — \`repeat: 4\` stamps the
-   row, \`sibling-index()\` stacks it and flips \`stroke-dashoffset\`. The group
-   rides the circuit at distance 0 rather than carrying hand-typed coordinates:
-   the path start IS the start line, and \`offset-rotate: auto\` squares the band
-   to the asphalt for free. Children stay authored around the local origin. */
+/* Checkerboard from one repeated dashed row with alternating dash phase; the group
+   sits at distance 0 on the circuit, squared to the asphalt by \`offset-rotate\`. */
 #start-line {
   offset-path: path(var(--circuit));
   offset-distance: 0%;
   offset-rotate: auto;
+
   > #row {
     type: path;
     d: "M -21 0 L 21 0";
@@ -592,15 +802,14 @@ export const examples: Example[] = [
   50%      { opacity: 1;   }
 }
 
-/* Symbol one: a marshal post — a stub of a mast with an amber lamp on top. It
-   rides the circuit like the cars do, but its \`offset-distance\` never animates:
-   the motion path is being used purely as a placement tool. Geometry is authored
-   around the local origin, then pushed out to y: -40 and beyond so
-   \`offset-rotate: auto\` (which aligns local +x with the tangent, and therefore
-   local -y with the outside of the loop) stands it just clear of the kerb. */
+/* Marshal post: offset-path used purely for placement; local -y points outside
+   the loop under \`offset-rotate: auto\`, so y: -50 stands it clear of the kerb. */
 @define marshal {
   type: rect;
-  x: -1.5px; y: -50px; width: 3px; height: 14px;
+  x: -1.5px;
+  y: -50px;
+  width: 3px;
+  height: 14px;
   rx: 1px;
   fill: #3d4557;
   offset-path: path(var(--circuit));
@@ -609,15 +818,15 @@ export const examples: Example[] = [
 
   > #lamp {
     type: circle;
-    cx: 0px; cy: -52px; r: 4px;
+    cx: 0px;
+    cy: -52px;
+    r: 4px;
     fill: #fbbf24;
     filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.7));
   }
 }
 
-/* Fourteen posts, zero hand-typed positions: index/count spreads them by arc
-   length so the spacing stays even through the corners. The family gets its own
-   group because sibling-count() counts ALL siblings, not just the repeated ones. */
+/* Spread evenly by arc length; own group because sibling-count() counts all siblings */
 #marshals {
   > #post {
     use: marshal;
@@ -627,21 +836,14 @@ export const examples: Example[] = [
   }
 }
 
-/* offset-distance walks the route by ARC LENGTH, so a car holds a steady speed
-   through the bends instead of racing the straights. Linear easing plus a
-   closed path means the loop point is seamless. */
+/* offset-distance is by arc length, so speed holds steady through the bends */
 @keyframes lap {
   from { offset-distance: 0%;   }
   to   { offset-distance: 100%; }
 }
 
-/* Symbol two: the car, drawn nose-first along +x (nose at +24, gearbox at -21)
-   so \`offset-rotate: auto\` points it the way it's travelling. The SYMBOL NODE
-   ITSELF is the coloured shell — a shape paints its own geometry first, then its
-   children — so the wings, tyres and cockpit ride on top as fixed dark parts
-   while \`fill\` stays a single-declaration override at every use-site. (Children
-   can't be overridden per instance: a use-site's children are appended to the
-   definition's, not merged into them.) */
+/* Car drawn nose-first along +x; the symbol node is the shell so \`fill\` overrides
+   per use-site (use-site children append, they can't override the parts). */
 @define car {
   type: path;
   d: "M 25 0 L 22 -2.5 L 10 -3.5 L 6 -10 L -8 -11 L -19 -10 L -22 -5 L -22 5 L -19 10 L -8 11 L 6 10 L 10 3.5 L 22 2.5 Z";
@@ -651,22 +853,105 @@ export const examples: Example[] = [
   offset-rotate: auto;
   animation: lap 9s linear infinite;
 
-  > #front-wing { type: rect; x: 20px;  y: -10px; width: 4px; height: 20px; rx: 1px; fill: #2b3446; }
-  > #rear-wing  { type: rect; x: -25px; y: -9px;  width: 4px; height: 18px; rx: 1px; fill: #2b3446; }
-  > #tyre-fl { type: rect; x: 5px;   y: -13px; width: 9px;  height: 5px; rx: 2px; fill: #0d1017; }
-  > #tyre-fr { type: rect; x: 5px;   y: 8px;   width: 9px;  height: 5px; rx: 2px; fill: #0d1017; }
-  > #tyre-rl { type: rect; x: -16px; y: -14px; width: 10px; height: 6px; rx: 2px; fill: #0d1017; }
-  > #tyre-rr { type: rect; x: -16px; y: 8px;   width: 10px; height: 6px; rx: 2px; fill: #0d1017; }
-  > #cockpit { type: ellipse; cx: -2px; cy: 0px; rx: 5px; ry: 3px; fill: #0b0e14; opacity: 0.9; }
+  > #front-wing {
+    type: rect;
+    x: 20px;
+    y: -10px;
+    width: 4px;
+    height: 20px;
+    rx: 1px;
+    fill: #2b3446;
+  }
+
+  > #rear-wing {
+    type: rect;
+    x: -25px;
+    y: -9px;
+    width: 4px;
+    height: 18px;
+    rx: 1px;
+    fill: #2b3446;
+  }
+
+  > #tyre-fl {
+    type: rect;
+    x: 5px;
+    y: -13px;
+    width: 9px;
+    height: 5px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #tyre-fr {
+    type: rect;
+    x: 5px;
+    y: 8px;
+    width: 9px;
+    height: 5px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #tyre-rl {
+    type: rect;
+    x: -16px;
+    y: -14px;
+    width: 10px;
+    height: 6px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #tyre-rr {
+    type: rect;
+    x: -16px;
+    y: 8px;
+    width: 10px;
+    height: 6px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #cockpit {
+    type: ellipse;
+    cx: -2px;
+    cy: 0px;
+    rx: 5px;
+    ry: 3px;
+    fill: #0b0e14;
+    opacity: 0.9;
+  }
 }
 
-/* Four use-sites, three overrides each. The negative delay is the grid: it
-   starts each car already that far into its lap. The durations differ by a few
-   hundred milliseconds, so the pack shuffles instead of orbiting in formation. */
-#car1 { use: car; fill: #f43f5e; animation-duration: 8.4s; animation-delay: -0.4s; }
-#car2 { use: car; fill: #38bdf8; animation-duration: 8.9s; animation-delay: -1.9s; }
-#car3 { use: car; fill: #a3e635; animation-duration: 9.4s; animation-delay: -3.6s; }
-#car4 { use: car; fill: #a78bfa; animation-duration: 9.1s; animation-delay: -5.2s; }
+/* Negative delay is the grid slot; slightly different durations make the pack shuffle */
+#car1 {
+  use: car;
+  fill: #f43f5e;
+  animation-duration: 8.4s;
+  animation-delay: -0.4s;
+}
+
+#car2 {
+  use: car;
+  fill: #38bdf8;
+  animation-duration: 8.9s;
+  animation-delay: -1.9s;
+}
+
+#car3 {
+  use: car;
+  fill: #a3e635;
+  animation-duration: 9.4s;
+  animation-delay: -3.6s;
+}
+
+#car4 {
+  use: car;
+  fill: #a78bfa;
+  animation-duration: 9.1s;
+  animation-delay: -5.2s;
+}
 
 #title {
   type: text;
@@ -693,16 +978,15 @@ export const examples: Example[] = [
 }
 ` },
   { key: "05-trim-path.css", label: "Trim path", source: `/* Author: AI Generated */
-/* Trim path — a handwritten "Hello" inked on by an animated trim, like a pen writing.
-   The word is one open path; trim-end sweeps 0→100% to reveal the stroke (the draw-on),
-   then trim-start sweeps up to retract it — both ends finish at 100% (empty), matching
-   the 0% state, so the loop closes on a blank canvas with no pop. */
+/* Trim path — a handwritten "Hello" inked on by animating trim-end, then wiped
+   by trim-start; both ends finish at 100%, so the loop restarts blank. */
+
 :root {
   width: 800px;
   height: 600px;
 }
 
-/* Pen writing: reveal with trim-end, hold the finished word, then wipe with trim-start. */
+/* Reveal with trim-end, hold, then wipe with trim-start */
 @keyframes write {
   0%   { trim-start: 0%;   trim-end: 0%;   animation-timing-function: ease-out;    }
   50%  { trim-start: 0%;   trim-end: 100%;                                          } /* word fully written */
@@ -710,8 +994,7 @@ export const examples: Example[] = [
   100% { trim-start: 100%; trim-end: 100%;                                          }
 }
 
-/* The ink breathes 9→10→9px — the animated stroke-width the source carried, thickest as
-   the word completes. */
+/* Ink thickens to 10px as the word completes */
 @keyframes ink {
   0%   { stroke-width: 9px;  }
   50%  { stroke-width: 10px; }
@@ -720,7 +1003,7 @@ export const examples: Example[] = [
 
 #hello {
   type: path;
-  /* One continuous handwritten stroke, centred on the origin (verbatim from the source glyph). */
+  /* One continuous stroke centred on the origin */
   d: 'M -145.66 43.75 C -145.66 43.75 -86.11 10.26 -81.85 -26.16 C -79.42 -46.94 -98.57 -44.14 -101.43 -23.01 C -103.76 -5.76 -109.6 40.56 -109.6 40.56 C -109.6 40.56 -103.98 -0.03 -85.85 1.75 C -65.94 4.08 -91.98 40.05 -69 40.31 C -48.57 40.53 -27.64 22.69 -26.87 10.94 C -25.99 -2.6 -44.36 -4.89 -50.02 11.97 C -55.23 27.46 -43.58 44.9 -23.54 40.58 C 7.34 33.92 22.48 -10.83 23.94 -26.08 C 25.47 -42.16 13.72 -43.69 6.57 -29.4 C -0.1 -16.04 -11.24 37.09 12.96 41.58 C 41.81 46.94 64.28 -5.91 67.09 -23.78 C 69.8 -41.07 58.66 -45.95 50.23 -30.67 C 41.17 -14.22 27.84 44.08 59.94 41.33 C 86.75 39.03 76.92 2.26 102.9 -0.05 C 114.56 -1.09 119.39 9.92 118.53 21.03 C 117.64 32.65 106.66 42.47 95.81 40.94 C 85.9 39.54 80.84 25.97 83.43 17.07 C 86.62 6.09 96.66 0.12 102.9 -0.05 C 111.77 -0.29 116.23 5.33 124.15 5.2 C 131.18 5.09 138.27 -2.92 138.27 -2.92';
   fill: none;
   stroke: linear-gradient(90deg, #ff6b6b 0%, #ffd93d 50%, #4ecdc4 100%);
@@ -732,20 +1015,17 @@ export const examples: Example[] = [
 }
 ` },
   { key: "06-morph--jellyfish.css", label: "Morph: Jellyfish", source: `/* Author: AI Generated (Opus 5) */
-/* Morph — a jellyfish springs into a hot air balloon and back, on one 10s clock.
-   \`d\` interpolates only between identical command sequences (and gradients of
-   equal stop count), so the envelope is authored to the bell's M + 6C + Z and
-   the basket to the veil's M + 4C + Z. Shapes that can't match are cross-faded
-   instead: tentacles/ropes, bubbles/clouds. */
+/* Morph — a jellyfish springs into a hot air balloon and back on one 10s clock.
+   \`d\` morphs need identical command sequences; shapes that can't match cross-fade. */
+
 :root {
   width: 800px;
   height: 600px;
   background: #101c3d;
 }
 
-/* Master grid, shared by every morphing node: jelly dwell to 41%, spring to
-   48%, balloon dwell to 89%, spring back to 96%, settle. A dwell is two
-   identical keyframes; the linear() overshoot extrapolates the path lerp. */
+/* Shared grid: jelly dwell to 41%, spring to 48%, balloon dwell to 89%, spring back
+   to 96%; the linear() overshoot extrapolates the path lerp. */
 @keyframes bell-morph {
   0% {
     d: "M 258 292 C 258 196 316 140 400 140 C 484 140 542 196 542 292 C 538 330 508 336 478 300 C 452 340 424 336 400 300 C 376 336 348 340 322 300 C 292 336 262 330 258 292 Z";
@@ -811,17 +1091,12 @@ export const examples: Example[] = [
 }
 
 @keyframes tentacle-wave {
-  0% {
-    d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232";
-  }
-  100% {
-    d: "M 0 0 C 18 38 -14 76 4 116 C 24 156 -10 192 8 232";
-  }
+  0%   { d: "M 0 0 C -12 38 18 76 0 116 C -18 156 12 192 -6 232"; }
+  100% { d: "M 0 0 C 18 38 -14 76 4 116 C 24 156 -10 192 8 232"; }
 }
 
-/* Hand-keyed squash-and-stretch: crouch, launch, landing, damped settle. Scale
-   pairs preserve volume; easing sits on turning points only, since easing every
-   key drops velocity to zero at each pose and reads as stop-start. */
+/* Squash-and-stretch: crouch, launch, land, settle; easing only on turning points
+   so the motion doesn't stop at every pose. */
 @keyframes float {
   0% {
     transform: translate(0px, 10px) scale(1, 1);
@@ -879,92 +1154,83 @@ export const examples: Example[] = [
   }
 }
 
-/* Cross-fade pairs: each family is fully faded through both dwells. */
+/* Cross-fade pairs, each family fully faded through both dwells */
 @keyframes tentacles-fade {
-  0% { opacity: 1; }
-  41% { opacity: 1; }
-  46% { opacity: 0; }
-  90% { opacity: 0; }
-  97% { opacity: 1; }
+  0%   { opacity: 1; }
+  41%  { opacity: 1; }
+  46%  { opacity: 0; }
+  90%  { opacity: 0; }
+  97%  { opacity: 1; }
   100% { opacity: 1; }
 }
 
 @keyframes bubbles-fade {
-  0% { opacity: 1; }
-  42% { opacity: 1; }
-  47% { opacity: 0; }
-  90% { opacity: 0; }
-  98% { opacity: 1; }
+  0%   { opacity: 1; }
+  42%  { opacity: 1; }
+  47%  { opacity: 0; }
+  90%  { opacity: 0; }
+  98%  { opacity: 1; }
   100% { opacity: 1; }
 }
 
 @keyframes clouds-fade {
-  0% { opacity: 0; }
-  44% { opacity: 0; }
-  51% { opacity: 1; }
-  88% { opacity: 1; }
-  94% { opacity: 0; }
+  0%   { opacity: 0; }
+  44%  { opacity: 0; }
+  51%  { opacity: 1; }
+  88%  { opacity: 1; }
+  94%  { opacity: 0; }
   100% { opacity: 0; }
 }
 
-/* Gores arrive with the shape; rigging lags ~120ms so the balloon assembles. */
+/* Gores arrive with the shape; rigging lags ~120ms so the balloon assembles */
 @keyframes ropes-fade {
-  0% { opacity: 0; }
-  43% { opacity: 0; }
-  49% { opacity: 1; }
-  89% { opacity: 1; }
-  94% { opacity: 0; }
+  0%   { opacity: 0; }
+  43%  { opacity: 0; }
+  49%  { opacity: 1; }
+  89%  { opacity: 1; }
+  94%  { opacity: 0; }
   100% { opacity: 0; }
 }
 
 @keyframes rigging-fade {
-  0% { opacity: 0; }
-  45% { opacity: 0; }
-  52% { opacity: 0.9; }
-  88% { opacity: 0.9; }
-  93% { opacity: 0; }
+  0%   { opacity: 0; }
+  45%  { opacity: 0; }
+  52%  { opacity: 0.9; }
+  88%  { opacity: 0.9; }
+  93%  { opacity: 0; }
   100% { opacity: 0; }
 }
 
-/* Backdrop light, recoloured per form. Peaks at 50%, just after the landing. */
+/* Backdrop light, recoloured per form; peaks just after the landing */
 @keyframes pulse-glow {
-  0% { opacity: 0.3; transform: scale(0.96); fill: #38bdf8; }
-  22% { opacity: 0.42; transform: scale(1.05); fill: #38bdf8; }
-  41% { opacity: 0.3; transform: scale(0.96); fill: #38bdf8; }
-  50% { opacity: 0.62; transform: scale(1.16); fill: #ff9f5a; }
-  64% { opacity: 0.4; transform: scale(1.02); fill: #ff9f5a; }
-  89% { opacity: 0.46; transform: scale(1.08); fill: #ff9f5a; }
-  98% { opacity: 0.44; transform: scale(1.1); fill: #38bdf8; }
-  100% { opacity: 0.3; transform: scale(0.96); fill: #38bdf8; }
+  0%   { opacity: 0.3;  transform: scale(0.96); fill: #38bdf8; }
+  22%  { opacity: 0.42; transform: scale(1.05); fill: #38bdf8; }
+  41%  { opacity: 0.3;  transform: scale(0.96); fill: #38bdf8; }
+  50%  { opacity: 0.62; transform: scale(1.16); fill: #ff9f5a; }
+  64%  { opacity: 0.4;  transform: scale(1.02); fill: #ff9f5a; }
+  89%  { opacity: 0.46; transform: scale(1.08); fill: #ff9f5a; }
+  98%  { opacity: 0.44; transform: scale(1.1);  fill: #38bdf8; }
+  100% { opacity: 0.3;  transform: scale(0.96); fill: #38bdf8; }
 }
 
 @keyframes twinkle {
-  0% { opacity: 0.1; }
-  50% { opacity: 0.75; }
+  0%   { opacity: 0.1; }
+  50%  { opacity: 0.75; }
   100% { opacity: 0.1; }
 }
 
 @keyframes flame-flicker {
-  0% { transform: scale(1, 0.9); opacity: 0.85; }
-  30% { transform: scale(0.88, 1.15); opacity: 1; }
-  55% { transform: scale(1.08, 0.95); opacity: 0.8; }
-  78% { transform: scale(0.94, 1.08); opacity: 1; }
-  100% { transform: scale(1, 0.9); opacity: 0.85; }
+  0%   { transform: scale(1, 0.9);     opacity: 0.85; }
+  30%  { transform: scale(0.88, 1.15); opacity: 1; }
+  55%  { transform: scale(1.08, 0.95); opacity: 0.8; }
+  78%  { transform: scale(0.94, 1.08); opacity: 1; }
+  100% { transform: scale(1, 0.9);     opacity: 0.85; }
 }
 
 @keyframes bubble-rise {
-  0% {
-    opacity: 0;
-    transform: translate(0px, 24px) scale(0.7);
-  }
-  20% {
-    opacity: 0.5;
-    transform: translate(0px, 0px) scale(0.85);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(0px, -90px) scale(1.1);
-  }
+  0%   { opacity: 0;   transform: translate(0px, 24px) scale(0.7); }
+  20%  { opacity: 0.5; transform: translate(0px, 0px) scale(0.85); }
+  100% { opacity: 0;   transform: translate(0px, -90px) scale(1.1); }
 }
 
 @define tentacle {
@@ -988,9 +1254,8 @@ export const examples: Example[] = [
   animation: bubble-rise 5s ease-in-out infinite;
 }
 
-/* One mote field serves both phases — plankton underwater, stars in the sky.
-   mod() steps, not random(per-element), which crush reseeds. The x and y
-   multipliers need different fractional steps or the points land on diagonals. */
+/* Plankton underwater, stars in the sky; mod() not random(), which crush reseeds.
+   x and y need different steps or the points land on diagonals. */
 #motes {
   type: group;
 
@@ -1020,14 +1285,14 @@ export const examples: Example[] = [
   animation: pulse-glow 10s ease-in-out infinite;
 }
 
-/* Clouds answer the bubbles: a circle has no path form to morph toward. */
+/* Clouds cross-fade with the bubbles: a circle has no path form to morph toward */
 @define cloud {
   type: path;
   d: "M 24 44 C 8 44 2 30 12 22 C 10 8 26 0 38 8 C 46 -4 68 -2 72 12 C 88 6 102 18 98 32 C 106 36 104 44 94 44 Z";
   fill: #f2f7ff;
   opacity: 0.85;
   transform-origin: 0 0;
-  /* \`add\`, else the drift keyframes replace each instance's placement transform. */
+  /* \`add\`, else the drift replaces each instance's placement transform */
   animation-name: cloud-drift;
   animation-duration: 26s;
   animation-timing-function: ease-in-out;
@@ -1037,7 +1302,7 @@ export const examples: Example[] = [
 }
 
 @keyframes cloud-drift {
-  0% { transform: translate(-26px, 0px); }
+  0%   { transform: translate(-26px, 0px); }
   100% { transform: translate(26px, 0px); }
 }
 
@@ -1052,6 +1317,7 @@ export const examples: Example[] = [
     r: 7px;
     animation-delay: -1s;
   }
+
   > #bubble2 {
     use: bubble;
     cx: 178px;
@@ -1060,6 +1326,7 @@ export const examples: Example[] = [
     animation-duration: 4.2s;
     animation-delay: -2.4s;
   }
+
   > #bubble3 {
     use: bubble;
     cx: 642px;
@@ -1068,6 +1335,7 @@ export const examples: Example[] = [
     animation-duration: 6s;
     animation-delay: -3.1s;
   }
+
   > #bubble4 {
     use: bubble;
     cx: 705px;
@@ -1076,6 +1344,7 @@ export const examples: Example[] = [
     animation-duration: 4.8s;
     animation-delay: -0.7s;
   }
+
   > #bubble5 {
     use: bubble;
     cx: 590px;
@@ -1097,6 +1366,7 @@ export const examples: Example[] = [
     opacity: 0.9;
     animation-delay: -4s;
   }
+
   > #cloud2 {
     use: cloud;
     transform: translate(608px, 96px) scale(1.1);
@@ -1104,6 +1374,7 @@ export const examples: Example[] = [
     animation-duration: 33s;
     animation-delay: -13s;
   }
+
   > #cloud3 {
     use: cloud;
     transform: translate(566px, 322px) scale(1.5);
@@ -1111,6 +1382,7 @@ export const examples: Example[] = [
     animation-duration: 21s;
     animation-delay: -8s;
   }
+
   > #cloud4 {
     use: cloud;
     transform: translate(58px, 366px) scale(1.2);
@@ -1118,6 +1390,7 @@ export const examples: Example[] = [
     animation-duration: 38s;
     animation-delay: -19s;
   }
+
   > #cloud5 {
     use: cloud;
     transform: translate(178px, 34px) scale(0.85);
@@ -1140,7 +1413,7 @@ export const examples: Example[] = [
     animation: veil-morph 10s ease-in-out infinite;
   }
 
-  /* Grouped so one fade covers all five, each keeping its own wave. */
+  /* One fade for all five, each keeping its own wave */
   > #tentacles {
     type: group;
     animation: tentacles-fade 10s ease-in-out infinite;
@@ -1150,11 +1423,13 @@ export const examples: Example[] = [
       transform: translate(324px, 300px) rotate(8deg) scale(0.86);
       animation-delay: -0.3s;
     }
+
     > #tentacle-mid-left {
       use: tentacle;
       transform: translate(370px, 305px) rotate(-4deg) scale(1);
       animation-delay: -1.1s;
     }
+
     > #tentacle-mid {
       use: tentacle;
       transform: translate(405px, 306px) rotate(3deg) scale(1.08);
@@ -1162,11 +1437,13 @@ export const examples: Example[] = [
       stroke-width: 9;
       opacity: 0.88;
     }
+
     > #tentacle-mid-right {
       use: tentacle;
       transform: translate(438px, 305px) rotate(-8deg) scale(0.98);
       animation-delay: -1.6s;
     }
+
     > #tentacle-right {
       use: tentacle;
       transform: translate(480px, 300px) rotate(-14deg) scale(0.82);
@@ -1174,7 +1451,7 @@ export const examples: Example[] = [
     }
   }
 
-  /* z-index is load-bearing: in document order these paint under #bell. */
+  /* z-index is load-bearing: in document order these paint under #bell */
   > #gore-panels {
     type: path;
     d: "M 400 100 C 330 140 300 262 350 374 C 360 378 370 380 378 381 C 364 262 372 142 400 100 Z M 400 100 C 470 140 500 262 450 374 C 440 378 430 380 422 381 C 436 262 428 142 400 100 Z";
@@ -1196,7 +1473,7 @@ export const examples: Example[] = [
     animation: ropes-fade 10s ease-in-out infinite;
   }
 
-  /* Group carries the phase fade so each flame can flicker independently. */
+  /* Group carries the phase fade so each flame flickers independently */
   > #burner {
     type: group;
     z-index: 1;
@@ -1213,6 +1490,7 @@ export const examples: Example[] = [
       opacity: 0.35;
       filter: blur(18px);
     }
+
     > #burner-flame {
       type: path;
       d: "M 400 386 C 412 398 416 410 409 419 C 405 425 395 425 391 419 C 384 410 388 398 400 386 Z";
@@ -1221,6 +1499,7 @@ export const examples: Example[] = [
       transform-origin: 400px 422px;
       animation: flame-flicker 0.42s ease-in-out infinite;
     }
+
     > #burner-core {
       type: path;
       d: "M 400 396 C 406 403 408 411 404 416 C 402 419 398 419 396 416 C 392 411 394 403 400 396 Z";
@@ -1250,7 +1529,7 @@ export const examples: Example[] = [
     animation: bell-morph 10s ease-in-out infinite;
   }
 
-  /* Jellyfish-only anatomy; rides the tentacle fade window. */
+  /* Jellyfish-only anatomy, on the tentacle fade window */
   > #bell-marks {
     type: group;
     animation: tentacles-fade 10s ease-in-out infinite;
@@ -1264,6 +1543,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       opacity: 0.45;
     }
+
     > #bell-ribs {
       type: path;
       d: "M 322 176 C 306 214 300 250 304 284 M 362 156 C 352 202 348 246 350 288 M 400 150 C 400 200 400 246 400 288 M 438 156 C 448 202 452 246 450 288 M 478 176 C 494 214 500 250 496 284";
@@ -1273,6 +1553,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       opacity: 0.22;
     }
+
     > #organ-left {
       type: ellipse;
       cx: 368px;
@@ -1283,6 +1564,7 @@ export const examples: Example[] = [
       opacity: 0.5;
       filter: blur(4px);
     }
+
     > #organ-right {
       type: ellipse;
       cx: 432px;
@@ -1293,6 +1575,7 @@ export const examples: Example[] = [
       opacity: 0.5;
       filter: blur(4px);
     }
+
     > #organ-mid {
       type: ellipse;
       cx: 400px;
@@ -1308,16 +1591,15 @@ export const examples: Example[] = [
 ` },
   { key: "07-mask.css", label: "Mask", source: `/* Author: AI Generated */
 /* Mask — big text revealed through a sweeping bar (luminance mask) */
+
 :root {
   width: 800px;
   height: 600px;
 }
 
-/* The mask source is a white bar that sweeps across. Driving a luminance mask,
-   it is never drawn itself — only its brightness shows the content through. */
 @keyframes sweep {
   0%   { transform: translateX(-700px); }
-  100% { transform: translateX(700px);  }
+  100% { transform: translateX(700px); }
 }
 
 #reveal {
@@ -1332,6 +1614,7 @@ export const examples: Example[] = [
   mask: #wipe luminance;
 }
 
+/* mask source: never drawn itself, only its brightness lets the text through */
 #wipe {
   type: rect;
   x: 100px;
@@ -1343,12 +1626,10 @@ export const examples: Example[] = [
 }
 ` },
   { key: "08-interactive--cursor.css", label: "Interactive: Cursor", source: `/* Author: AI Generated */
-/* Interactive — Sprout, a mochi creature, and the firefly that chases your
-   cursor. The firefly rides input(cursor.x/y) and flares when you hold the
-   mouse down (input(cursor.isDown)); Sprout idles with layered keyframes
-   (breathing + an added flutter), watches the light with clamped eye tracking,
-   and springs when you poke it (:hover/:active tweened by transition). Move the
-   light around, then give Sprout a poke. */
+/* Interactive — a firefly follows the cursor (input(cursor.*)) and flares on mouse down;
+   Sprout idles with layered keyframes, tracks the light with clamped eyes, and springs
+   on :hover/:active. */
+
 :root {
   width: 800px;
   height: 600px;
@@ -1356,56 +1637,68 @@ export const examples: Example[] = [
   --cursor-x: input(cursor.x);
   --cursor-y: input(cursor.y);
   --down: input(cursor.isDown);
-  /* Eye tracking: pupils drift toward the cursor, clamped inside the eye.
-     Distributed as c*s - k*s so calc's \`-\` follows a digit (minifier-safe). */
+  /* pupil offset toward the cursor; written c*s - k so calc's \`-\` follows a digit (minifier-safe) */
   --eye-x: clamp(-6, calc(var(--cursor-x) * 0.03 - 12), 6);
   --eye-y: clamp(-5, calc(var(--cursor-y) * 0.03 - 9.54), 5);
 }
 
-/* ---- ambient life (runs before you ever touch the scene) ---- */
-
-/* Main idle: a slow breath (squash/stretch) with a gentle rock */
+/* idle: slow squash/stretch breath with a gentle rock */
 @keyframes idle {
   0%, 100% { transform: translateY(0px)  scale(1, 1)       rotate(-1.6deg); }
   50%      { transform: translateY(-9px) scale(0.98, 1.05) rotate(1.6deg); }
 }
-/* A faster, smaller bob ADDED on top of the idle bob — layered motion */
+
+/* faster bob composited on top of idle (animation-composition: add) */
 @keyframes flutter {
   0%, 100% { translate: 0px 0px; }
   50%      { translate: 0px -4px; }
 }
-/* Eyes blink on their own quick cycle */
+
 @keyframes blink {
   0%, 92%, 100% { scale: 1 1; }
   96%           { scale: 1 0.08; }
 }
-/* Firefly breathes its glow so it feels alive even parked in a corner */
+
 @keyframes flicker {
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 1; }
 }
 
-/* ---- backdrop ---- */
 #sky {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  type: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
   fill: linear-gradient(#12314a 0%, #0a1622 70%, #071019 100%);
 }
-/* soft vignette to focus the middle */
+
 #vignette {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  type: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
   fill: radial-gradient(circle 520px at 400px 300px, #00000000 45%, #050d16 100%);
 }
-/* contact shadow that keeps Sprout grounded */
+
+/* contact shadow under Sprout */
 #shadow {
-  type: ellipse; cx: 400px; cy: 452px; rx: 118px; ry: 20px;
+  type: ellipse;
+  cx: 400px;
+  cy: 452px;
+  rx: 118px;
+  ry: 20px;
   fill: radial-gradient(#00000066 0%, #00000000 72%);
 }
 
-/* ---- Sprout ---- the body shape carries the hover/active reaction, and its
-   face rides along as children (they have no pseudo-state, so they never steal
-   the hit; a poke anywhere on the body springs the whole creature) */
+/* the body owns :hover/:active; face parts have no pseudo-state, so they never steal the hit */
 #sprout {
-  type: ellipse; cx: 400px; cy: 330px; rx: 108px; ry: 96px;
+  type: ellipse;
+  cx: 400px;
+  cy: 330px;
+  rx: 108px;
+  ry: 96px;
   fill: radial-gradient(circle 150px at 356px 272px, #b7f0dd 0%, #5cc6ac 58%, #348d78 100%);
   transform-origin: 50% 100%;
   animation: idle 3.8s ease-in-out infinite, flutter 0.95s ease-in-out infinite;
@@ -1414,79 +1707,140 @@ export const examples: Example[] = [
   &:hover  { transform: translateY(-10px) scale(1.06); }
   &:active { transform: scale(1.15, 0.8); }
 
-  /* little sprout leaf on top */
   > #stem {
-    type: path; d: "M 400 238 C 398 214 402 200 400 184";
-    fill: none; stroke: #3f9d84; stroke-width: 6px; stroke-linecap: round;
+    type: path;
+    d: "M 400 238 C 398 214 402 200 400 184";
+    fill: none;
+    stroke: #3f9d84;
+    stroke-width: 6px;
+    stroke-linecap: round;
   }
+
   > #leaf {
-    type: ellipse; cx: 413px; cy: 184px; rx: 18px; ry: 11px;
-    fill: #7fd8b0; transform: rotate(-28deg); transform-origin: 400px 184px;
+    type: ellipse;
+    cx: 413px;
+    cy: 184px;
+    rx: 18px;
+    ry: 11px;
+    fill: #7fd8b0;
+    transform: rotate(-28deg);
+    transform-origin: 400px 184px;
   }
 
-  /* tummy highlight */
   > #belly {
-    type: ellipse; cx: 400px; cy: 356px; rx: 74px; ry: 60px;
-    fill: #ddf8ee; opacity: 0.35;
+    type: ellipse;
+    cx: 400px;
+    cy: 356px;
+    rx: 74px;
+    ry: 60px;
+    fill: #ddf8ee;
+    opacity: 0.35;
   }
 
-  /* eyes (blink) with glossy glints — track the cursor via a var()-bound
-     translate; blink animates \`scale\`, a separate channel, so both apply */
+  /* eyes track via translate; blink animates the separate \`scale\` channel, so both apply */
   > #eyeL {
-    type: ellipse; cx: 366px; cy: 318px; rx: 15px; ry: 19px;
-    fill: #203a44; transform-origin: 366px 318px;
+    type: ellipse;
+    cx: 366px;
+    cy: 318px;
+    rx: 15px;
+    ry: 19px;
+    fill: #203a44;
+    transform-origin: 366px 318px;
     transform: translate(var(--eye-x), var(--eye-y));
     animation: blink 4.2s ease-in-out infinite;
   }
+
   > #eyeR {
-    type: ellipse; cx: 434px; cy: 318px; rx: 15px; ry: 19px;
-    fill: #203a44; transform-origin: 434px 318px;
+    type: ellipse;
+    cx: 434px;
+    cy: 318px;
+    rx: 15px;
+    ry: 19px;
+    fill: #203a44;
+    transform-origin: 434px 318px;
     transform: translate(var(--eye-x), var(--eye-y));
     animation: blink 4.2s ease-in-out infinite;
   }
+
   > #glintL {
-    type: circle; cx: 371px; cy: 311px; r: 5px; fill: #ffffff;
+    type: circle;
+    cx: 371px;
+    cy: 311px;
+    r: 5px;
+    fill: #ffffff;
     transform: translate(var(--eye-x), var(--eye-y));
   }
+
   > #glintR {
-    type: circle; cx: 439px; cy: 311px; r: 5px; fill: #ffffff;
+    type: circle;
+    cx: 439px;
+    cy: 311px;
+    r: 5px;
+    fill: #ffffff;
     transform: translate(var(--eye-x), var(--eye-y));
   }
 
-  /* rosy cheeks */
-  > #cheekL { type: ellipse; cx: 344px; cy: 348px; rx: 13px; ry: 8px; fill: #ff96ab; opacity: 0.5; }
-  > #cheekR { type: ellipse; cx: 456px; cy: 348px; rx: 13px; ry: 8px; fill: #ff96ab; opacity: 0.5; }
+  > #cheekL {
+    type: ellipse;
+    cx: 344px;
+    cy: 348px;
+    rx: 13px;
+    ry: 8px;
+    fill: #ff96ab;
+    opacity: 0.5;
+  }
 
-  /* smile */
+  > #cheekR {
+    type: ellipse;
+    cx: 456px;
+    cy: 348px;
+    rx: 13px;
+    ry: 8px;
+    fill: #ff96ab;
+    opacity: 0.5;
+  }
+
   > #mouth {
-    type: path; d: "M 386 344 Q 400 356 414 344";
-    fill: none; stroke: #2c5059; stroke-width: 4px; stroke-linecap: round;
+    type: path;
+    d: "M 386 344 Q 400 356 414 344";
+    fill: none;
+    stroke: #2c5059;
+    stroke-width: 4px;
+    stroke-linecap: round;
   }
 }
 
-/* ---- firefly ---- follows the cursor; the outer flare only shows while the
-   mouse is held down (opacity bound to cursor.isDown) */
+/* firefly; the flare's opacity is bound to cursor.isDown */
 #fireflyGlow {
-  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 46px;
+  type: circle;
+  cx: var(--cursor-x);
+  cy: var(--cursor-y);
+  r: 46px;
   fill: radial-gradient(#ffd97a55 0%, #ffb70300 68%);
   animation: flicker 2.4s ease-in-out infinite;
 }
+
 #flare {
-  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 132px;
+  type: circle;
+  cx: var(--cursor-x);
+  cy: var(--cursor-y);
+  r: 132px;
   fill: radial-gradient(#ffe6a800 40%, #ffdc7aaa 56%, #ffcf4d00 72%);
   opacity: var(--down);
 }
+
 #firefly {
-  type: circle; cx: var(--cursor-x); cy: var(--cursor-y); r: 9px;
+  type: circle;
+  cx: var(--cursor-x);
+  cy: var(--cursor-y);
+  r: 9px;
   fill: radial-gradient(#ffffff 0%, #ffd166 55%, #ffab00 100%);
 }
 ` },
   { key: "09-interactive--reaction-bar.css", label: "Interactive: Reaction bar", source: `/* Author: AI Generated */
-/* Reaction bar: six emoji buttons on a white pill. Each one idles with a
-   gentle staggered float, pops from its own center on hover, and credits a
-   click to its group id (#like, #love, #lol, #wow, #sad, #angry). A few
-   icons carry their own small micro-animation on top: a heartbeat pulse, a
-   laughing mouth/tongue bounce, a dripping tear. */
+/* Reaction bar — six emoji buttons with a staggered float (negative animation-delay),
+   a :hover pop from each center, and per-icon micro-animations. */
+
 :root {
   width: 418px;
   height: 94px;
@@ -1496,18 +1850,21 @@ export const examples: Example[] = [
   0%   { translate: 0px 0px; }
   100% { translate: 0px -6px; }
 }
+
 @keyframes heartbeat {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.08); }
 }
+
 @keyframes chomp {
   0%, 100% { transform: scale(1, 1); }
   50%      { transform: scale(1, 0.85); }
 }
+
 @keyframes drip {
-  0%   { translate: 0px 0px; opacity: 1; }
+  0%   { translate: 0px 0px;  opacity: 1; }
   75%  { translate: 0px 10px; opacity: 0; }
-  100% { translate: 0px 0px; opacity: 1; }
+  100% { translate: 0px 0px;  opacity: 1; }
 }
 
 #pill {
@@ -1517,21 +1874,23 @@ export const examples: Example[] = [
   filter: drop-shadow(1px 3px 4px rgba(0, 0, 0, 0.5));
 }
 
-/* ---- like: blue thumbs-up ---- */
+/* like: blue thumbs-up */
 #like-float {
   animation: bob 2.6s ease-in-out infinite alternate;
   > #like {
     cursor: pointer;
     transform-origin: 49.81px 44px;
     transition: transform 200ms ease-out;
-    &:hover {
-      transform: scale(1.15);
-    }
+    &:hover { transform: scale(1.15); }
+
     > #like-circle {
       type: circle;
-      cx: 49.81px; cy: 44px; r: 25.2px;
+      cx: 49.81px;
+      cy: 44px;
+      r: 25.2px;
       fill: #4080ff;
     }
+
     > #like-icon {
       type: path;
       d: 'M35.69 40.1h6.57v14.78h-6.57zM61.76 42.05c.65-.41 1.08-1.13 1.08-1.95 0-1.27-1.03-2.31-2.31-2.31h-7.07c.08-1.47.14-3.83-.11-6.11-.41-3.7-4.31-2.05-4.31-2.05 2.05 4.52-4.31 12.52-4.31 12.52v11.96H57.9a2.305 2.305 0 0 0 1.64-3.93 2.31 2.31 0 0 0 1.99-2.28c0-.63-.26-1.21-.67-1.62A2.31 2.31 0 0 0 62.85 44c0-.82-.43-1.54-1.08-1.95Z';
@@ -1540,21 +1899,23 @@ export const examples: Example[] = [
   }
 }
 
-/* ---- love: pink heart, with its own slow heartbeat pulse ---- */
+/* love: pink heart, with its own slow heartbeat pulse */
 #love-float {
   animation: bob 2.6s ease-in-out infinite alternate -0.4s;
   > #love {
     cursor: pointer;
     transform-origin: 112.3px 44px;
     transition: transform 200ms ease-out;
-    &:hover {
-      transform: scale(1.15);
-    }
+    &:hover { transform: scale(1.15); }
+
     > #love-circle {
       type: circle;
-      cx: 112.3px; cy: 44px; r: 25.2px;
+      cx: 112.3px;
+      cy: 44px;
+      r: 25.2px;
       fill: #f25268;
     }
+
     > #love-icon {
       type: path;
       d: 'M112.3 59.01 124.68 49c1.36-1.1 2.46-2.58 3.01-4.32 2.27-7.13-4.19-14.76-11.84-11.76-2.07.81-3.55 3.52-3.55 3.52s-1.48-2.71-3.55-3.52c-7.65-2.99-14.12 4.63-11.84 11.76.55 1.74 1.65 3.21 3.01 4.32z';
@@ -1565,21 +1926,23 @@ export const examples: Example[] = [
   }
 }
 
-/* ---- lol: yellow laughing face; mouth and tongue chomp out of phase ---- */
+/* lol: yellow laughing face; mouth and tongue chomp out of phase */
 #lol-float {
   animation: bob 2.6s ease-in-out infinite alternate -0.8s;
   > #lol {
     cursor: pointer;
     transform-origin: 174.78px 44px;
     transition: transform 200ms ease-out;
-    &:hover {
-      transform: scale(1.15);
-    }
+    &:hover { transform: scale(1.15); }
+
     > #lol-circle {
       type: circle;
-      cx: 174.78px; cy: 44px; r: 25.2px;
+      cx: 174.78px;
+      cy: 44px;
+      r: 25.2px;
       fill: #fdda74;
     }
+
     > #lol-mouth {
       type: path;
       d: 'M193.39 44.31c0 10.28-8.33 18.61-18.61 18.61s-18.61-8.33-18.61-18.61z';
@@ -1587,6 +1950,7 @@ export const examples: Example[] = [
       transform-origin: 174.78px 53px;
       animation: chomp 0.9s ease-in-out infinite;
     }
+
     > #lol-tongue {
       type: path;
       d: 'M174.78 51.24c-5.33 0-10.12 2.25-13.51 5.84 3.39 3.59 8.18 5.84 13.51 5.84s10.12-2.25 13.51-5.84c-3.39-3.59-8.18-5.84-13.51-5.84';
@@ -1594,6 +1958,7 @@ export const examples: Example[] = [
       transform-origin: 174.78px 54px;
       animation: chomp 0.9s ease-in-out infinite -0.15s;
     }
+
     > #lol-eyes {
       type: path;
       d: 'M157.43 38.87a.99.99 0 0 1-.2-1.96l7.6-1.58-5.76-3.24a.99.99 0 0 1-.38-1.35c.27-.48.87-.65 1.35-.38l8.07 4.53c.36.2.56.61.49 1.01a.99.99 0 0 1-.78.82l-10.19 2.12c-.07.01-.14.02-.2.02ZM192.14 38.87c-.07 0-.14 0-.2-.02l-10.19-2.12c-.4-.08-.71-.41-.78-.82-.06-.41.13-.81.49-1.01l8.07-4.53a.99.99 0 0 1 1.35.38c.27.48.1 1.08-.38 1.35l-5.76 3.24 7.6 1.58c.53.11.88.64.77 1.17-.1.47-.51.79-.97.79Z';
@@ -1602,26 +1967,32 @@ export const examples: Example[] = [
   }
 }
 
-/* ---- wow: yellow surprised face (open oval mouth, raised eyebrows) ---- */
+/* wow: yellow surprised face (open oval mouth, raised eyebrows) */
 #wow-float {
   animation: bob 2.6s ease-in-out infinite alternate -1.2s;
   > #wow {
     cursor: pointer;
     transform-origin: 238.58px 44px;
     transition: transform 200ms ease-out;
-    &:hover {
-      transform: scale(1.15);
-    }
+    &:hover { transform: scale(1.15); }
+
     > #wow-circle {
       type: circle;
-      cx: 238.58px; cy: 44px; r: 25.2px;
+      cx: 238.58px;
+      cy: 44px;
+      r: 25.2px;
       fill: #fdda74;
     }
+
     > #wow-mouth {
       type: ellipse;
-      cx: 238.58px; cy: 54.68px; rx: 6.52px; ry: 9.86px;
+      cx: 238.58px;
+      cy: 54.68px;
+      rx: 6.52px;
+      ry: 9.86px;
       fill: #3c3c3b;
     }
+
     > #wow-eyes {
       type: path;
       d: 'M229.95 38.07c0 2.66-1.43 4.81-3.18 4.81s-3.18-2.15-3.18-4.81 1.43-4.81 3.18-4.81 3.18 2.15 3.18 4.81M253.58 38.07c0 2.66-1.43 4.81-3.18 4.81s-3.18-2.15-3.18-4.81 1.43-4.81 3.18-4.81 3.18 2.15 3.18 4.81M230.79 28.37c-.25 0-.51-.1-.7-.29-1.5-1.5-4.11-1.5-5.6 0-.39.39-1.01.39-1.4 0s-.39-1.01 0-1.4c1.12-1.12 2.62-1.74 4.2-1.74s3.08.62 4.2 1.74c.39.39.39 1.01 0 1.4-.19.19-.45.29-.7.29M253.02 28.37c-.25 0-.51-.1-.7-.29-1.5-1.5-4.11-1.5-5.6 0a.984.984 0 0 1-1.4 0 .984.984 0 0 1 0-1.4c1.12-1.12 2.61-1.74 4.2-1.74s3.08.62 4.2 1.74c.39.39.39 1.01 0 1.4-.19.19-.45.29-.7.29';
@@ -1630,26 +2001,29 @@ export const examples: Example[] = [
   }
 }
 
-/* ---- sad: yellow crying face with a tear that drips and resets ---- */
+/* sad: yellow crying face with a tear that drips and resets */
 #sad-float {
   animation: bob 2.6s ease-in-out infinite alternate -1.6s;
   > #sad {
     cursor: pointer;
     transform-origin: 301.06px 44px;
     transition: transform 200ms ease-out;
-    &:hover {
-      transform: scale(1.15);
-    }
+    &:hover { transform: scale(1.15); }
+
     > #sad-circle {
       type: circle;
-      cx: 301.06px; cy: 44px; r: 25.2px;
+      cx: 301.06px;
+      cy: 44px;
+      r: 25.2px;
       fill: #fdda74;
     }
+
     > #sad-face {
       type: path;
       d: 'M292.07 42.36c0 2.13-1.43 3.86-3.18 3.86s-3.18-1.73-3.18-3.86 1.43-3.86 3.18-3.86 3.18 1.73 3.18 3.86M283.66 38.91c-.13 0-.25-.02-.38-.07a.994.994 0 0 1-.54-1.29c.6-1.47 1.74-2.61 3.21-3.23 1.46-.61 3.08-.62 4.55-.01.5.21.75.79.54 1.29a.99.99 0 0 1-1.29.54c-.98-.4-2.06-.4-3.03 0-.98.41-1.74 1.17-2.14 2.15-.16.38-.53.61-.91.61ZM310.06 42.36c0 2.13 1.43 3.86 3.18 3.86s3.18-1.73 3.18-3.86-1.43-3.86-3.18-3.86-3.18 1.73-3.18 3.86M318.47 38.91c-.39 0-.76-.23-.91-.61-.4-.98-1.16-1.74-2.14-2.15s-2.05-.41-3.03 0c-.5.2-1.08-.03-1.29-.54a.98.98 0 0 1 .54-1.29 5.944 5.944 0 0 1 7.76 3.24.982.982 0 0 1-.92 1.36ZM308.45 57.66c-.31 0-.61-.14-.8-.4-1.72-2.35-4.37-3.7-7.26-3.7s-5.54 1.35-7.26 3.7a.98.98 0 0 1-1.38.21.98.98 0 0 1-.21-1.38c2.07-2.82 5.38-4.51 8.86-4.51s6.79 1.69 8.86 4.51c.32.44.23 1.06-.21 1.38a.98.98 0 0 1-.58.19Z';
       fill: #3c3c3b;
     }
+
     > #sad-tear {
       type: path;
       d: 'M317.4 68.5c-3.37 0-5.67-3.4-4.42-6.52l4.42-11.05 4.42 11.05c1.25 3.13-1.05 6.52-4.42 6.52';
@@ -1659,31 +2033,35 @@ export const examples: Example[] = [
   }
 }
 
-/* ---- angry: gradient face (furrowed brows, pursed mouth) ---- */
+/* angry: gradient face (furrowed brows, pursed mouth) */
 #angry-float {
   animation: bob 2.6s ease-in-out infinite alternate -2s;
   > #angry {
     cursor: pointer;
     transform-origin: 366.19px 44px;
     transition: transform 200ms ease-out;
-    &:hover {
-      transform: scale(1.15);
-    }
+    &:hover { transform: scale(1.15); }
+
     > #angry-circle {
       type: circle;
-      cx: 366.19px; cy: 44px; r: 25.2px;
+      cx: 366.19px;
+      cy: 44px;
+      r: 25.2px;
       fill: linear-gradient(from 366.19px 69.2px to 366.19px 18.8px, #fdda74 0%, #e64850 100%);
     }
+
     > #angry-eyes {
       type: path;
       d: 'M374.29 51.27c0 1.72 1.15 3.12 2.57 3.12s2.57-1.4 2.57-3.12-1.15-3.12-2.57-3.12-2.57 1.4-2.57 3.12M357.58 51.27c0 1.72-1.15 3.12-2.57 3.12s-2.57-1.4-2.57-3.12 1.15-3.12 2.57-3.12 2.57 1.4 2.57 3.12';
       fill: #3c3c3b;
     }
+
     > #angry-brows {
       type: path;
       d: 'M369.32 49.98c-.52 0-.96-.41-.99-.94a.987.987 0 0 1 .94-1.04c7-.38 13.61-1.63 14.16-2.68 0-.55.44-.95.98-.95s.98.48.98 1.03c0 3.07-8.71 4.19-16.02 4.58zM362.55 49.98h-.05c-7.31-.39-16.02-1.5-16.02-4.58 0-.55.44-.99.99-.99s.99.44.99.99c.53.98 7.15 2.23 14.15 2.6a1 1 0 0 1 .94 1.04.99.99 0 0 1-.99.94Z';
       fill: #3c3c3b;
     }
+
     > #angry-mouth {
       type: path;
       d: 'M372.14 61.27c-.09 0-.18-.01-.27-.04-5.88-1.67-12.09-.01-12.16 0a.987.987 0 0 1-1.21-.69.995.995 0 0 1 .69-1.22c.28-.07 6.79-1.83 13.22 0 .53.15.83.7.68 1.22-.12.44-.52.72-.95.72Z';
@@ -1693,29 +2071,10 @@ export const examples: Example[] = [
 }
 ` },
   { key: "10-state-machine--lamp.css", label: "State machine: Lamp", source: `/* Author: AI Generated */
-/* State machine — a pull-chain lamp, and the whole @machine vocabulary with it:
-   two concurrent machines on independent clocks, a state that plays once and
-   advances itself \`on complete\`, a \`state-time\` timeout, several transitions
-   competing out of one state, and per-state styling.
+/* State machine — a pull-chain lamp: two concurrent @machines on independent clocks,
+   \`on complete\` handover, a \`state-time\` timeout, competing transitions, per-state styling.
+   Click the chain, then leave the lamp on and wait. */
 
-     @machine lamp   off -> warmup -> on -> off. \`warmup\` is the incandescent
-                     strike: it plays ONCE and hands over
-                     \`on complete\`, so the steady lit look never re-runs it. \`on\` has two
-                     ways out — the chain, or a 10s energy-saver timeout that
-                     switches the lamp off if you walk away (first trigger to
-                     fire wins).
-     @machine pull   the chain's own graph: still -> swing on click, back
-                     \`on complete\`. It reacts to the SAME click as \`lamp\` and
-                     knows nothing about it — proof the two run independently.
-                     Note the timeout can switch the lamp off without the chain
-                     ever moving, and the chain still swings when the lamp is
-                     already lit.
-
-   Click the chain. Then leave the lamp on and wait.
-
-   The bulb is drawn in an unscaled ~200x260 "recipe" space inside #lamp, which
-   translates + scales it to the centre of the 800x600 stage; every glass/base
-   coordinate below is in that local recipe space (globe centre 100,98). */
 :root {
   width: 800px;
   height: 600px;
@@ -1731,30 +2090,24 @@ export const examples: Example[] = [
   }
 }
 
-/* A second graph on its own clock. \`still\`/\`swing\` are unique names, so the
-   rules below can say :state(swing) without naming the machine. */
+/* the chain's own graph; \`swing\` is a unique state name, so :state(swing) needs no machine prefix */
 @machine pull {
   initial: still;
   state still { to: swing on click(#chain); }
   state swing { to: still on complete; }
 }
 
-/* ---- warmup: the strike, played once on the way to \`on\` ----
-   A filament doesn't fade up, it catches: full brightness almost at once, one
-   dip as it settles, then steady. The whole thing is under half a second — long
-   enough to read as a switch-on, short enough that it never feels like a
-   loading bar. Every warmup animation is finite — \`on complete\` waits for the
-   LONGEST one, so a single infinite animation in this state would strand the
-   machine here forever. Each one lands exactly on its \`on\` value and then holds
-   statically, so the handover between the two states is invisible. */
+/* warmup strike: every warmup animation must be finite (\`on complete\` waits for the longest)
+   and end on its \`on\` value, so the handover is invisible */
 @keyframes surge {
   0%   { opacity: 0;    animation-timing-function: ease-out; }
-  26%  { opacity: 1;    }
+  26%  { opacity: 1; }
   44%  { opacity: 0.52; }
-  62%  { opacity: 1;    }
+  62%  { opacity: 1; }
   80%  { opacity: 0.86; }
-  100% { opacity: 1;    }
+  100% { opacity: 1; }
 }
+
 @keyframes roomSurge {
   0%   { opacity: 0;    animation-timing-function: ease-out; }
   26%  { opacity: 0.55; }
@@ -1763,242 +2116,320 @@ export const examples: Example[] = [
   80%  { opacity: 0.47; }
   100% { opacity: 0.55; }
 }
+
 @keyframes raysIn {
   0%   { opacity: 0; transform: scale(0.7); animation-timing-function: ease-out; }
-  100% { opacity: 1; transform: scale(1);   }
+  100% { opacity: 1; transform: scale(1); }
 }
 
-/* ---- on: the steady look. Static opacity holds where the surge landed, and
-   the loops own a channel the surge never touched (scale). ---- */
+/* steady \`on\` loops animate scale, a channel the surge never touches */
 @keyframes haloBreathe {
-  0%, 100% { transform: scale(1);    }
+  0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.09); }
 }
+
 @keyframes rayPulse {
-  0%, 100% { transform: scale(1);    }
+  0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.06); }
 }
 
-/* ---- pull: a damped swing that plays once and settles ---- */
+/* damped chain swing, played once */
 @keyframes chainPull {
-  0%   { transform: rotate(0deg);  }
+  0%   { transform: rotate(0deg); }
   14%  { transform: rotate(10deg); }
   38%  { transform: rotate(-7deg); }
   60%  { transform: rotate(4.5deg); }
   80%  { transform: rotate(-2deg); }
-  100% { transform: rotate(0deg);  }
+  100% { transform: rotate(0deg); }
 }
 
-/* ---- wall ---- a dim night-time backdrop so the light has something to land on */
 #wall {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  type: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
   fill: radial-gradient(circle 560px at 400px 260px, #25283a 0%, #161826 60%, #0d0e17 100%);
 }
 
-/* ---- room ---- warm wash that only exists while the lamp is lit ---- */
+/* warm room wash while lit */
 #room {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  type: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
   fill: radial-gradient(circle 460px at 400px 232px, #ffc978 0%, #ffb35c55 40%, #ffb35c00 78%);
   opacity: 0;
   &:state(lamp.warmup) { animation: roomSurge 460ms ease-out; }
   &:state(lamp.on)     { opacity: 0.55; }
 }
 
-/* ---- the bulb assembly, authored in local recipe space, scaled to centre ---- */
+/* bulb authored in a local ~200x260 space (globe centre 100,98), scaled onto the stage */
 #lamp {
   type: group;
   transform: translate(210px, 44px) scale(1.9);
 
-  /* 1. outer halo — soft bloom behind the glass, breathes while lit ---- */
   > #outerHalo {
-    type: circle; cx: 100px; cy: 98px; r: 110px;
+    type: circle;
+    cx: 100px;
+    cy: 98px;
+    r: 110px;
     fill: radial-gradient(circle 110px at 100px 98px, #ffdf8ed9 0%, #ffce6659 45%, #ffc14d00 100%);
-    transform-origin: center; opacity: 0;
+    transform-origin: center;
+    opacity: 0;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; animation: haloBreathe 3.2s ease-in-out infinite; }
   }
 
-  /* 2. rays — a fan of spokes over the crown that scales in, then pulses ---- */
   > #rays {
-    type: group; transform-origin: 100px 98px; opacity: 0;
+    type: group;
+    transform-origin: 100px 98px;
+    opacity: 0;
     &:state(lamp.warmup) { animation: raysIn 380ms ease-out; }
     &:state(lamp.on)     { opacity: 1; animation: rayPulse 3.2s ease-in-out infinite; }
+
     > #ray {
       repeat: 7;
-      type: path; d: 'M 100 10 L 100 -14'; stroke: #ffe29a; stroke-width: 5px; stroke-linecap: round;
-      transform-origin: 100px 98px; rotate: calc((sibling-index() - 4) * 30deg); opacity: 0.85;
+      type: path;
+      d: 'M 100 10 L 100 -14';
+      stroke: #ffe29a;
+      stroke-width: 5px;
+      stroke-linecap: round;
+      transform-origin: 100px 98px;
+      rotate: calc((sibling-index() - 4) * 30deg);
+      opacity: 0.85;
     }
   }
 
-  /* 3. inner glow — the bright core inside the glass ---- */
   > #innerGlow {
-    type: circle; cx: 100px; cy: 98px; r: 77px;
+    type: circle;
+    cx: 100px;
+    cy: 98px;
+    r: 77px;
     fill: radial-gradient(circle 77px at 100px 98px, #fff7d6e6 0%, #ffe9a873 70%, #ffe9a800 100%);
     opacity: 0;
     &:state(lamp.warmup) { animation: surge 440ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
 
-  /* ---- screw base ---- metal off, brass-warmed once the lamp is live. Plain
-     style swaps, no animation. Each one is stated TWICE, for \`warmup\` and for
-     \`on\`: a rule matches one state, and there is no \`:state(a), :state(b)\`
-     list, so a look that spans two states is written out per state — the metal
-     must already be warm while the glow is coming up, or it reads as a cold
-     base under a lit bulb. ---- */
+  /* screw base warms to brass; no \`:state(a), :state(b)\` lists, so warmup and on are each stated */
   > #tip {
-    type: ellipse; cx: 100px; cy: 241px; rx: 8px; ry: 5px; fill: #4d5563;
+    type: ellipse;
+    cx: 100px;
+    cy: 241px;
+    rx: 8px;
+    ry: 5px;
+    fill: #4d5563;
     &:state(lamp.warmup) { fill: #5c5138; }
-    &:state(lamp.on) { fill: #5c5138; }
+    &:state(lamp.on)     { fill: #5c5138; }
   }
+
   > #taper {
-    type: path; d: 'M 82 226 L 118 226 L 109 240 L 91 240 Z'; fill: #5d6573;
+    type: path;
+    d: 'M 82 226 L 118 226 L 109 240 L 91 240 Z';
+    fill: #5d6573;
     &:state(lamp.warmup) { fill: #6e5f43; }
-    &:state(lamp.on) { fill: #6e5f43; }
+    &:state(lamp.on)     { fill: #6e5f43; }
   }
+
   > #collar {
-    type: rect; x: 80px; y: 186px; width: 40px; height: 10px; rx: 3px; fill: #6e7684;
+    type: rect;
+    x: 80px;
+    y: 186px;
+    width: 40px;
+    height: 10px;
+    rx: 3px;
+    fill: #6e7684;
     &:state(lamp.warmup) { fill: #7d6f52; }
-    &:state(lamp.on) { fill: #7d6f52; }
+    &:state(lamp.on)     { fill: #7d6f52; }
   }
-  /* the shell the threads wrap around, so the gaps between them read as metal */
+  /* shell behind the threads, so the gaps read as metal */
   > #shell {
-    type: rect; x: 82px; y: 195px; width: 36px; height: 32px; fill: #5d6573;
+    type: rect;
+    x: 82px;
+    y: 195px;
+    width: 36px;
+    height: 32px;
+    fill: #5d6573;
     &:state(lamp.warmup) { fill: #6e5f43; }
-    &:state(lamp.on) { fill: #6e5f43; }
+    &:state(lamp.on)     { fill: #6e5f43; }
   }
-  /* three threads at one shared slant; own group so sibling-index() counts only them */
+  /* own group so sibling-index() counts only the threads */
   > #threads {
     type: group;
     > #thread {
       repeat: 3;
-      type: rect; x: 78px; y: calc(187px + sibling-index() * 10.5px); width: 44px; height: 8px; rx: 4px;
-      transform-origin: center; rotate: -5deg;
+      type: rect;
+      x: 78px;
+      y: calc(187px + sibling-index() * 10.5px);
+      width: 44px;
+      height: 8px;
+      rx: 4px;
+      transform-origin: center;
+      rotate: -5deg;
       fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
       &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-      &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+      &:state(lamp.on)     { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
     }
   }
 
-  /* ---- glass silhouette ---- cold frosted gradient always; #hotGlass fades
-     over it as the filament strikes. The glass is NOT the switch — the chain is. */
+  /* cold glass; #hotGlass fades in over it */
   > #bulb {
     type: path;
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
     fill: linear-gradient(135deg, #eef2f7 0%, #d7dee8 55%, #b9c4d4 100%);
-    stroke: #ffffff59; stroke-width: 1.2px;
+    stroke: #ffffff59;
+    stroke-width: 1.2px;
     opacity: 0.9;
   }
 
-  /* hot glass — same silhouette, lit radial; fades in over the cold glass ---- */
   > #hotGlass {
     type: path;
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
     fill: radial-gradient(circle 86px at 100px 100px, #fffdf2 0%, #fff3c4 35%, #ffd873 70%, #ffb64a 100%);
-    opacity: 0; pointer-events: none;
+    opacity: 0;
+    pointer-events: none;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
 
-  /* ---- filament ---- grey when off, white-hot when on; a bloom underlay
-     brightens the whole squiggle while lit ---- */
+  /* blurred underlay that blooms the filament while lit */
   > #filamentGlow {
-    type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
-    fill: none; stroke: #ffb347; stroke-width: 8px; stroke-linecap: round; stroke-linejoin: round;
-    filter: blur(3px); opacity: 0; pointer-events: none;
+    type: path;
+    d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
+    fill: none;
+    stroke: #ffb347;
+    stroke-width: 8px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
+
   > #supports {
-    type: path; d: 'M 91 184 V 148 M 109 184 V 148';
-    fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round;
+    type: path;
+    d: 'M 91 184 V 148 M 109 184 V 148';
+    fill: none;
+    stroke: #8a94a6;
+    stroke-width: 3.5px;
+    stroke-linecap: round;
     &:state(lamp.warmup) { stroke: #fff7d6; }
-    &:state(lamp.on) { stroke: #fff7d6; }
-  }
-  > #filament {
-    type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
-    fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round; stroke-linejoin: round;
-    &:state(lamp.warmup) { stroke: #fff7d6; }
-    &:state(lamp.on) { stroke: #fff7d6; }
+    &:state(lamp.on)     { stroke: #fff7d6; }
   }
 
-  /* specular crescent — the glass reads as glass in both states ---- */
+  > #filament {
+    type: path;
+    d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
+    fill: none;
+    stroke: #8a94a6;
+    stroke-width: 3.5px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    &:state(lamp.warmup) { stroke: #fff7d6; }
+    &:state(lamp.on)     { stroke: #fff7d6; }
+  }
+
   > #specular {
-    type: path; d: 'M 66 70 C 74 56 88 50 99 49 C 88 56 80 64 74 76 C 70 84 68 92 68 100 C 62 92 62 79 66 70 Z';
-    fill: #ffffff; opacity: 0.72; pointer-events: none;
+    type: path;
+    d: 'M 66 70 C 74 56 88 50 99 49 C 88 56 80 64 74 76 C 70 84 68 92 68 100 C 62 92 62 79 66 70 Z';
+    fill: #ffffff;
+    opacity: 0.72;
+    pointer-events: none;
     &:state(lamp.warmup) { opacity: 0.85; }
-    &:state(lamp.on) { opacity: 0.85; }
+    &:state(lamp.on)     { opacity: 0.85; }
   }
 }
 
-/* ---- the pull chain ---- the scene's only click target. That one click
-   reaches both machines: \`lamp\` changes what the room looks like, \`pull\` swings
-   the cord as if it were tugged — neither knows about the other.
-   \`:state(swing)\` goes unqualified because no other machine has that state. */
+/* the only click target; one click drives both \`lamp\` and \`pull\` independently */
 #chain {
   type: group;
   transform-origin: 660px 34px;
   &:state(swing) { animation: chainPull 1.15s ease-out; }
 
   > #cord {
-    type: path; d: 'M 660 36 L 660 292';
-    fill: none; stroke: #b8ad92; stroke-width: 4.5px; stroke-linecap: round;
+    type: path;
+    d: 'M 660 36 L 660 292';
+    fill: none;
+    stroke: #b8ad92;
+    stroke-width: 4.5px;
+    stroke-linecap: round;
     stroke-dasharray: 0.1px 7px;
   }
-  /* The pull is the hit area, so it is drawn at a size you can actually aim
-     at — a hairline cord makes a miserable click target. */
+  /* the hit area, sized to be easy to aim at */
   > #knob {
-    type: rect; x: 646px; y: 290px; width: 28px; height: 52px; border-radius: 14px;
+    type: rect;
+    x: 646px;
+    y: 290px;
+    width: 28px;
+    height: 52px;
+    border-radius: 14px;
     fill: linear-gradient(135deg, #f3e7c6 0%, #c2ae7e 55%, #8d7d55 100%);
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
     cursor: pointer;
   }
+
   > #knobRing {
-    type: rect; x: 646px; y: 302px; width: 28px; height: 3px;
-    fill: #6b5e43; opacity: 0.55; pointer-events: none;
+    type: rect;
+    x: 646px;
+    y: 302px;
+    width: 28px;
+    height: 3px;
+    fill: #6b5e43;
+    opacity: 0.55;
+    pointer-events: none;
   }
+
   > #knobShine {
-    type: rect; x: 651px; y: 296px; width: 5px; height: 40px; border-radius: 2.5px;
-    fill: #ffffff; opacity: 0.35; pointer-events: none;
+    type: rect;
+    x: 651px;
+    y: 296px;
+    width: 5px;
+    height: 40px;
+    border-radius: 2.5px;
+    fill: #ffffff;
+    opacity: 0.35;
+    pointer-events: none;
   }
 }
 
-/* ceiling plate the chain hangs from; static, so it sits outside the swinging group */
+/* static ceiling plate, outside the swinging group */
 #mount {
-  type: rect; x: 644px; y: 22px; width: 32px; height: 14px; border-radius: 4px;
+  type: rect;
+  x: 644px;
+  y: 22px;
+  width: 32px;
+  height: 14px;
+  border-radius: 4px;
   fill: linear-gradient(180deg, #5a5f70 0%, #3a3e4c 100%);
 }
 
 #hint {
-  type: text; content: "PULL THE CHAIN"; x: 400px; y: 572px;
-  font-size: 13px; font-family: sans-serif; text-anchor: middle; letter-spacing: 3px;
+  type: text;
+  content: "PULL THE CHAIN";
+  x: 400px;
+  y: 572px;
+  font-size: 13px;
+  font-family: sans-serif;
+  text-anchor: middle;
+  letter-spacing: 3px;
   fill: #7d8199;
   &:state(lamp.on) { content: "PULL AGAIN, OR LEAVE IT 10S"; fill: #b9a37a; }
 }
 ` },
   { key: "11-state-machine--app-shell.css", label: "State machine: App shell", source: `/* Author: AI Generated */
-/* State machine UI — a @machine with a \`state *\` wildcard driving the bottom tab
-   bar of a navigable mobile app shell. Popkorn isn't just for motion graphics:
-   this is a wireframe app running inside a phone frame, with a working tab bar
-   you can actually click through.
+/* State machine UI — a \`state *\` wildcard @machine drives a clickable tab bar in a wireframe
+   app; the phone frame is an imported SVG, the app is mapped onto its screen. */
 
-   \`state *\` is what makes it a tab bar rather than a cycle — the transitions are
-   declared once against every state, so any tab is reachable from any other in
-   one tap. Tapping flips the state, and per-tab :state(nav.*) rules light the
-   active icon/label and fade in its content panel. Click Home / Search /
-   Activity / Profile at the bottom of the screen.
-
-   The phone body is an SVG illustration imported through @popkorn/converters
-   (side buttons, bezel highlight, camera, antenna lines). The app is authored in
-   its own 390x830 "screen" space, then a single group transform maps it onto the
-   phone's display and a clip-path rounds it to the glass — the camera layer
-   paints last, so it sits on top of the running app. */
-   
 :root {
   width: 72.5px;
   height: 150px;
 }
 
-/* ---- bottom-tab navigation: one state per screen, any-state tap wins ---- */
+/* one state per tab; \`state *\` makes every tab reachable from any other */
 @machine nav {
   initial: home;
   state * {
@@ -2016,15 +2447,24 @@ export const examples: Example[] = [
 /* each content panel fades + slides up when its tab becomes active */
 @keyframes enter {
   0%   { opacity: 0; transform: translateY(12px); animation-timing-function: ease-out; }
-  100% { opacity: 1; transform: translateY(0);    }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
-/* ---- wireframe primitives (reused across panels) ---- */
-@define card { type: rect; border-radius: 12px; fill: #26223a; }
-@define line { type: rect; border-radius: 4px; height: 12px; fill: #322d45; }
+/* wireframe primitives */
+@define card {
+  type: rect;
+  border-radius: 12px;
+  fill: #26223a;
+}
 
-/* ============================ PHONE HARDWARE ============================ */
+@define line {
+  type: rect;
+  border-radius: 4px;
+  height: 12px;
+  fill: #322d45;
+}
 
+/* phone hardware (imported SVG) */
 #side-buttons {
   type: group;
   > #volume-up {
@@ -2042,6 +2482,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
     > #rect6-2 {
       type: rect;
       x: 0.062px;
@@ -2056,6 +2497,7 @@ export const examples: Example[] = [
       stroke-linejoin: round;
     }
   }
+
   > #mute-switch {
     type: group;
     transform: translate(-0.246px, 0px);
@@ -2067,6 +2509,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
     > #rect6-2-9 {
       type: path;
       d: 'M 0.60575527,42.897755 H 7.240808 c 0.1648801,0 0.2976176,0.132737 0.2976176,0.297617 v 10.397297 c 0,0.16488 -0.1327375,0.297618 -0.2976176,0.297618 H 0.60575527 c -0.16488019,0 -0.29761767,-0.132738 -0.29761767,-0.297618 V 43.195372 c 0,-0.16488 0.13273748,-0.297617 0.29761767,-0.297617 z';
@@ -2076,6 +2519,7 @@ export const examples: Example[] = [
       stroke-linejoin: round;
     }
   }
+
   > #power-button {
     type: group;
     transform: translate(72.746px, 3.822px) scale(-1, 1);
@@ -2087,6 +2531,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
     > #rect6-2-9-5 {
       type: path;
       d: 'M 0.60575527,42.897755 H 7.240808 c 0.1648801,0 0.2976176,0.132737 0.2976176,0.297617 v 16.947582 c 0,0.16488 -0.1327375,0.297618 -0.2976176,0.297618 H 0.60575527 c -0.16488019,0 -0.29761767,-0.132738 -0.29761767,-0.297618 V 43.195372 c 0,-0.16488 0.13273748,-0.297617 0.29761767,-0.297617 z';
@@ -2096,6 +2541,7 @@ export const examples: Example[] = [
       stroke-linejoin: round;
     }
   }
+
   > #volume-down {
     type: group;
     transform: translate(-0.246px, 14.23px);
@@ -2107,6 +2553,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
     > #rect6-2-9-8 {
       type: path;
       d: 'M 0.60575527,42.897755 H 7.240808 c 0.1648801,0 0.2976176,0.132737 0.2976176,0.297617 v 10.397297 c 0,0.16488 -0.1327375,0.297618 -0.2976176,0.297618 H 0.60575527 c -0.16488019,0 -0.29761767,-0.132738 -0.29761767,-0.297618 V 43.195372 c 0,-0.16488 0.13273748,-0.297617 0.29761767,-0.297617 z';
@@ -2117,6 +2564,7 @@ export const examples: Example[] = [
     }
   }
 }
+
 #device-body {
   type: group;
   > #rect32 {
@@ -2133,6 +2581,7 @@ export const examples: Example[] = [
     stroke-linejoin: round;
   }
 }
+
 #screen {
   type: group;
   > #screen-fill {
@@ -2146,6 +2595,7 @@ export const examples: Example[] = [
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
     > #screen-surface {
       type: path;
       d: 'm 13.312383,0.90038112 c -6.6447174,0 -11.9667114,5.32043998 -11.9667114,11.96515988 V 137.13495 c 0,6.64471 5.321994,11.96466 11.9667114,11.96466 h 45.875234 c 6.64472,0 11.96671,-5.31995 11.96671,-11.96466 V 12.865541 c 0,-6.6447199 -5.32199,-11.96515988 -11.96671,-11.96515988 z';
@@ -2156,6 +2606,7 @@ export const examples: Example[] = [
     }
   }
 }
+
 #screen-highlights {
   type: group;
   > #edge-highlight {
@@ -2167,6 +2618,7 @@ export const examples: Example[] = [
     stroke-linejoin: round;
   }
 }
+
 #screen-black {
   type: group;
   > #black-fill {
@@ -2177,6 +2629,7 @@ export const examples: Example[] = [
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+
   > #notch-highlight {
     type: path;
     d: 'm 29.068268,0.97661114 c 0.09826,0 0.286648,0.56482346 0.400492,0.56482346 h 13.56248 c 0.113844,0 0.302237,-0.56482346 0.400492,-0.56482346 z';
@@ -2186,6 +2639,7 @@ export const examples: Example[] = [
     stroke-linejoin: round;
   }
 }
+
 #bezel-inner {
   type: group;
   > #inner-frame {
@@ -2198,211 +2652,702 @@ export const examples: Example[] = [
   }
 }
 
-/* ============================ APP UI (nested in the screen) ============================ */
-/* Authored in a 390x830 screen space (x 19..409, y 19..849), then this one
-   transform maps it onto the phone's #333333 display (x 2.9..69.6, y 2.5..147.5)
-   and the clip-path rounds it to the glass. Placed after #bezel-inner (the screen)
-   and before #front-camera-sensors (the camera), so the app IS the screen content
-   and the camera composites on top. */
+/* app UI, authored in 390x830 screen space and mapped onto the display; paints under the camera */
 #app {
   type: group;
   transform: translate(-0.408px, -0.856px) scale(0.17478);
   clip-path: path('M 78 19 L 350 19 A 59.5 59.5 0 0 1 409 78 L 409 790 A 59.5 59.5 0 0 1 350 849 L 78 849 A 59.5 59.5 0 0 1 19 790 L 19 78 A 59.5 59.5 0 0 1 78 19 Z');
 
-  /* dark "on" wallpaper filling the display */
   > #screen-wallpaper {
-    type: rect; x: 19px; y: 19px; width: 390px; height: 830px;
-    border-radius: 59.5px; fill: radial-gradient(#2a2438, #0a0a12);
+    type: rect;
+    x: 19px;
+    y: 19px;
+    width: 390px;
+    height: 830px;
+    border-radius: 59.5px;
+    fill: radial-gradient(#2a2438, #0a0a12);
   }
 
-  /* ---- status bar: clock + battery (flank the phone's camera) ---- */
+  /* status bar */
   > #clock {
-    type: text; content: "9:41"; x: 52px; y: 52px;
-    font-size: 15px; font-family: sans-serif; font-weight: bold;
-    text-anchor: start; fill: #d8d4e0;
-  }
-  > #battery {
-    type: rect; x: 356px; y: 40px; width: 22px; height: 11px;
-    border-radius: 3px; fill: none; stroke: #8f8b9c; stroke-width: 1.5px;
-  }
-  > #battery-fill {
-    type: rect; x: 358px; y: 42px; width: 14px; height: 7px;
-    border-radius: 1px; fill: #d8d4e0;
-  }
-  > #battery-tip {
-    type: rect; x: 379px; y: 43px; width: 2px; height: 5px;
-    border-radius: 1px; fill: #8f8b9c;
+    type: text;
+    content: "9:41";
+    x: 52px;
+    y: 52px;
+    font-size: 15px;
+    font-family: sans-serif;
+    font-weight: bold;
+    text-anchor: start;
+    fill: #d8d4e0;
   }
 
-  /* ---- HOME: hero card + list rows ---- */
+  > #battery {
+    type: rect;
+    x: 356px;
+    y: 40px;
+    width: 22px;
+    height: 11px;
+    border-radius: 3px;
+    fill: none;
+    stroke: #8f8b9c;
+    stroke-width: 1.5px;
+  }
+
+  > #battery-fill {
+    type: rect;
+    x: 358px;
+    y: 42px;
+    width: 14px;
+    height: 7px;
+    border-radius: 1px;
+    fill: #d8d4e0;
+  }
+
+  > #battery-tip {
+    type: rect;
+    x: 379px;
+    y: 43px;
+    width: 2px;
+    height: 5px;
+    border-radius: 1px;
+    fill: #8f8b9c;
+  }
+
+  /* home panel */
   > #panel-home {
-    type: group; opacity: 0; pointer-events: none;
+    type: group;
+    opacity: 0;
+    pointer-events: none;
     transform-origin: 214px 400px;
     &:state(nav.home) { animation: enter 320ms ease-out; }
 
-    > #home-hero { use: card; x: 44px; y: 118px; width: 340px; height: 152px; border-radius: 16px; fill: #2b2743; }
-    > #home-hero-l1 { use: line; x: 62px; y: 210px; width: 184px; height: 15px; fill: #4a4568; }
-    > #home-hero-l2 { use: line; x: 62px; y: 233px; width: 116px; height: 11px; fill: #3a3556; }
+    > #home-hero {
+      use: card;
+      x: 44px;
+      y: 118px;
+      width: 340px;
+      height: 152px;
+      border-radius: 16px;
+      fill: #2b2743;
+    }
 
-    > #home-t1 { use: card; x: 44px; y: 296px; width: 46px; height: 46px; border-radius: 12px; fill: #2a2640; }
-    > #home-r1a { use: line; x: 104px; y: 305px; width: 210px; }
-    > #home-r1b { use: line; x: 104px; y: 325px; width: 132px; height: 10px; fill: #2a2640; }
+    > #home-hero-l1 {
+      use: line;
+      x: 62px;
+      y: 210px;
+      width: 184px;
+      height: 15px;
+      fill: #4a4568;
+    }
 
-    > #home-t2 { use: card; x: 44px; y: 360px; width: 46px; height: 46px; border-radius: 12px; fill: #2a2640; }
-    > #home-r2a { use: line; x: 104px; y: 369px; width: 190px; }
-    > #home-r2b { use: line; x: 104px; y: 389px; width: 150px; height: 10px; fill: #2a2640; }
+    > #home-hero-l2 {
+      use: line;
+      x: 62px;
+      y: 233px;
+      width: 116px;
+      height: 11px;
+      fill: #3a3556;
+    }
 
-    > #home-t3 { use: card; x: 44px; y: 424px; width: 46px; height: 46px; border-radius: 12px; fill: #2a2640; }
-    > #home-r3a { use: line; x: 104px; y: 433px; width: 200px; }
-    > #home-r3b { use: line; x: 104px; y: 453px; width: 110px; height: 10px; fill: #2a2640; }
+    > #home-t1 {
+      use: card;
+      x: 44px;
+      y: 296px;
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      fill: #2a2640;
+    }
+
+    > #home-r1a {
+      use: line;
+      x: 104px;
+      y: 305px;
+      width: 210px;
+    }
+
+    > #home-r1b {
+      use: line;
+      x: 104px;
+      y: 325px;
+      width: 132px;
+      height: 10px;
+      fill: #2a2640;
+    }
+
+    > #home-t2 {
+      use: card;
+      x: 44px;
+      y: 360px;
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      fill: #2a2640;
+    }
+
+    > #home-r2a {
+      use: line;
+      x: 104px;
+      y: 369px;
+      width: 190px;
+    }
+
+    > #home-r2b {
+      use: line;
+      x: 104px;
+      y: 389px;
+      width: 150px;
+      height: 10px;
+      fill: #2a2640;
+    }
+
+    > #home-t3 {
+      use: card;
+      x: 44px;
+      y: 424px;
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      fill: #2a2640;
+    }
+
+    > #home-r3a {
+      use: line;
+      x: 104px;
+      y: 433px;
+      width: 200px;
+    }
+
+    > #home-r3b {
+      use: line;
+      x: 104px;
+      y: 453px;
+      width: 110px;
+      height: 10px;
+      fill: #2a2640;
+    }
   }
 
-  /* ---- SEARCH: search field + 3x2 tile grid ---- */
+  /* search panel */
   > #panel-search {
-    type: group; opacity: 0; pointer-events: none;
+    type: group;
+    opacity: 0;
+    pointer-events: none;
     transform-origin: 214px 400px;
     &:state(nav.search) { animation: enter 320ms ease-out; }
 
-    > #search-field { use: card; x: 44px; y: 118px; width: 340px; height: 46px; border-radius: 14px; }
-    > #search-glass {
-      type: path; d: 'M 60 134 A 7 7 0 1 1 74 134 A 7 7 0 1 1 60 134 M 72 139 L 78 145';
-      fill: none; stroke: #6b6780; stroke-width: 2px; stroke-linecap: round;
+    > #search-field {
+      use: card;
+      x: 44px;
+      y: 118px;
+      width: 340px;
+      height: 46px;
+      border-radius: 14px;
     }
-    > #search-ph { use: line; x: 92px; y: 135px; width: 130px; fill: #322d45; }
 
-    > #g1 { use: card; x: 44px;  y: 186px; width: 104px; height: 104px; }
-    > #g2 { use: card; x: 162px; y: 186px; width: 104px; height: 104px; }
-    > #g3 { use: card; x: 280px; y: 186px; width: 104px; height: 104px; }
-    > #g4 { use: card; x: 44px;  y: 302px; width: 104px; height: 104px; }
-    > #g5 { use: card; x: 162px; y: 302px; width: 104px; height: 104px; }
-    > #g6 { use: card; x: 280px; y: 302px; width: 104px; height: 104px; }
+    > #search-glass {
+      type: path;
+      d: 'M 60 134 A 7 7 0 1 1 74 134 A 7 7 0 1 1 60 134 M 72 139 L 78 145';
+      fill: none;
+      stroke: #6b6780;
+      stroke-width: 2px;
+      stroke-linecap: round;
+    }
+
+    > #search-ph {
+      use: line;
+      x: 92px;
+      y: 135px;
+      width: 130px;
+      fill: #322d45;
+    }
+
+    > #g1 {
+      use: card;
+      x: 44px;
+      y: 186px;
+      width: 104px;
+      height: 104px;
+    }
+
+    > #g2 {
+      use: card;
+      x: 162px;
+      y: 186px;
+      width: 104px;
+      height: 104px;
+    }
+
+    > #g3 {
+      use: card;
+      x: 280px;
+      y: 186px;
+      width: 104px;
+      height: 104px;
+    }
+
+    > #g4 {
+      use: card;
+      x: 44px;
+      y: 302px;
+      width: 104px;
+      height: 104px;
+    }
+
+    > #g5 {
+      use: card;
+      x: 162px;
+      y: 302px;
+      width: 104px;
+      height: 104px;
+    }
+
+    > #g6 {
+      use: card;
+      x: 280px;
+      y: 302px;
+      width: 104px;
+      height: 104px;
+    }
   }
 
-  /* ---- ACTIVITY: bar chart card + two stat cards ---- */
+  /* activity panel */
   > #panel-activity {
-    type: group; opacity: 0; pointer-events: none;
+    type: group;
+    opacity: 0;
+    pointer-events: none;
     transform-origin: 214px 400px;
     &:state(nav.activity) { animation: enter 320ms ease-out; }
 
-    > #act-card { use: card; x: 44px; y: 118px; width: 340px; height: 202px; border-radius: 16px; fill: #221f34; }
-    > #bar1 { type: rect; x: 74px;  y: 240px; width: 30px; height: 60px;  border-radius: 6px; fill: #46507e; }
-    > #bar2 { type: rect; x: 124px; y: 190px; width: 30px; height: 110px; border-radius: 6px; fill: #55619a; }
-    > #bar3 { type: rect; x: 174px; y: 220px; width: 30px; height: 80px;  border-radius: 6px; fill: #46507e; }
-    > #bar4 { type: rect; x: 224px; y: 160px; width: 30px; height: 140px; border-radius: 6px; fill: #6b78bf; }
-    > #bar5 { type: rect; x: 274px; y: 200px; width: 30px; height: 100px; border-radius: 6px; fill: #55619a; }
-    > #bar6 { type: rect; x: 324px; y: 150px; width: 30px; height: 150px; border-radius: 6px; fill: #7c8ad6; }
+    > #act-card {
+      use: card;
+      x: 44px;
+      y: 118px;
+      width: 340px;
+      height: 202px;
+      border-radius: 16px;
+      fill: #221f34;
+    }
 
-    > #stat1 { use: card; x: 44px;  y: 344px; width: 164px; height: 84px; }
-    > #stat1-l1 { use: line; x: 60px; y: 364px; width: 70px; height: 22px; border-radius: 6px; fill: #4a4568; }
-    > #stat1-l2 { use: line; x: 60px; y: 398px; width: 110px; height: 10px; fill: #2f2b45; }
-    > #stat2 { use: card; x: 220px; y: 344px; width: 164px; height: 84px; }
-    > #stat2-l1 { use: line; x: 236px; y: 364px; width: 70px; height: 22px; border-radius: 6px; fill: #4a4568; }
-    > #stat2-l2 { use: line; x: 236px; y: 398px; width: 110px; height: 10px; fill: #2f2b45; }
+    > #bar1 {
+      type: rect;
+      x: 74px;
+      y: 240px;
+      width: 30px;
+      height: 60px;
+      border-radius: 6px;
+      fill: #46507e;
+    }
+
+    > #bar2 {
+      type: rect;
+      x: 124px;
+      y: 190px;
+      width: 30px;
+      height: 110px;
+      border-radius: 6px;
+      fill: #55619a;
+    }
+
+    > #bar3 {
+      type: rect;
+      x: 174px;
+      y: 220px;
+      width: 30px;
+      height: 80px;
+      border-radius: 6px;
+      fill: #46507e;
+    }
+
+    > #bar4 {
+      type: rect;
+      x: 224px;
+      y: 160px;
+      width: 30px;
+      height: 140px;
+      border-radius: 6px;
+      fill: #6b78bf;
+    }
+
+    > #bar5 {
+      type: rect;
+      x: 274px;
+      y: 200px;
+      width: 30px;
+      height: 100px;
+      border-radius: 6px;
+      fill: #55619a;
+    }
+
+    > #bar6 {
+      type: rect;
+      x: 324px;
+      y: 150px;
+      width: 30px;
+      height: 150px;
+      border-radius: 6px;
+      fill: #7c8ad6;
+    }
+
+    > #stat1 {
+      use: card;
+      x: 44px;
+      y: 344px;
+      width: 164px;
+      height: 84px;
+    }
+
+    > #stat1-l1 {
+      use: line;
+      x: 60px;
+      y: 364px;
+      width: 70px;
+      height: 22px;
+      border-radius: 6px;
+      fill: #4a4568;
+    }
+
+    > #stat1-l2 {
+      use: line;
+      x: 60px;
+      y: 398px;
+      width: 110px;
+      height: 10px;
+      fill: #2f2b45;
+    }
+
+    > #stat2 {
+      use: card;
+      x: 220px;
+      y: 344px;
+      width: 164px;
+      height: 84px;
+    }
+
+    > #stat2-l1 {
+      use: line;
+      x: 236px;
+      y: 364px;
+      width: 70px;
+      height: 22px;
+      border-radius: 6px;
+      fill: #4a4568;
+    }
+
+    > #stat2-l2 {
+      use: line;
+      x: 236px;
+      y: 398px;
+      width: 110px;
+      height: 10px;
+      fill: #2f2b45;
+    }
   }
 
-  /* ---- PROFILE: avatar + name + setting rows ---- */
+  /* profile panel */
   > #panel-profile {
-    type: group; opacity: 0; pointer-events: none;
+    type: group;
+    opacity: 0;
+    pointer-events: none;
     transform-origin: 214px 400px;
     &:state(nav.profile) { animation: enter 320ms ease-out; }
 
     > #avatar {
-      type: circle; cx: 214px; cy: 176px; r: 46px;
-      fill: #2a2640; stroke: #3f3a5c; stroke-width: 2px;
+      type: circle;
+      cx: 214px;
+      cy: 176px;
+      r: 46px;
+      fill: #2a2640;
+      stroke: #3f3a5c;
+      stroke-width: 2px;
     }
-    > #avatar-head { type: circle; cx: 214px; cy: 164px; r: 15px; fill: #4a4568; }
-    > #avatar-body { type: path; d: 'M 190 202 Q 214 176 238 202'; fill: #4a4568; }
-    > #prof-name { use: line; x: 144px; y: 244px; width: 140px; height: 16px; border-radius: 6px; fill: #4a4568; }
-    > #prof-sub  { use: line; x: 164px; y: 270px; width: 100px; height: 11px; fill: #2f2b45; }
 
-    > #set1 { use: card; x: 44px; y: 314px; width: 340px; height: 46px; fill: #221f34; }
-    > #set1-l { use: line; x: 62px; y: 331px; width: 170px; fill: #3a3556; }
-    > #set1-c { type: rect; x: 360px; y: 331px; width: 8px; height: 12px; border-radius: 2px; fill: #3a3556; }
-    > #set2 { use: card; x: 44px; y: 370px; width: 340px; height: 46px; fill: #221f34; }
-    > #set2-l { use: line; x: 62px; y: 387px; width: 140px; fill: #3a3556; }
-    > #set2-c { type: rect; x: 360px; y: 387px; width: 8px; height: 12px; border-radius: 2px; fill: #3a3556; }
-    > #set3 { use: card; x: 44px; y: 426px; width: 340px; height: 46px; fill: #221f34; }
-    > #set3-l { use: line; x: 62px; y: 443px; width: 200px; fill: #3a3556; }
-    > #set3-c { type: rect; x: 360px; y: 443px; width: 8px; height: 12px; border-radius: 2px; fill: #3a3556; }
+    > #avatar-head {
+      type: circle;
+      cx: 214px;
+      cy: 164px;
+      r: 15px;
+      fill: #4a4568;
+    }
+
+    > #avatar-body {
+      type: path;
+      d: 'M 190 202 Q 214 176 238 202';
+      fill: #4a4568;
+    }
+
+    > #prof-name {
+      use: line;
+      x: 144px;
+      y: 244px;
+      width: 140px;
+      height: 16px;
+      border-radius: 6px;
+      fill: #4a4568;
+    }
+
+    > #prof-sub {
+      use: line;
+      x: 164px;
+      y: 270px;
+      width: 100px;
+      height: 11px;
+      fill: #2f2b45;
+    }
+
+    > #set1 {
+      use: card;
+      x: 44px;
+      y: 314px;
+      width: 340px;
+      height: 46px;
+      fill: #221f34;
+    }
+
+    > #set1-l {
+      use: line;
+      x: 62px;
+      y: 331px;
+      width: 170px;
+      fill: #3a3556;
+    }
+
+    > #set1-c {
+      type: rect;
+      x: 360px;
+      y: 331px;
+      width: 8px;
+      height: 12px;
+      border-radius: 2px;
+      fill: #3a3556;
+    }
+
+    > #set2 {
+      use: card;
+      x: 44px;
+      y: 370px;
+      width: 340px;
+      height: 46px;
+      fill: #221f34;
+    }
+
+    > #set2-l {
+      use: line;
+      x: 62px;
+      y: 387px;
+      width: 140px;
+      fill: #3a3556;
+    }
+
+    > #set2-c {
+      type: rect;
+      x: 360px;
+      y: 387px;
+      width: 8px;
+      height: 12px;
+      border-radius: 2px;
+      fill: #3a3556;
+    }
+
+    > #set3 {
+      use: card;
+      x: 44px;
+      y: 426px;
+      width: 340px;
+      height: 46px;
+      fill: #221f34;
+    }
+
+    > #set3-l {
+      use: line;
+      x: 62px;
+      y: 443px;
+      width: 200px;
+      fill: #3a3556;
+    }
+
+    > #set3-c {
+      type: rect;
+      x: 360px;
+      y: 443px;
+      width: 8px;
+      height: 12px;
+      border-radius: 2px;
+      fill: #3a3556;
+    }
   }
 
-  /* ---- bottom tab bar ---- */
+  /* tab bar */
   > #tabbar {
-    type: rect; x: 19px; y: 748px; width: 390px; height: 101px;
+    type: rect;
+    x: 19px;
+    y: 748px;
+    width: 390px;
+    height: 101px;
     fill: #17141f;
   }
+
   > #tabbar-divider {
-    type: rect; x: 19px; y: 748px; width: 390px; height: 1.5px; fill: #2a2636;
+    type: rect;
+    x: 19px;
+    y: 748px;
+    width: 390px;
+    height: 1.5px;
+    fill: #2a2636;
   }
 
   > #tab-home {
     type: group;
-    > #cell-home { type: rect; x: 20px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #cell-home {
+      type: rect;
+      x: 20px;
+      y: 750px;
+      width: 96px;
+      height: 92px;
+      fill: #17141f;
+    }
+
     > #icon-home {
-      type: path; d: 'M 55 779 L 68 767 L 81 779 M 58 777 L 58 790 L 78 790 L 78 777';
-      fill: none; stroke: #55525f; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round;
+      type: path;
+      d: 'M 55 779 L 68 767 L 81 779 M 58 777 L 58 790 L 78 790 L 78 777';
+      fill: none;
+      stroke: #55525f;
+      stroke-width: 2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       &:state(nav.home) { stroke: #7c9dff; }
     }
+
     > #label-home {
-      type: text; content: "Home"; x: 68px; y: 813px;
-      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      type: text;
+      content: "Home";
+      x: 68px;
+      y: 813px;
+      font-size: 11px;
+      font-family: sans-serif;
+      text-anchor: middle;
+      fill: #55525f;
       &:state(nav.home) { fill: #7c9dff; }
     }
   }
 
   > #tab-search {
     type: group;
-    > #cell-search { type: rect; x: 117px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #cell-search {
+      type: rect;
+      x: 117px;
+      y: 750px;
+      width: 96px;
+      height: 92px;
+      fill: #17141f;
+    }
+
     > #icon-search {
-      type: path; d: 'M 158 773 A 7 7 0 1 1 172 773 A 7 7 0 1 1 158 773 M 170 778 L 176 784';
-      fill: none; stroke: #55525f; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round;
+      type: path;
+      d: 'M 158 773 A 7 7 0 1 1 172 773 A 7 7 0 1 1 158 773 M 170 778 L 176 784';
+      fill: none;
+      stroke: #55525f;
+      stroke-width: 2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       &:state(nav.search) { stroke: #7c9dff; }
     }
+
     > #label-search {
-      type: text; content: "Search"; x: 165px; y: 813px;
-      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      type: text;
+      content: "Search";
+      x: 165px;
+      y: 813px;
+      font-size: 11px;
+      font-family: sans-serif;
+      text-anchor: middle;
+      fill: #55525f;
       &:state(nav.search) { fill: #7c9dff; }
     }
   }
 
   > #tab-activity {
     type: group;
-    > #cell-activity { type: rect; x: 215px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #cell-activity {
+      type: rect;
+      x: 215px;
+      y: 750px;
+      width: 96px;
+      height: 92px;
+      fill: #17141f;
+    }
+
     > #icon-activity {
-      type: path; d: 'M 255 785 L 255 777 M 263 785 L 263 769 M 271 785 L 271 773';
-      fill: none; stroke: #55525f; stroke-width: 3px; stroke-linecap: round;
+      type: path;
+      d: 'M 255 785 L 255 777 M 263 785 L 263 769 M 271 785 L 271 773';
+      fill: none;
+      stroke: #55525f;
+      stroke-width: 3px;
+      stroke-linecap: round;
       &:state(nav.activity) { stroke: #7c9dff; }
     }
+
     > #label-activity {
-      type: text; content: "Activity"; x: 263px; y: 813px;
-      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      type: text;
+      content: "Activity";
+      x: 263px;
+      y: 813px;
+      font-size: 11px;
+      font-family: sans-serif;
+      text-anchor: middle;
+      fill: #55525f;
       &:state(nav.activity) { fill: #7c9dff; }
     }
   }
 
   > #tab-profile {
     type: group;
-    > #cell-profile { type: rect; x: 312px; y: 750px; width: 96px; height: 92px; fill: #17141f; }
+    > #cell-profile {
+      type: rect;
+      x: 312px;
+      y: 750px;
+      width: 96px;
+      height: 92px;
+      fill: #17141f;
+    }
+
     > #icon-profile {
-      type: path; d: 'M 355 771 A 5 5 0 1 1 365 771 A 5 5 0 1 1 355 771 M 350 787 Q 360 778 370 787';
-      fill: none; stroke: #55525f; stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round;
+      type: path;
+      d: 'M 355 771 A 5 5 0 1 1 365 771 A 5 5 0 1 1 355 771 M 350 787 Q 360 778 370 787';
+      fill: none;
+      stroke: #55525f;
+      stroke-width: 2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
       &:state(nav.profile) { stroke: #7c9dff; }
     }
+
     > #label-profile {
-      type: text; content: "Profile"; x: 360px; y: 813px;
-      font-size: 11px; font-family: sans-serif; text-anchor: middle; fill: #55525f;
+      type: text;
+      content: "Profile";
+      x: 360px;
+      y: 813px;
+      font-size: 11px;
+      font-family: sans-serif;
+      text-anchor: middle;
+      fill: #55525f;
       &:state(nav.profile) { fill: #7c9dff; }
     }
   }
 
-  /* home indicator */
   > #home-indicator {
-    type: rect; x: 154px; y: 834px; width: 120px; height: 5px;
-    border-radius: 3px; fill: #6b6878; opacity: 0.85;
+    type: rect;
+    x: 154px;
+    y: 834px;
+    width: 120px;
+    height: 5px;
+    border-radius: 3px;
+    fill: #6b6878;
+    opacity: 0.85;
   }
 }
 
-/* ============================ CAMERA / SENSORS (paints over the app) ============================ */
+/* camera and sensors, painted over the app */
 #front-camera-sensors {
   type: group;
   > #dynamic-island {
@@ -2418,6 +3363,7 @@ export const examples: Example[] = [
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+
   > #camera-lens {
     type: circle;
     cx: 43.681px;
@@ -2428,6 +3374,7 @@ export const examples: Example[] = [
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+
   > #sensor-dot-left-glow {
     type: circle;
     transform: rotate(15deg);
@@ -2439,6 +3386,7 @@ export const examples: Example[] = [
     stroke-linecap: round;
     stroke-linejoin: round;
   }
+
   > #sensor-dot-right-glow {
     type: circle;
     transform: rotate(15deg) scale(-1, 1);
@@ -2450,12 +3398,12 @@ export const examples: Example[] = [
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-}` },
+}
+` },
   { key: "12-lottie--magic-eye.css", label: "Lottie: Magic eye", source: `/* Author: LanaNguyen @LottieFiles
    Author URL: http://lottiefiles.com/gtzfxljyba */
-/* Converted Lottie — "Free Magic eye Animation", downloaded from LottieFiles.com,
-   generated by @popkorn/converters */
-/* comp 1080x1080 @ 60fps, duration 6s */
+/* Converted Lottie — "Free Magic eye Animation" from LottieFiles.com, generated by
+   @popkorn/converters; comp 1080x1080 @ 60fps, 6s */
 
 :root {
   width: 1080px;
@@ -2491,354 +3439,354 @@ export const examples: Example[] = [
 }
 
 @keyframes BG-Rect-Shape-1-k {
-  0% { fill: linear-gradient(from -21.83px -506.73px to -19.34px 545.35px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
+  0%     { fill: linear-gradient(from -21.83px -506.73px to -19.34px 545.35px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
   33.98% { fill: linear-gradient(from -20.07px -713.63px to -17.55px 760.18px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
   66.57% { fill: linear-gradient(from -21.83px -506.73px to -19.34px 545.35px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
   84.12% { fill: linear-gradient(from -20.07px -713.63px to -17.55px 760.18px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
-  100% { fill: linear-gradient(from -21.83px -506.73px to -19.34px 545.35px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
+  100%   { fill: linear-gradient(from -21.83px -506.73px to -19.34px 545.35px, #000000 0%, #3900a2 22.48%, #8955e7 60.55%, #ff8000 86.7%, #ffbf00 100%); }
 }
 
 @keyframes light-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(2.27, 2.27); }
 }
 
 @keyframes light-k-2 {
-  0% { opacity: 0.7; }
+  0%   { opacity: 0.7; }
   100% { opacity: 0; }
 }
 
 @keyframes light-1-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(2.27, 2.27); }
 }
 
 @keyframes light-1-k-2 {
-  0% { opacity: 0.7; }
+  0%   { opacity: 0.7; }
   100% { opacity: 0; }
 }
 
 @keyframes light-1-2-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(2.27, 2.27); }
 }
 
 @keyframes light-1-2-k-2 {
-  0% { opacity: 0.7; }
+  0%   { opacity: 0.7; }
   100% { opacity: 0; }
 }
 
 @keyframes light-1-3-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(2.27, 2.27); }
 }
 
 @keyframes light-1-3-k-2 {
-  0% { opacity: 0.7; }
+  0%   { opacity: 0.7; }
   100% { opacity: 0; }
 }
 
 @keyframes light-2-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(1.55, 1.55); }
 }
 
 @keyframes light-2-k-2 {
-  0% { opacity: 0.7; }
+  0%     { opacity: 0.7; }
   93.33% { opacity: 0; }
-  100% { opacity: 0; }
+  100%   { opacity: 0; }
 }
 
 @keyframes star-k {
-  0% { transform: translate(160.86px, 158.77px); }
+  0%   { transform: translate(160.86px, 158.77px); }
   100% { transform: translate(-162.06px, 60.82px); }
 }
 
 @keyframes star-k-2 {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-k-3 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes star-1-k {
-  0% { transform: translate(683.01px, 321.32px); }
+  0%     { transform: translate(683.01px, 321.32px); }
   14.23% { transform: translate(683.01px, 321.32px); animation-timing-function: var(--e8); }
-  100% { transform: translate(1118.27px, 196.96px); }
+  100%   { transform: translate(1118.27px, 196.96px); }
 }
 
 @keyframes star-1-k-2 {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-1-k-3 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes star-3-k {
-  0% { transform: translate(482.55px, 197.83px); }
+  0%     { transform: translate(482.55px, 197.83px); }
   27.82% { transform: translate(482.55px, 197.83px); animation-timing-function: var(--e8); }
-  100% { transform: translate(459.53px, -104.23px); }
+  100%   { transform: translate(459.53px, -104.23px); }
 }
 
 @keyframes star-3-k-2 {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-3-k-3 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1.58, 1.58); }
 }
 
 @keyframes star-8-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-8-k-2 {
-  0% { transform: scale(0, 0); }
+  0%     { transform: scale(0, 0); }
   48.62% { transform: scale(0.8, 0.8); animation-timing-function: var(--e0); }
-  100% { transform: scale(0, 0); }
+  100%   { transform: scale(0, 0); }
 }
 
 @keyframes star-9-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-9-k-2 {
-  0% { transform: scale(0, 0); }
+  0%     { transform: scale(0, 0); }
   48.62% { transform: scale(0.8, 0.8); animation-timing-function: var(--e0); }
-  100% { transform: scale(0, 0); }
+  100%   { transform: scale(0, 0); }
 }
 
 @keyframes star-2-k {
-  0% { transform: translate(194px, 593.88px); }
+  0%     { transform: translate(194px, 593.88px); }
   17.74% { transform: translate(194px, 593.88px); }
-  100% { transform: translate(-282.5px, 916.5px); }
+  100%   { transform: translate(-282.5px, 916.5px); }
 }
 
 @keyframes star-2-k-2 {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(223deg); }
 }
 
 @keyframes star-2-k-3 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes star-4-k {
-  0% { transform: translate(187.55px, 306.15px); }
+  0%     { transform: translate(187.55px, 306.15px); }
   24.57% { transform: translate(187.55px, 306.15px); }
-  100% { transform: translate(-326.09px, 168.18px); }
+  100%   { transform: translate(-326.09px, 168.18px); }
 }
 
 @keyframes star-4-k-2 {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(223deg); }
 }
 
 @keyframes star-4-k-3 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes star-2-2-k {
-  0% { transform: translate(517.28px, 560.16px); }
+  0%    { transform: translate(517.28px, 560.16px); }
   3.54% { transform: translate(517.28px, 560.16px); }
-  100% { transform: translate(1078.55px, 898.64px); }
+  100%  { transform: translate(1078.55px, 898.64px); }
 }
 
 @keyframes star-2-2-k-2 {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(223deg); }
 }
 
 @keyframes star-2-2-k-3 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes star-5-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(223deg); }
 }
 
 @keyframes star-5-k-2 {
-  0% { transform: scale(0, 0); }
-  40% { transform: scale(0.6, 0.6); animation-timing-function: var(--e0); }
+  0%   { transform: scale(0, 0); }
+  40%  { transform: scale(0.6, 0.6); animation-timing-function: var(--e0); }
   100% { transform: scale(0, 0); }
 }
 
 @keyframes star-6-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(223deg); }
 }
 
 @keyframes star-6-k-2 {
-  0% { transform: scale(0, 0); }
-  40% { transform: scale(0.3, 0.3); animation-timing-function: var(--e0); }
+  0%   { transform: scale(0, 0); }
+  40%  { transform: scale(0.3, 0.3); animation-timing-function: var(--e0); }
   100% { transform: scale(0, 0); }
 }
 
 @keyframes star-7-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(223deg); }
 }
 
 @keyframes star-7-k-2 {
-  0% { transform: scale(0, 0); }
-  40% { transform: scale(0.3, 0.3); animation-timing-function: var(--e0); }
+  0%   { transform: scale(0, 0); }
+  40%  { transform: scale(0.3, 0.3); animation-timing-function: var(--e0); }
   100% { transform: scale(0, 0); }
 }
 
 @keyframes eyes-k {
-  0% { transform: translate(0px, 26px); }
+  0%     { transform: translate(0px, 26px); }
   16.99% { transform: translate(0px, -42px); }
   33.43% { transform: translate(0px, 26px); }
   50.42% { transform: translate(0px, -42px); }
   66.85% { transform: translate(0px, 26px); }
   83.84% { transform: translate(0px, -42px); }
-  100% { transform: translate(0px, 26px); }
+  100%   { transform: translate(0px, 26px); }
 }
 
 @keyframes eyes-k-2 {
-  0% { transform: scale(1, 1); }
+  0%     { transform: scale(1, 1); }
   30.77% { transform: scale(1.4, 1.4); animation-timing-function: cubic-bezier(0, 0, 0.921, 0.779); }
   73.72% { transform: scale(1.4, 1.4); animation-timing-function: var(--e0); }
-  100% { transform: scale(1, 1); }
+  100%   { transform: scale(1, 1); }
 }
 
 @keyframes eyes-e_pupil-k {
-  0% { transform: translate(46.5px, 174px); }
+  0%     { transform: translate(46.5px, 174px); }
   16.59% { transform: translate(86.5px, 155px); animation-timing-function: var(--e0); }
   32.72% { transform: translate(86.5px, 155px); animation-timing-function: cubic-bezier(0.597, 0.004, 0.459, 0.998); }
   58.99% { transform: translate(1.5px, 198px); animation-timing-function: cubic-bezier(0.923, 0.006, 0.852, 0.77); }
-  100% { transform: translate(46.5px, 174px); }
+  100%   { transform: translate(46.5px, 174px); }
 }
 
 @keyframes eyes-e_pupil-k-2 {
-  0% { transform: rotate(0deg); }
+  0%     { transform: rotate(0deg); }
   16.59% { transform: rotate(-10deg); animation-timing-function: var(--e0); }
   32.72% { transform: rotate(-10deg); animation-timing-function: cubic-bezier(0.776, -0.003, 0.77, 1); }
   46.54% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.311, 0.009, 0.33, 0.997); }
   60.37% { transform: rotate(-22deg); animation-timing-function: cubic-bezier(0.866, 0.019, 0.89, 1.009); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes eyes-e_pupil-k-3 {
-  0% { transform: scale(1, 1); }
+  0%     { transform: scale(1, 1); }
   10.59% { transform: scale(0.8, 1); animation-timing-function: var(--e0); }
   21.81% { transform: scale(0.8, 1); animation-timing-function: cubic-bezier(0.861, -0.038, 0.77, 1); }
   31.15% { transform: scale(1, 1); animation-timing-function: cubic-bezier(0.454, 0, 0.421, 0.988); }
   39.56% { transform: scale(0.8, 1); animation-timing-function: cubic-bezier(0.879, 0.004, 0.902, 0.879); }
-  67.6% { transform: scale(1.08, 1.08); animation-timing-function: cubic-bezier(0.226, 0.567, 0.667, 1); }
+  67.6%  { transform: scale(1.08, 1.08); animation-timing-function: cubic-bezier(0.226, 0.567, 0.667, 1); }
   82.87% { transform: scale(1.18, 1.18); animation-timing-function: cubic-bezier(0.7, -0.024, 0.667, 1); }
-  100% { transform: scale(1, 1); }
+  100%   { transform: scale(1, 1); }
 }
 
 @keyframes eyes-highlight-2-k {
-  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.787, -0.036, 0.667, 1); }
+  0%     { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.787, -0.036, 0.667, 1); }
   21.51% { transform: rotate(27deg); animation-timing-function: cubic-bezier(0.871, 0.004, 0.835, 1.006); }
   45.81% { transform: rotate(155deg); animation-timing-function: cubic-bezier(0.886, -0.003, 0.867, 0.996); }
   70.67% { transform: rotate(-66deg); animation-timing-function: cubic-bezier(0.282, 0.019, 0.667, 1); }
-  74.3% { transform: rotate(-12deg); }
+  74.3%  { transform: rotate(-12deg); }
   77.93% { transform: rotate(12deg); }
   81.56% { transform: rotate(-12deg); }
   84.64% { transform: rotate(12deg); }
   88.27% { transform: rotate(-12deg); }
   91.62% { transform: rotate(12deg); }
   95.25% { transform: rotate(-12deg); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes eyes-highlight-1-k {
-  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.841, 0.009, 0.667, 1); }
+  0%     { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.841, 0.009, 0.667, 1); }
   21.51% { transform: rotate(93deg); animation-timing-function: cubic-bezier(0.919, 0.01, 0.759, 1.001); }
   45.81% { transform: rotate(206deg); animation-timing-function: cubic-bezier(0.838, 0.008, 0.844, 0.996); }
   70.67% { transform: rotate(-32deg); animation-timing-function: cubic-bezier(0.272, 0.012, 0.667, 1); }
-  74.3% { transform: rotate(-12deg); }
+  74.3%  { transform: rotate(-12deg); }
   77.93% { transform: rotate(12deg); }
   81.56% { transform: rotate(-12deg); }
   84.64% { transform: rotate(12deg); }
   88.27% { transform: rotate(-12deg); }
   91.62% { transform: rotate(12deg); }
   95.25% { transform: rotate(-12deg); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes eyes-Shape-Layer-10-k {
-  0% { transform: translate(0px, 0px); }
+  0%     { transform: translate(0px, 0px); }
   16.13% { transform: translate(32px, -5px); animation-timing-function: var(--e0); }
   32.72% { transform: translate(32px, -5px); animation-timing-function: cubic-bezier(0.758, 0.014, 0.565, 1.042); }
   58.99% { transform: translate(-36px, 9px); animation-timing-function: cubic-bezier(0.845, -0.005, 0.907, 0.988); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes eyes-e_inside-Group-18-k {
-  0% { transform: translate(0px, 0px); }
+  0%     { transform: translate(0px, 0px); }
   39.04% { transform: translate(32.06px, 12.35px); animation-timing-function: cubic-bezier(0.928, -0.004, 0.884, 1.003); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes eyes-e_inside-Group-17-k {
-  0% { transform: translate(0px, 0px); }
+  0%     { transform: translate(0px, 0px); }
   39.46% { transform: translate(52.79px, 13.8px); animation-timing-function: cubic-bezier(0.914, -0.003, 0.876, 0.989); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes eyes-e_inside-Group-17-k-2 {
-  0% { transform: scale(1, 1); }
-  8.36% { transform: scale(0.75, 0.75); }
+  0%     { transform: scale(1, 1); }
+  8.36%  { transform: scale(0.75, 0.75); }
   16.71% { transform: scale(1, 1); }
   25.07% { transform: scale(0.75, 0.75); }
   33.43% { transform: scale(1, 1); }
   41.78% { transform: scale(0.75, 0.75); }
   50.14% { transform: scale(1, 1); }
-  58.5% { transform: scale(0.75, 0.75); }
+  58.5%  { transform: scale(0.75, 0.75); }
   66.85% { transform: scale(1, 1); }
   75.21% { transform: scale(0.75, 0.75); }
   83.57% { transform: scale(1, 1); }
   91.92% { transform: scale(0.75, 0.75); }
-  100% { transform: scale(1, 1); }
+  100%   { transform: scale(1, 1); }
 }
 
 @keyframes eyes-e_inside-Group-16-k {
-  0% { transform: translate(493px, 396.95px); }
+  0%     { transform: translate(493px, 396.95px); }
   23.04% { transform: translate(481.9px, 402.13px); }
   32.72% { transform: translate(481.9px, 402.13px); }
   58.99% { transform: translate(493.36px, 404.81px); animation-timing-function: cubic-bezier(0.884, -0.004, 0.88, 0.995); }
-  100% { transform: translate(493px, 396.95px); }
+  100%   { transform: translate(493px, 396.95px); }
 }
 
 @keyframes eyes-e_inside-Group-16-k-2 {
-  0% { transform: rotate(0deg); }
+  0%     { transform: rotate(0deg); }
   24.02% { transform: rotate(62deg); animation-timing-function: var(--e0); }
   45.81% { transform: rotate(159deg); animation-timing-function: cubic-bezier(0.639, -0.009, 0.336, 0.993); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes eyes-e_inside-Group-16-k-3 {
-  0% { transform: scale(1, 0.96); }
+  0%     { transform: scale(1, 0.96); }
   12.06% { transform: scale(0.61, 0.59); }
   26.95% { transform: scale(1, 0.96); }
   39.01% { transform: scale(0.61, 0.59); }
   52.48% { transform: scale(1, 0.96); }
   63.83% { transform: scale(0.61, 0.59); }
-  76.6% { transform: scale(1, 0.96); }
+  76.6%  { transform: scale(1, 0.96); }
   89.36% { transform: scale(0.61, 0.59); }
-  100% { transform: scale(1, 0.96); }
+  100%   { transform: scale(1, 0.96); }
 }
 
 @keyframes eyes-e_inside-Group-15-k {
-  0% { transform: translate(-40.77px, -13.17px); animation-timing-function: cubic-bezier(0.736, 0.004, 0.77, 1.013); }
+  0%     { transform: translate(-40.77px, -13.17px); animation-timing-function: cubic-bezier(0.736, 0.004, 0.77, 1.013); }
   20.67% { transform: translate(-65.77px, -13.17px); animation-timing-function: cubic-bezier(0.208, 0.004, 0.444, 0.982); }
   29.89% { transform: translate(-52.77px, -13.17px); animation-timing-function: cubic-bezier(0.734, -0.006, 0.67, 1); }
   41.34% { transform: translate(-23.77px, -13.17px); animation-timing-function: cubic-bezier(0.248, -0.014, 0.276, 0.997); }
@@ -2848,193 +3796,193 @@ export const examples: Example[] = [
   79.89% { transform: translate(-31.29px, -13.17px); }
   86.03% { transform: translate(-21.77px, -13.17px); animation-timing-function: cubic-bezier(0.736, 0.004, 1, 1); }
   93.02% { transform: translate(-31.29px, -13.17px); }
-  100% { transform: translate(-40.77px, -13.17px); }
+  100%   { transform: translate(-40.77px, -13.17px); }
 }
 
 @keyframes eyes-e_inside-Group-13-k {
-  0% { transform: translate(-44.97px, -15.21px); animation-timing-function: cubic-bezier(0.791, 0.002, 0.67, 1); }
-  20.9% { transform: translate(-68.97px, -15.21px); animation-timing-function: cubic-bezier(0.228, -0.002, 0.505, 0.991); }
+  0%     { transform: translate(-44.97px, -15.21px); animation-timing-function: cubic-bezier(0.791, 0.002, 0.67, 1); }
+  20.9%  { transform: translate(-68.97px, -15.21px); animation-timing-function: cubic-bezier(0.228, -0.002, 0.505, 0.991); }
   30.23% { transform: translate(-54.97px, -15.21px); animation-timing-function: cubic-bezier(0.744, 0.002, 0.67, 1); }
   41.81% { transform: translate(-24.97px, -15.21px); animation-timing-function: cubic-bezier(0.317, 0.006, 0.336, 1.008); }
   50.85% { transform: translate(-75.97px, -20.21px); }
-  61.3% { transform: translate(-57.97px, -20.21px); animation-timing-function: cubic-bezier(0.69, 0.005, 0.301, 1.002); }
+  61.3%  { transform: translate(-57.97px, -20.21px); animation-timing-function: cubic-bezier(0.69, 0.005, 0.301, 1.002); }
   73.45% { transform: translate(-23.97px, -15.21px); animation-timing-function: cubic-bezier(0.791, 0.002, 1, 1); }
   80.51% { transform: translate(-37.47px, -15.21px); }
   86.72% { transform: translate(-23.97px, -15.21px); animation-timing-function: cubic-bezier(0.791, 0.002, 1, 1); }
   93.79% { transform: translate(-37.47px, -15.21px); }
-  100% { transform: translate(-44.97px, -15.21px); }
+  100%   { transform: translate(-44.97px, -15.21px); }
 }
 
 @keyframes eyes-star-k {
-  0% { transform: translate(0px, 0px); }
+  0%     { transform: translate(0px, 0px); }
   16.36% { transform: translate(30.71px, 8.26px); animation-timing-function: var(--e0); }
   33.18% { transform: translate(30.71px, 8.26px); animation-timing-function: cubic-bezier(0.728, -0.034, 0.517, 1); }
   59.81% { transform: translate(-106.78px, 12.45px); animation-timing-function: cubic-bezier(0.924, 0.061, 0.848, 0.939); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes eyes-star-k-2 {
-  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.707, 0, 0.667, 1); }
+  0%     { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.707, 0, 0.667, 1); }
   20.95% { transform: rotate(-78deg); }
   46.93% { transform: rotate(-180deg); animation-timing-function: cubic-bezier(0.689, 0.001, 0.746, 0.996); }
   72.91% { transform: rotate(83.97deg); }
   82.68% { transform: rotate(-31.73deg); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes eyes-eyelid-k {
-  0% { opacity: 1; }
-  1.35% { opacity: 0; }
+  0%     { opacity: 1; }
+  1.35%  { opacity: 0; }
   98.65% { opacity: 0; }
-  100% { opacity: 1; }
+  100%   { opacity: 1; }
 }
 
 @keyframes eyes-eyelid-Shape-Layer-2-Group-3-Path-3-k {
-  0% { d: var(--p1); animation-timing-function: var(--e5); }
-  4.11% { d: var(--p3); animation-timing-function: var(--e4); }
-  7.91% { d: var(--p1); }
+  0%     { d: var(--p1); animation-timing-function: var(--e5); }
+  4.11%  { d: var(--p3); animation-timing-function: var(--e4); }
+  7.91%  { d: var(--p1); }
   26.58% { d: var(--p12); animation-timing-function: cubic-bezier(0.514, 0.006, 0.266, 1.002); }
   41.14% { d: var(--p10); animation-timing-function: var(--e7); }
   64.56% { d: var(--p11); animation-timing-function: cubic-bezier(0, 0, 0.469, 0.995); }
   67.72% { d: var(--p3); animation-timing-function: cubic-bezier(0.41, 0.009, 0.631, 0.993); }
-  71.2% { d: var(--p5); }
+  71.2%  { d: var(--p5); }
   92.41% { d: var(--p5); animation-timing-function: cubic-bezier(0.648, -0.001, 0.795, 0.998); }
-  96.2% { d: var(--p3); animation-timing-function: var(--e3); }
-  100% { d: var(--p1); }
+  96.2%  { d: var(--p3); animation-timing-function: var(--e3); }
+  100%   { d: var(--p1); }
 }
 
 @keyframes eyes-eyelid-mask-Group-3-Path-3-k {
-  0% { d: var(--p1); animation-timing-function: var(--e5); }
-  4.11% { d: var(--p3); animation-timing-function: var(--e4); }
-  7.91% { d: var(--p1); }
+  0%     { d: var(--p1); animation-timing-function: var(--e5); }
+  4.11%  { d: var(--p3); animation-timing-function: var(--e4); }
+  7.91%  { d: var(--p1); }
   26.58% { d: var(--p12); animation-timing-function: cubic-bezier(0.514, 0.006, 0.52, 0.989); }
   41.14% { d: var(--p10); animation-timing-function: var(--e7); }
   64.56% { d: var(--p11); animation-timing-function: var(--e0); }
   67.72% { d: var(--p3); animation-timing-function: cubic-bezier(0.36, 0.005, 0.682, 0.984); }
-  71.2% { d: var(--p5); }
+  71.2%  { d: var(--p5); }
   92.41% { d: var(--p5); animation-timing-function: cubic-bezier(0.64, 0.001, 0.795, 0.998); }
-  96.2% { d: var(--p3); animation-timing-function: var(--e3); }
-  100% { d: var(--p1); }
+  96.2%  { d: var(--p3); animation-timing-function: var(--e3); }
+  100%   { d: var(--p1); }
 }
 
 @keyframes eyes-eyelid-1-k {
-  0% { opacity: 1; }
-  1.35% { opacity: 0; }
+  0%     { opacity: 1; }
+  1.35%  { opacity: 0; }
   98.65% { opacity: 0; }
-  100% { opacity: 1; }
+  100%   { opacity: 1; }
 }
 
 @keyframes eyes-eyelid-1-Shape-Layer-2-Group-3-Path-3-k {
-  0% { d: var(--p1); animation-timing-function: var(--e5); }
-  4.11% { d: var(--p3); animation-timing-function: var(--e4); }
-  7.91% { d: var(--p1); }
+  0%     { d: var(--p1); animation-timing-function: var(--e5); }
+  4.11%  { d: var(--p3); animation-timing-function: var(--e4); }
+  7.91%  { d: var(--p1); }
   26.58% { d: var(--p12); animation-timing-function: cubic-bezier(0.514, 0.006, 0.266, 1.002); }
   41.14% { d: var(--p10); animation-timing-function: var(--e7); }
   64.56% { d: var(--p11); animation-timing-function: cubic-bezier(0, 0, 0.469, 0.995); }
   67.72% { d: var(--p3); animation-timing-function: cubic-bezier(0.41, 0.009, 0.631, 0.993); }
-  71.2% { d: var(--p5); }
+  71.2%  { d: var(--p5); }
   92.41% { d: var(--p5); animation-timing-function: cubic-bezier(0.648, -0.001, 0.795, 0.998); }
-  96.2% { d: var(--p3); animation-timing-function: var(--e3); }
-  100% { d: var(--p1); }
+  96.2%  { d: var(--p3); animation-timing-function: var(--e3); }
+  100%   { d: var(--p1); }
 }
 
 @keyframes eyes-eyelid-1-mask-Group-3-Path-3-k {
-  0% { d: var(--p1); animation-timing-function: var(--e5); }
-  4.11% { d: var(--p3); animation-timing-function: var(--e4); }
-  7.91% { d: var(--p1); }
+  0%     { d: var(--p1); animation-timing-function: var(--e5); }
+  4.11%  { d: var(--p3); animation-timing-function: var(--e4); }
+  7.91%  { d: var(--p1); }
   26.58% { d: var(--p12); animation-timing-function: cubic-bezier(0.514, 0.006, 0.52, 0.989); }
   41.14% { d: var(--p10); animation-timing-function: var(--e7); }
   64.56% { d: var(--p11); animation-timing-function: var(--e0); }
   67.72% { d: var(--p3); animation-timing-function: cubic-bezier(0.36, 0.005, 0.682, 0.984); }
-  71.2% { d: var(--p5); }
+  71.2%  { d: var(--p5); }
   92.41% { d: var(--p5); animation-timing-function: cubic-bezier(0.64, 0.001, 0.795, 0.998); }
-  96.2% { d: var(--p3); animation-timing-function: var(--e3); }
-  100% { d: var(--p1); }
+  96.2%  { d: var(--p3); animation-timing-function: var(--e3); }
+  100%   { d: var(--p1); }
 }
 
 @keyframes Shape-Layer-20-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(3.56, 3.56); }
 }
 
 @keyframes Shape-Layer-20-k-2 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes Shape-Layer-21-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(3.56, 3.56); }
 }
 
 @keyframes Shape-Layer-21-k-2 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes Shape-Layer-22-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(3.56, 3.56); }
 }
 
 @keyframes Shape-Layer-22-k-2 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes Shape-Layer-23-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(3.21, 3.21); }
 }
 
 @keyframes Shape-Layer-23-k-2 {
-  0% { opacity: 1; }
+  0%    { opacity: 1; }
   96.3% { opacity: 0; }
-  100% { opacity: 0; }
+  100%  { opacity: 0; }
 }
 
 @keyframes Shape-Layer-24-k {
-  0% { transform: scale(0.48, 0.48); }
+  0%   { transform: scale(0.48, 0.48); }
   100% { transform: scale(2.69, 2.69); }
 }
 
 @keyframes Shape-Layer-24-k-2 {
-  0% { opacity: 1; }
+  0%     { opacity: 1; }
   92.86% { opacity: 0; }
-  100% { opacity: 0; }
+  100%   { opacity: 0; }
 }
 
 @keyframes star-10-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-10-k-2 {
-  0% { transform: scale(0, 0); }
+  0%     { transform: scale(0, 0); }
   36.56% { transform: scale(1.2, 1.2); animation-timing-function: var(--e10); }
-  100% { transform: scale(0, 0); }
+  100%   { transform: scale(0, 0); }
 }
 
 @keyframes star-11-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-11-k-2 {
-  0% { transform: scale(0, 0); }
+  0%     { transform: scale(0, 0); }
   45.95% { transform: scale(1.2, 1.2); animation-timing-function: var(--e10); }
-  100% { transform: scale(0, 0); }
+  100%   { transform: scale(0, 0); }
 }
 
 @keyframes star-12-k {
-  0% { transform: rotate(0deg); }
+  0%   { transform: rotate(0deg); }
   100% { transform: rotate(-240deg); }
 }
 
 @keyframes star-12-k-2 {
-  0% { transform: scale(0, 0); }
+  0%     { transform: scale(0, 0); }
   45.95% { transform: scale(1.2, 1.2); animation-timing-function: var(--e10); }
-  100% { transform: scale(0, 0); }
+  100%   { transform: scale(0, 0); }
 }
 
 #BG {
@@ -3209,6 +4157,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -3222,6 +4171,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -3267,6 +4217,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-1-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -3280,6 +4231,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-1-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -3325,6 +4277,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-3-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -3338,6 +4291,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-3-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -3384,6 +4338,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-8-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -3397,6 +4352,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-8-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -3443,6 +4399,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-9-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -3456,6 +4413,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-9-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -3501,6 +4459,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-2-Shape-Layer-5 {
     type: group;
     transform-origin: 153.74px 191.33px;
@@ -3515,6 +4474,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-2-Shape-Layer-4 {
     type: group;
     transform-origin: 154.9px 190.84px;
@@ -3560,6 +4520,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-4-Shape-Layer-5 {
     type: group;
     transform-origin: 153.74px 191.33px;
@@ -3574,6 +4535,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-4-Shape-Layer-4 {
     type: group;
     transform-origin: 154.9px 190.84px;
@@ -3619,6 +4581,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-2-2-Shape-Layer-5 {
     type: group;
     transform-origin: 153.74px 191.33px;
@@ -3633,6 +4596,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-2-2-Shape-Layer-4 {
     type: group;
     transform-origin: 154.9px 190.84px;
@@ -3679,6 +4643,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-5-Shape-Layer-5 {
     type: group;
     transform-origin: 153.74px 191.33px;
@@ -3693,6 +4658,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-5-Shape-Layer-4 {
     type: group;
     transform-origin: 154.9px 190.84px;
@@ -3739,6 +4705,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-6-Shape-Layer-5 {
     type: group;
     transform-origin: 153.74px 191.33px;
@@ -3753,6 +4720,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-6-Shape-Layer-4 {
     type: group;
     transform-origin: 154.9px 190.84px;
@@ -3799,6 +4767,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-7-Shape-Layer-5 {
     type: group;
     transform-origin: 153.74px 191.33px;
@@ -3813,6 +4782,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-7-Shape-Layer-4 {
     type: group;
     transform-origin: 154.9px 190.84px;
@@ -3857,6 +4827,7 @@ export const examples: Example[] = [
         }
       }
     }
+
     > #eyes-e_white {
       type: group;
       transform-origin: 493.5px 365.43px;
@@ -3873,6 +4844,7 @@ export const examples: Example[] = [
         }
       }
     }
+
     > #eyes-e_pupil {
       type: group;
       transform-origin: 493.5px 365.43px;
@@ -3889,6 +4861,7 @@ export const examples: Example[] = [
           stroke-width: 3px;
         }
       }
+
       > #eyes-highlight-2 {
         type: group;
         transform-origin: 540px 540px;
@@ -3915,6 +4888,7 @@ export const examples: Example[] = [
             }
           }
         }
+
         > #eyes-highlight-2-Shape-Layer-14 {
           type: group;
           transform-origin: 477.2px 296.23px;
@@ -3933,6 +4907,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-highlight-1 {
         type: group;
         transform-origin: 540px 540px;
@@ -3959,6 +4934,7 @@ export const examples: Example[] = [
             }
           }
         }
+
         > #eyes-highlight-1-Shape-Layer-13 {
           type: group;
           transform-origin: 547.56px 414.33px;
@@ -3977,6 +4953,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-Shape-Layer-10 {
         type: group;
         transform-origin: 493.5px 365.43px;
@@ -3994,6 +4971,7 @@ export const examples: Example[] = [
             stroke-width: 3px;
           }
         }
+
         > #eyes-e_inside {
           type: group;
           transform-origin: 486.26px 378.68px;
@@ -4010,6 +4988,7 @@ export const examples: Example[] = [
               fill: #ba9cfc;
             }
           }
+
           > #eyes-e_inside-Group-17 {
             type: group;
             transform-origin: 469px 359.93px;
@@ -4021,6 +5000,7 @@ export const examples: Example[] = [
               fill: radial-gradient(circle 13px at 469px 359.93px, #ffffff 0%, #ffe0fc 100%);
             }
           }
+
           > #eyes-e_inside-Group-16 {
             type: group;
             transform-origin: 1.51px 2.38px;
@@ -4032,6 +5012,7 @@ export const examples: Example[] = [
               fill: radial-gradient(circle 26.1px at 0px 0px, #fff5e0 0%, #ffde7d 100%);
             }
           }
+
           > #eyes-e_inside-Group-15 {
             type: group;
             transform-origin: 535.5px 372.42px;
@@ -4048,6 +5029,7 @@ export const examples: Example[] = [
               }
             }
           }
+
           > #eyes-e_inside-Group-13 {
             type: group;
             transform-origin: 549.41px 388px;
@@ -4064,6 +5046,7 @@ export const examples: Example[] = [
               }
             }
           }
+
           > #eyes-mask {
             type: group;
             transform-origin: 493.5px 365.43px;
@@ -4082,6 +5065,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-star {
         type: group;
         transform-origin: 532.18px 345.28px;
@@ -4100,6 +5084,7 @@ export const examples: Example[] = [
         }
       }
     }
+
     > #eyes-blur {
       type: group;
       transform-origin: 532.18px 345.28px;
@@ -4115,6 +5100,7 @@ export const examples: Example[] = [
         }
       }
     }
+
     > #eyes-eyelid {
       type: group;
       transform-origin: 208px 77px;
@@ -4138,6 +5124,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-eyelid-Shape-Layer-1 {
         type: group;
         transform-origin: 207.68px 55.02px;
@@ -4153,6 +5140,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-eyelid-mask {
         type: group;
         transform-origin: 207.68px 77px;
@@ -4170,6 +5158,7 @@ export const examples: Example[] = [
         }
       }
     }
+
     > #eyes-eyelid-1 {
       type: group;
       transform-origin: 208px 77px;
@@ -4193,6 +5182,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-eyelid-1-Shape-Layer-1 {
         type: group;
         transform-origin: 207.68px 55.02px;
@@ -4208,6 +5198,7 @@ export const examples: Example[] = [
           }
         }
       }
+
       > #eyes-eyelid-1-mask {
         type: group;
         transform-origin: 207.68px 77px;
@@ -4226,6 +5217,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #Shape-Layer-20 {
     type: group;
     transform-origin: 493.5px 365.93px;
@@ -4246,6 +5238,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #Shape-Layer-21 {
     type: group;
     transform-origin: 493.5px 365.93px;
@@ -4266,6 +5259,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #Shape-Layer-22 {
     type: group;
     transform-origin: 493.5px 365.93px;
@@ -4286,6 +5280,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #Shape-Layer-23 {
     type: group;
     transform-origin: 493.5px 365.93px;
@@ -4305,6 +5300,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #Shape-Layer-24 {
     type: group;
     transform-origin: 493.5px 365.93px;
@@ -4350,6 +5346,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-10-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -4363,6 +5360,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-10-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -4409,6 +5407,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-11-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -4422,6 +5421,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-11-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -4467,6 +5467,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-12-Shape-Layer-5 {
     type: group;
     transform-origin: 78.82px 55.49px;
@@ -4480,6 +5481,7 @@ export const examples: Example[] = [
       }
     }
   }
+
   > #star-12-Shape-Layer-4 {
     type: group;
     transform-origin: 79.3px 55.29px;
@@ -4504,9 +5506,8 @@ export const examples: Example[] = [
 ` },
   { key: "13-lottie--interactive-volume.css", label: "Lottie: Interactive volume", source: `/* Author: LanaNguyen @ LottieFiles
    Author URL: http://lottiefiles.com/gtzfxljyba */
-/* Converted Lottie — "Interactive volume", downloaded from LottieFiles.com,
-   generated by @popkorn/converters */
-/* comp 1140x1184 @ 60fps, duration 5.58s */
+/* "Interactive volume" Lottie (1140x1184 @ 60fps, 5.58s) converted by @popkorn/converters,
+   plus a hand-authored @machine that steps the volume up and down on click. */
 
 :root {
   width: 1140px;
@@ -4665,530 +5666,530 @@ export const examples: Example[] = [
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(1.5, 1.5); animation-timing-function: cubic-bezier(0.167, 0.045, 0.833, 1); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-2-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.25, 1.25); animation-timing-function: cubic-bezier(0.167, 0.036, 0.833, 1); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-3-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1, 1); animation-timing-function: cubic-bezier(0.167, 0.022, 0.833, 1); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-4-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(0.75, 0.75); animation-timing-function: cubic-bezier(0.167, -0.049, 0.833, 1); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-5-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(0.5, 0.5); animation-timing-function: cubic-bezier(0.167, 0.585, 0.833, 1); }
   100% { transform: scale(0.5, 0.5); }
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-6-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.25, 0.25); animation-timing-function: cubic-bezier(0.167, -0.108, 0.833, 1); }
   100% { transform: scale(0.25, 0.25); }
 }
 
 @keyframes BG-Echos-1-Layer-5-Outlines-7-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.13, 0.13); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-k {
-  0% { transform: scale(1.5, 1.5); }
+  0%   { transform: scale(1.5, 1.5); }
   100% { transform: scale(1.75, 1.75); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-2-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-3-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-4-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-5-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-6-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(0.5, 0.5); }
 }
 
 @keyframes BG-Echos-1-2-Layer-5-Outlines-7-k {
-  0% { transform: scale(0.13, 0.13); }
+  0%     { transform: scale(0.13, 0.13); }
   99.99% { transform: scale(0.25, 0.25); animation-timing-function: cubic-bezier(0.167, -0.108, 0.833, 1); }
-  100% { transform: scale(0.25, 0.25); }
+  100%   { transform: scale(0.25, 0.25); }
 }
 
 @keyframes BG-Echos-2-Layer-5-Outlines-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(1.75, 1.75); }
 }
 
 @keyframes BG-Echos-2-Layer-5-Outlines-2-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-2-Layer-5-Outlines-3-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-2-Layer-5-Outlines-4-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-2-Layer-5-Outlines-5-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-2-Layer-5-Outlines-6-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.5, 0.5); }
 }
 
 @keyframes BG-Echos-2-2-Layer-5-Outlines-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-2-2-Layer-5-Outlines-2-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-2-2-Layer-5-Outlines-3-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-2-2-Layer-5-Outlines-4-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-2-2-Layer-5-Outlines-5-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(0.5, 0.5); }
 }
 
 @keyframes BG-Echos-2-2-Layer-5-Outlines-6-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.25, 0.25); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(2, 2); animation-timing-function: cubic-bezier(0.167, 0.117, 0.833, 1); }
   100% { transform: scale(2, 2); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-2-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.75, 1.75); animation-timing-function: cubic-bezier(0.167, 0.264, 0.833, 1); }
   100% { transform: scale(1.75, 1.75); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-3-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1.5, 1.5); animation-timing-function: cubic-bezier(0.167, 0.235, 0.833, 1); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-4-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(1.25, 1.25); animation-timing-function: cubic-bezier(0.167, 0.071, 0.833, 1); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-5-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(1, 1); animation-timing-function: cubic-bezier(0.167, 0.357, 0.833, 1); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-6-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.75, 0.75); animation-timing-function: cubic-bezier(0.167, 0.839, 0.833, 1); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-7-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.5, 0.5); animation-timing-function: cubic-bezier(0.436, 0.49, 0.833, 1); }
   100% { transform: scale(0.5, 0.5); }
 }
 
 @keyframes BG-Echos-3-Layer-5-Outlines-8-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.25, 0.25); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-k {
-  0% { transform: scale(2, 2); }
+  0%   { transform: scale(2, 2); }
   100% { transform: scale(2.5, 2.5); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-2-k {
-  0% { transform: scale(1.75, 1.75); }
+  0%   { transform: scale(1.75, 1.75); }
   100% { transform: scale(2, 2); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-3-k {
-  0% { transform: scale(1.5, 1.5); }
+  0%   { transform: scale(1.5, 1.5); }
   100% { transform: scale(1.75, 1.75); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-4-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-5-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-6-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-7-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-3-2-Layer-5-Outlines-8-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(0.49, 0.49); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-k {
-  0% { transform: scale(2.5, 2.5); }
+  0%   { transform: scale(2.5, 2.5); }
   100% { transform: scale(2.75, 2.75); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-2-k {
-  0% { transform: scale(2, 2); }
+  0%   { transform: scale(2, 2); }
   100% { transform: scale(2.5, 2.5); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-3-k {
-  0% { transform: scale(1.75, 1.75); }
+  0%   { transform: scale(1.75, 1.75); }
   100% { transform: scale(2.25, 2.25); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-4-k {
-  0% { transform: scale(1.5, 1.5); }
+  0%   { transform: scale(1.5, 1.5); }
   100% { transform: scale(2, 2); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-5-k {
-  0% { transform: scale(1.25, 1.25); }
+  0%   { transform: scale(1.25, 1.25); }
   100% { transform: scale(1.75, 1.75); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-6-k {
-  0% { transform: scale(1, 1); }
+  0%   { transform: scale(1, 1); }
   100% { transform: scale(1.5, 1.5); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-7-k {
-  0% { transform: scale(0.75, 0.75); }
+  0%   { transform: scale(0.75, 0.75); }
   100% { transform: scale(1.25, 1.25); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-8-k {
-  0% { transform: scale(0.5, 0.5); }
+  0%   { transform: scale(0.5, 0.5); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-9-k {
-  0% { transform: scale(0.25, 0.25); }
+  0%   { transform: scale(0.25, 0.25); }
   100% { transform: scale(0.75, 0.75); }
 }
 
 @keyframes BG-Echos-4-Layer-5-Outlines-10-k {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(0.5, 0.5); }
 }
 
 @keyframes BG-music-notes-k {
-  0% { transform: translate(12.63px, -19.91px); }
+  0%   { transform: translate(12.63px, -19.91px); }
   100% { transform: translate(96.63px, -73.84px); }
 }
 
 @keyframes BG-music-notes-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-2-k {
-  0% { transform: translate(80px, 6px); }
+  0%   { transform: translate(80px, 6px); }
   100% { transform: translate(-90px, -76px); }
 }
 
 @keyframes BG-music-notes-2-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-2-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-2-2-k {
-  0% { transform: translate(12.63px, -19.91px); }
+  0%   { transform: translate(12.63px, -19.91px); }
   100% { transform: translate(125.03px, -106.18px); }
 }
 
 @keyframes BG-music-notes-2-2-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-2-2-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-3-k {
-  0% { transform: translate(67.5px, 91.93px); }
+  0%   { transform: translate(67.5px, 91.93px); }
   100% { transform: translate(-120px, 169.93px); }
 }
 
 @keyframes BG-music-notes-3-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-3-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-4-k {
-  0% { transform: translate(9.5px, -11.07px); }
+  0%   { transform: translate(9.5px, -11.07px); }
   100% { transform: translate(-111.48px, -91.08px); }
 }
 
 @keyframes BG-music-notes-4-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-4-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-5-k {
-  0% { transform: translate(7.63px, -142.91px); }
+  0%   { transform: translate(7.63px, -142.91px); }
   100% { transform: translate(146.03px, -195.18px); }
 }
 
 @keyframes BG-music-notes-5-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-5-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-8-k {
-  0% { transform: translate(21.63px, -43.91px); }
+  0%   { transform: translate(21.63px, -43.91px); }
   100% { transform: translate(154.55px, -19.91px); }
 }
 
 @keyframes BG-music-notes-8-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-8-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-6-k {
-  0% { transform: translate(67.5px, 91.93px); }
+  0%   { transform: translate(67.5px, 91.93px); }
   100% { transform: translate(-142.69px, 168.99px); }
 }
 
 @keyframes BG-music-notes-6-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-6-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-9-k {
-  0% { transform: translate(67.5px, 91.93px); }
+  0%   { transform: translate(67.5px, 91.93px); }
   100% { transform: translate(-142.69px, 168.99px); }
 }
 
 @keyframes BG-music-notes-9-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-9-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-7-k {
-  0% { transform: translate(9.5px, -11.07px); }
+  0%   { transform: translate(9.5px, -11.07px); }
   100% { transform: translate(-132.72px, -148.58px); }
 }
 
 @keyframes BG-music-notes-7-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-7-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-10-k {
-  0% { transform: translate(7.63px, -142.91px); }
+  0%   { transform: translate(7.63px, -142.91px); }
   100% { transform: translate(146.03px, -195.18px); }
 }
 
 @keyframes BG-music-notes-10-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-10-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-11-k {
-  0% { transform: translate(21.63px, -43.91px); }
+  0%   { transform: translate(21.63px, -43.91px); }
   100% { transform: translate(154.55px, -19.91px); }
 }
 
 @keyframes BG-music-notes-11-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-11-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-12-k {
-  0% { transform: translate(67.5px, 91.93px); }
+  0%   { transform: translate(67.5px, 91.93px); }
   100% { transform: translate(-142.69px, 168.99px); }
 }
 
 @keyframes BG-music-notes-12-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-12-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-13-k {
-  0% { transform: translate(75.5px, 131.93px); }
+  0%   { transform: translate(75.5px, 131.93px); }
   100% { transform: translate(-155.26px, 227.43px); }
 }
 
 @keyframes BG-music-notes-13-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-13-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-14-k {
-  0% { transform: translate(9.5px, -11.07px); }
+  0%   { transform: translate(9.5px, -11.07px); }
   100% { transform: translate(-132.72px, -148.58px); }
 }
 
 @keyframes BG-music-notes-14-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-14-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes BG-music-notes-15-k {
-  0% { transform: translate(62.35px, 63.92px); }
+  0%   { transform: translate(62.35px, 63.92px); }
   100% { transform: translate(-201.72px, 14.42px); }
 }
 
 @keyframes BG-music-notes-15-k-2 {
-  0% { transform: scale(0, 0); }
+  0%   { transform: scale(0, 0); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes BG-music-notes-15-k-3 {
-  0% { opacity: 1; }
+  0%   { opacity: 1; }
   100% { opacity: 0; }
 }
 
 @keyframes Character-k {
-  0% { transform: scale(1, 1); }
-  25% { transform: scale(1.15, 1.15); animation-timing-function: cubic-bezier(0.167, 0, 0.833, 1.002); }
+  0%     { transform: scale(1, 1); }
+  25%    { transform: scale(1.15, 1.15); animation-timing-function: cubic-bezier(0.167, 0, 0.833, 1.002); }
   51.85% { transform: scale(1, 1); animation-timing-function: var(--e2); }
   79.63% { transform: scale(1.15, 1.15); animation-timing-function: cubic-bezier(0.167, 0, 0.833, 0.833); }
-  100% { transform: scale(1, 1); }
+  100%   { transform: scale(1, 1); }
 }
 
 @keyframes Character-collar-k {
-  0% { transform: rotate(0deg); }
-  5.56% { transform: rotate(10deg); animation-timing-function: var(--e0); }
+  0%     { transform: rotate(0deg); }
+  5.56%  { transform: rotate(10deg); animation-timing-function: var(--e0); }
   11.11% { transform: rotate(0deg); animation-timing-function: var(--e1); }
   33.33% { transform: rotate(0deg); }
   38.89% { transform: rotate(7deg); animation-timing-function: var(--e0); }
@@ -5198,15 +6199,15 @@ export const examples: Example[] = [
   62.96% { transform: rotate(5deg); animation-timing-function: var(--e0); }
   69.26% { transform: rotate(0deg); animation-timing-function: var(--e10); }
   81.48% { transform: rotate(-6deg); animation-timing-function: var(--e2); }
-  86.3% { transform: rotate(3deg); animation-timing-function: var(--e2); }
+  86.3%  { transform: rotate(3deg); animation-timing-function: var(--e2); }
   90.74% { transform: rotate(-6deg); animation-timing-function: var(--e2); }
   95.56% { transform: rotate(3deg); animation-timing-function: var(--e2); }
-  100% { transform: rotate(-6deg); }
+  100%   { transform: rotate(-6deg); }
 }
 
 @keyframes Character-collar-k-2 {
-  0% { transform: scale(1, 1); }
-  9.09% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
+  0%     { transform: scale(1, 1); }
+  9.09%  { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   18.18% { transform: scale(1, 1); }
   22.73% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   27.27% { transform: scale(1, 1); }
@@ -5214,25 +6215,25 @@ export const examples: Example[] = [
   36.36% { transform: scale(1, 1); }
   40.91% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   45.45% { transform: scale(1, 1); }
-  50% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
+  50%    { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   54.55% { transform: scale(1, 1); }
-  59.7% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
+  59.7%  { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   64.85% { transform: scale(1, 1); }
-  69.7% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
+  69.7%  { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   74.85% { transform: scale(1, 1); animation-timing-function: var(--e4); }
   84.85% { transform: scale(1, 1); }
   88.79% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
   92.42% { transform: scale(1, 1); }
   96.36% { transform: scale(1.05, 0.86); animation-timing-function: var(--e0); }
-  100% { transform: scale(1, 1); }
+  100%   { transform: scale(1, 1); }
 }
 
 @keyframes Character-head-k {
-  0% { transform: translate(0px, 0px); animation-timing-function: var(--e13); }
-  9.08% { transform: translate(0px, 16px); animation-timing-function: var(--e13); }
+  0%     { transform: translate(0px, 0px); animation-timing-function: var(--e13); }
+  9.08%  { transform: translate(0px, 16px); animation-timing-function: var(--e13); }
   18.17% { transform: translate(0px, 0px); animation-timing-function: var(--e13); }
   27.25% { transform: translate(-3px, -7px); }
-  31.8% { transform: translate(-3px, 12px); }
+  31.8%  { transform: translate(-3px, 12px); }
   36.34% { transform: translate(-3px, -7px); }
   40.88% { transform: translate(-3px, 12px); }
   45.42% { transform: translate(-3px, -7px); animation-timing-function: cubic-bezier(0, 0, 0.726, 1); }
@@ -5240,17 +6241,17 @@ export const examples: Example[] = [
   59.58% { transform: translate(0px, 8px); animation-timing-function: cubic-bezier(0.5, 0, 0.726, 1); }
   64.65% { transform: translate(0px, -26.07px); animation-timing-function: cubic-bezier(0.361, 0, 0.5, 1); }
   69.72% { transform: translate(0px, 8px); animation-timing-function: cubic-bezier(0.5, 0, 0.726, 1); }
-  74.8% { transform: translate(0px, -26.07px); animation-timing-function: var(--e4); }
+  74.8%  { transform: translate(0px, -26.07px); animation-timing-function: var(--e4); }
   84.79% { transform: translate(0px, -26.07px); animation-timing-function: cubic-bezier(0.361, 0, 0.322, 1); }
   88.59% { transform: translate(0px, 2.93px); animation-timing-function: cubic-bezier(0.167, 0, 0.726, 1); }
   92.39% { transform: translate(0px, -26.07px); animation-timing-function: cubic-bezier(0.361, 0, 0.322, 1); }
-  96.2% { transform: translate(0px, 2.93px); animation-timing-function: cubic-bezier(0.167, 0, 0.726, 1); }
-  100% { transform: translate(0px, -26.07px); }
+  96.2%  { transform: translate(0px, 2.93px); animation-timing-function: cubic-bezier(0.167, 0, 0.726, 1); }
+  100%   { transform: translate(0px, -26.07px); }
 }
 
 @keyframes Character-head-k-2 {
-  0% { transform: rotate(-9deg); animation-timing-function: var(--e13); }
-  9.08% { transform: rotate(3deg); animation-timing-function: cubic-bezier(0.5, 0, 0.833, 1.062); }
+  0%     { transform: rotate(-9deg); animation-timing-function: var(--e13); }
+  9.08%  { transform: rotate(3deg); animation-timing-function: cubic-bezier(0.5, 0, 0.833, 1.062); }
   18.17% { transform: rotate(-9deg); animation-timing-function: cubic-bezier(0.167, 0.02, 0.833, 0.996); }
   22.71% { transform: rotate(9.7deg); animation-timing-function: cubic-bezier(0.167, -0.005, 0.833, 0.972); }
   27.25% { transform: rotate(-8deg); animation-timing-function: cubic-bezier(0.167, -0.11, 0.5, 0.991); }
@@ -5261,56 +6262,56 @@ export const examples: Example[] = [
   59.58% { transform: rotate(3.97deg); animation-timing-function: cubic-bezier(0.308, 0.033, 0.833, 0.952); }
   64.65% { transform: rotate(-15deg); animation-timing-function: cubic-bezier(0.41, -0.119, 0.727, 1.029); }
   69.72% { transform: rotate(3.97deg); animation-timing-function: cubic-bezier(0.308, 0.045, 0.442, 1); }
-  74.8% { transform: rotate(-10deg); animation-timing-function: cubic-bezier(0.345, 0, 0, 1); }
+  74.8%  { transform: rotate(-10deg); animation-timing-function: cubic-bezier(0.345, 0, 0, 1); }
   84.79% { transform: rotate(-18deg); }
   88.59% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.167, 0, 0.283, 1); }
   92.39% { transform: rotate(-18deg); }
-  96.2% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.167, 0, 0.283, 1); }
-  100% { transform: rotate(-18deg); }
+  96.2%  { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.167, 0, 0.283, 1); }
+  100%   { transform: rotate(-18deg); }
 }
 
 @keyframes Character-head-Group-4-Group-1-Path-2-k {
-  0% { d: var(--p27); }
+  0%     { d: var(--p27); }
   13.64% { d: var(--p28); animation-timing-function: var(--e2); }
   40.91% { d: var(--p28); animation-timing-function: var(--e0); }
   54.55% { d: var(--p27); animation-timing-function: var(--e1); }
-  85% { d: var(--p27); animation-timing-function: cubic-bezier(0.408, 0, 0, 1); }
-  100% { d: var(--p28); }
+  85%    { d: var(--p27); animation-timing-function: cubic-bezier(0.408, 0, 0, 1); }
+  100%   { d: var(--p28); }
 }
 
 @keyframes Character-head-Group-3-Path-1-k {
-  0% { d: var(--p87); animation-timing-function: var(--e1); }
-  9.09% { d: var(--p84); animation-timing-function: var(--e1); }
+  0%     { d: var(--p87); animation-timing-function: var(--e1); }
+  9.09%  { d: var(--p84); animation-timing-function: var(--e1); }
   18.18% { d: 'M -48.04 -20.68 C -46.65 -19.74 -45.16 -18.8 -43.7 -17.93 C -30.36 -10.1 -15.75 -4.44 -0.74 -0.63 C 14.28 3.14 29.88 4.87 45.32 3.78 C 47.04 3.66 48.74 3.51 50.46 3.32 C 48.74 3.44 47.04 3.53 45.31 3.59 C 29.87 4.14 14.44 2.14 -0.5 -1.6 C -15.43 -5.39 -30.02 -10.75 -43.61 -18.1 C -45.09 -18.91 -46.61 -19.79 -48.04 -20.68 Z'; animation-timing-function: var(--e3); }
   27.27% { d: var(--p88); }
   36.36% { d: 'M -17.53 -4.71 C -15.99 -4.04 -14.34 -3.4 -12.75 -2.82 C 1.83 2.37 17.24 5.19 32.69 6.11 C 48.16 6.99 63.81 5.76 78.77 1.79 C 80.44 1.35 82.08 0.88 83.73 0.37 C 82.06 0.82 80.4 1.23 78.72 1.61 C 63.66 5.04 48.13 5.98 32.75 5.11 C 17.38 4.2 2 1.76 -12.69 -3 C -14.3 -3.52 -15.96 -4.1 -17.53 -4.71 Z'; }
   45.45% { d: var(--p88); animation-timing-function: var(--e0); }
   54.55% { d: var(--p70); animation-timing-function: var(--e3); }
-  59.7% { d: var(--p85); animation-timing-function: var(--e0); }
+  59.7%  { d: var(--p85); animation-timing-function: var(--e0); }
   64.55% { d: var(--p70); animation-timing-function: var(--e3); }
-  69.7% { d: var(--p85); animation-timing-function: var(--e0); }
+  69.7%  { d: var(--p85); animation-timing-function: var(--e0); }
   74.85% { d: var(--p70); animation-timing-function: cubic-bezier(0.333, 0, 0.009, 1); }
   84.85% { d: var(--p69); }
   88.79% { d: var(--p86); }
   92.42% { d: var(--p69); }
   96.36% { d: var(--p86); }
-  100% { d: var(--p69); }
+  100%   { d: var(--p69); }
 }
 
 @keyframes Character-hair-k {
-  0% { transform: translate(0px, 0px); }
+  0%     { transform: translate(0px, 0px); }
   13.64% { transform: translate(-18.82px, -2.64px); animation-timing-function: var(--e4); }
   40.91% { transform: translate(-18.82px, -2.64px); }
   54.55% { transform: translate(-5.13px, 13.26px); }
   63.64% { transform: translate(3.11px, 12.71px); }
-  70% { transform: translate(-5.13px, 13.26px); }
+  70%    { transform: translate(-5.13px, 13.26px); }
   77.27% { transform: translate(3.11px, 12.71px); }
-  85% { transform: translate(-5.13px, 13.26px); animation-timing-function: var(--e10); }
-  100% { transform: translate(8.28px, -2.83px); }
+  85%    { transform: translate(-5.13px, 13.26px); animation-timing-function: var(--e10); }
+  100%   { transform: translate(8.28px, -2.83px); }
 }
 
 @keyframes Character-hair-k-2 {
-  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.167, 0, 0.833, 0.994); }
+  0%     { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.167, 0, 0.833, 0.994); }
   16.39% { transform: rotate(-98deg); animation-timing-function: cubic-bezier(0.167, -0.004, 0.833, 1); }
   27.32% { transform: rotate(-6deg); animation-timing-function: cubic-bezier(0.167, 0, 0.833, 0.979); }
   34.97% { transform: rotate(-98deg); animation-timing-function: cubic-bezier(0.167, -0.033, 0.833, 1); }
@@ -5319,16 +6320,16 @@ export const examples: Example[] = [
   71.04% { transform: rotate(-20deg); }
   79.24% { transform: rotate(1deg); }
   86.34% { transform: rotate(-20deg); }
-  92.9% { transform: rotate(1deg); }
-  100% { transform: rotate(-20deg); }
+  92.9%  { transform: rotate(1deg); }
+  100%   { transform: rotate(-20deg); }
 }
 
 @keyframes Character-hair-Group-1-Path-1-k {
-  0% { d: var(--p13); animation-timing-function: var(--e5); }
-  9.09% { d: var(--p45); animation-timing-function: var(--e5); }
+  0%     { d: var(--p13); animation-timing-function: var(--e5); }
+  9.09%  { d: var(--p45); animation-timing-function: var(--e5); }
   17.27% { d: var(--p13); animation-timing-function: cubic-bezier(0.167, 0.003, 0.833, 0.997); }
   53.64% { d: var(--p13); animation-timing-function: var(--e5); }
-  59.7% { d: var(--p45); }
+  59.7%  { d: var(--p45); }
   63.94% { d: var(--p13); }
   68.79% { d: var(--p45); }
   73.94% { d: var(--p13); animation-timing-function: cubic-bezier(0.345, 0, 0, 0.995); }
@@ -5336,19 +6337,19 @@ export const examples: Example[] = [
   88.49% { d: var(--p45); }
   92.42% { d: var(--p13); }
   96.06% { d: var(--p45); }
-  100% { d: var(--p13); }
+  100%   { d: var(--p13); }
 }
 
 @keyframes Character-ear-2-k {
-  0% { transform: translate(253.31px, 10.83px); }
-  25% { transform: translate(298.31px, 10.83px); }
-  50% { transform: translate(326.31px, -3.17px); }
-  75% { transform: translate(298.31px, 10.83px); }
+  0%   { transform: translate(253.31px, 10.83px); }
+  25%  { transform: translate(298.31px, 10.83px); }
+  50%  { transform: translate(326.31px, -3.17px); }
+  75%  { transform: translate(298.31px, 10.83px); }
   100% { transform: translate(253.31px, 10.83px); }
 }
 
 @keyframes Character-ear-2-Group-9-Group-1-Path-2-k {
-  0% { d: var(--p5); }
+  0%     { d: var(--p5); }
   10.71% { d: var(--p111); }
   21.43% { d: var(--p5); animation-timing-function: var(--e7); }
   32.14% { d: var(--p67); animation-timing-function: var(--e5); }
@@ -5356,11 +6357,11 @@ export const examples: Example[] = [
   53.57% { d: var(--p67); animation-timing-function: var(--e6); }
   64.29% { d: var(--p5); }
   88.21% { d: var(--p5); }
-  100% { d: var(--p110); }
+  100%   { d: var(--p110); }
 }
 
 @keyframes Character-ear-2-Group-10-Path-1-k {
-  0% { d: var(--p3); }
+  0%     { d: var(--p3); }
   10.71% { d: var(--p83); }
   21.43% { d: var(--p3); animation-timing-function: var(--e7); }
   32.14% { d: var(--p61); animation-timing-function: var(--e5); }
@@ -5368,11 +6369,11 @@ export const examples: Example[] = [
   53.57% { d: var(--p61); animation-timing-function: var(--e6); }
   64.29% { d: var(--p3); }
   88.21% { d: var(--p3); }
-  100% { d: var(--p82); }
+  100%   { d: var(--p82); }
 }
 
 @keyframes Character-ear-2-Group-8-Path-1-k {
-  0% { d: var(--p2); }
+  0%     { d: var(--p2); }
   10.71% { d: var(--p80); }
   21.43% { d: var(--p2); animation-timing-function: var(--e7); }
   32.14% { d: var(--p60); animation-timing-function: var(--e5); }
@@ -5380,17 +6381,17 @@ export const examples: Example[] = [
   53.57% { d: var(--p60); animation-timing-function: var(--e6); }
   64.29% { d: var(--p2); }
   88.21% { d: var(--p2); }
-  100% { d: var(--p81); }
+  100%   { d: var(--p81); }
 }
 
 @keyframes Character-Airpod-k {
-  0% { transform: translate(-46.04px, 8.28px); }
-  50% { transform: translate(-28.06px, 7.61px); }
+  0%   { transform: translate(-46.04px, 8.28px); }
+  50%  { transform: translate(-28.06px, 7.61px); }
   100% { transform: translate(-46.04px, 8.28px); }
 }
 
 @keyframes Character-eye-2-k {
-  0% { transform: translate(70.42px, 32.12px); }
+  0%     { transform: translate(70.42px, 32.12px); }
   16.04% { transform: translate(7.77px, 10.7px); }
   32.09% { transform: translate(-14.1px, 11.25px); }
   48.13% { transform: translate(7.77px, 10.7px); animation-timing-function: var(--e0); }
@@ -5398,59 +6399,59 @@ export const examples: Example[] = [
   73.73% { transform: translate(54.26px, 54.6px); }
   82.68% { transform: translate(23.96px, -9.58px); }
   91.64% { transform: translate(54.26px, 54.6px); }
-  100% { transform: translate(23.96px, -9.58px); }
+  100%   { transform: translate(23.96px, -9.58px); }
 }
 
 @keyframes Character-eye-2-k-2 {
-  0% { transform: rotate(-17deg); }
+  0%   { transform: rotate(-17deg); }
   100% { transform: rotate(-25deg); }
 }
 
 @keyframes Character-head-2-Group-4-Group-1-Path-2-k {
-  0% { d: var(--p27); }
+  0%     { d: var(--p27); }
   13.64% { d: var(--p28); animation-timing-function: var(--e2); }
   40.91% { d: var(--p28); animation-timing-function: var(--e0); }
   54.55% { d: var(--p27); animation-timing-function: var(--e1); }
-  85% { d: var(--p27); }
-  100% { d: var(--p28); }
+  85%    { d: var(--p27); }
+  100%   { d: var(--p28); }
 }
 
 @keyframes Character-hair-2-Group-1-Path-1-k {
-  0% { d: var(--p42); animation-timing-function: var(--e1); }
+  0%     { d: var(--p42); animation-timing-function: var(--e1); }
   10.71% { d: 'M 29 -154.01 C -17.5 -146.51 -95 -107.01 -108.5 -27.51 C -122 51.99 -92.5 116.49 -61.5 147.49 C -58.14 150.85 -54.15 154.49 -49.58 158.26 C -56.98 144.98 -64.15 127.54 -67.5 118.49 C -65.5 121.66 -60.7 127.19 -57.5 123.99 C -53.5 119.99 -57.5 115.99 -59.5 113.49 C -61.1 111.49 -63.5 107.99 -64.5 106.49 C -62.1 109.29 -56.5 112.99 -54 114.49 C -77.2 91.29 -70.67 32.83 -64.5 6.49 C -64.5 6.49 -23.86 -16.91 -23.86 -16.91 C -25.52 -25.37 -22.96 -49.31 0.53 -77.38 C 24.03 -105.46 74.88 -110.79 97.37 -109.95 C 97.37 -109.95 90.65 -146.08 90.65 -146.08 C 69.96 -151.99 55.39 -158.27 29 -154.01 Z'; animation-timing-function: var(--e1); }
   21.43% { d: var(--p42); animation-timing-function: var(--e7); }
   32.14% { d: var(--p79); }
-  37.5% { d: var(--p78); }
+  37.5%  { d: var(--p78); }
   42.86% { d: 'M 7.76 -152.71 C -33.98 -145.21 -95 -107.01 -108.5 -27.51 C -122 51.99 -92.5 116.49 -61.5 147.49 C -58.14 150.85 -54.15 154.49 -49.58 158.26 C -56.98 144.98 -76.17 126.19 -79.52 117.14 C -77.52 120.31 -72.16 125.67 -70.51 123.41 C -68.97 121.29 -72.99 116.45 -74.99 113.95 C -76.59 111.95 -78.99 108.45 -79.99 106.95 C -77.59 109.75 -71.99 113.45 -69.49 114.95 C -92.69 91.75 -80.66 33.13 -76.83 6.79 C -76.83 6.79 -69.44 -8.82 -69.44 -8.82 C -69.98 -23.95 -70.75 -55.26 -49.23 -82.71 C -22.78 -116.44 11.4 -122.04 31.16 -123.73 C 31.16 -123.73 22.01 -158.9 22.01 -158.9 C 13.69 -158.93 31.45 -156.96 7.76 -152.71 Z'; }
   48.21% { d: var(--p78); }
   53.57% { d: var(--p79); animation-timing-function: var(--e6); }
   64.29% { d: var(--p42); animation-timing-function: var(--e1); }
   88.21% { d: var(--p42); animation-timing-function: var(--e10); }
-  100% { d: 'M 29 -154.01 C -17.5 -146.51 -95 -107.01 -108.5 -27.51 C -122 51.99 -92.5 116.49 -61.5 147.49 C -58.14 150.85 -54.15 154.49 -49.58 158.26 C -56.98 144.98 -64.15 127.54 -67.5 118.49 C -65.5 121.66 -60.7 127.19 -57.5 123.99 C -53.5 119.99 -57.5 115.99 -59.5 113.49 C -61.1 111.49 -63.5 107.99 -64.5 106.49 C -62.1 109.29 -56.5 112.99 -54 114.49 C -77.2 91.29 -70.67 32.83 -64.5 6.49 C -64.5 6.49 -5 -17.01 -5 -17.01 C -7.33 -25.34 -6 -49.41 18 -79.01 C 42 -108.61 97.33 -117.34 122 -118.01 C 122 -118.01 103.44 -153.62 103.44 -153.62 C 80.43 -158.13 55.39 -158.27 29 -154.01 Z'; }
+  100%   { d: 'M 29 -154.01 C -17.5 -146.51 -95 -107.01 -108.5 -27.51 C -122 51.99 -92.5 116.49 -61.5 147.49 C -58.14 150.85 -54.15 154.49 -49.58 158.26 C -56.98 144.98 -64.15 127.54 -67.5 118.49 C -65.5 121.66 -60.7 127.19 -57.5 123.99 C -53.5 119.99 -57.5 115.99 -59.5 113.49 C -61.1 111.49 -63.5 107.99 -64.5 106.49 C -62.1 109.29 -56.5 112.99 -54 114.49 C -77.2 91.29 -70.67 32.83 -64.5 6.49 C -64.5 6.49 -5 -17.01 -5 -17.01 C -7.33 -25.34 -6 -49.41 18 -79.01 C 42 -108.61 97.33 -117.34 122 -118.01 C 122 -118.01 103.44 -153.62 103.44 -153.62 C 80.43 -158.13 55.39 -158.27 29 -154.01 Z'; }
 }
 
 @keyframes Character-Hat-k {
-  0% { transform: translate(46.71px, -0.33px); animation-timing-function: var(--e1); }
+  0%     { transform: translate(46.71px, -0.33px); animation-timing-function: var(--e1); }
   16.04% { transform: translate(45.99px, -2.45px); }
   48.13% { transform: translate(45.99px, -2.45px); animation-timing-function: var(--e0); }
   56.15% { transform: translate(47.42px, -0.72px); animation-timing-function: var(--e0); }
   64.17% { transform: translate(47.54px, 4.38px); }
-  100% { transform: translate(47.54px, 4.38px); }
+  100%   { transform: translate(47.54px, 4.38px); }
 }
 
 @keyframes Character-Hat-k-2 {
-  0% { transform: rotate(9deg); animation-timing-function: var(--e3); }
+  0%     { transform: rotate(9deg); animation-timing-function: var(--e3); }
   13.64% { transform: rotate(6deg); }
   40.91% { transform: rotate(6deg); }
   47.73% { transform: rotate(8deg); }
   54.55% { transform: rotate(9deg); }
-  85% { transform: rotate(9deg); animation-timing-function: cubic-bezier(0.282, 0, 0, 1); }
-  100% { transform: rotate(5deg); }
+  85%    { transform: rotate(9deg); animation-timing-function: cubic-bezier(0.282, 0, 0, 1); }
+  100%   { transform: rotate(5deg); }
 }
 
 @keyframes Character-Hat-hat-Group-13-Path-1-k {
-  0% { d: var(--p14); }
-  8.98% { d: var(--p47); animation-timing-function: var(--e0); }
+  0%     { d: var(--p14); }
+  8.98%  { d: var(--p47); animation-timing-function: var(--e0); }
   17.96% { d: var(--p14); }
   26.95% { d: var(--p119); animation-timing-function: var(--e2); }
   35.93% { d: 'M -125.25 16.5 C -106.49 6.77 -57.19 -15.14 -9.73 -15.62 C 49.6 -16.22 94.7 -2.45 126.23 13.63'; animation-timing-function: var(--e2); }
@@ -5464,12 +6465,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p47); animation-timing-function: var(--e0); }
   91.92% { d: var(--p14); }
   95.81% { d: var(--p47); animation-timing-function: var(--e0); }
-  100% { d: var(--p14); }
+  100%   { d: var(--p14); }
 }
 
 @keyframes Character-Hat-hat-Group-12-Path-1-k {
-  0% { d: var(--p22); }
-  8.98% { d: var(--p49); animation-timing-function: var(--e0); }
+  0%     { d: var(--p22); }
+  8.98%  { d: var(--p49); animation-timing-function: var(--e0); }
   17.96% { d: var(--p22); }
   26.95% { d: var(--p120); animation-timing-function: var(--e2); }
   35.93% { d: 'M 5.11 -18.96 C 4.28 -18.57 -4.99 14.14 -9.51 30.82'; animation-timing-function: var(--e2); }
@@ -5483,12 +6484,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p49); animation-timing-function: var(--e0); }
   91.92% { d: var(--p22); }
   95.81% { d: var(--p49); animation-timing-function: var(--e0); }
-  100% { d: var(--p22); }
+  100%   { d: var(--p22); }
 }
 
 @keyframes Character-Hat-hat-Group-11-Path-1-k {
-  0% { d: var(--p15); }
-  8.98% { d: var(--p52); animation-timing-function: var(--e0); }
+  0%     { d: var(--p15); }
+  8.98%  { d: var(--p52); animation-timing-function: var(--e0); }
   17.96% { d: var(--p15); }
   26.95% { d: var(--p123); animation-timing-function: var(--e2); }
   35.93% { d: 'M 8.45 -20.43 C 1.12 -9.38 -13.5 23.39 -14.4 34.37'; animation-timing-function: var(--e2); }
@@ -5502,12 +6503,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p52); animation-timing-function: var(--e0); }
   91.92% { d: var(--p15); }
   95.81% { d: var(--p52); animation-timing-function: var(--e0); }
-  100% { d: var(--p15); }
+  100%   { d: var(--p15); }
 }
 
 @keyframes Character-Hat-hat-Group-10-Path-1-k {
-  0% { d: var(--p17); }
-  8.98% { d: var(--p55); animation-timing-function: var(--e0); }
+  0%     { d: var(--p17); }
+  8.98%  { d: var(--p55); animation-timing-function: var(--e0); }
   17.96% { d: var(--p17); }
   26.95% { d: var(--p126); animation-timing-function: var(--e2); }
   35.93% { d: 'M 13.61 -23.25 C -0.61 -8.89 -21.2 31.89 -20.52 39.61'; animation-timing-function: var(--e2); }
@@ -5521,12 +6522,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p55); animation-timing-function: var(--e0); }
   91.92% { d: var(--p17); }
   95.81% { d: var(--p55); animation-timing-function: var(--e0); }
-  100% { d: var(--p17); }
+  100%   { d: var(--p17); }
 }
 
 @keyframes Character-Hat-hat-Group-9-Path-1-k {
-  0% { d: var(--p16); }
-  8.98% { d: var(--p54); animation-timing-function: var(--e0); }
+  0%     { d: var(--p16); }
+  8.98%  { d: var(--p54); animation-timing-function: var(--e0); }
   17.96% { d: var(--p16); }
   26.95% { d: var(--p125); animation-timing-function: var(--e2); }
   35.93% { d: 'M 20.31 -29.64 C 4.89 -19.71 -24.88 16.64 -29.02 49.83'; animation-timing-function: var(--e2); }
@@ -5540,12 +6541,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p54); animation-timing-function: var(--e0); }
   91.92% { d: var(--p16); }
   95.81% { d: var(--p54); animation-timing-function: var(--e0); }
-  100% { d: var(--p16); }
+  100%   { d: var(--p16); }
 }
 
 @keyframes Character-Hat-hat-Group-8-Path-1-k {
-  0% { d: var(--p19); }
-  8.98% { d: var(--p48); animation-timing-function: var(--e0); }
+  0%     { d: var(--p19); }
+  8.98%  { d: var(--p48); animation-timing-function: var(--e0); }
   17.96% { d: var(--p19); }
   26.95% { d: var(--p130); animation-timing-function: var(--e2); }
   35.93% { d: 'M -14.51 -26.69 C -2.61 -16.6 22 15.82 26.24 29.35'; animation-timing-function: var(--e2); }
@@ -5559,12 +6560,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p48); animation-timing-function: var(--e0); }
   91.92% { d: var(--p19); }
   95.81% { d: var(--p48); animation-timing-function: var(--e0); }
-  100% { d: var(--p19); }
+  100%   { d: var(--p19); }
 }
 
 @keyframes Character-Hat-hat-Group-7-Path-1-k {
-  0% { d: var(--p24); }
-  8.98% { d: var(--p50); animation-timing-function: var(--e0); }
+  0%     { d: var(--p24); }
+  8.98%  { d: var(--p50); animation-timing-function: var(--e0); }
   17.96% { d: var(--p24); }
   26.95% { d: var(--p121); animation-timing-function: var(--e2); }
   35.93% { d: 'M 3.14 -18.64 C 3.14 -18.64 -5.78 28.71 -5.78 28.71'; animation-timing-function: var(--e2); }
@@ -5578,12 +6579,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p50); animation-timing-function: var(--e0); }
   91.92% { d: var(--p24); }
   95.81% { d: var(--p50); animation-timing-function: var(--e0); }
-  100% { d: var(--p24); }
+  100%   { d: var(--p24); }
 }
 
 @keyframes Character-Hat-hat-Group-6-Path-1-k {
-  0% { d: var(--p25); }
-  8.98% { d: var(--p51); animation-timing-function: var(--e0); }
+  0%     { d: var(--p25); }
+  8.98%  { d: var(--p51); animation-timing-function: var(--e0); }
   17.96% { d: var(--p25); }
   26.95% { d: var(--p122); animation-timing-function: var(--e2); }
   35.93% { d: 'M -0.05 -18.66 C -0.05 -18.66 -0.62 27.05 -0.62 27.05'; animation-timing-function: var(--e2); }
@@ -5597,12 +6598,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p51); animation-timing-function: var(--e0); }
   91.92% { d: var(--p25); }
   95.81% { d: var(--p51); animation-timing-function: var(--e0); }
-  100% { d: var(--p25); }
+  100%   { d: var(--p25); }
 }
 
 @keyframes Character-Hat-hat-Group-5-Path-1-k {
-  0% { d: var(--p20); }
-  8.98% { d: var(--p59); animation-timing-function: var(--e0); }
+  0%     { d: var(--p20); }
+  8.98%  { d: var(--p59); animation-timing-function: var(--e0); }
   17.96% { d: var(--p20); }
   26.95% { d: var(--p131); animation-timing-function: var(--e2); }
   35.93% { d: 'M -1.44 -19.09 C -1.44 -19.09 2.71 26.11 2.71 26.11'; animation-timing-function: var(--e2); }
@@ -5616,12 +6617,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p59); animation-timing-function: var(--e0); }
   91.92% { d: var(--p20); }
   95.81% { d: var(--p59); animation-timing-function: var(--e0); }
-  100% { d: var(--p20); }
+  100%   { d: var(--p20); }
 }
 
 @keyframes Character-Hat-hat-Group-4-Path-1-k {
-  0% { d: var(--p18); }
-  8.98% { d: var(--p56); animation-timing-function: var(--e0); }
+  0%     { d: var(--p18); }
+  8.98%  { d: var(--p56); animation-timing-function: var(--e0); }
   17.96% { d: var(--p18); }
   26.95% { d: var(--p129); animation-timing-function: var(--e2); }
   35.93% { d: 'M -9.3 -20.13 C -1.51 -12.06 15.02 13.08 17.86 22.55'; animation-timing-function: var(--e2); }
@@ -5635,12 +6636,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p56); animation-timing-function: var(--e0); }
   91.92% { d: var(--p18); }
   95.81% { d: var(--p56); animation-timing-function: var(--e0); }
-  100% { d: var(--p18); }
+  100%   { d: var(--p18); }
 }
 
 @keyframes Character-Hat-hat-Group-3-Path-1-k {
-  0% { d: var(--p21); }
-  8.98% { d: var(--p57); animation-timing-function: var(--e0); }
+  0%     { d: var(--p21); }
+  8.98%  { d: var(--p57); animation-timing-function: var(--e0); }
   17.96% { d: var(--p21); }
   26.95% { d: var(--p124); animation-timing-function: var(--e2); }
   35.93% { d: 'M -2.15 -18.73 C -2.15 -18.73 5.07 24.41 5.07 24.41'; animation-timing-function: var(--e2); }
@@ -5654,12 +6655,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p57); animation-timing-function: var(--e0); }
   91.92% { d: var(--p21); }
   95.81% { d: var(--p57); animation-timing-function: var(--e0); }
-  100% { d: var(--p21); }
+  100%   { d: var(--p21); }
 }
 
 @keyframes Character-Hat-hat-Group-2-Path-1-k {
-  0% { d: var(--p26); }
-  8.98% { d: var(--p53); animation-timing-function: var(--e0); }
+  0%     { d: var(--p26); }
+  8.98%  { d: var(--p53); animation-timing-function: var(--e0); }
   17.96% { d: var(--p26); }
   26.95% { d: var(--p128); animation-timing-function: var(--e2); }
   35.93% { d: 'M -3.61 -16.92 C -3.61 -16.92 8.16 20.9 8.16 20.9'; animation-timing-function: var(--e2); }
@@ -5673,12 +6674,12 @@ export const examples: Example[] = [
   87.43% { d: var(--p53); animation-timing-function: var(--e0); }
   91.92% { d: var(--p26); }
   95.81% { d: var(--p53); animation-timing-function: var(--e0); }
-  100% { d: var(--p26); }
+  100%   { d: var(--p26); }
 }
 
 @keyframes Character-Hat-hat-Group-1-Path-1-k {
-  0% { d: var(--p23); }
-  8.98% { d: var(--p58); animation-timing-function: var(--e0); }
+  0%     { d: var(--p23); }
+  8.98%  { d: var(--p58); animation-timing-function: var(--e0); }
   17.96% { d: var(--p23); }
   26.95% { d: var(--p127); animation-timing-function: var(--e2); }
   35.93% { d: 'M -6.92 -18.3 C -1.33 -8.23 10.55 13.82 13.32 21.48'; animation-timing-function: var(--e2); }
@@ -5692,11 +6693,11 @@ export const examples: Example[] = [
   87.43% { d: var(--p58); animation-timing-function: var(--e0); }
   91.92% { d: var(--p23); }
   95.81% { d: var(--p58); animation-timing-function: var(--e0); }
-  100% { d: var(--p23); }
+  100%   { d: var(--p23); }
 }
 
 @keyframes Character-nose-k {
-  0% { transform: translate(-41.72px, 0.37px); }
+  0%     { transform: translate(-41.72px, 0.37px); }
   10.71% { transform: translate(-37.87px, 15.4px); }
   21.43% { transform: translate(-41.72px, 0.37px); animation-timing-function: cubic-bezier(0.306, 0, 0.648, 0.967); }
   32.14% { transform: translate(-79.57px, -11.12px); animation-timing-function: cubic-bezier(0.437, 0.037, 0.508, 1); }
@@ -5707,17 +6708,17 @@ export const examples: Example[] = [
   76.65% { transform: translate(-36.87px, -19.03px); animation-timing-function: cubic-bezier(0.324, 0, 0.672, 1); }
   82.63% { transform: translate(-30.68px, 31.73px); animation-timing-function: cubic-bezier(0.306, 0, 0.656, 1); }
   88.21% { transform: translate(-36.87px, -19.03px); animation-timing-function: cubic-bezier(0.324, 0, 0, 1); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes Character-nose-k-2 {
-  0% { transform: rotate(-12deg); }
-  8.98% { transform: rotate(-20deg); }
+  0%     { transform: rotate(-12deg); }
+  8.98%  { transform: rotate(-20deg); }
   17.96% { transform: rotate(-12deg); animation-timing-function: cubic-bezier(0.832, 0, 0.652, 1); }
   22.45% { transform: rotate(-4deg); animation-timing-function: cubic-bezier(0.368, 0, 0.146, 1); }
   26.95% { transform: rotate(-12deg); animation-timing-function: cubic-bezier(0.317, 0, 0.146, 1); }
   44.91% { transform: rotate(-12deg); animation-timing-function: cubic-bezier(0.317, 0, 0.652, 1); }
-  49.4% { transform: rotate(-4deg); animation-timing-function: cubic-bezier(0.368, 0, 0.667, 1); }
+  49.4%  { transform: rotate(-4deg); animation-timing-function: cubic-bezier(0.368, 0, 0.667, 1); }
   53.89% { transform: rotate(-25deg); animation-timing-function: cubic-bezier(0.387, 0, 0.717, 0.864); }
   59.24% { transform: rotate(-10deg); animation-timing-function: cubic-bezier(0.42, -0.189, 0.667, 1); }
   64.26% { transform: rotate(-25deg); animation-timing-function: cubic-bezier(0.387, 0, 0.717, 0.873); }
@@ -5725,14 +6726,14 @@ export const examples: Example[] = [
   73.95% { transform: rotate(-25deg); animation-timing-function: cubic-bezier(0.387, 0, 0, 1); }
   83.83% { transform: rotate(-20deg); animation-timing-function: var(--e3); }
   87.59% { transform: rotate(0deg); animation-timing-function: var(--e0); }
-  92.1% { transform: rotate(-20deg); animation-timing-function: var(--e3); }
+  92.1%  { transform: rotate(-20deg); animation-timing-function: var(--e3); }
   95.86% { transform: rotate(0deg); animation-timing-function: var(--e0); }
-  100% { transform: rotate(-20deg); }
+  100%   { transform: rotate(-20deg); }
 }
 
 @keyframes Character-nose-Group-4-Group-1-Path-2-k {
-  0% { d: var(--p30); animation-timing-function: var(--e16); }
-  9.06% { d: var(--p74); }
+  0%     { d: var(--p30); animation-timing-function: var(--e16); }
+  9.06%  { d: var(--p74); }
   17.22% { d: var(--p30); animation-timing-function: var(--e18); }
   22.36% { d: var(--p74); animation-timing-function: var(--e11); }
   26.28% { d: var(--p101); animation-timing-function: var(--e3); }
@@ -5750,12 +6751,12 @@ export const examples: Example[] = [
   87.48% { d: var(--p103); animation-timing-function: var(--e0); }
   92.03% { d: var(--p73); animation-timing-function: var(--e3); }
   95.83% { d: var(--p103); animation-timing-function: var(--e0); }
-  100% { d: var(--p73); }
+  100%   { d: var(--p73); }
 }
 
 @keyframes Character-nose-Group-3-Path-1-k {
-  0% { d: var(--p29); animation-timing-function: var(--e16); }
-  9.06% { d: var(--p71); }
+  0%     { d: var(--p29); animation-timing-function: var(--e16); }
+  9.06%  { d: var(--p71); }
   17.22% { d: var(--p29); animation-timing-function: var(--e18); }
   22.36% { d: var(--p71); animation-timing-function: var(--e11); }
   26.28% { d: var(--p93); animation-timing-function: var(--e3); }
@@ -5773,12 +6774,12 @@ export const examples: Example[] = [
   87.48% { d: var(--p94); animation-timing-function: var(--e0); }
   92.03% { d: var(--p72); animation-timing-function: var(--e3); }
   95.83% { d: var(--p94); animation-timing-function: var(--e0); }
-  100% { d: var(--p72); }
+  100%   { d: var(--p72); }
 }
 
 @keyframes Character-nose-Group-2-Path-1-k {
-  0% { d: var(--p34); animation-timing-function: var(--e16); }
-  9.06% { d: var(--p76); animation-timing-function: var(--e12); }
+  0%     { d: var(--p34); animation-timing-function: var(--e16); }
+  9.06%  { d: var(--p76); animation-timing-function: var(--e12); }
   17.22% { d: var(--p34); animation-timing-function: var(--e18); }
   22.36% { d: var(--p76); animation-timing-function: var(--e11); }
   26.28% { d: var(--p75); animation-timing-function: var(--e11); }
@@ -5794,11 +6795,11 @@ export const examples: Example[] = [
   87.48% { d: var(--p118); animation-timing-function: var(--e0); }
   92.03% { d: var(--p77); animation-timing-function: var(--e3); }
   95.83% { d: var(--p118); animation-timing-function: var(--e0); }
-  100% { d: var(--p77); }
+  100%   { d: var(--p77); }
 }
 
 @keyframes Character-mouth-k {
-  0% { transform: translate(2.5px, -0.13px); }
+  0%     { transform: translate(2.5px, -0.13px); }
   13.64% { transform: translate(2.5px, -0.13px); }
   27.27% { transform: translate(-20.57px, -7.88px); }
   40.91% { transform: translate(2.5px, -0.13px); }
@@ -5806,13 +6807,13 @@ export const examples: Example[] = [
   62.67% { transform: translate(2.5px, 33.87px); animation-timing-function: cubic-bezier(0.358, 0, 0.833, 1); }
   69.77% { transform: translate(2.5px, -14.13px); animation-timing-function: cubic-bezier(0.192, 0, 0.562, 1); }
   77.89% { transform: translate(2.5px, 33.87px); animation-timing-function: cubic-bezier(0.358, 0, 0.833, 1); }
-  85% { transform: translate(2.5px, -14.13px); animation-timing-function: cubic-bezier(0.192, 0, 0.833, 1); }
-  100% { transform: translate(2.5px, -0.13px); }
+  85%    { transform: translate(2.5px, -14.13px); animation-timing-function: cubic-bezier(0.192, 0, 0.833, 1); }
+  100%   { transform: translate(2.5px, -0.13px); }
 }
 
 @keyframes Character-mouth-Group-1-Path-1-k {
-  0% { d: var(--p32); animation-timing-function: var(--e1); }
-  8.98% { d: var(--p112); animation-timing-function: var(--e1); }
+  0%     { d: var(--p32); animation-timing-function: var(--e1); }
+  8.98%  { d: var(--p112); animation-timing-function: var(--e1); }
   17.96% { d: var(--p32); animation-timing-function: var(--e7); }
   26.95% { d: var(--p66); animation-timing-function: cubic-bezier(0.167, 0.002, 0.833, 0.998); }
   44.91% { d: var(--p66); animation-timing-function: var(--e6); }
@@ -5825,12 +6826,12 @@ export const examples: Example[] = [
   87.72% { d: var(--p68); }
   92.22% { d: var(--p33); animation-timing-function: var(--e2); }
   96.11% { d: var(--p68); }
-  100% { d: var(--p33); }
+  100%   { d: var(--p33); }
 }
 
 @keyframes Character-mouth-2-Group-1-Path-1-k {
-  0% { d: var(--p32); animation-timing-function: var(--e1); }
-  8.98% { d: var(--p112); animation-timing-function: var(--e1); }
+  0%     { d: var(--p32); animation-timing-function: var(--e1); }
+  8.98%  { d: var(--p112); animation-timing-function: var(--e1); }
   17.96% { d: var(--p32); animation-timing-function: var(--e7); }
   26.95% { d: var(--p66); animation-timing-function: cubic-bezier(0.167, 0.002, 0.833, 0.998); }
   44.91% { d: var(--p66); animation-timing-function: var(--e6); }
@@ -5843,11 +6844,11 @@ export const examples: Example[] = [
   87.72% { d: var(--p68); }
   92.22% { d: var(--p33); animation-timing-function: var(--e2); }
   96.11% { d: var(--p68); }
-  100% { d: var(--p33); }
+  100%   { d: var(--p33); }
 }
 
 @keyframes Character-teeth-k {
-  0% { transform: translate(13.26px, -15.3px); animation-timing-function: cubic-bezier(0.19, 0, 0.562, 1); }
+  0%     { transform: translate(13.26px, -15.3px); animation-timing-function: cubic-bezier(0.19, 0, 0.562, 1); }
   10.83% { transform: translate(-3.2px, 1.26px); animation-timing-function: cubic-bezier(0.364, 0, 0.833, 1); }
   19.11% { transform: translate(-12.82px, -20.4px); animation-timing-function: cubic-bezier(0.19, 0, 0.562, 1); }
   29.94% { transform: translate(3.29px, 1.67px); animation-timing-function: cubic-bezier(0.364, 0, 0.833, 1); }
@@ -5857,52 +6858,52 @@ export const examples: Example[] = [
   68.79% { transform: translate(1.85px, 45.97px); }
   78.34% { transform: translate(0px, 0px); }
   89.81% { transform: translate(1.85px, 45.97px); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes Character-teeth-k-2 {
-  0% { transform: rotate(-16deg); }
+  0%     { transform: rotate(-16deg); }
   66.67% { transform: rotate(-16deg); animation-timing-function: cubic-bezier(0.167, 0, 0.583, 0.6); }
   83.33% { transform: rotate(-6deg); animation-timing-function: cubic-bezier(0.417, 0.667, 0.833, 1); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes Character-teeth-Group-4-Path-1-k {
-  0% { d: var(--p46); }
+  0%     { d: var(--p46); }
   31.58% { d: var(--p46); }
   47.37% { d: var(--p46); }
   82.63% { d: var(--p46); animation-timing-function: var(--e9); }
-  100% { d: 'M -16.6 -35 C -25 -42.2 -31.1 -54.33 -33.1 -59.5 C -36.43 -30.83 -39.9 29.8 -27.1 43 C -11.1 59.5 39.9 57 39.4 23.5 C 38.9 -10 28.9 -15 17.4 -19.5 C 5.9 -24 -6.1 -26 -16.6 -35 Z'; }
+  100%   { d: 'M -16.6 -35 C -25 -42.2 -31.1 -54.33 -33.1 -59.5 C -36.43 -30.83 -39.9 29.8 -27.1 43 C -11.1 59.5 39.9 57 39.4 23.5 C 38.9 -10 28.9 -15 17.4 -19.5 C 5.9 -24 -6.1 -26 -16.6 -35 Z'; }
 }
 
 @keyframes Character-teeth-Group-3-Path-1-k {
-  0% { d: var(--p43); }
+  0%     { d: var(--p43); }
   31.58% { d: var(--p43); }
   47.37% { d: var(--p43); }
   82.63% { d: var(--p43); animation-timing-function: var(--e9); }
-  100% { d: 'M 8.65 16.25 C 8.74 15.62 8.8 14.97 8.83 14.33 C 9.06 8.49 7.45 2.63 4.63 -2.51 C 1.8 -7.65 -2.36 -12.02 -7.21 -15.22 C -7.75 -15.58 -8.29 -15.91 -8.85 -16.25 C -8.33 -15.86 -7.83 -15.47 -7.33 -15.07 C -2.81 -11.44 1 -7.03 3.76 -2.02 C 6.5 2.98 8.33 8.55 8.64 14.33 C 8.67 14.96 8.68 15.62 8.65 16.25 Z'; }
+  100%   { d: 'M 8.65 16.25 C 8.74 15.62 8.8 14.97 8.83 14.33 C 9.06 8.49 7.45 2.63 4.63 -2.51 C 1.8 -7.65 -2.36 -12.02 -7.21 -15.22 C -7.75 -15.58 -8.29 -15.91 -8.85 -16.25 C -8.33 -15.86 -7.83 -15.47 -7.33 -15.07 C -2.81 -11.44 1 -7.03 3.76 -2.02 C 6.5 2.98 8.33 8.55 8.64 14.33 C 8.67 14.96 8.68 15.62 8.65 16.25 Z'; }
 }
 
 @keyframes Character-teeth-Group-2-Path-1-k {
-  0% { d: var(--p106); }
+  0%     { d: var(--p106); }
   13.64% { d: var(--p108); }
   40.91% { d: var(--p108); }
   54.55% { d: var(--p107); }
-  85% { d: var(--p107); animation-timing-function: var(--e9); }
-  100% { d: 'M 9.25 26.43 C -17.75 10.93 -55.25 3.43 -56.75 2.93 C -56.08 -6.07 -49.45 -25.87 -28.25 -37.07 C -7.05 -48.27 37.25 -5.07 56.75 17.93 C 53.42 25.93 44.15 43.13 33.75 47.93 C 25.58 48.27 9.25 44.43 9.25 26.43 Z'; }
+  85%    { d: var(--p107); animation-timing-function: var(--e9); }
+  100%   { d: 'M 9.25 26.43 C -17.75 10.93 -55.25 3.43 -56.75 2.93 C -56.08 -6.07 -49.45 -25.87 -28.25 -37.07 C -7.05 -48.27 37.25 -5.07 56.75 17.93 C 53.42 25.93 44.15 43.13 33.75 47.93 C 25.58 48.27 9.25 44.43 9.25 26.43 Z'; }
 }
 
 @keyframes Character-teeth-Group-1-Path-1-k {
-  0% { d: var(--p91); }
+  0%     { d: var(--p91); }
   13.64% { d: var(--p63); }
   40.91% { d: var(--p63); }
   54.55% { d: var(--p63); }
-  85% { d: var(--p63); animation-timing-function: var(--e9); }
-  100% { d: 'M 12 8 C 11.68 7.65 11.33 7.3 10.99 6.97 C 7.82 3.98 4.33 1.34 0.73 -1.09 C -2.89 -3.5 -6.67 -5.7 -10.66 -7.45 C -11.1 -7.64 -11.56 -7.83 -12 -8 C -11.59 -7.77 -11.16 -7.52 -10.75 -7.28 C -7.01 -5.06 -3.43 -2.65 0.17 -0.25 C 3.76 2.16 7.37 4.55 10.86 7.11 C 11.25 7.4 11.64 7.7 12 8 Z'; }
+  85%    { d: var(--p63); animation-timing-function: var(--e9); }
+  100%   { d: 'M 12 8 C 11.68 7.65 11.33 7.3 10.99 6.97 C 7.82 3.98 4.33 1.34 0.73 -1.09 C -2.89 -3.5 -6.67 -5.7 -10.66 -7.45 C -11.1 -7.64 -11.56 -7.83 -12 -8 C -11.59 -7.77 -11.16 -7.52 -10.75 -7.28 C -7.01 -5.06 -3.43 -2.65 0.17 -0.25 C 3.76 2.16 7.37 4.55 10.86 7.11 C 11.25 7.4 11.64 7.7 12 8 Z'; }
 }
 
 @keyframes Character-eye-k {
-  0% { transform: translate(-71.26px, 12.49px); animation-timing-function: cubic-bezier(0.167, 0, 0.583, 1); }
+  0%     { transform: translate(-71.26px, 12.49px); animation-timing-function: cubic-bezier(0.167, 0, 0.583, 1); }
   10.71% { transform: translate(-65.96px, 25.03px); animation-timing-function: cubic-bezier(0.417, 0, 0.833, 1); }
   21.43% { transform: translate(-71.26px, 12.49px); animation-timing-function: cubic-bezier(0.195, 0, 0.562, 0.931); }
   32.14% { transform: translate(-123.72px, -2.23px); animation-timing-function: cubic-bezier(0.344, 0.072, 0.694, 1); }
@@ -5913,27 +6914,27 @@ export const examples: Example[] = [
   76.65% { transform: translate(-66.53px, -6.43px); }
   82.63% { transform: translate(-60.23px, 43.85px); animation-timing-function: cubic-bezier(0.195, 0, 0.581, 1); }
   88.21% { transform: translate(-66.53px, -6.43px); animation-timing-function: cubic-bezier(0.356, 0, 0, 1); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes Character-eye-k-2 {
-  0% { transform: rotate(-20deg); }
+  0%     { transform: rotate(-20deg); }
   10.71% { transform: rotate(-20deg); animation-timing-function: cubic-bezier(0.417, 0, 0.833, 1); }
   21.43% { transform: rotate(-20deg); animation-timing-function: cubic-bezier(0.195, 0, 0.562, 1); }
   32.14% { transform: rotate(-26deg); animation-timing-function: cubic-bezier(0.352, 0, 0.562, 1); }
   53.57% { transform: rotate(-26deg); animation-timing-function: cubic-bezier(0.352, 0, 0.833, 1); }
   64.29% { transform: rotate(-20deg); animation-timing-function: cubic-bezier(0.195, 0, 0.833, 1); }
   88.21% { transform: rotate(-20deg); animation-timing-function: cubic-bezier(0.195, 0, 0, 1); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes Character-eye-k-3 {
-  0% { transform: scale(1.45, 1.45); }
+  0%   { transform: scale(1.45, 1.45); }
   100% { transform: scale(1, 1); }
 }
 
 @keyframes Character-ear-k {
-  0% { transform: translate(-21px, 7px); }
+  0%     { transform: translate(-21px, 7px); }
   10.71% { transform: translate(-8.01px, 10.63px); }
   21.43% { transform: translate(-21px, 7px); animation-timing-function: cubic-bezier(0.306, 0, 0.648, 0.949); }
   32.14% { transform: translate(-25.53px, 15.81px); animation-timing-function: cubic-bezier(0, 0, 0.5, 1); }
@@ -5944,11 +6945,11 @@ export const examples: Example[] = [
   76.65% { transform: translate(-19.96px, 18.35px); animation-timing-function: cubic-bezier(0.32, 0, 0.655, 1); }
   83.03% { transform: translate(-19.78px, -5.1px); animation-timing-function: cubic-bezier(0.325, 0, 0.667, 1); }
   88.21% { transform: translate(-19.96px, 18.35px); animation-timing-function: cubic-bezier(0.32, 0, 0, 1); }
-  100% { transform: translate(0px, 0px); }
+  100%   { transform: translate(0px, 0px); }
 }
 
 @keyframes Character-ear-k-2 {
-  0% { transform: rotate(1deg); }
+  0%     { transform: rotate(1deg); }
   10.71% { transform: rotate(-2deg); }
   21.43% { transform: rotate(1deg); animation-timing-function: cubic-bezier(0.317, 0, 0.652, 1.135); }
   26.79% { transform: rotate(8.13deg); animation-timing-function: cubic-bezier(0.325, 0.081, 0.66, 0.973); }
@@ -5961,11 +6962,11 @@ export const examples: Example[] = [
   76.65% { transform: rotate(-5deg); animation-timing-function: cubic-bezier(0.325, 0, 0.66, 1); }
   83.03% { transform: rotate(9deg); animation-timing-function: cubic-bezier(0.328, 0, 0.67, 1); }
   88.21% { transform: rotate(-5deg); animation-timing-function: cubic-bezier(0.317, 0, 0, 1); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes Character-ear-Group-9-Group-1-Path-2-k {
-  0% { d: var(--p5); }
+  0%     { d: var(--p5); }
   10.71% { d: var(--p111); }
   21.43% { d: var(--p5); animation-timing-function: var(--e7); }
   32.14% { d: var(--p67); animation-timing-function: var(--e5); }
@@ -5973,11 +6974,11 @@ export const examples: Example[] = [
   53.57% { d: var(--p67); animation-timing-function: var(--e6); }
   64.29% { d: var(--p5); }
   88.21% { d: var(--p5); animation-timing-function: var(--e10); }
-  100% { d: var(--p110); }
+  100%   { d: var(--p110); }
 }
 
 @keyframes Character-ear-Group-10-Path-1-k {
-  0% { d: var(--p3); }
+  0%     { d: var(--p3); }
   10.71% { d: var(--p83); }
   21.43% { d: var(--p3); animation-timing-function: var(--e7); }
   32.14% { d: var(--p61); animation-timing-function: var(--e5); }
@@ -5985,11 +6986,11 @@ export const examples: Example[] = [
   53.57% { d: var(--p61); animation-timing-function: var(--e6); }
   64.29% { d: var(--p3); }
   88.21% { d: var(--p3); animation-timing-function: var(--e10); }
-  100% { d: var(--p82); }
+  100%   { d: var(--p82); }
 }
 
 @keyframes Character-ear-Group-8-Path-1-k {
-  0% { d: var(--p2); }
+  0%     { d: var(--p2); }
   10.71% { d: var(--p80); }
   21.43% { d: var(--p2); animation-timing-function: var(--e7); }
   32.14% { d: var(--p60); animation-timing-function: var(--e5); }
@@ -5997,11 +6998,11 @@ export const examples: Example[] = [
   53.57% { d: var(--p60); animation-timing-function: var(--e6); }
   64.29% { d: var(--p2); }
   88.21% { d: var(--p2); animation-timing-function: var(--e10); }
-  100% { d: var(--p81); }
+  100%   { d: var(--p81); }
 }
 
 @keyframes Character-Airpod-2-k {
-  0% { transform: translate(-7.74px, 1.45px); }
+  0%     { transform: translate(-7.74px, 1.45px); }
   10.71% { transform: translate(-8.83px, -3.53px); }
   21.43% { transform: translate(-7.74px, 1.45px); animation-timing-function: cubic-bezier(0.317, 0, 0.652, 0.245); }
   26.79% { transform: translate(-12.96px, 2.82px); animation-timing-function: cubic-bezier(0.325, 0.359, 0.66, 0.984); }
@@ -6011,11 +7012,11 @@ export const examples: Example[] = [
   58.93% { transform: translate(-12.96px, 2.82px); animation-timing-function: cubic-bezier(0.325, 0.704, 0.667, 1); }
   64.29% { transform: translate(-7.74px, 1.45px); animation-timing-function: var(--e4); }
   88.21% { transform: translate(-7.74px, 1.45px); animation-timing-function: cubic-bezier(0.317, 0, 0, 1); }
-  100% { transform: translate(0.23px, 0.27px); }
+  100%   { transform: translate(0.23px, 0.27px); }
 }
 
 @keyframes Character-Airpod-2-k-2 {
-  0% { transform: rotate(8deg); }
+  0%     { transform: rotate(8deg); }
   10.71% { transform: rotate(11deg); }
   21.43% { transform: rotate(8deg); animation-timing-function: cubic-bezier(0.306, 0, 0.648, 0.983); }
   32.14% { transform: rotate(20.34deg); animation-timing-function: cubic-bezier(0.367, 0.042, 0.693, 1.01); }
@@ -6023,20 +7024,20 @@ export const examples: Example[] = [
   53.57% { transform: rotate(20.34deg); animation-timing-function: cubic-bezier(0.367, -0.018, 0.667, 1); }
   64.29% { transform: rotate(8deg); animation-timing-function: cubic-bezier(0.306, 0, 0.667, 1); }
   88.21% { transform: rotate(8deg); animation-timing-function: cubic-bezier(0.306, 0, 0, 1); }
-  100% { transform: rotate(0deg); }
+  100%   { transform: rotate(0deg); }
 }
 
 @keyframes Character-Airpod-2-k-3 {
-  0% { transform: scale(1, 1); }
+  0%     { transform: scale(1, 1); }
   16.04% { transform: scale(0.94, 1); }
   32.09% { transform: scale(0.89, 1); }
   48.13% { transform: scale(0.94, 1); }
   64.17% { transform: scale(1, 1); }
-  100% { transform: scale(1, 1); }
+  100%   { transform: scale(1, 1); }
 }
 
 @keyframes Character-Shape-Layer-1-Shape-1-Path-1-k {
-  0% { d: var(--p44); }
+  0%     { d: var(--p44); }
   10.71% { d: 'M -119.99 -95.59 C -141.9 -98.06 -168.06 -75.35 -172.25 -47.15 C -176.44 -18.94 -128.42 -12.01 -128.42 -12.01 C -128.42 -12.01 -85.73 46.65 -85.73 46.65 C -85.73 46.65 -50.63 25.46 -50.63 25.46 C -50.63 25.46 -75.28 -8.02 -96.75 -40.64 C -92.06 -73.32 -113.03 -94.8 -119.99 -95.59 Z'; }
   21.43% { d: var(--p44); animation-timing-function: var(--e7); }
   32.14% { d: var(--p99); animation-timing-function: var(--e5); }
@@ -6044,42 +7045,20 @@ export const examples: Example[] = [
   53.57% { d: var(--p99); animation-timing-function: var(--e6); }
   64.29% { d: var(--p44); }
   88.21% { d: var(--p44); animation-timing-function: var(--e10); }
-  100% { d: 'M -116.5 -95.5 C -138.55 -95.5 -162 -70 -163 -41.5 C -164 -13 -115.5 -11.5 -115.5 -11.5 C -115.5 -11.5 -66.5 42 -66.5 42 C -66.5 42 -34 17 -34 17 C -34 17 -62.25 -13.5 -87.25 -43.5 C -86.25 -76.5 -109.5 -95.5 -116.5 -95.5 Z'; }
+  100%   { d: 'M -116.5 -95.5 C -138.55 -95.5 -162 -70 -163 -41.5 C -164 -13 -115.5 -11.5 -115.5 -11.5 C -115.5 -11.5 -66.5 42 -66.5 42 C -66.5 42 -34 17 -34 17 C -34 17 -62.25 -13.5 -87.25 -43.5 C -86.25 -76.5 -109.5 -95.5 -116.5 -95.5 Z'; }
 }
 
 @keyframes Volume-Layer-18-Outlines-Group-1-Path-2-k {
-  0% { d: var(--p90); }
-  13.3% { d: var(--p97); }
+  0%     { d: var(--p90); }
+  13.3%  { d: var(--p97); }
   41.28% { d: var(--p97); }
   54.59% { d: var(--p98); }
   86.24% { d: var(--p98); }
-  100% { d: 'M -150.24 260.54 C -155.21 260.54 -159.24 264.57 -159.24 269.54 C -159.24 274.51 -155.21 278.54 -150.24 278.54 C -150.24 278.54 132.67 278.51 132.67 278.51 C 137.64 278.51 141.67 274.49 141.67 269.51 C 141.67 264.54 137.64 260.51 132.67 260.51 C 132.67 260.51 -150.24 260.54 -150.24 260.54 Z'; }
+  100%   { d: 'M -150.24 260.54 C -155.21 260.54 -159.24 264.57 -159.24 269.54 C -159.24 274.51 -155.21 278.54 -150.24 278.54 C -150.24 278.54 132.67 278.51 132.67 278.51 C 137.64 278.51 141.67 274.49 141.67 269.51 C 141.67 264.54 137.64 260.51 132.67 260.51 C 132.67 260.51 -150.24 260.54 -150.24 260.54 Z'; }
 }
 
-/* ----------------------------------------------------------------------------
-   Interactive volume — a hand-authored 4-level state machine on the converted
-   scene. The master "Main Scene" timeline (0–5.58s @ 60fps) holds four looping
-   "level" windows joined by short one-shot "transition" segments:
-
-     Level 1  0–1.0s (loop)   → Increase-to-2  1.017–1.483s
-     Level 2  1.517–2.533s    → Increase-to-3  2.55–2.983s
-     Level 3  3.0–4.117s      → Increase-to-4  4.133–4.65s
-     Level 4  4.667–5.583s
-
-   @machine vol steps between levels by driving \`time-remap\` on #master — an
-   animatable scalar that scrubs a segment of the master timeline for the whole
-   volume-responsive subtree (BG echoes, Character, notes, Volume, mask). Click
-   #Increase-button to play a transition segment forward once (\`on complete\`
-   settles into the next level's loop); click #Decrease-button to play the SAME
-   segment in \`reverse\` and settle into the previous level's loop. Each
-   transition state's animation duration equals its segment length, so
-   \`on complete\` fires exactly when the segment finishes.
-
-   Note: clicking Increase mid-loop hard-cuts to the transition segment's first
-   frame — that's the dotLottie PlaybackState behavior, not a bug. No \`mix\` here:
-   blending two *times* would time-blur hundreds of descendant tracks.
-   -------------------------------------------------------------------------- */
-
+/* Master-timeline segments: four looping volume levels joined by one-shot transitions.
+   NOTE: states swap segments via time-remap, never \`mix\`: blending two times would blur every track. */
 @keyframes seg-l1  { from { time-remap: 0s;     } to { time-remap: 1s;     } }
 @keyframes seg-up2 { from { time-remap: 1.017s; } to { time-remap: 1.483s; } }
 @keyframes seg-l2  { from { time-remap: 1.517s; } to { time-remap: 2.533s; } }
@@ -6102,8 +7081,7 @@ export const examples: Example[] = [
   state dn3 { to: l3  on complete; }
 }
 
-/* The two buttons stay OUTSIDE #master (static UI + click targets) so their
-   frame never moves and they stay clickable. */
+/* Buttons stay outside #master so the time-remap never moves their click targets. */
 #Increase-button {
   type: group;
   transform: translate(751.38px, 860.79px);
@@ -6130,13 +7108,12 @@ export const examples: Example[] = [
   }
 }
 
-/* Volume-responsive content, scrubbed as one by #master's time-remap. #master
-   itself carries NO base animation — only the machine's :state() sets it. */
+/* Volume-responsive content, scrubbed as one; only the machine's :state() animates it. */
 #master {
   type: group;
 
-  /* Level loops play their window forever; transition states play once (forward
-     for Increase, \`reverse\` for Decrease) and settle via \`on complete\`. */
+  /* Transitions play once (Decrease in \`reverse\`); each duration equals its segment's length
+     so \`on complete\` fires exactly at the segment end. */
   &:state(vol.l1)  { animation: seg-l1  1s     linear infinite; }
   &:state(vol.up2) { animation: seg-up2 467ms  linear; }
   &:state(vol.dn1) { animation: seg-up2 467ms  linear reverse; }
@@ -6149,3419 +7126,3645 @@ export const examples: Example[] = [
   &:state(vol.l4)  { animation: seg-l4  0.916s linear infinite; }
 
   > #Layer-4-Outlines-2 {
-  type: group;
-  transform-origin: 570px 591.64px;
-  > #Layer-4-Outlines-2-Group-1 {
     type: group;
-    transform: translate(570px, 591.64px);
-    > #Layer-4-Outlines-2-Group-1-Path-1 {
-      type: path;
-      d: var(--p115);
-      fill: #18181b;
-    }
-  }
-}
-
-  > #Layer-4-Outlines {
-  type: group;
-  transform-origin: 570px 591.64px;
-  mask: #mask alpha;
-  > #Layer-4-Outlines-Group-1 {
-    type: group;
-    transform: translate(570px, 591.64px);
-    > #Layer-4-Outlines-Group-1-Path-1 {
-      type: path;
-      d: var(--p115);
-      fill: radial-gradient(circle 1110.49px at 1.23px -403.3px, #415be3 46.1%, #3b4fc3 61.4%, #3442a3 76.6%);
-    }
-  }
-}
-
-  > #BG {
-  type: group;
-  transform-origin: 570px 592px;
-  transform: translate(0px, 26px);
-  clip-path: var(--p1);
-  mask: #mask alpha;
-  > #BG-Echos-1 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    visible-until: 1s;
-    > #BG-Echos-1-Layer-5-Outlines {
+    transform-origin: 570px 591.64px;
+    > #Layer-4-Outlines-2-Group-1 {
       type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-Layer-5-Outlines-k 1s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-Layer-5-Outlines-2-k 1s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-Layer-5-Outlines-3-k 1s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-Layer-5-Outlines-4-k 1s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-Layer-5-Outlines-5-k 1s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-Layer-5-Outlines-6-k 1s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-Layer-5-Outlines-7 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      visible-from: 0.5s;
-      animation: BG-Echos-1-Layer-5-Outlines-7-k 0.5s var(--e4) 1 0.5s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-Layer-5-Outlines-7-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-Layer-5-Outlines-7-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-Echos-1-2 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    visible-from: 1s;
-    visible-until: 1.5s;
-    > #BG-Echos-1-2-Layer-5-Outlines {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-2-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-2-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-2-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-3-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-2-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-4-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-2-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-5-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-2-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-6-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-1-2-Layer-5-Outlines-7 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-1-2-Layer-5-Outlines-7-k 0.5s linear 1 1s;
-      animation-fill-mode: both;
-      > #BG-Echos-1-2-Layer-5-Outlines-7-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-1-2-Layer-5-Outlines-7-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-1-2-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-Echos-2 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    time-offset: 1.5s;
-    visible-from: 1.5s;
-    visible-until: 2.5s;
-    > #BG-Echos-2-Layer-5-Outlines {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-Layer-5-Outlines-k 0.983s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-Layer-5-Outlines-2-k 0.983s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-Layer-5-Outlines-3-k 0.983s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-Layer-5-Outlines-4-k 0.983s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-Layer-5-Outlines-5-k 0.983s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-Layer-5-Outlines-6-k 0.983s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-Echos-2-2 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    time-offset: 2.5s;
-    visible-from: 2.5s;
-    visible-until: 3s;
-    > #BG-Echos-2-2-Layer-5-Outlines {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-2-Layer-5-Outlines-k 0.5s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-2-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-2-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-2-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-2-Layer-5-Outlines-2-k 0.5s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-2-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-2-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-2-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-2-Layer-5-Outlines-3-k 0.5s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-2-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-2-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-2-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-2-Layer-5-Outlines-4-k 0.5s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-2-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-2-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-2-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-2-Layer-5-Outlines-5-k 0.5s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-2-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-2-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-2-2-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-2-2-Layer-5-Outlines-6-k 0.5s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-2-2-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-2-2-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-2-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-Echos-3 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    time-offset: 3s;
-    visible-from: 3s;
-    visible-until: 4.117s;
-    > #BG-Echos-3-Layer-5-Outlines {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-2-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-3-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-4-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-5-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-6-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-7 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-Layer-5-Outlines-7-k 1.117s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-7-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-7-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-Layer-5-Outlines-8 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      visible-from: 0.567s;
-      animation: BG-Echos-3-Layer-5-Outlines-8-k 0.55s cubic-bezier(0.159, 0.102, 0.621, 0.854) 1 0.567s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-Layer-5-Outlines-8-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-Layer-5-Outlines-8-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-Layer-5-Outlines-8-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-Echos-3-2 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    time-offset: 3s;
-    visible-from: 4.117s;
-    visible-until: 4.667s;
-    > #BG-Echos-3-2-Layer-5-Outlines {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-2-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-3-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-4-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-5-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-6-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-7 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-7-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-7-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-7-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-3-2-Layer-5-Outlines-8 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-3-2-Layer-5-Outlines-8-k 0.55s linear 1 1.117s;
-      animation-fill-mode: both;
-      > #BG-Echos-3-2-Layer-5-Outlines-8-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-3-2-Layer-5-Outlines-8-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-3-2-Layer-5-Outlines-8-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-Echos-4 {
-    type: group;
-    transform-origin: 570px 592px;
-    clip-path: var(--p1);
-    time-offset: 4.667s;
-    visible-from: 4.667s;
-    > #BG-Echos-4-Layer-5-Outlines {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-2 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-2-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-2-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-2-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-3 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-3-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-3-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-3-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-4 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-4-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-4-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-4-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-5 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-5-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-5-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-5-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-6 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-6-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-6-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-6-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-7 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-7-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-7-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-7-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-8 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-8-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-8-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-8-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-8-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-9 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-9-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-9-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-9-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-9-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-    > #BG-Echos-4-Layer-5-Outlines-10 {
-      type: group;
-      transform-origin: 583px 561.57px;
-      animation: BG-Echos-4-Layer-5-Outlines-10-k 0.9s linear 1;
-      animation-fill-mode: both;
-      > #BG-Echos-4-Layer-5-Outlines-10-Group-4 {
-        type: group;
-        transform: translate(584.4px, 561.57px);
-        > #BG-Echos-4-Layer-5-Outlines-10-Group-4-Group-1 {
-          type: group;
-          > #BG-Echos-4-Layer-5-Outlines-10-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p0);
-            fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
-          }
-        }
-      }
-    }
-  }
-  > #BG-music-notes {
-    type: group;
-    transform-origin: 868.6px 611.91px;
-    visible-until: 1s;
-    animation: BG-music-notes-k 1s var(--e1) 1, BG-music-notes-k-2 0.833s var(--e9) 1, BG-music-notes-k-3 0.5s var(--e4) 1 0.5s;
-    animation-fill-mode: both;
-    > #BG-music-notes-Group-8 {
-      type: group;
-      transform: translate(846.81px, 621.06px);
-      > #BG-music-notes-Group-8-Path-1 {
-        type: path;
-        d: var(--p31);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-Group-7 {
-      type: group;
-      transform: translate(839.66px, 630.74px);
-      > #BG-music-notes-Group-7-Path-1 {
-        type: path;
-        d: var(--p40);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-Group-6 {
-      type: group;
-      transform: translate(831.71px, 646.75px);
-      > #BG-music-notes-Group-6-Path-1 {
-        type: path;
-        d: var(--p35);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-Group-5 {
-      type: group;
-      transform: translate(897px, 579.57px);
-      > #BG-music-notes-Group-5-Path-1 {
-        type: path;
-        d: var(--p38);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-Group-4 {
-      type: group;
-      transform: translate(909.26px, 594.31px);
-      > #BG-music-notes-Group-4-Path-1 {
-        type: path;
-        d: var(--p41);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-Group-3 {
-      type: group;
-      transform: translate(882.4px, 609.66px);
-      > #BG-music-notes-Group-3-Path-1 {
-        type: path;
-        d: var(--p39);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-Group-2 {
-      type: group;
-      transform: translate(900.83px, 611.43px);
-      > #BG-music-notes-Group-2-Path-1 {
-        type: path;
-        d: var(--p36);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-Group-1 {
-      type: group;
-      transform: translate(875.72px, 621.82px);
-      > #BG-music-notes-Group-1-Path-1 {
-        type: path;
-        d: var(--p37);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-2 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-until: 1s;
-    animation: BG-music-notes-2-k 1s var(--e1) 1, BG-music-notes-2-k-2 0.833s var(--e8) 1, BG-music-notes-2-k-3 0.5s var(--e4) 1 0.5s;
-    animation-fill-mode: both;
-    > #BG-music-notes-2-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-2-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-2-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-2-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-2-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-2-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-2-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-2-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-2-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-2-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-2-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-2-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-2-2 {
-    type: group;
-    transform-origin: 868.6px 611.91px;
-    visible-from: 1.5s;
-    visible-until: 2.233s;
-    animation: BG-music-notes-2-2-k 0.717s var(--e1) 1 1.5s, BG-music-notes-2-2-k-2 0.597s var(--e9) 1 1.5s, BG-music-notes-2-2-k-3 0.358s var(--e4) 1 1.858s;
-    animation-fill-mode: both;
-    > #BG-music-notes-2-2-Group-8 {
-      type: group;
-      transform: translate(846.81px, 621.06px);
-      > #BG-music-notes-2-2-Group-8-Path-1 {
-        type: path;
-        d: var(--p31);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-2-Group-7 {
-      type: group;
-      transform: translate(839.66px, 630.74px);
-      > #BG-music-notes-2-2-Group-7-Path-1 {
-        type: path;
-        d: var(--p40);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-2-2-Group-6 {
-      type: group;
-      transform: translate(831.71px, 646.75px);
-      > #BG-music-notes-2-2-Group-6-Path-1 {
-        type: path;
-        d: var(--p35);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-2-Group-5 {
-      type: group;
-      transform: translate(897px, 579.57px);
-      > #BG-music-notes-2-2-Group-5-Path-1 {
-        type: path;
-        d: var(--p38);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-2-Group-4 {
-      type: group;
-      transform: translate(909.26px, 594.31px);
-      > #BG-music-notes-2-2-Group-4-Path-1 {
-        type: path;
-        d: var(--p41);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-2-2-Group-3 {
-      type: group;
-      transform: translate(882.4px, 609.66px);
-      > #BG-music-notes-2-2-Group-3-Path-1 {
-        type: path;
-        d: var(--p39);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-2-2-Group-2 {
-      type: group;
-      transform: translate(900.83px, 611.43px);
-      > #BG-music-notes-2-2-Group-2-Path-1 {
-        type: path;
-        d: var(--p36);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-2-2-Group-1 {
-      type: group;
-      transform: translate(875.72px, 621.82px);
-      > #BG-music-notes-2-2-Group-1-Path-1 {
-        type: path;
-        d: var(--p37);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-3 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 1.5s;
-    visible-until: 2.233s;
-    animation: BG-music-notes-3-k 0.717s var(--e1) 1 1.5s, BG-music-notes-3-k-2 0.597s var(--e8) 1 1.5s, BG-music-notes-3-k-3 0.358s var(--e4) 1 1.858s;
-    animation-fill-mode: both;
-    > #BG-music-notes-3-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-3-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-3-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-3-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-3-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-3-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-3-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-3-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-3-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-3-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-3-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-3-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-3-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-3-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-3-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-3-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-4 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 1.767s;
-    visible-until: 2.5s;
-    animation: BG-music-notes-4-k 0.717s var(--e1) 1 1.767s, BG-music-notes-4-k-2 0.597s var(--e8) 1 1.767s, BG-music-notes-4-k-3 0.358s var(--e4) 1 2.125s;
-    animation-fill-mode: both;
-    > #BG-music-notes-4-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-4-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-4-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-4-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-4-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-4-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-4-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-4-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-4-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-4-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-4-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-4-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-4-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-4-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-4-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-4-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-5 {
-    type: group;
-    transform-origin: 868.6px 611.91px;
-    visible-from: 3.083s;
-    visible-until: 3.7s;
-    animation: BG-music-notes-5-k 0.607s var(--e1) 1 3.083s, BG-music-notes-5-k-2 0.506s var(--e9) 1 3.083s, BG-music-notes-5-k-3 0.304s var(--e4) 1 3.387s;
-    animation-fill-mode: both;
-    > #BG-music-notes-5-Group-8 {
-      type: group;
-      transform: translate(846.81px, 621.06px);
-      > #BG-music-notes-5-Group-8-Path-1 {
-        type: path;
-        d: var(--p31);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-5-Group-7 {
-      type: group;
-      transform: translate(839.66px, 630.74px);
-      > #BG-music-notes-5-Group-7-Path-1 {
-        type: path;
-        d: var(--p40);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-5-Group-6 {
-      type: group;
-      transform: translate(831.71px, 646.75px);
-      > #BG-music-notes-5-Group-6-Path-1 {
-        type: path;
-        d: var(--p35);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-5-Group-5 {
-      type: group;
-      transform: translate(897px, 579.57px);
-      > #BG-music-notes-5-Group-5-Path-1 {
-        type: path;
-        d: var(--p38);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-5-Group-4 {
-      type: group;
-      transform: translate(909.26px, 594.31px);
-      > #BG-music-notes-5-Group-4-Path-1 {
-        type: path;
-        d: var(--p41);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-5-Group-3 {
-      type: group;
-      transform: translate(882.4px, 609.66px);
-      > #BG-music-notes-5-Group-3-Path-1 {
-        type: path;
-        d: var(--p39);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-5-Group-2 {
-      type: group;
-      transform: translate(900.83px, 611.43px);
-      > #BG-music-notes-5-Group-2-Path-1 {
-        type: path;
-        d: var(--p36);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-5-Group-1 {
-      type: group;
-      transform: translate(875.72px, 621.82px);
-      > #BG-music-notes-5-Group-1-Path-1 {
-        type: path;
-        d: var(--p37);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-8 {
-    type: group;
-    transform-origin: 868.6px 611.91px;
-    visible-from: 3.35s;
-    visible-until: 3.967s;
-    animation: BG-music-notes-8-k 0.607s var(--e1) 1 3.35s, BG-music-notes-8-k-2 0.506s var(--e9) 1 3.35s, BG-music-notes-8-k-3 0.304s var(--e4) 1 3.654s;
-    animation-fill-mode: both;
-    > #BG-music-notes-8-Group-8 {
-      type: group;
-      transform: translate(846.81px, 621.06px);
-      > #BG-music-notes-8-Group-8-Path-1 {
-        type: path;
-        d: var(--p31);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-8-Group-7 {
-      type: group;
-      transform: translate(839.66px, 630.74px);
-      > #BG-music-notes-8-Group-7-Path-1 {
-        type: path;
-        d: var(--p40);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-8-Group-6 {
-      type: group;
-      transform: translate(831.71px, 646.75px);
-      > #BG-music-notes-8-Group-6-Path-1 {
-        type: path;
-        d: var(--p35);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-8-Group-5 {
-      type: group;
-      transform: translate(897px, 579.57px);
-      > #BG-music-notes-8-Group-5-Path-1 {
-        type: path;
-        d: var(--p38);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-8-Group-4 {
-      type: group;
-      transform: translate(909.26px, 594.31px);
-      > #BG-music-notes-8-Group-4-Path-1 {
-        type: path;
-        d: var(--p41);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-8-Group-3 {
-      type: group;
-      transform: translate(882.4px, 609.66px);
-      > #BG-music-notes-8-Group-3-Path-1 {
-        type: path;
-        d: var(--p39);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-8-Group-2 {
-      type: group;
-      transform: translate(900.83px, 611.43px);
-      > #BG-music-notes-8-Group-2-Path-1 {
-        type: path;
-        d: var(--p36);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-8-Group-1 {
-      type: group;
-      transform: translate(875.72px, 621.82px);
-      > #BG-music-notes-8-Group-1-Path-1 {
-        type: path;
-        d: var(--p37);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-6 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 3s;
-    visible-until: 3.617s;
-    animation: BG-music-notes-6-k 0.607s var(--e1) 1 3s, BG-music-notes-6-k-2 0.506s var(--e8) 1 3s, BG-music-notes-6-k-3 0.304s var(--e4) 1 3.304s;
-    animation-fill-mode: both;
-    > #BG-music-notes-6-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-6-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-6-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-6-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-6-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-6-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-6-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-6-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-6-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-6-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-6-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-6-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-6-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-6-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-6-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-6-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-9 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 3.5s;
-    visible-until: 4.117s;
-    animation: BG-music-notes-9-k 0.607s var(--e1) 1 3.5s, BG-music-notes-9-k-2 0.506s var(--e8) 1 3.5s, BG-music-notes-9-k-3 0.304s var(--e4) 1 3.804s;
-    animation-fill-mode: both;
-    > #BG-music-notes-9-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-9-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-9-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-9-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-9-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-9-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-9-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-9-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-9-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-9-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-9-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-9-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-9-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-9-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-9-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-9-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-7 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 3.217s;
-    visible-until: 3.833s;
-    animation: BG-music-notes-7-k 0.607s var(--e1) 1 3.226s, BG-music-notes-7-k-2 0.506s var(--e8) 1 3.226s, BG-music-notes-7-k-3 0.304s var(--e4) 1 3.53s;
-    animation-fill-mode: both;
-    > #BG-music-notes-7-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-7-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-7-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-7-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-7-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-7-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-7-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-7-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-7-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-7-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-7-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-7-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-7-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-7-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-7-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-7-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-10 {
-    type: group;
-    transform-origin: 868.6px 611.91px;
-    visible-from: 4.733s;
-    visible-until: 5.167s;
-    animation: BG-music-notes-10-k 0.439s var(--e1) 1 4.727s, BG-music-notes-10-k-2 0.366s var(--e9) 1 4.727s, BG-music-notes-10-k-3 0.219s var(--e4) 1 4.946s;
-    animation-fill-mode: both;
-    > #BG-music-notes-10-Group-8 {
-      type: group;
-      transform: translate(846.81px, 621.06px);
-      > #BG-music-notes-10-Group-8-Path-1 {
-        type: path;
-        d: var(--p31);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-10-Group-7 {
-      type: group;
-      transform: translate(839.66px, 630.74px);
-      > #BG-music-notes-10-Group-7-Path-1 {
-        type: path;
-        d: var(--p40);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-10-Group-6 {
-      type: group;
-      transform: translate(831.71px, 646.75px);
-      > #BG-music-notes-10-Group-6-Path-1 {
-        type: path;
-        d: var(--p35);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-10-Group-5 {
-      type: group;
-      transform: translate(897px, 579.57px);
-      > #BG-music-notes-10-Group-5-Path-1 {
-        type: path;
-        d: var(--p38);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-10-Group-4 {
-      type: group;
-      transform: translate(909.26px, 594.31px);
-      > #BG-music-notes-10-Group-4-Path-1 {
-        type: path;
-        d: var(--p41);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-10-Group-3 {
-      type: group;
-      transform: translate(882.4px, 609.66px);
-      > #BG-music-notes-10-Group-3-Path-1 {
-        type: path;
-        d: var(--p39);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-10-Group-2 {
-      type: group;
-      transform: translate(900.83px, 611.43px);
-      > #BG-music-notes-10-Group-2-Path-1 {
-        type: path;
-        d: var(--p36);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-10-Group-1 {
-      type: group;
-      transform: translate(875.72px, 621.82px);
-      > #BG-music-notes-10-Group-1-Path-1 {
-        type: path;
-        d: var(--p37);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-11 {
-    type: group;
-    transform-origin: 868.6px 611.91px;
-    visible-from: 4.917s;
-    visible-until: 5.367s;
-    animation: BG-music-notes-11-k 0.439s var(--e1) 1 4.92s, BG-music-notes-11-k-2 0.366s var(--e9) 1 4.92s, BG-music-notes-11-k-3 0.219s var(--e4) 1 5.139s;
-    animation-fill-mode: both;
-    > #BG-music-notes-11-Group-8 {
-      type: group;
-      transform: translate(846.81px, 621.06px);
-      > #BG-music-notes-11-Group-8-Path-1 {
-        type: path;
-        d: var(--p31);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-11-Group-7 {
-      type: group;
-      transform: translate(839.66px, 630.74px);
-      > #BG-music-notes-11-Group-7-Path-1 {
-        type: path;
-        d: var(--p40);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-11-Group-6 {
-      type: group;
-      transform: translate(831.71px, 646.75px);
-      > #BG-music-notes-11-Group-6-Path-1 {
-        type: path;
-        d: var(--p35);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-11-Group-5 {
-      type: group;
-      transform: translate(897px, 579.57px);
-      > #BG-music-notes-11-Group-5-Path-1 {
-        type: path;
-        d: var(--p38);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-11-Group-4 {
-      type: group;
-      transform: translate(909.26px, 594.31px);
-      > #BG-music-notes-11-Group-4-Path-1 {
-        type: path;
-        d: var(--p41);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-11-Group-3 {
-      type: group;
-      transform: translate(882.4px, 609.66px);
-      > #BG-music-notes-11-Group-3-Path-1 {
-        type: path;
-        d: var(--p39);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-11-Group-2 {
-      type: group;
-      transform: translate(900.83px, 611.43px);
-      > #BG-music-notes-11-Group-2-Path-1 {
-        type: path;
-        d: var(--p36);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-11-Group-1 {
-      type: group;
-      transform: translate(875.72px, 621.82px);
-      > #BG-music-notes-11-Group-1-Path-1 {
-        type: path;
-        d: var(--p37);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-12 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 4.667s;
-    visible-until: 5.117s;
-    animation: BG-music-notes-12-k 0.439s var(--e1) 1 4.667s, BG-music-notes-12-k-2 0.366s var(--e8) 1 4.667s, BG-music-notes-12-k-3 0.219s var(--e4) 1 4.886s;
-    animation-fill-mode: both;
-    > #BG-music-notes-12-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-12-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-12-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-12-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-12-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-12-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-12-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-12-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-12-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-12-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-12-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-12-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-12-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-12-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-12-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-12-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-13 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 5.017s;
-    visible-until: 5.467s;
-    animation: BG-music-notes-13-k 0.439s var(--e1) 1 5.028s, BG-music-notes-13-k-2 0.366s var(--e8) 1 5.028s, BG-music-notes-13-k-3 0.219s var(--e4) 1 5.247s;
-    animation-fill-mode: both;
-    > #BG-music-notes-13-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-13-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-13-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-13-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-13-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-13-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-13-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-13-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-13-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-13-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-13-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-13-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-13-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-13-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-13-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-13-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-14 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 4.833s;
-    visible-until: 5.267s;
-    animation: BG-music-notes-14-k 0.439s var(--e1) 1 4.83s, BG-music-notes-14-k-2 0.366s var(--e8) 1 4.83s, BG-music-notes-14-k-3 0.219s var(--e4) 1 5.049s;
-    animation-fill-mode: both;
-    > #BG-music-notes-14-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-14-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-14-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-14-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-14-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-14-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-14-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-14-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-14-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-14-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-14-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-14-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-14-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-14-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-14-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-14-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-  > #BG-music-notes-15 {
-    type: group;
-    transform-origin: 275.24px 500.07px;
-    visible-from: 5.117s;
-    animation: BG-music-notes-15-k 0.439s var(--e1) 1 5.13s, BG-music-notes-15-k-2 0.366s var(--e8) 1 5.13s, BG-music-notes-15-k-3 0.219s var(--e4) 1 5.349s;
-    animation-fill-mode: both;
-    > #BG-music-notes-15-Group-8 {
-      type: group;
-      transform: translate(302.75px, 518.66px);
-      > #BG-music-notes-15-Group-8-Path-1 {
-        type: path;
-        d: var(--p4);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-15-Group-7 {
-      type: group;
-      transform: translate(296.5px, 529.07px);
-      > #BG-music-notes-15-Group-7-Path-1 {
-        type: path;
-        d: var(--p12);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-15-Group-6 {
-      type: group;
-      transform: translate(290.85px, 545.57px);
-      > #BG-music-notes-15-Group-6-Path-1 {
-        type: path;
-        d: var(--p9);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-15-Group-5 {
-      type: group;
-      transform: translate(266.75px, 456.32px);
-      > #BG-music-notes-15-Group-5-Path-1 {
-        type: path;
-        d: var(--p6);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-15-Group-4 {
-      type: group;
-      transform: translate(278.25px, 489.06px);
-      > #BG-music-notes-15-Group-4-Path-1 {
-        type: path;
-        d: var(--p10);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-15-Group-3 {
-      type: group;
-      transform: translate(253.15px, 471.11px);
-      > #BG-music-notes-15-Group-3-Path-1 {
-        type: path;
-        d: var(--p11);
-        fill: none;
-        stroke: #000000;
-        stroke-width: 1px;
-        stroke-linecap: round;
-      }
-    }
-    > #BG-music-notes-15-Group-2 {
-      type: group;
-      transform: translate(269.83px, 504.93px);
-      > #BG-music-notes-15-Group-2-Path-1 {
-        type: path;
-        d: var(--p7);
-        fill: #000000;
-      }
-    }
-    > #BG-music-notes-15-Group-1 {
-      type: group;
-      transform: translate(245.65px, 487.22px);
-      > #BG-music-notes-15-Group-1-Path-1 {
-        type: path;
-        d: var(--p8);
-        fill: #000000;
-      }
-    }
-  }
-}
-
-  > #Character {
-  type: group;
-  transform-origin: 570px 592px;
-  clip-path: var(--p1);
-  mask: #mask alpha;
-  animation: Character-k 0.9s cubic-bezier(0.167, 0.167, 0.833, 1) 1 4.667s;
-  animation-fill-mode: both;
-  > #Character-collar {
-    type: group;
-    transform-origin: 559.55px 733.05px;
-    animation: Character-collar-k 4.5s var(--e3) 1 1s, Character-collar-k-2 5.5s var(--e3) 1;
-    animation-fill-mode: both;
-    > #Character-collar-Group-1 {
-      type: group;
-      transform: translate(568.75px, 733.82px);
-      > #Character-collar-Group-1-Path-1 {
-        type: path;
-        d: 'M -121.25 -17.25 C -141.25 -36.05 -125.58 -50.08 -115.25 -54.75 C -78.25 -57.25 59.25 -30.25 82.25 -22.25 C 105.25 -14.25 141.25 48.25 72.75 52.75 C 4.25 57.25 -83.75 36.25 -112.25 14.75 C -119.75 7.25 -124.75 -5.75 -121.25 -17.25 Z';
-        fill: #72d58f;
-      }
-    }
-  }
-  > #Character-head {
-    type: group;
-    transform-origin: 569.48px 706.07px;
-    animation: Character-head-k 5.504s cubic-bezier(0, 0, 0.5, 1) 1, Character-head-k-2 5.504s var(--e2) 1;
-    animation-fill-mode: both;
-    > #Character-head-Group-4 {
-      type: group;
-      transform: translate(593.75px, 593.53px);
-      > #Character-head-Group-4-Group-1 {
-        type: group;
-        transform: translate(0.2px, 0.4px);
-        > #Character-head-Group-4-Group-1-Path-2 {
-          type: path;
-          d: var(--p27);
-          fill: radial-gradient(circle 198.78px at 0px 0px, #815459 19.9%, #724951 60%, #633d48 100%);
-          animation: Character-head-Group-4-Group-1-Path-2-k 3.667s var(--e3) 1 1s;
-          animation-fill-mode: both;
-        }
-      }
-    }
-    > #Character-head-Group-3 {
-      type: group;
-      transform: translate(573.75px, 736.35px);
-      > #Character-head-Group-3-Path-1 {
-        type: path;
-        d: var(--p87);
-        fill: #000000;
-        animation: Character-head-Group-3-Path-1-k 5.5s var(--e2) 1;
-        animation-fill-mode: both;
-      }
-    }
-    > #Character-hair {
-      type: group;
-      transform-origin: 727px 461.57px;
-      z-index: -4;
-      animation: Character-hair-k 3.667s var(--e1) 1 1s, Character-hair-k-2 3.05s var(--e2) 1 2.5s;
-      animation-fill-mode: both;
-      > #Character-hair-Group-1 {
-        type: group;
-        transform: translate(732px, 473.32px);
-        > #Character-hair-Group-1-Path-1 {
-          type: path;
-          d: var(--p13);
-          fill: #131220;
-          animation: Character-hair-Group-1-Path-1-k 5.5s var(--e2) 1 0.05s;
-          animation-fill-mode: both;
-        }
-      }
-    }
-    > #Character-ear-2 {
-      type: group;
-      transform-origin: 437.04px 557.35px;
-      transform: rotate(-3.02deg) scale(-1, 1);
-      visible-until: 3s;
-      z-index: -2;
-      animation: Character-ear-2-k 2s var(--e1) 1 1s;
-      animation-fill-mode: both;
-      > #Character-ear-2-Group-9 {
-        type: group;
-        transform: translate(428.25px, 558.12px);
-        > #Character-ear-2-Group-9-Group-1 {
-          type: group;
-          > #Character-ear-2-Group-9-Group-1-Path-2 {
-            type: path;
-            d: var(--p5);
-            fill: linear-gradient(from 10.11px -6.95px to -47.23px -14.62px, #59333e 0%, #6d434c 50%, #815459 100%);
-            animation: Character-ear-2-Group-9-Group-1-Path-2-k 4.667s var(--e1) 1;
-            animation-fill-mode: both;
-          }
-        }
-      }
-      > #Character-ear-2-Group-10 {
-        type: group;
-        transform: translate(469.69px, 639.56px);
-        > #Character-ear-2-Group-10-Path-1 {
-          type: path;
-          d: var(--p3);
-          fill: #131220;
-          animation: Character-ear-2-Group-10-Path-1-k 4.667s var(--e1) 1;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-ear-2-Group-8 {
-        type: group;
-        transform: translate(459.09px, 551.82px);
-        > #Character-ear-2-Group-8-Path-1 {
-          type: path;
-          d: var(--p2);
-          fill: #131220;
-          animation: Character-ear-2-Group-8-Path-1-k 4.667s var(--e1) 1;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-Airpod {
-        type: group;
-        transform-origin: 457.14px 552.93px;
-        transform: rotate(40.34deg) scale(0.88, 1);
-        clip-path: var(--p1);
-        visible-until: 3s;
-        z-index: 1;
-        animation: Character-Airpod-k 1s var(--e1) 1 1.5s;
-        animation-fill-mode: both;
-        > #Character-Airpod-airpod {
-          type: group;
-          transform-origin: 570px 591.64px;
-          > #Character-Airpod-airpod-Group-7 {
-            type: group;
-            transform: translate(471.26px, 562.25px);
-            > #Character-Airpod-airpod-Group-7-Path-1 {
-              type: path;
-              d: var(--p62);
-              fill: #ebfafa;
-            }
-          }
-          > #Character-Airpod-airpod-Group-2 {
-            type: group;
-            transform: translate(457.38px, 541.32px);
-            > #Character-Airpod-airpod-Group-2-Group-1 {
-              type: group;
-              > #Character-Airpod-airpod-Group-2-Group-1-Path-4 {
-                type: path;
-                d: var(--p105);
-                fill: linear-gradient(from -4.12px -14.2px to 10.9px 15.06px, #858e95 0%, #4c505b 50%, #131220 100%);
-              }
-            }
-          }
-          > #Character-Airpod-airpod-Group-1 {
-            type: group;
-            transform: translate(509px, 613.07px);
-            > #Character-Airpod-airpod-Group-1-Path-1 {
-              type: path;
-              d: 'M -3 2 C -3 2 3 -2 3 -2';
-              fill: none;
-              stroke: #5b606a;
-              stroke-width: 1.5px;
-              stroke-linecap: round;
-            }
-          }
-        }
-        > #Character-Airpod-airpod-2 {
-          type: group;
-          transform-origin: 570px 591.64px;
-          filter: blur(0.75px);
-          mask: #Character-Airpod-airpod-4 alpha;
-          > #Character-Airpod-airpod-2-Group-4 {
-            type: group;
-            transform: translate(444.36px, 560.74px);
-            > #Character-Airpod-airpod-2-Group-4-Group-1 {
-              type: group;
-              > #Character-Airpod-airpod-2-Group-4-Group-1-Path-5 {
-                type: path;
-                d: var(--p114);
-                fill: radial-gradient(circle 34.33px at 15.69px 8.52px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
-              }
-            }
-          }
-          > #Character-Airpod-airpod-2-Group-3 {
-            type: group;
-            transform: translate(484.57px, 540.29px);
-            > #Character-Airpod-airpod-2-Group-3-Group-1 {
-              type: group;
-              > #Character-Airpod-airpod-2-Group-3-Group-1-Path-5 {
-                type: path;
-                d: var(--p113);
-                fill: radial-gradient(circle 30.77px at 3.77px 10.65px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
-              }
-            }
-          }
-        }
-        > #Character-Airpod-airpod-4 {
-          type: group;
-          transform-origin: 570px 591.64px;
-          > #Character-Airpod-airpod-4-Group-7 {
-            type: group;
-            transform: translate(471.26px, 562.25px);
-            > #Character-Airpod-airpod-4-Group-7-Path-1 {
-              type: path;
-              d: var(--p62);
-              fill: #ebfafa;
-            }
-          }
-        }
-        > #Character-Airpod-airpod-3 {
-          type: group;
-          transform-origin: 570px 591.64px;
-          filter: blur(1px);
-          > #Character-Airpod-airpod-3-Group-6 {
-            type: group;
-            transform: translate(478.66px, 570.08px);
-            > #Character-Airpod-airpod-3-Group-6-Group-1 {
-              type: group;
-              > #Character-Airpod-airpod-3-Group-6-Group-1-Path-5 {
-                type: path;
-                d: var(--p96);
-                fill: linear-gradient(from 29.27px -4.61px to 3.47px 5.52px, #cbcbd7 0%, rgba(203, 203, 215, 0.5) 50%, rgba(203, 203, 215, 0) 100%);
-              }
-            }
-          }
-          > #Character-Airpod-airpod-3-Group-5 {
-            type: group;
-            transform: translate(480.58px, 571.74px);
-            > #Character-Airpod-airpod-3-Group-5-Group-1 {
-              type: group;
-              > #Character-Airpod-airpod-3-Group-5-Group-1-Path-6 {
-                type: path;
-                d: var(--p95);
-                fill: radial-gradient(circle 16.39px at 48.27px 37.99px, #31333f 0%, rgba(25, 26, 31, 0.5) 50%, rgba(0, 0, 0, 0) 100%);
-              }
-            }
-          }
-        }
-      }
-    }
-    > #Character-eye-2 {
-      type: group;
-      transform-origin: 713.75px 468.84px;
-      transform: scale(1.45);
-      visible-until: 4.117s;
-      z-index: 1;
-      mask: #Character-head-2 alpha;
-      animation: Character-eye-2-k 3.117s var(--e1) 1 1s, Character-eye-2-k-2 0.25s var(--e0) 1 1.25s;
-      animation-fill-mode: both;
-      > #Character-eye-2-Group-1 {
-        type: group;
-        transform: translate(713.75px, 469.33px);
-        > #Character-eye-2-Group-1-Path-1 {
-          type: path;
-          d: var(--p117);
-          fill: #131220;
-        }
-      }
-    }
-    > #Character-head-2 {
-      type: group;
-      transform-origin: 569.48px 706.07px;
-      visible-until: 4.117s;
-      z-index: 2;
-      > #Character-head-2-Group-4 {
-        type: group;
-        transform: translate(593.75px, 593.53px);
-        > #Character-head-2-Group-4-Group-1 {
-          type: group;
-          transform: translate(0.2px, 0.4px);
-          > #Character-head-2-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p27);
-            fill: radial-gradient(circle 198.78px at 0px 0px, #815459 19.9%, #724951 60%, #633d48 100%);
-            animation: Character-head-2-Group-4-Group-1-Path-2-k 3.667s var(--e3) 1 1s;
-            animation-fill-mode: both;
-          }
-        }
-      }
-      > #Character-head-2-Group-3 {
-        type: group;
-        transform: translate(573.75px, 736.35px);
-        > #Character-head-2-Group-3-Path-1 {
-          type: path;
-          d: var(--p84);
-          fill: #000000;
-        }
-      }
-    }
-    > #Character-hair-2 {
-      type: group;
-      transform-origin: 533.57px 555.66px;
-      z-index: 3;
-      > #Character-hair-2-Group-1 {
-        type: group;
-        transform: translate(528.5px, 555.08px);
-        > #Character-hair-2-Group-1-Path-1 {
-          type: path;
-          d: var(--p42);
-          fill: #131220;
-          animation: Character-hair-2-Group-1-Path-1-k 4.667s var(--e2) 1;
-          animation-fill-mode: both;
-        }
-      }
-    }
-    > #Character-Hat {
-      type: group;
-      transform-origin: 547.2px 408.48px;
-      z-index: 4;
-      animation: Character-Hat-k 3.117s var(--e4) 1 1s, Character-Hat-k-2 3.667s var(--e2) 1 1s;
-      animation-fill-mode: both;
-      > #Character-Hat-content {
-        type: group;
-        clip-path: var(--p1);
-        mask: #Character-hat alpha;
-        > #Character-Hat-hat {
-          type: group;
-          transform-origin: 581.25px 429.25px;
-          transform: translate(-43.45px, 1.57px) rotate(-9deg);
-          > #Character-Hat-hat-Group-14 {
-            type: group;
-            transform: translate(581.25px, 427.08px);
-            > #Character-Hat-hat-Group-14-Path-1 {
-              type: path;
-              d: 'M -37.19 95.2 C -107.28 105.98 -157.87 98.85 -151.25 58.5 C -147.75 24.5 -98.25 -49.5 3.25 -54 C 104.75 -58.5 148.25 30.99 151.25 39.5 C 104.05 81.61 60.31 80.19 -37.19 95.2 Z';
-              fill: #455fe1;
-            }
-          }
-          > #Character-Hat-hat-Group-13 {
-            type: group;
-            transform: translate(591.25px, 399.72px);
-            > #Character-Hat-hat-Group-13-Path-1 {
-              type: path;
-              d: var(--p14);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              animation: Character-Hat-hat-Group-13-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-12 {
-            type: group;
-            transform: translate(538.75px, 407.57px);
-            > #Character-Hat-hat-Group-12-Path-1 {
-              type: path;
-              d: var(--p22);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-12-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-11 {
-            type: group;
-            transform: translate(519.25px, 412.82px);
-            > #Character-Hat-hat-Group-11-Path-1 {
-              type: path;
-              d: var(--p15);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-11-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-10 {
-            type: group;
-            transform: translate(500.05px, 419.82px);
-            > #Character-Hat-hat-Group-10-Path-1 {
-              type: path;
-              d: var(--p17);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-10-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-9 {
-            type: group;
-            transform: translate(476.75px, 432.32px);
-            > #Character-Hat-hat-Group-9-Path-1 {
-              type: path;
-              d: var(--p16);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-9-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-8 {
-            type: group;
-            transform: translate(691px, 423.82px);
-            > #Character-Hat-hat-Group-8-Path-1 {
-              type: path;
-              d: var(--p19);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-8-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-7 {
-            type: group;
-            transform: translate(559px, 404.32px);
-            > #Character-Hat-hat-Group-7-Path-1 {
-              type: path;
-              d: var(--p24);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-7-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-6 {
-            type: group;
-            transform: translate(580px, 402.82px);
-            > #Character-Hat-hat-Group-6-Path-1 {
-              type: path;
-              d: var(--p25);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-6-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-5 {
-            type: group;
-            transform: translate(599.25px, 403.57px);
-            > #Character-Hat-hat-Group-5-Path-1 {
-              type: path;
-              d: var(--p20);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-5-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-4 {
-            type: group;
-            transform: translate(667.25px, 412.32px);
-            > #Character-Hat-hat-Group-4-Path-1 {
-              type: path;
-              d: var(--p18);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-4-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-3 {
-            type: group;
-            transform: translate(615.75px, 404.07px);
-            > #Character-Hat-hat-Group-3-Path-1 {
-              type: path;
-              d: var(--p21);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-3-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-2 {
-            type: group;
-            transform: translate(632.5px, 404.07px);
-            > #Character-Hat-hat-Group-2-Path-1 {
-              type: path;
-              d: var(--p26);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-2-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-          > #Character-Hat-hat-Group-1 {
-            type: group;
-            transform: translate(649px, 407.32px);
-            > #Character-Hat-hat-Group-1-Path-1 {
-              type: path;
-              d: var(--p23);
-              fill: none;
-              stroke: #000000;
-              stroke-width: 1px;
-              stroke-linecap: round;
-              animation: Character-Hat-hat-Group-1-Path-1-k 5.567s var(--e3) 1;
-              animation-fill-mode: both;
-            }
-          }
-        }
-      }
-      > #Character-hat {
-        type: group;
-        transform-origin: 581.25px 429.25px;
-        transform: translate(-43.45px, 1.57px) rotate(-9deg);
-        z-index: 1;
-        > #Character-hat-Group-14 {
-          type: group;
-          transform: translate(581.25px, 427.08px);
-          > #Character-hat-Group-14-Path-1 {
-            type: path;
-            d: 'M -30.75 -3 C -100.84 7.78 -140.58 43.17 -151.25 58.5 C -147.75 24.5 -98.25 -49.5 3.25 -54 C 104.75 -58.5 148.25 30.99 151.25 39.5 C 114.75 1 66.75 -18.01 -30.75 -3 Z';
-            fill: #455fe1;
-          }
-        }
-      }
-    }
-    > #Character-nose {
-      type: group;
-      transform-origin: 727.97px 497.32px;
-      z-index: 6;
-      animation: Character-nose-k 4.667s var(--e1) 1, Character-nose-k-2 5.567s var(--e1) 1;
-      animation-fill-mode: both;
-      > #Character-nose-Group-4 {
-        type: group;
-        transform: translate(750.25px, 532.06px);
-        > #Character-nose-Group-4-Group-1 {
-          type: group;
-          > #Character-nose-Group-4-Group-1-Path-2 {
-            type: path;
-            d: var(--p30);
-            fill: linear-gradient(from -84.81px 7.94px to 37.19px -26.55px, #815459 19.9%, #6d434c 60%, #5a333e 100%);
-            animation: Character-nose-Group-4-Group-1-Path-2-k 5.517s var(--e12) 1 0.05s;
-            animation-fill-mode: both;
-          }
-        }
-      }
-      > #Character-nose-Group-3 {
-        type: group;
-        transform: translate(737.5px, 490.39px);
-        > #Character-nose-Group-3-Path-1 {
-          type: path;
-          d: var(--p29);
-          fill: #131220;
-          animation: Character-nose-Group-3-Path-1-k 5.517s var(--e12) 1 0.05s;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-nose-Group-2 {
-        type: group;
-        transform: translate(743.5px, 536.82px);
-        > #Character-nose-Group-2-Path-1 {
-          type: path;
-          d: var(--p34);
-          fill: #141420;
-          stroke: #12111f;
-          stroke-width: 1px;
-          animation: Character-nose-Group-2-Path-1-k 5.517s cubic-bezier(1, 0, 0.159, 1) 1 0.05s;
-          animation-fill-mode: both;
-        }
-      }
-    }
-    > #Character-mouth {
-      type: group;
-      transform-origin: 695.86px 606.62px;
-      z-index: 7;
-      animation: Character-mouth-k 3.667s var(--e2) 1 1s;
-      animation-fill-mode: both;
-      > #Character-mouth-Group-1 {
-        type: group;
-        transform: translate(697.7px, 612.57px);
-        > #Character-mouth-Group-1-Path-1 {
-          type: path;
-          d: var(--p32);
-          fill: #151521;
-          animation: Character-mouth-Group-1-Path-1-k 5.567s var(--e0) 1;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-mouth-2 {
-        type: group;
-        transform-origin: 695.86px 606.62px;
-        z-index: 2;
-        > #Character-mouth-2-Group-1 {
-          type: group;
-          transform: translate(697.7px, 612.57px);
-          > #Character-mouth-2-Group-1-Path-1 {
-            type: path;
-            d: var(--p32);
-            fill: #151521;
-            animation: Character-mouth-2-Group-1-Path-1-k 5.567s var(--e0) 1;
-            animation-fill-mode: both;
-          }
-        }
-      }
-    }
-    > #Character-teeth {
-      type: group;
-      transform-origin: 695.96px 614.38px;
-      visible-from: 1s;
-      z-index: 8;
-      mask: #Character-mouth-2 alpha;
-      animation: Character-teeth-k 2.617s var(--e2) 1 1.5s, Character-teeth-k-2 1.5s var(--e2) 1 1.5s;
-      animation-fill-mode: both;
-      > #Character-teeth-Group-4 {
-        type: group;
-        transform: translate(674.6px, 661.07px);
-        > #Character-teeth-Group-4-Path-1 {
-          type: path;
-          d: var(--p46);
-          fill: #fc5e45;
-          animation: Character-teeth-Group-4-Path-1-k 3.167s var(--e2) 1 1.5s;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-teeth-Group-3 {
-        type: group;
-        transform: translate(682.86px, 649.32px);
-        > #Character-teeth-Group-3-Path-1 {
-          type: path;
-          d: var(--p43);
-          fill: #000000;
-          animation: Character-teeth-Group-3-Path-1-k 3.167s var(--e2) 1 1.5s;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-teeth-Group-2 {
-        type: group;
-        transform: translate(696.75px, 553.64px);
-        > #Character-teeth-Group-2-Path-1 {
-          type: path;
-          d: var(--p106);
-          fill: #e4f2fb;
-          animation: Character-teeth-Group-2-Path-1-k 3.667s var(--e2) 1 1s;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-teeth-Group-1 {
-        type: group;
-        transform: translate(711px, 584.57px);
-        > #Character-teeth-Group-1-Path-1 {
-          type: path;
-          d: var(--p91);
-          fill: #000000;
-          animation: Character-teeth-Group-1-Path-1-k 3.667s var(--e2) 1 1s;
-          animation-fill-mode: both;
-        }
-      }
-    }
-    > #Character-eye {
-      type: group;
-      transform-origin: 713.75px 468.84px;
-      z-index: 10;
-      animation: Character-eye-k 4.667s cubic-bezier(0.356, 0, 0.84, 1) 1, Character-eye-k-2 4.667s cubic-bezier(0.167, 0, 0.583, 1) 1, Character-eye-k-3 0.55s cubic-bezier(0.167, 0, 0.214, 1) 1 4.117s;
-      animation-fill-mode: both;
-      > #Character-eye-Group-1 {
-        type: group;
-        transform: translate(713.75px, 469.33px);
-        > #Character-eye-Group-1-Path-1 {
-          type: path;
-          d: var(--p117);
-          fill: #131220;
-        }
-      }
-    }
-    > #Character-ear {
-      type: group;
-      transform-origin: 437.04px 557.35px;
-      z-index: 11;
-      animation: Character-ear-k 4.667s var(--e1) 1, Character-ear-k-2 4.667s var(--e1) 1;
-      animation-fill-mode: both;
-      > #Character-ear-Group-9 {
-        type: group;
-        transform: translate(428.25px, 558.12px);
-        > #Character-ear-Group-9-Group-1 {
-          type: group;
-          > #Character-ear-Group-9-Group-1-Path-2 {
-            type: path;
-            d: var(--p5);
-            fill: linear-gradient(from -33.68px 0.31px to 108.52px 13.79px, #633d48 0%, #724951 50%, #815459 100%);
-            animation: Character-ear-Group-9-Group-1-Path-2-k 4.667s var(--e1) 1;
-            animation-fill-mode: both;
-          }
-        }
-      }
-      > #Character-ear-Group-10 {
-        type: group;
-        transform: translate(469.69px, 639.56px);
-        > #Character-ear-Group-10-Path-1 {
-          type: path;
-          d: var(--p3);
-          fill: #131220;
-          animation: Character-ear-Group-10-Path-1-k 4.667s var(--e1) 1;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-ear-Group-8 {
-        type: group;
-        transform: translate(459.09px, 551.82px);
-        > #Character-ear-Group-8-Path-1 {
-          type: path;
-          d: var(--p2);
-          fill: #131220;
-          animation: Character-ear-Group-8-Path-1-k 4.667s var(--e1) 1;
-          animation-fill-mode: both;
-        }
-      }
-      > #Character-Airpod-2 {
-        type: group;
-        transform-origin: 457.14px 552.93px;
-        clip-path: var(--p1);
-        z-index: 1;
-        mask: #Character-Shape-Layer-1 alpha;
-        animation: Character-Airpod-2-k 4.667s var(--e1) 1, Character-Airpod-2-k-2 4.667s var(--e1) 1, Character-Airpod-2-k-3 3.117s var(--e2) 1 1s;
-        animation-fill-mode: both;
-        > #Character-Airpod-2-airpod {
-          type: group;
-          transform-origin: 570px 591.64px;
-          > #Character-Airpod-2-airpod-Group-7 {
-            type: group;
-            transform: translate(471.26px, 562.25px);
-            > #Character-Airpod-2-airpod-Group-7-Path-1 {
-              type: path;
-              d: var(--p62);
-              fill: #ebfafa;
-            }
-          }
-          > #Character-Airpod-2-airpod-Group-2 {
-            type: group;
-            transform: translate(457.38px, 541.32px);
-            > #Character-Airpod-2-airpod-Group-2-Group-1 {
-              type: group;
-              > #Character-Airpod-2-airpod-Group-2-Group-1-Path-4 {
-                type: path;
-                d: var(--p105);
-                fill: linear-gradient(from -4.12px -14.2px to 10.9px 15.06px, #858e95 0%, #4c505b 50%, #131220 100%);
-              }
-            }
-          }
-          > #Character-Airpod-2-airpod-Group-1 {
-            type: group;
-            transform: translate(509px, 613.07px);
-            > #Character-Airpod-2-airpod-Group-1-Path-1 {
-              type: path;
-              d: 'M -3 2 C -3 2 3 -2 3 -2';
-              fill: none;
-              stroke: #5b606a;
-              stroke-width: 1.5px;
-              stroke-linecap: round;
-            }
-          }
-        }
-        > #Character-Airpod-2-airpod-2 {
-          type: group;
-          transform-origin: 570px 591.64px;
-          filter: blur(0.75px);
-          mask: #Character-Airpod-2-airpod-4 alpha;
-          > #Character-Airpod-2-airpod-2-Group-4 {
-            type: group;
-            transform: translate(444.36px, 560.74px);
-            > #Character-Airpod-2-airpod-2-Group-4-Group-1 {
-              type: group;
-              > #Character-Airpod-2-airpod-2-Group-4-Group-1-Path-5 {
-                type: path;
-                d: var(--p114);
-                fill: radial-gradient(circle 34.33px at 15.69px 8.52px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
-              }
-            }
-          }
-          > #Character-Airpod-2-airpod-2-Group-3 {
-            type: group;
-            transform: translate(484.57px, 540.29px);
-            > #Character-Airpod-2-airpod-2-Group-3-Group-1 {
-              type: group;
-              > #Character-Airpod-2-airpod-2-Group-3-Group-1-Path-5 {
-                type: path;
-                d: var(--p113);
-                fill: radial-gradient(circle 30.77px at 3.77px 10.65px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
-              }
-            }
-          }
-        }
-        > #Character-Airpod-2-airpod-4 {
-          type: group;
-          transform-origin: 570px 591.64px;
-          > #Character-Airpod-2-airpod-4-Group-7 {
-            type: group;
-            transform: translate(471.26px, 562.25px);
-            > #Character-Airpod-2-airpod-4-Group-7-Path-1 {
-              type: path;
-              d: var(--p62);
-              fill: #ebfafa;
-            }
-          }
-        }
-        > #Character-Airpod-2-airpod-3 {
-          type: group;
-          transform-origin: 570px 591.64px;
-          filter: blur(1px);
-          > #Character-Airpod-2-airpod-3-Group-6 {
-            type: group;
-            transform: translate(478.66px, 570.08px);
-            > #Character-Airpod-2-airpod-3-Group-6-Group-1 {
-              type: group;
-              > #Character-Airpod-2-airpod-3-Group-6-Group-1-Path-5 {
-                type: path;
-                d: var(--p96);
-                fill: linear-gradient(from 29.27px -4.61px to 3.47px 5.52px, #cbcbd7 0%, rgba(203, 203, 215, 0.5) 50%, rgba(203, 203, 215, 0) 100%);
-              }
-            }
-          }
-          > #Character-Airpod-2-airpod-3-Group-5 {
-            type: group;
-            transform: translate(480.58px, 571.74px);
-            > #Character-Airpod-2-airpod-3-Group-5-Group-1 {
-              type: group;
-              > #Character-Airpod-2-airpod-3-Group-5-Group-1-Path-6 {
-                type: path;
-                d: var(--p95);
-                fill: radial-gradient(circle 16.39px at 48.27px 37.99px, #31333f 0%, rgba(25, 26, 31, 0.5) 50%, rgba(0, 0, 0, 0) 100%);
-              }
-            }
-          }
-        }
-      }
-      > #Character-Shape-Layer-1 {
-        type: group;
-        transform: translate(570px, 592px);
-        z-index: 2;
-        > #Character-Shape-Layer-1-Shape-1 {
-          type: group;
-          > #Character-Shape-Layer-1-Shape-1-Path-1 {
-            type: path;
-            d: var(--p44);
-            fill: linear-gradient(from 0px 0px to 100px 0px, #633d48 0%, #724951 50%, #815459 100%);
-            animation: Character-Shape-Layer-1-Shape-1-Path-1-k 4.667s var(--e1) 1;
-            animation-fill-mode: both;
-          }
-        }
-      }
-    }
-  }
-}
-
-  > #mask {
-  type: group;
-  transform: translate(570px, 592px);
-  > #mask-Rectangle-1 {
-    type: group;
-    transform: translate(-2.18px, -35.54px);
-    > #mask-Rectangle-1-Rectangle-Path-1 {
-      type: rect;
-      x: -539.82px;
-      y: -182.46px;
-      width: 1079.63px;
-      height: 364.91px;
-      fill: linear-gradient(from 0px 0px to 100px 0px, #415be3 0%, #9f70e2 31.7%, #fc85e1 63.4%, #fc89d1 79.9%, #fd8dc1 96.5%);
-      stroke: linear-gradient(from 0px 0px to 100px 0px, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 19.3%, rgba(255, 255, 255, 0.002) 38.5%, rgba(255, 255, 255, 0) 38.6%, rgba(255, 255, 255, 0.25) 54.6%, rgba(255, 255, 255, 0.5) 70.7%, rgba(255, 255, 255, 0.498) 70.8%, rgba(255, 255, 255, 0.25) 85.3%, rgba(255, 255, 255, 0.248) 85.4%, rgba(255, 255, 255, 0) 100%);
-      stroke-width: 1px;
-    }
-  }
-}
-
-  > #Volume {
-  type: group;
-  transform-origin: 570px 592px;
-  clip-path: var(--p1);
-  > #Volume-Layer-17-Outlines {
-    type: group;
-    transform-origin: 563.93px 861.12px;
-    > #Volume-Layer-17-Outlines-Group-1 {
-      type: group;
-      transform: translate(563.93px, 861.12px);
-      opacity: 0.2;
-      > #Volume-Layer-17-Outlines-Group-1-Path-1 {
-        type: path;
-        d: var(--p100);
-        fill: #ffffff;
-      }
-    }
-    > #Volume-Layer-17-Outlines-Group-2 {
-      type: group;
-      transform: translate(563.93px, 861.12px);
-      > #Volume-Layer-17-Outlines-Group-2-Path-1 {
-        type: path;
-        d: var(--p100);
-        fill: none;
-        stroke: linear-gradient(from -143.4px -50.87px to 198.34px 51.03px, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 19.3%, rgba(255, 255, 255, 0.002) 38.5%, rgba(255, 255, 255, 0) 38.6%, rgba(255, 255, 255, 0.25) 54.6%, rgba(255, 255, 255, 0.5) 70.7%, rgba(255, 255, 255, 0.498) 70.8%, rgba(255, 255, 255, 0.25) 85.3%, rgba(255, 255, 255, 0.248) 85.4%, rgba(255, 255, 255, 0) 100%);
-        stroke-width: 1px;
-      }
-    }
-  }
-  > #Volume-Layer-1-Outlines {
-    type: group;
-    transform-origin: 563.93px 861.12px;
-    > #Volume-Layer-1-Outlines-Group-3 {
-      type: group;
-      transform: translate(561.26px, 861.18px);
-      > #Volume-Layer-1-Outlines-Group-3-Path-1 {
+      transform: translate(570px, 591.64px);
+      > #Layer-4-Outlines-2-Group-1-Path-1 {
         type: path;
-        d: 'M -141.5 -9 C -141.5 -9 141.5 -9 141.5 -9 C 146.47 -9 150.5 -4.97 150.5 0 C 150.5 4.97 146.47 9 141.5 9 C 141.5 9 -141.5 9 -141.5 9 C -146.47 9 -150.5 4.97 -150.5 0 C -150.5 -4.97 -146.47 -9 -141.5 -9 Z';
+        d: var(--p115);
         fill: #18181b;
       }
     }
-    > #Volume-Layer-1-Outlines-Group-2 {
-      type: group;
-      transform: translate(377.38px, 861.11px);
-      > #Volume-Layer-1-Outlines-Group-2-merge {
-        type: path;
-        d: 'M 9.99 -7.85 C 9.99 -7.85 10.26 -7.66 10.26 -7.66 C 10.26 -7.66 10.62 -7.33 10.62 -7.33 C 10.62 -7.33 10.76 -7.18 10.76 -7.18 C 11.07 -6.85 11.46 -6.37 11.85 -5.73 C 12.62 -4.45 13.38 -2.54 13.38 0.01 C 13.38 2.56 12.62 4.47 11.85 5.76 C 11.46 6.4 11.07 6.88 10.76 7.21 C 10.76 7.21 10.49 7.48 10.49 7.48 C 10.49 7.48 10.3 7.66 10.3 7.66 C 10.3 7.66 10.2 7.75 10.2 7.75 C 10.2 7.75 10.03 7.83 10.03 7.83 C 9.67 7.97 8.84 8.2 8.32 7.54 C 7.91 7.03 7.94 6.31 8.35 5.83 C 8.35 5.83 8.71 5.49 8.71 5.49 C 8.71 5.49 8.8 5.39 8.8 5.39 C 9 5.18 9.28 4.84 9.56 4.37 C 10.12 3.45 10.7 2.01 10.7 0.01 C 10.7 -1.99 10.12 -3.42 9.56 -4.34 C 9.35 -4.69 9.14 -4.97 8.96 -5.17 C 8.96 -5.17 8.71 -5.45 8.71 -5.45 C 8.71 -5.45 8.53 -5.63 8.53 -5.63 C 7.95 -6.09 7.86 -6.93 8.32 -7.5 C 8.72 -8.02 9.43 -8.15 9.99 -7.85 Z M 4.53 -15.93 C 4.95 -15.75 5.25 -15.37 5.32 -14.92 C 5.32 -14.92 5.34 -14.7 5.34 -14.7 C 5.34 -14.7 5.34 14.73 5.34 14.73 C 5.34 15.26 5.02 15.75 4.52 15.96 C 4.1 16.14 3.62 16.08 3.24 15.83 C 3.24 15.83 3.07 15.68 3.07 15.68 C 3.07 15.68 -4.76 7.99 -4.76 7.99 C -4.76 7.99 -9.37 7.99 -9.37 7.99 C -11.45 7.99 -13.17 6.4 -13.36 4.36 C -13.36 4.36 -13.38 3.98 -13.38 3.98 C -13.38 3.98 -13.38 -4.02 -13.38 -4.02 C -13.38 -6.1 -11.79 -7.82 -9.75 -8.01 C -9.75 -8.01 -9.37 -8.03 -9.37 -8.03 C -9.37 -8.03 -4.75 -8.03 -4.75 -8.03 C -4.75 -8.03 3.07 -15.65 3.07 -15.65 C 3.46 -16.03 4.03 -16.14 4.53 -15.93 Z';
-        fill-rule: nonzero;
-        fill: #f4f4f5;
-      }
-    }
-    > #Volume-Layer-1-Outlines-Group-1 {
-      type: group;
-      transform: translate(747.81px, 861.11px);
-      > #Volume-Layer-1-Outlines-Group-1-merge {
-        type: path;
-        d: 'M 7.32 -7.85 C 7.32 -7.85 7.59 -7.66 7.59 -7.66 C 7.59 -7.66 7.94 -7.33 7.94 -7.33 C 7.94 -7.33 8.09 -7.18 8.09 -7.18 C 8.39 -6.85 8.78 -6.37 9.17 -5.73 C 9.95 -4.45 10.71 -2.54 10.71 0.01 C 10.71 2.56 9.95 4.47 9.17 5.76 C 8.79 6.4 8.39 6.88 8.09 7.21 C 8.09 7.21 7.82 7.48 7.82 7.48 C 7.82 7.48 7.63 7.66 7.63 7.66 C 7.63 7.66 7.52 7.75 7.52 7.75 C 7.52 7.75 7.35 7.83 7.35 7.83 C 7 7.97 6.17 8.2 5.64 7.54 C 5.24 7.03 5.26 6.31 5.67 5.83 C 5.67 5.83 6.03 5.49 6.03 5.49 C 6.03 5.49 6.13 5.39 6.13 5.39 C 6.33 5.18 6.6 4.84 6.89 4.37 C 7.45 3.45 8.03 2.01 8.03 0.01 C 8.03 -1.99 7.45 -3.42 6.89 -4.34 C 6.67 -4.69 6.47 -4.97 6.29 -5.17 C 6.29 -5.17 6.04 -5.45 6.04 -5.45 C 6.04 -5.45 5.85 -5.63 5.85 -5.63 C 5.28 -6.09 5.18 -6.93 5.64 -7.5 C 6.05 -8.02 6.76 -8.15 7.32 -7.85 Z M 9.99 -13.2 C 9.99 -13.2 10.22 -13.04 10.22 -13.04 C 10.22 -13.04 10.49 -12.82 10.49 -12.82 C 10.65 -12.66 10.89 -12.45 11.16 -12.16 C 11.71 -11.59 12.43 -10.75 13.16 -9.65 C 14.6 -7.45 16.05 -4.19 16.05 0.03 C 16.05 4.24 14.6 7.5 13.16 9.69 C 12.43 10.79 11.71 11.63 11.16 12.2 C 11.16 12.2 10.78 12.57 10.78 12.57 C 10.78 12.57 10.28 13.03 10.28 13.03 C 10.28 13.03 10.19 13.1 10.19 13.1 C 9.62 13.56 8.77 13.46 8.31 12.88 C 7.91 12.37 7.94 11.65 8.35 11.17 C 8.35 11.17 8.7 10.86 8.7 10.86 C 8.82 10.75 9.01 10.57 9.24 10.34 C 9.69 9.87 10.31 9.16 10.92 8.22 C 12.15 6.35 13.38 3.6 13.38 0.03 C 13.38 -3.55 12.15 -6.31 10.92 -8.18 C 10.41 -8.96 9.89 -9.59 9.47 -10.05 C 9.47 -10.05 9.02 -10.52 9.02 -10.52 C 9.02 -10.52 8.53 -10.97 8.53 -10.97 C 7.95 -11.43 7.86 -12.28 8.32 -12.85 C 8.72 -13.37 9.43 -13.5 9.99 -13.2 Z M 1.85 -15.93 C 2.28 -15.75 2.58 -15.37 2.65 -14.92 C 2.65 -14.92 2.67 -14.7 2.67 -14.7 C 2.67 -14.7 2.67 14.73 2.67 14.73 C 2.67 15.26 2.35 15.75 1.85 15.96 C 1.42 16.14 0.94 16.08 0.57 15.83 C 0.57 15.83 0.4 15.68 0.4 15.68 C 0.4 15.68 -7.43 7.99 -7.43 7.99 C -7.43 7.99 -12.04 7.99 -12.04 7.99 C -14.13 7.99 -15.84 6.4 -16.03 4.36 C -16.03 4.36 -16.05 3.98 -16.05 3.98 C -16.05 3.98 -16.05 -4.02 -16.05 -4.02 C -16.05 -6.1 -14.46 -7.82 -12.43 -8.01 C -12.43 -8.01 -12.04 -8.03 -12.04 -8.03 C -12.04 -8.03 -7.43 -8.03 -7.43 -8.03 C -7.43 -8.03 0.4 -15.65 0.4 -15.65 C 0.79 -16.03 1.36 -16.14 1.85 -15.93 Z';
-        fill-rule: nonzero;
-        fill: #f4f4f5;
-      }
-    }
   }
-  > #Volume-Layer-18-Outlines {
+
+  > #Layer-4-Outlines {
     type: group;
-    transform-origin: 508.07px 861.18px;
-    > #Volume-Layer-18-Outlines-Group-1 {
+    transform-origin: 570px 591.64px;
+    mask: #mask alpha;
+    > #Layer-4-Outlines-Group-1 {
       type: group;
       transform: translate(570px, 591.64px);
-      > #Volume-Layer-18-Outlines-Group-1-Path-2 {
+      > #Layer-4-Outlines-Group-1-Path-1 {
         type: path;
-        d: var(--p90);
-        fill: linear-gradient(from -185.31px 269.28px to 62.22px 270.69px, #415be3 0%, #9f70e2 31.7%, #fc85e1 63.4%, #fc89d1 79.9%, #fd8dc1 96.5%);
-        animation: Volume-Layer-18-Outlines-Group-1-Path-2-k 3.633s var(--e10) 1 1.017s;
-        animation-fill-mode: both;
+        d: var(--p115);
+        fill: radial-gradient(circle 1110.49px at 1.23px -403.3px, #415be3 46.1%, #3b4fc3 61.4%, #3442a3 76.6%);
       }
     }
   }
-}
+
+  > #BG {
+    type: group;
+    transform-origin: 570px 592px;
+    transform: translate(0px, 26px);
+    clip-path: var(--p1);
+    mask: #mask alpha;
+    > #BG-Echos-1 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      visible-until: 1s;
+      > #BG-Echos-1-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-Layer-5-Outlines-k 1s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-Layer-5-Outlines-2-k 1s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-Layer-5-Outlines-3-k 1s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-Layer-5-Outlines-4-k 1s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-Layer-5-Outlines-5-k 1s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-Layer-5-Outlines-6-k 1s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-Layer-5-Outlines-7 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        visible-from: 0.5s;
+        animation: BG-Echos-1-Layer-5-Outlines-7-k 0.5s var(--e4) 1 0.5s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-Layer-5-Outlines-7-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-Layer-5-Outlines-7-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-Echos-1-2 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      visible-from: 1s;
+      visible-until: 1.5s;
+      > #BG-Echos-1-2-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-2-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-2-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-2-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-3-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-2-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-4-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-2-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-5-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-2-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-6-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-1-2-Layer-5-Outlines-7 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-1-2-Layer-5-Outlines-7-k 0.5s linear 1 1s;
+        animation-fill-mode: both;
+        > #BG-Echos-1-2-Layer-5-Outlines-7-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-1-2-Layer-5-Outlines-7-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-1-2-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-Echos-2 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      time-offset: 1.5s;
+      visible-from: 1.5s;
+      visible-until: 2.5s;
+      > #BG-Echos-2-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-Layer-5-Outlines-k 0.983s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-Layer-5-Outlines-2-k 0.983s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-Layer-5-Outlines-3-k 0.983s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-Layer-5-Outlines-4-k 0.983s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-Layer-5-Outlines-5-k 0.983s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-Layer-5-Outlines-6-k 0.983s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-Echos-2-2 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      time-offset: 2.5s;
+      visible-from: 2.5s;
+      visible-until: 3s;
+      > #BG-Echos-2-2-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-2-Layer-5-Outlines-k 0.5s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-2-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-2-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-2-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-2-Layer-5-Outlines-2-k 0.5s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-2-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-2-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-2-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-2-Layer-5-Outlines-3-k 0.5s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-2-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-2-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-2-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-2-Layer-5-Outlines-4-k 0.5s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-2-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-2-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-2-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-2-Layer-5-Outlines-5-k 0.5s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-2-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-2-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-2-2-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-2-2-Layer-5-Outlines-6-k 0.5s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-2-2-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-2-2-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-2-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-Echos-3 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      time-offset: 3s;
+      visible-from: 3s;
+      visible-until: 4.117s;
+      > #BG-Echos-3-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-2-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-3-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-4-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-5-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-6-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-7 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-Layer-5-Outlines-7-k 1.117s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-7-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-7-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-Layer-5-Outlines-8 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        visible-from: 0.567s;
+        animation: BG-Echos-3-Layer-5-Outlines-8-k 0.55s cubic-bezier(0.159, 0.102, 0.621, 0.854) 1 0.567s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-Layer-5-Outlines-8-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-Layer-5-Outlines-8-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-Layer-5-Outlines-8-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-Echos-3-2 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      time-offset: 3s;
+      visible-from: 4.117s;
+      visible-until: 4.667s;
+      > #BG-Echos-3-2-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-2-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-3-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-4-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-5-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-6-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-7 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-7-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-7-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-7-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-3-2-Layer-5-Outlines-8 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-3-2-Layer-5-Outlines-8-k 0.55s linear 1 1.117s;
+        animation-fill-mode: both;
+        > #BG-Echos-3-2-Layer-5-Outlines-8-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-3-2-Layer-5-Outlines-8-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-3-2-Layer-5-Outlines-8-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-Echos-4 {
+      type: group;
+      transform-origin: 570px 592px;
+      clip-path: var(--p1);
+      time-offset: 4.667s;
+      visible-from: 4.667s;
+      > #BG-Echos-4-Layer-5-Outlines {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-2 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-2-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-2-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-2-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-3 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-3-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-3-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-3-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-3-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-4 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-4-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-4-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-4-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-4-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-5 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-5-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-5-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-5-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-5-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-6 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-6-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-6-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-6-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-6-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-7 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-7-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-7-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-7-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-7-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-8 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-8-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-8-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-8-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-8-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-9 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-9-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-9-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-9-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-9-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+
+      > #BG-Echos-4-Layer-5-Outlines-10 {
+        type: group;
+        transform-origin: 583px 561.57px;
+        animation: BG-Echos-4-Layer-5-Outlines-10-k 0.9s linear 1;
+        animation-fill-mode: both;
+        > #BG-Echos-4-Layer-5-Outlines-10-Group-4 {
+          type: group;
+          transform: translate(584.4px, 561.57px);
+          > #BG-Echos-4-Layer-5-Outlines-10-Group-4-Group-1 {
+            type: group;
+            > #BG-Echos-4-Layer-5-Outlines-10-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p0);
+              fill: radial-gradient(circle 506.67px at 0px 0px, #415be3 46.1%, #9f70e2 66.9%, #fc85e1 87.7%, #fc89d1 93.8%, #fd8dc1 100%);
+            }
+          }
+        }
+      }
+    }
+
+    > #BG-music-notes {
+      type: group;
+      transform-origin: 868.6px 611.91px;
+      visible-until: 1s;
+      animation: BG-music-notes-k 1s var(--e1) 1, BG-music-notes-k-2 0.833s var(--e9) 1, BG-music-notes-k-3 0.5s var(--e4) 1 0.5s;
+      animation-fill-mode: both;
+      > #BG-music-notes-Group-8 {
+        type: group;
+        transform: translate(846.81px, 621.06px);
+        > #BG-music-notes-Group-8-Path-1 {
+          type: path;
+          d: var(--p31);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-Group-7 {
+        type: group;
+        transform: translate(839.66px, 630.74px);
+        > #BG-music-notes-Group-7-Path-1 {
+          type: path;
+          d: var(--p40);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-Group-6 {
+        type: group;
+        transform: translate(831.71px, 646.75px);
+        > #BG-music-notes-Group-6-Path-1 {
+          type: path;
+          d: var(--p35);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-Group-5 {
+        type: group;
+        transform: translate(897px, 579.57px);
+        > #BG-music-notes-Group-5-Path-1 {
+          type: path;
+          d: var(--p38);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-Group-4 {
+        type: group;
+        transform: translate(909.26px, 594.31px);
+        > #BG-music-notes-Group-4-Path-1 {
+          type: path;
+          d: var(--p41);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-Group-3 {
+        type: group;
+        transform: translate(882.4px, 609.66px);
+        > #BG-music-notes-Group-3-Path-1 {
+          type: path;
+          d: var(--p39);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-Group-2 {
+        type: group;
+        transform: translate(900.83px, 611.43px);
+        > #BG-music-notes-Group-2-Path-1 {
+          type: path;
+          d: var(--p36);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-Group-1 {
+        type: group;
+        transform: translate(875.72px, 621.82px);
+        > #BG-music-notes-Group-1-Path-1 {
+          type: path;
+          d: var(--p37);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-2 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-until: 1s;
+      animation: BG-music-notes-2-k 1s var(--e1) 1, BG-music-notes-2-k-2 0.833s var(--e8) 1, BG-music-notes-2-k-3 0.5s var(--e4) 1 0.5s;
+      animation-fill-mode: both;
+      > #BG-music-notes-2-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-2-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-2-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-2-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-2-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-2-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-2-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-2-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-2-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-2-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-2-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-2-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-2-2 {
+      type: group;
+      transform-origin: 868.6px 611.91px;
+      visible-from: 1.5s;
+      visible-until: 2.233s;
+      animation: BG-music-notes-2-2-k 0.717s var(--e1) 1 1.5s, BG-music-notes-2-2-k-2 0.597s var(--e9) 1 1.5s, BG-music-notes-2-2-k-3 0.358s var(--e4) 1 1.858s;
+      animation-fill-mode: both;
+      > #BG-music-notes-2-2-Group-8 {
+        type: group;
+        transform: translate(846.81px, 621.06px);
+        > #BG-music-notes-2-2-Group-8-Path-1 {
+          type: path;
+          d: var(--p31);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-7 {
+        type: group;
+        transform: translate(839.66px, 630.74px);
+        > #BG-music-notes-2-2-Group-7-Path-1 {
+          type: path;
+          d: var(--p40);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-6 {
+        type: group;
+        transform: translate(831.71px, 646.75px);
+        > #BG-music-notes-2-2-Group-6-Path-1 {
+          type: path;
+          d: var(--p35);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-5 {
+        type: group;
+        transform: translate(897px, 579.57px);
+        > #BG-music-notes-2-2-Group-5-Path-1 {
+          type: path;
+          d: var(--p38);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-4 {
+        type: group;
+        transform: translate(909.26px, 594.31px);
+        > #BG-music-notes-2-2-Group-4-Path-1 {
+          type: path;
+          d: var(--p41);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-3 {
+        type: group;
+        transform: translate(882.4px, 609.66px);
+        > #BG-music-notes-2-2-Group-3-Path-1 {
+          type: path;
+          d: var(--p39);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-2 {
+        type: group;
+        transform: translate(900.83px, 611.43px);
+        > #BG-music-notes-2-2-Group-2-Path-1 {
+          type: path;
+          d: var(--p36);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-2-2-Group-1 {
+        type: group;
+        transform: translate(875.72px, 621.82px);
+        > #BG-music-notes-2-2-Group-1-Path-1 {
+          type: path;
+          d: var(--p37);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-3 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 1.5s;
+      visible-until: 2.233s;
+      animation: BG-music-notes-3-k 0.717s var(--e1) 1 1.5s, BG-music-notes-3-k-2 0.597s var(--e8) 1 1.5s, BG-music-notes-3-k-3 0.358s var(--e4) 1 1.858s;
+      animation-fill-mode: both;
+      > #BG-music-notes-3-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-3-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-3-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-3-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-3-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-3-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-3-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-3-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-3-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-3-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-3-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-3-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-3-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-3-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-3-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-3-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-4 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 1.767s;
+      visible-until: 2.5s;
+      animation: BG-music-notes-4-k 0.717s var(--e1) 1 1.767s, BG-music-notes-4-k-2 0.597s var(--e8) 1 1.767s, BG-music-notes-4-k-3 0.358s var(--e4) 1 2.125s;
+      animation-fill-mode: both;
+      > #BG-music-notes-4-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-4-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-4-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-4-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-4-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-4-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-4-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-4-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-4-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-4-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-4-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-4-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-4-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-4-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-4-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-4-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-5 {
+      type: group;
+      transform-origin: 868.6px 611.91px;
+      visible-from: 3.083s;
+      visible-until: 3.7s;
+      animation: BG-music-notes-5-k 0.607s var(--e1) 1 3.083s, BG-music-notes-5-k-2 0.506s var(--e9) 1 3.083s, BG-music-notes-5-k-3 0.304s var(--e4) 1 3.387s;
+      animation-fill-mode: both;
+      > #BG-music-notes-5-Group-8 {
+        type: group;
+        transform: translate(846.81px, 621.06px);
+        > #BG-music-notes-5-Group-8-Path-1 {
+          type: path;
+          d: var(--p31);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-5-Group-7 {
+        type: group;
+        transform: translate(839.66px, 630.74px);
+        > #BG-music-notes-5-Group-7-Path-1 {
+          type: path;
+          d: var(--p40);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-5-Group-6 {
+        type: group;
+        transform: translate(831.71px, 646.75px);
+        > #BG-music-notes-5-Group-6-Path-1 {
+          type: path;
+          d: var(--p35);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-5-Group-5 {
+        type: group;
+        transform: translate(897px, 579.57px);
+        > #BG-music-notes-5-Group-5-Path-1 {
+          type: path;
+          d: var(--p38);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-5-Group-4 {
+        type: group;
+        transform: translate(909.26px, 594.31px);
+        > #BG-music-notes-5-Group-4-Path-1 {
+          type: path;
+          d: var(--p41);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-5-Group-3 {
+        type: group;
+        transform: translate(882.4px, 609.66px);
+        > #BG-music-notes-5-Group-3-Path-1 {
+          type: path;
+          d: var(--p39);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-5-Group-2 {
+        type: group;
+        transform: translate(900.83px, 611.43px);
+        > #BG-music-notes-5-Group-2-Path-1 {
+          type: path;
+          d: var(--p36);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-5-Group-1 {
+        type: group;
+        transform: translate(875.72px, 621.82px);
+        > #BG-music-notes-5-Group-1-Path-1 {
+          type: path;
+          d: var(--p37);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-8 {
+      type: group;
+      transform-origin: 868.6px 611.91px;
+      visible-from: 3.35s;
+      visible-until: 3.967s;
+      animation: BG-music-notes-8-k 0.607s var(--e1) 1 3.35s, BG-music-notes-8-k-2 0.506s var(--e9) 1 3.35s, BG-music-notes-8-k-3 0.304s var(--e4) 1 3.654s;
+      animation-fill-mode: both;
+      > #BG-music-notes-8-Group-8 {
+        type: group;
+        transform: translate(846.81px, 621.06px);
+        > #BG-music-notes-8-Group-8-Path-1 {
+          type: path;
+          d: var(--p31);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-8-Group-7 {
+        type: group;
+        transform: translate(839.66px, 630.74px);
+        > #BG-music-notes-8-Group-7-Path-1 {
+          type: path;
+          d: var(--p40);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-8-Group-6 {
+        type: group;
+        transform: translate(831.71px, 646.75px);
+        > #BG-music-notes-8-Group-6-Path-1 {
+          type: path;
+          d: var(--p35);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-8-Group-5 {
+        type: group;
+        transform: translate(897px, 579.57px);
+        > #BG-music-notes-8-Group-5-Path-1 {
+          type: path;
+          d: var(--p38);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-8-Group-4 {
+        type: group;
+        transform: translate(909.26px, 594.31px);
+        > #BG-music-notes-8-Group-4-Path-1 {
+          type: path;
+          d: var(--p41);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-8-Group-3 {
+        type: group;
+        transform: translate(882.4px, 609.66px);
+        > #BG-music-notes-8-Group-3-Path-1 {
+          type: path;
+          d: var(--p39);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-8-Group-2 {
+        type: group;
+        transform: translate(900.83px, 611.43px);
+        > #BG-music-notes-8-Group-2-Path-1 {
+          type: path;
+          d: var(--p36);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-8-Group-1 {
+        type: group;
+        transform: translate(875.72px, 621.82px);
+        > #BG-music-notes-8-Group-1-Path-1 {
+          type: path;
+          d: var(--p37);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-6 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 3s;
+      visible-until: 3.617s;
+      animation: BG-music-notes-6-k 0.607s var(--e1) 1 3s, BG-music-notes-6-k-2 0.506s var(--e8) 1 3s, BG-music-notes-6-k-3 0.304s var(--e4) 1 3.304s;
+      animation-fill-mode: both;
+      > #BG-music-notes-6-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-6-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-6-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-6-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-6-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-6-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-6-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-6-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-6-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-6-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-6-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-6-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-6-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-6-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-6-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-6-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-9 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 3.5s;
+      visible-until: 4.117s;
+      animation: BG-music-notes-9-k 0.607s var(--e1) 1 3.5s, BG-music-notes-9-k-2 0.506s var(--e8) 1 3.5s, BG-music-notes-9-k-3 0.304s var(--e4) 1 3.804s;
+      animation-fill-mode: both;
+      > #BG-music-notes-9-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-9-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-9-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-9-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-9-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-9-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-9-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-9-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-9-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-9-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-9-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-9-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-9-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-9-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-9-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-9-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-7 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 3.217s;
+      visible-until: 3.833s;
+      animation: BG-music-notes-7-k 0.607s var(--e1) 1 3.226s, BG-music-notes-7-k-2 0.506s var(--e8) 1 3.226s, BG-music-notes-7-k-3 0.304s var(--e4) 1 3.53s;
+      animation-fill-mode: both;
+      > #BG-music-notes-7-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-7-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-7-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-7-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-7-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-7-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-7-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-7-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-7-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-7-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-7-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-7-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-7-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-7-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-7-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-7-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-10 {
+      type: group;
+      transform-origin: 868.6px 611.91px;
+      visible-from: 4.733s;
+      visible-until: 5.167s;
+      animation: BG-music-notes-10-k 0.439s var(--e1) 1 4.727s, BG-music-notes-10-k-2 0.366s var(--e9) 1 4.727s, BG-music-notes-10-k-3 0.219s var(--e4) 1 4.946s;
+      animation-fill-mode: both;
+      > #BG-music-notes-10-Group-8 {
+        type: group;
+        transform: translate(846.81px, 621.06px);
+        > #BG-music-notes-10-Group-8-Path-1 {
+          type: path;
+          d: var(--p31);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-10-Group-7 {
+        type: group;
+        transform: translate(839.66px, 630.74px);
+        > #BG-music-notes-10-Group-7-Path-1 {
+          type: path;
+          d: var(--p40);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-10-Group-6 {
+        type: group;
+        transform: translate(831.71px, 646.75px);
+        > #BG-music-notes-10-Group-6-Path-1 {
+          type: path;
+          d: var(--p35);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-10-Group-5 {
+        type: group;
+        transform: translate(897px, 579.57px);
+        > #BG-music-notes-10-Group-5-Path-1 {
+          type: path;
+          d: var(--p38);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-10-Group-4 {
+        type: group;
+        transform: translate(909.26px, 594.31px);
+        > #BG-music-notes-10-Group-4-Path-1 {
+          type: path;
+          d: var(--p41);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-10-Group-3 {
+        type: group;
+        transform: translate(882.4px, 609.66px);
+        > #BG-music-notes-10-Group-3-Path-1 {
+          type: path;
+          d: var(--p39);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-10-Group-2 {
+        type: group;
+        transform: translate(900.83px, 611.43px);
+        > #BG-music-notes-10-Group-2-Path-1 {
+          type: path;
+          d: var(--p36);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-10-Group-1 {
+        type: group;
+        transform: translate(875.72px, 621.82px);
+        > #BG-music-notes-10-Group-1-Path-1 {
+          type: path;
+          d: var(--p37);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-11 {
+      type: group;
+      transform-origin: 868.6px 611.91px;
+      visible-from: 4.917s;
+      visible-until: 5.367s;
+      animation: BG-music-notes-11-k 0.439s var(--e1) 1 4.92s, BG-music-notes-11-k-2 0.366s var(--e9) 1 4.92s, BG-music-notes-11-k-3 0.219s var(--e4) 1 5.139s;
+      animation-fill-mode: both;
+      > #BG-music-notes-11-Group-8 {
+        type: group;
+        transform: translate(846.81px, 621.06px);
+        > #BG-music-notes-11-Group-8-Path-1 {
+          type: path;
+          d: var(--p31);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-11-Group-7 {
+        type: group;
+        transform: translate(839.66px, 630.74px);
+        > #BG-music-notes-11-Group-7-Path-1 {
+          type: path;
+          d: var(--p40);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-11-Group-6 {
+        type: group;
+        transform: translate(831.71px, 646.75px);
+        > #BG-music-notes-11-Group-6-Path-1 {
+          type: path;
+          d: var(--p35);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-11-Group-5 {
+        type: group;
+        transform: translate(897px, 579.57px);
+        > #BG-music-notes-11-Group-5-Path-1 {
+          type: path;
+          d: var(--p38);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-11-Group-4 {
+        type: group;
+        transform: translate(909.26px, 594.31px);
+        > #BG-music-notes-11-Group-4-Path-1 {
+          type: path;
+          d: var(--p41);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-11-Group-3 {
+        type: group;
+        transform: translate(882.4px, 609.66px);
+        > #BG-music-notes-11-Group-3-Path-1 {
+          type: path;
+          d: var(--p39);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-11-Group-2 {
+        type: group;
+        transform: translate(900.83px, 611.43px);
+        > #BG-music-notes-11-Group-2-Path-1 {
+          type: path;
+          d: var(--p36);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-11-Group-1 {
+        type: group;
+        transform: translate(875.72px, 621.82px);
+        > #BG-music-notes-11-Group-1-Path-1 {
+          type: path;
+          d: var(--p37);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-12 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 4.667s;
+      visible-until: 5.117s;
+      animation: BG-music-notes-12-k 0.439s var(--e1) 1 4.667s, BG-music-notes-12-k-2 0.366s var(--e8) 1 4.667s, BG-music-notes-12-k-3 0.219s var(--e4) 1 4.886s;
+      animation-fill-mode: both;
+      > #BG-music-notes-12-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-12-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-12-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-12-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-12-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-12-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-12-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-12-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-12-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-12-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-12-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-12-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-12-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-12-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-12-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-12-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-13 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 5.017s;
+      visible-until: 5.467s;
+      animation: BG-music-notes-13-k 0.439s var(--e1) 1 5.028s, BG-music-notes-13-k-2 0.366s var(--e8) 1 5.028s, BG-music-notes-13-k-3 0.219s var(--e4) 1 5.247s;
+      animation-fill-mode: both;
+      > #BG-music-notes-13-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-13-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-13-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-13-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-13-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-13-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-13-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-13-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-13-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-13-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-13-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-13-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-13-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-13-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-13-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-13-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-14 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 4.833s;
+      visible-until: 5.267s;
+      animation: BG-music-notes-14-k 0.439s var(--e1) 1 4.83s, BG-music-notes-14-k-2 0.366s var(--e8) 1 4.83s, BG-music-notes-14-k-3 0.219s var(--e4) 1 5.049s;
+      animation-fill-mode: both;
+      > #BG-music-notes-14-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-14-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-14-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-14-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-14-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-14-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-14-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-14-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-14-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-14-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-14-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-14-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-14-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-14-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-14-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-14-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+
+    > #BG-music-notes-15 {
+      type: group;
+      transform-origin: 275.24px 500.07px;
+      visible-from: 5.117s;
+      animation: BG-music-notes-15-k 0.439s var(--e1) 1 5.13s, BG-music-notes-15-k-2 0.366s var(--e8) 1 5.13s, BG-music-notes-15-k-3 0.219s var(--e4) 1 5.349s;
+      animation-fill-mode: both;
+      > #BG-music-notes-15-Group-8 {
+        type: group;
+        transform: translate(302.75px, 518.66px);
+        > #BG-music-notes-15-Group-8-Path-1 {
+          type: path;
+          d: var(--p4);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-15-Group-7 {
+        type: group;
+        transform: translate(296.5px, 529.07px);
+        > #BG-music-notes-15-Group-7-Path-1 {
+          type: path;
+          d: var(--p12);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-15-Group-6 {
+        type: group;
+        transform: translate(290.85px, 545.57px);
+        > #BG-music-notes-15-Group-6-Path-1 {
+          type: path;
+          d: var(--p9);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-15-Group-5 {
+        type: group;
+        transform: translate(266.75px, 456.32px);
+        > #BG-music-notes-15-Group-5-Path-1 {
+          type: path;
+          d: var(--p6);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-15-Group-4 {
+        type: group;
+        transform: translate(278.25px, 489.06px);
+        > #BG-music-notes-15-Group-4-Path-1 {
+          type: path;
+          d: var(--p10);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-15-Group-3 {
+        type: group;
+        transform: translate(253.15px, 471.11px);
+        > #BG-music-notes-15-Group-3-Path-1 {
+          type: path;
+          d: var(--p11);
+          fill: none;
+          stroke: #000000;
+          stroke-width: 1px;
+          stroke-linecap: round;
+        }
+      }
+
+      > #BG-music-notes-15-Group-2 {
+        type: group;
+        transform: translate(269.83px, 504.93px);
+        > #BG-music-notes-15-Group-2-Path-1 {
+          type: path;
+          d: var(--p7);
+          fill: #000000;
+        }
+      }
+
+      > #BG-music-notes-15-Group-1 {
+        type: group;
+        transform: translate(245.65px, 487.22px);
+        > #BG-music-notes-15-Group-1-Path-1 {
+          type: path;
+          d: var(--p8);
+          fill: #000000;
+        }
+      }
+    }
+  }
+
+  > #Character {
+    type: group;
+    transform-origin: 570px 592px;
+    clip-path: var(--p1);
+    mask: #mask alpha;
+    animation: Character-k 0.9s cubic-bezier(0.167, 0.167, 0.833, 1) 1 4.667s;
+    animation-fill-mode: both;
+    > #Character-collar {
+      type: group;
+      transform-origin: 559.55px 733.05px;
+      animation: Character-collar-k 4.5s var(--e3) 1 1s, Character-collar-k-2 5.5s var(--e3) 1;
+      animation-fill-mode: both;
+      > #Character-collar-Group-1 {
+        type: group;
+        transform: translate(568.75px, 733.82px);
+        > #Character-collar-Group-1-Path-1 {
+          type: path;
+          d: 'M -121.25 -17.25 C -141.25 -36.05 -125.58 -50.08 -115.25 -54.75 C -78.25 -57.25 59.25 -30.25 82.25 -22.25 C 105.25 -14.25 141.25 48.25 72.75 52.75 C 4.25 57.25 -83.75 36.25 -112.25 14.75 C -119.75 7.25 -124.75 -5.75 -121.25 -17.25 Z';
+          fill: #72d58f;
+        }
+      }
+    }
+
+    > #Character-head {
+      type: group;
+      transform-origin: 569.48px 706.07px;
+      animation: Character-head-k 5.504s cubic-bezier(0, 0, 0.5, 1) 1, Character-head-k-2 5.504s var(--e2) 1;
+      animation-fill-mode: both;
+      > #Character-head-Group-4 {
+        type: group;
+        transform: translate(593.75px, 593.53px);
+        > #Character-head-Group-4-Group-1 {
+          type: group;
+          transform: translate(0.2px, 0.4px);
+          > #Character-head-Group-4-Group-1-Path-2 {
+            type: path;
+            d: var(--p27);
+            fill: radial-gradient(circle 198.78px at 0px 0px, #815459 19.9%, #724951 60%, #633d48 100%);
+            animation: Character-head-Group-4-Group-1-Path-2-k 3.667s var(--e3) 1 1s;
+            animation-fill-mode: both;
+          }
+        }
+      }
+
+      > #Character-head-Group-3 {
+        type: group;
+        transform: translate(573.75px, 736.35px);
+        > #Character-head-Group-3-Path-1 {
+          type: path;
+          d: var(--p87);
+          fill: #000000;
+          animation: Character-head-Group-3-Path-1-k 5.5s var(--e2) 1;
+          animation-fill-mode: both;
+        }
+      }
+
+      > #Character-hair {
+        type: group;
+        transform-origin: 727px 461.57px;
+        z-index: -4;
+        animation: Character-hair-k 3.667s var(--e1) 1 1s, Character-hair-k-2 3.05s var(--e2) 1 2.5s;
+        animation-fill-mode: both;
+        > #Character-hair-Group-1 {
+          type: group;
+          transform: translate(732px, 473.32px);
+          > #Character-hair-Group-1-Path-1 {
+            type: path;
+            d: var(--p13);
+            fill: #131220;
+            animation: Character-hair-Group-1-Path-1-k 5.5s var(--e2) 1 0.05s;
+            animation-fill-mode: both;
+          }
+        }
+      }
+
+      > #Character-ear-2 {
+        type: group;
+        transform-origin: 437.04px 557.35px;
+        transform: rotate(-3.02deg) scale(-1, 1);
+        visible-until: 3s;
+        z-index: -2;
+        animation: Character-ear-2-k 2s var(--e1) 1 1s;
+        animation-fill-mode: both;
+        > #Character-ear-2-Group-9 {
+          type: group;
+          transform: translate(428.25px, 558.12px);
+          > #Character-ear-2-Group-9-Group-1 {
+            type: group;
+            > #Character-ear-2-Group-9-Group-1-Path-2 {
+              type: path;
+              d: var(--p5);
+              fill: linear-gradient(from 10.11px -6.95px to -47.23px -14.62px, #59333e 0%, #6d434c 50%, #815459 100%);
+              animation: Character-ear-2-Group-9-Group-1-Path-2-k 4.667s var(--e1) 1;
+              animation-fill-mode: both;
+            }
+          }
+        }
+
+        > #Character-ear-2-Group-10 {
+          type: group;
+          transform: translate(469.69px, 639.56px);
+          > #Character-ear-2-Group-10-Path-1 {
+            type: path;
+            d: var(--p3);
+            fill: #131220;
+            animation: Character-ear-2-Group-10-Path-1-k 4.667s var(--e1) 1;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-ear-2-Group-8 {
+          type: group;
+          transform: translate(459.09px, 551.82px);
+          > #Character-ear-2-Group-8-Path-1 {
+            type: path;
+            d: var(--p2);
+            fill: #131220;
+            animation: Character-ear-2-Group-8-Path-1-k 4.667s var(--e1) 1;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-Airpod {
+          type: group;
+          transform-origin: 457.14px 552.93px;
+          transform: rotate(40.34deg) scale(0.88, 1);
+          clip-path: var(--p1);
+          visible-until: 3s;
+          z-index: 1;
+          animation: Character-Airpod-k 1s var(--e1) 1 1.5s;
+          animation-fill-mode: both;
+          > #Character-Airpod-airpod {
+            type: group;
+            transform-origin: 570px 591.64px;
+            > #Character-Airpod-airpod-Group-7 {
+              type: group;
+              transform: translate(471.26px, 562.25px);
+              > #Character-Airpod-airpod-Group-7-Path-1 {
+                type: path;
+                d: var(--p62);
+                fill: #ebfafa;
+              }
+            }
+
+            > #Character-Airpod-airpod-Group-2 {
+              type: group;
+              transform: translate(457.38px, 541.32px);
+              > #Character-Airpod-airpod-Group-2-Group-1 {
+                type: group;
+                > #Character-Airpod-airpod-Group-2-Group-1-Path-4 {
+                  type: path;
+                  d: var(--p105);
+                  fill: linear-gradient(from -4.12px -14.2px to 10.9px 15.06px, #858e95 0%, #4c505b 50%, #131220 100%);
+                }
+              }
+            }
+
+            > #Character-Airpod-airpod-Group-1 {
+              type: group;
+              transform: translate(509px, 613.07px);
+              > #Character-Airpod-airpod-Group-1-Path-1 {
+                type: path;
+                d: 'M -3 2 C -3 2 3 -2 3 -2';
+                fill: none;
+                stroke: #5b606a;
+                stroke-width: 1.5px;
+                stroke-linecap: round;
+              }
+            }
+          }
+
+          > #Character-Airpod-airpod-2 {
+            type: group;
+            transform-origin: 570px 591.64px;
+            filter: blur(0.75px);
+            mask: #Character-Airpod-airpod-4 alpha;
+            > #Character-Airpod-airpod-2-Group-4 {
+              type: group;
+              transform: translate(444.36px, 560.74px);
+              > #Character-Airpod-airpod-2-Group-4-Group-1 {
+                type: group;
+                > #Character-Airpod-airpod-2-Group-4-Group-1-Path-5 {
+                  type: path;
+                  d: var(--p114);
+                  fill: radial-gradient(circle 34.33px at 15.69px 8.52px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
+                }
+              }
+            }
+
+            > #Character-Airpod-airpod-2-Group-3 {
+              type: group;
+              transform: translate(484.57px, 540.29px);
+              > #Character-Airpod-airpod-2-Group-3-Group-1 {
+                type: group;
+                > #Character-Airpod-airpod-2-Group-3-Group-1-Path-5 {
+                  type: path;
+                  d: var(--p113);
+                  fill: radial-gradient(circle 30.77px at 3.77px 10.65px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
+                }
+              }
+            }
+          }
+
+          > #Character-Airpod-airpod-4 {
+            type: group;
+            transform-origin: 570px 591.64px;
+            > #Character-Airpod-airpod-4-Group-7 {
+              type: group;
+              transform: translate(471.26px, 562.25px);
+              > #Character-Airpod-airpod-4-Group-7-Path-1 {
+                type: path;
+                d: var(--p62);
+                fill: #ebfafa;
+              }
+            }
+          }
+
+          > #Character-Airpod-airpod-3 {
+            type: group;
+            transform-origin: 570px 591.64px;
+            filter: blur(1px);
+            > #Character-Airpod-airpod-3-Group-6 {
+              type: group;
+              transform: translate(478.66px, 570.08px);
+              > #Character-Airpod-airpod-3-Group-6-Group-1 {
+                type: group;
+                > #Character-Airpod-airpod-3-Group-6-Group-1-Path-5 {
+                  type: path;
+                  d: var(--p96);
+                  fill: linear-gradient(from 29.27px -4.61px to 3.47px 5.52px, #cbcbd7 0%, rgba(203, 203, 215, 0.5) 50%, rgba(203, 203, 215, 0) 100%);
+                }
+              }
+            }
+
+            > #Character-Airpod-airpod-3-Group-5 {
+              type: group;
+              transform: translate(480.58px, 571.74px);
+              > #Character-Airpod-airpod-3-Group-5-Group-1 {
+                type: group;
+                > #Character-Airpod-airpod-3-Group-5-Group-1-Path-6 {
+                  type: path;
+                  d: var(--p95);
+                  fill: radial-gradient(circle 16.39px at 48.27px 37.99px, #31333f 0%, rgba(25, 26, 31, 0.5) 50%, rgba(0, 0, 0, 0) 100%);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      > #Character-eye-2 {
+        type: group;
+        transform-origin: 713.75px 468.84px;
+        transform: scale(1.45);
+        visible-until: 4.117s;
+        z-index: 1;
+        mask: #Character-head-2 alpha;
+        animation: Character-eye-2-k 3.117s var(--e1) 1 1s, Character-eye-2-k-2 0.25s var(--e0) 1 1.25s;
+        animation-fill-mode: both;
+        > #Character-eye-2-Group-1 {
+          type: group;
+          transform: translate(713.75px, 469.33px);
+          > #Character-eye-2-Group-1-Path-1 {
+            type: path;
+            d: var(--p117);
+            fill: #131220;
+          }
+        }
+      }
+
+      > #Character-head-2 {
+        type: group;
+        transform-origin: 569.48px 706.07px;
+        visible-until: 4.117s;
+        z-index: 2;
+        > #Character-head-2-Group-4 {
+          type: group;
+          transform: translate(593.75px, 593.53px);
+          > #Character-head-2-Group-4-Group-1 {
+            type: group;
+            transform: translate(0.2px, 0.4px);
+            > #Character-head-2-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p27);
+              fill: radial-gradient(circle 198.78px at 0px 0px, #815459 19.9%, #724951 60%, #633d48 100%);
+              animation: Character-head-2-Group-4-Group-1-Path-2-k 3.667s var(--e3) 1 1s;
+              animation-fill-mode: both;
+            }
+          }
+        }
+
+        > #Character-head-2-Group-3 {
+          type: group;
+          transform: translate(573.75px, 736.35px);
+          > #Character-head-2-Group-3-Path-1 {
+            type: path;
+            d: var(--p84);
+            fill: #000000;
+          }
+        }
+      }
+
+      > #Character-hair-2 {
+        type: group;
+        transform-origin: 533.57px 555.66px;
+        z-index: 3;
+        > #Character-hair-2-Group-1 {
+          type: group;
+          transform: translate(528.5px, 555.08px);
+          > #Character-hair-2-Group-1-Path-1 {
+            type: path;
+            d: var(--p42);
+            fill: #131220;
+            animation: Character-hair-2-Group-1-Path-1-k 4.667s var(--e2) 1;
+            animation-fill-mode: both;
+          }
+        }
+      }
+
+      > #Character-Hat {
+        type: group;
+        transform-origin: 547.2px 408.48px;
+        z-index: 4;
+        animation: Character-Hat-k 3.117s var(--e4) 1 1s, Character-Hat-k-2 3.667s var(--e2) 1 1s;
+        animation-fill-mode: both;
+        > #Character-Hat-content {
+          type: group;
+          clip-path: var(--p1);
+          mask: #Character-hat alpha;
+          > #Character-Hat-hat {
+            type: group;
+            transform-origin: 581.25px 429.25px;
+            transform: translate(-43.45px, 1.57px) rotate(-9deg);
+            > #Character-Hat-hat-Group-14 {
+              type: group;
+              transform: translate(581.25px, 427.08px);
+              > #Character-Hat-hat-Group-14-Path-1 {
+                type: path;
+                d: 'M -37.19 95.2 C -107.28 105.98 -157.87 98.85 -151.25 58.5 C -147.75 24.5 -98.25 -49.5 3.25 -54 C 104.75 -58.5 148.25 30.99 151.25 39.5 C 104.05 81.61 60.31 80.19 -37.19 95.2 Z';
+                fill: #455fe1;
+              }
+            }
+
+            > #Character-Hat-hat-Group-13 {
+              type: group;
+              transform: translate(591.25px, 399.72px);
+              > #Character-Hat-hat-Group-13-Path-1 {
+                type: path;
+                d: var(--p14);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                animation: Character-Hat-hat-Group-13-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-12 {
+              type: group;
+              transform: translate(538.75px, 407.57px);
+              > #Character-Hat-hat-Group-12-Path-1 {
+                type: path;
+                d: var(--p22);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-12-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-11 {
+              type: group;
+              transform: translate(519.25px, 412.82px);
+              > #Character-Hat-hat-Group-11-Path-1 {
+                type: path;
+                d: var(--p15);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-11-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-10 {
+              type: group;
+              transform: translate(500.05px, 419.82px);
+              > #Character-Hat-hat-Group-10-Path-1 {
+                type: path;
+                d: var(--p17);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-10-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-9 {
+              type: group;
+              transform: translate(476.75px, 432.32px);
+              > #Character-Hat-hat-Group-9-Path-1 {
+                type: path;
+                d: var(--p16);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-9-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-8 {
+              type: group;
+              transform: translate(691px, 423.82px);
+              > #Character-Hat-hat-Group-8-Path-1 {
+                type: path;
+                d: var(--p19);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-8-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-7 {
+              type: group;
+              transform: translate(559px, 404.32px);
+              > #Character-Hat-hat-Group-7-Path-1 {
+                type: path;
+                d: var(--p24);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-7-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-6 {
+              type: group;
+              transform: translate(580px, 402.82px);
+              > #Character-Hat-hat-Group-6-Path-1 {
+                type: path;
+                d: var(--p25);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-6-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-5 {
+              type: group;
+              transform: translate(599.25px, 403.57px);
+              > #Character-Hat-hat-Group-5-Path-1 {
+                type: path;
+                d: var(--p20);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-5-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-4 {
+              type: group;
+              transform: translate(667.25px, 412.32px);
+              > #Character-Hat-hat-Group-4-Path-1 {
+                type: path;
+                d: var(--p18);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-4-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-3 {
+              type: group;
+              transform: translate(615.75px, 404.07px);
+              > #Character-Hat-hat-Group-3-Path-1 {
+                type: path;
+                d: var(--p21);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-3-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-2 {
+              type: group;
+              transform: translate(632.5px, 404.07px);
+              > #Character-Hat-hat-Group-2-Path-1 {
+                type: path;
+                d: var(--p26);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-2-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+
+            > #Character-Hat-hat-Group-1 {
+              type: group;
+              transform: translate(649px, 407.32px);
+              > #Character-Hat-hat-Group-1-Path-1 {
+                type: path;
+                d: var(--p23);
+                fill: none;
+                stroke: #000000;
+                stroke-width: 1px;
+                stroke-linecap: round;
+                animation: Character-Hat-hat-Group-1-Path-1-k 5.567s var(--e3) 1;
+                animation-fill-mode: both;
+              }
+            }
+          }
+        }
+
+        > #Character-hat {
+          type: group;
+          transform-origin: 581.25px 429.25px;
+          transform: translate(-43.45px, 1.57px) rotate(-9deg);
+          z-index: 1;
+          > #Character-hat-Group-14 {
+            type: group;
+            transform: translate(581.25px, 427.08px);
+            > #Character-hat-Group-14-Path-1 {
+              type: path;
+              d: 'M -30.75 -3 C -100.84 7.78 -140.58 43.17 -151.25 58.5 C -147.75 24.5 -98.25 -49.5 3.25 -54 C 104.75 -58.5 148.25 30.99 151.25 39.5 C 114.75 1 66.75 -18.01 -30.75 -3 Z';
+              fill: #455fe1;
+            }
+          }
+        }
+      }
+
+      > #Character-nose {
+        type: group;
+        transform-origin: 727.97px 497.32px;
+        z-index: 6;
+        animation: Character-nose-k 4.667s var(--e1) 1, Character-nose-k-2 5.567s var(--e1) 1;
+        animation-fill-mode: both;
+        > #Character-nose-Group-4 {
+          type: group;
+          transform: translate(750.25px, 532.06px);
+          > #Character-nose-Group-4-Group-1 {
+            type: group;
+            > #Character-nose-Group-4-Group-1-Path-2 {
+              type: path;
+              d: var(--p30);
+              fill: linear-gradient(from -84.81px 7.94px to 37.19px -26.55px, #815459 19.9%, #6d434c 60%, #5a333e 100%);
+              animation: Character-nose-Group-4-Group-1-Path-2-k 5.517s var(--e12) 1 0.05s;
+              animation-fill-mode: both;
+            }
+          }
+        }
+
+        > #Character-nose-Group-3 {
+          type: group;
+          transform: translate(737.5px, 490.39px);
+          > #Character-nose-Group-3-Path-1 {
+            type: path;
+            d: var(--p29);
+            fill: #131220;
+            animation: Character-nose-Group-3-Path-1-k 5.517s var(--e12) 1 0.05s;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-nose-Group-2 {
+          type: group;
+          transform: translate(743.5px, 536.82px);
+          > #Character-nose-Group-2-Path-1 {
+            type: path;
+            d: var(--p34);
+            fill: #141420;
+            stroke: #12111f;
+            stroke-width: 1px;
+            animation: Character-nose-Group-2-Path-1-k 5.517s cubic-bezier(1, 0, 0.159, 1) 1 0.05s;
+            animation-fill-mode: both;
+          }
+        }
+      }
+
+      > #Character-mouth {
+        type: group;
+        transform-origin: 695.86px 606.62px;
+        z-index: 7;
+        animation: Character-mouth-k 3.667s var(--e2) 1 1s;
+        animation-fill-mode: both;
+        > #Character-mouth-Group-1 {
+          type: group;
+          transform: translate(697.7px, 612.57px);
+          > #Character-mouth-Group-1-Path-1 {
+            type: path;
+            d: var(--p32);
+            fill: #151521;
+            animation: Character-mouth-Group-1-Path-1-k 5.567s var(--e0) 1;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-mouth-2 {
+          type: group;
+          transform-origin: 695.86px 606.62px;
+          z-index: 2;
+          > #Character-mouth-2-Group-1 {
+            type: group;
+            transform: translate(697.7px, 612.57px);
+            > #Character-mouth-2-Group-1-Path-1 {
+              type: path;
+              d: var(--p32);
+              fill: #151521;
+              animation: Character-mouth-2-Group-1-Path-1-k 5.567s var(--e0) 1;
+              animation-fill-mode: both;
+            }
+          }
+        }
+      }
+
+      > #Character-teeth {
+        type: group;
+        transform-origin: 695.96px 614.38px;
+        visible-from: 1s;
+        z-index: 8;
+        mask: #Character-mouth-2 alpha;
+        animation: Character-teeth-k 2.617s var(--e2) 1 1.5s, Character-teeth-k-2 1.5s var(--e2) 1 1.5s;
+        animation-fill-mode: both;
+        > #Character-teeth-Group-4 {
+          type: group;
+          transform: translate(674.6px, 661.07px);
+          > #Character-teeth-Group-4-Path-1 {
+            type: path;
+            d: var(--p46);
+            fill: #fc5e45;
+            animation: Character-teeth-Group-4-Path-1-k 3.167s var(--e2) 1 1.5s;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-teeth-Group-3 {
+          type: group;
+          transform: translate(682.86px, 649.32px);
+          > #Character-teeth-Group-3-Path-1 {
+            type: path;
+            d: var(--p43);
+            fill: #000000;
+            animation: Character-teeth-Group-3-Path-1-k 3.167s var(--e2) 1 1.5s;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-teeth-Group-2 {
+          type: group;
+          transform: translate(696.75px, 553.64px);
+          > #Character-teeth-Group-2-Path-1 {
+            type: path;
+            d: var(--p106);
+            fill: #e4f2fb;
+            animation: Character-teeth-Group-2-Path-1-k 3.667s var(--e2) 1 1s;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-teeth-Group-1 {
+          type: group;
+          transform: translate(711px, 584.57px);
+          > #Character-teeth-Group-1-Path-1 {
+            type: path;
+            d: var(--p91);
+            fill: #000000;
+            animation: Character-teeth-Group-1-Path-1-k 3.667s var(--e2) 1 1s;
+            animation-fill-mode: both;
+          }
+        }
+      }
+
+      > #Character-eye {
+        type: group;
+        transform-origin: 713.75px 468.84px;
+        z-index: 10;
+        animation: Character-eye-k 4.667s cubic-bezier(0.356, 0, 0.84, 1) 1, Character-eye-k-2 4.667s cubic-bezier(0.167, 0, 0.583, 1) 1, Character-eye-k-3 0.55s cubic-bezier(0.167, 0, 0.214, 1) 1 4.117s;
+        animation-fill-mode: both;
+        > #Character-eye-Group-1 {
+          type: group;
+          transform: translate(713.75px, 469.33px);
+          > #Character-eye-Group-1-Path-1 {
+            type: path;
+            d: var(--p117);
+            fill: #131220;
+          }
+        }
+      }
+
+      > #Character-ear {
+        type: group;
+        transform-origin: 437.04px 557.35px;
+        z-index: 11;
+        animation: Character-ear-k 4.667s var(--e1) 1, Character-ear-k-2 4.667s var(--e1) 1;
+        animation-fill-mode: both;
+        > #Character-ear-Group-9 {
+          type: group;
+          transform: translate(428.25px, 558.12px);
+          > #Character-ear-Group-9-Group-1 {
+            type: group;
+            > #Character-ear-Group-9-Group-1-Path-2 {
+              type: path;
+              d: var(--p5);
+              fill: linear-gradient(from -33.68px 0.31px to 108.52px 13.79px, #633d48 0%, #724951 50%, #815459 100%);
+              animation: Character-ear-Group-9-Group-1-Path-2-k 4.667s var(--e1) 1;
+              animation-fill-mode: both;
+            }
+          }
+        }
+
+        > #Character-ear-Group-10 {
+          type: group;
+          transform: translate(469.69px, 639.56px);
+          > #Character-ear-Group-10-Path-1 {
+            type: path;
+            d: var(--p3);
+            fill: #131220;
+            animation: Character-ear-Group-10-Path-1-k 4.667s var(--e1) 1;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-ear-Group-8 {
+          type: group;
+          transform: translate(459.09px, 551.82px);
+          > #Character-ear-Group-8-Path-1 {
+            type: path;
+            d: var(--p2);
+            fill: #131220;
+            animation: Character-ear-Group-8-Path-1-k 4.667s var(--e1) 1;
+            animation-fill-mode: both;
+          }
+        }
+
+        > #Character-Airpod-2 {
+          type: group;
+          transform-origin: 457.14px 552.93px;
+          clip-path: var(--p1);
+          z-index: 1;
+          mask: #Character-Shape-Layer-1 alpha;
+          animation: Character-Airpod-2-k 4.667s var(--e1) 1, Character-Airpod-2-k-2 4.667s var(--e1) 1, Character-Airpod-2-k-3 3.117s var(--e2) 1 1s;
+          animation-fill-mode: both;
+          > #Character-Airpod-2-airpod {
+            type: group;
+            transform-origin: 570px 591.64px;
+            > #Character-Airpod-2-airpod-Group-7 {
+              type: group;
+              transform: translate(471.26px, 562.25px);
+              > #Character-Airpod-2-airpod-Group-7-Path-1 {
+                type: path;
+                d: var(--p62);
+                fill: #ebfafa;
+              }
+            }
+
+            > #Character-Airpod-2-airpod-Group-2 {
+              type: group;
+              transform: translate(457.38px, 541.32px);
+              > #Character-Airpod-2-airpod-Group-2-Group-1 {
+                type: group;
+                > #Character-Airpod-2-airpod-Group-2-Group-1-Path-4 {
+                  type: path;
+                  d: var(--p105);
+                  fill: linear-gradient(from -4.12px -14.2px to 10.9px 15.06px, #858e95 0%, #4c505b 50%, #131220 100%);
+                }
+              }
+            }
+
+            > #Character-Airpod-2-airpod-Group-1 {
+              type: group;
+              transform: translate(509px, 613.07px);
+              > #Character-Airpod-2-airpod-Group-1-Path-1 {
+                type: path;
+                d: 'M -3 2 C -3 2 3 -2 3 -2';
+                fill: none;
+                stroke: #5b606a;
+                stroke-width: 1.5px;
+                stroke-linecap: round;
+              }
+            }
+          }
+
+          > #Character-Airpod-2-airpod-2 {
+            type: group;
+            transform-origin: 570px 591.64px;
+            filter: blur(0.75px);
+            mask: #Character-Airpod-2-airpod-4 alpha;
+            > #Character-Airpod-2-airpod-2-Group-4 {
+              type: group;
+              transform: translate(444.36px, 560.74px);
+              > #Character-Airpod-2-airpod-2-Group-4-Group-1 {
+                type: group;
+                > #Character-Airpod-2-airpod-2-Group-4-Group-1-Path-5 {
+                  type: path;
+                  d: var(--p114);
+                  fill: radial-gradient(circle 34.33px at 15.69px 8.52px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
+                }
+              }
+            }
+
+            > #Character-Airpod-2-airpod-2-Group-3 {
+              type: group;
+              transform: translate(484.57px, 540.29px);
+              > #Character-Airpod-2-airpod-2-Group-3-Group-1 {
+                type: group;
+                > #Character-Airpod-2-airpod-2-Group-3-Group-1-Path-5 {
+                  type: path;
+                  d: var(--p113);
+                  fill: radial-gradient(circle 30.77px at 3.77px 10.65px, #a7afc2 0%, #c9d5de 50%, #ebfafa 100%);
+                }
+              }
+            }
+          }
+
+          > #Character-Airpod-2-airpod-4 {
+            type: group;
+            transform-origin: 570px 591.64px;
+            > #Character-Airpod-2-airpod-4-Group-7 {
+              type: group;
+              transform: translate(471.26px, 562.25px);
+              > #Character-Airpod-2-airpod-4-Group-7-Path-1 {
+                type: path;
+                d: var(--p62);
+                fill: #ebfafa;
+              }
+            }
+          }
+
+          > #Character-Airpod-2-airpod-3 {
+            type: group;
+            transform-origin: 570px 591.64px;
+            filter: blur(1px);
+            > #Character-Airpod-2-airpod-3-Group-6 {
+              type: group;
+              transform: translate(478.66px, 570.08px);
+              > #Character-Airpod-2-airpod-3-Group-6-Group-1 {
+                type: group;
+                > #Character-Airpod-2-airpod-3-Group-6-Group-1-Path-5 {
+                  type: path;
+                  d: var(--p96);
+                  fill: linear-gradient(from 29.27px -4.61px to 3.47px 5.52px, #cbcbd7 0%, rgba(203, 203, 215, 0.5) 50%, rgba(203, 203, 215, 0) 100%);
+                }
+              }
+            }
+
+            > #Character-Airpod-2-airpod-3-Group-5 {
+              type: group;
+              transform: translate(480.58px, 571.74px);
+              > #Character-Airpod-2-airpod-3-Group-5-Group-1 {
+                type: group;
+                > #Character-Airpod-2-airpod-3-Group-5-Group-1-Path-6 {
+                  type: path;
+                  d: var(--p95);
+                  fill: radial-gradient(circle 16.39px at 48.27px 37.99px, #31333f 0%, rgba(25, 26, 31, 0.5) 50%, rgba(0, 0, 0, 0) 100%);
+                }
+              }
+            }
+          }
+        }
+
+        > #Character-Shape-Layer-1 {
+          type: group;
+          transform: translate(570px, 592px);
+          z-index: 2;
+          > #Character-Shape-Layer-1-Shape-1 {
+            type: group;
+            > #Character-Shape-Layer-1-Shape-1-Path-1 {
+              type: path;
+              d: var(--p44);
+              fill: linear-gradient(from 0px 0px to 100px 0px, #633d48 0%, #724951 50%, #815459 100%);
+              animation: Character-Shape-Layer-1-Shape-1-Path-1-k 4.667s var(--e1) 1;
+              animation-fill-mode: both;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  > #mask {
+    type: group;
+    transform: translate(570px, 592px);
+    > #mask-Rectangle-1 {
+      type: group;
+      transform: translate(-2.18px, -35.54px);
+      > #mask-Rectangle-1-Rectangle-Path-1 {
+        type: rect;
+        x: -539.82px;
+        y: -182.46px;
+        width: 1079.63px;
+        height: 364.91px;
+        fill: linear-gradient(from 0px 0px to 100px 0px, #415be3 0%, #9f70e2 31.7%, #fc85e1 63.4%, #fc89d1 79.9%, #fd8dc1 96.5%);
+        stroke: linear-gradient(from 0px 0px to 100px 0px, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 19.3%, rgba(255, 255, 255, 0.002) 38.5%, rgba(255, 255, 255, 0) 38.6%, rgba(255, 255, 255, 0.25) 54.6%, rgba(255, 255, 255, 0.5) 70.7%, rgba(255, 255, 255, 0.498) 70.8%, rgba(255, 255, 255, 0.25) 85.3%, rgba(255, 255, 255, 0.248) 85.4%, rgba(255, 255, 255, 0) 100%);
+        stroke-width: 1px;
+      }
+    }
+  }
+
+  > #Volume {
+    type: group;
+    transform-origin: 570px 592px;
+    clip-path: var(--p1);
+    > #Volume-Layer-17-Outlines {
+      type: group;
+      transform-origin: 563.93px 861.12px;
+      > #Volume-Layer-17-Outlines-Group-1 {
+        type: group;
+        transform: translate(563.93px, 861.12px);
+        opacity: 0.2;
+        > #Volume-Layer-17-Outlines-Group-1-Path-1 {
+          type: path;
+          d: var(--p100);
+          fill: #ffffff;
+        }
+      }
+
+      > #Volume-Layer-17-Outlines-Group-2 {
+        type: group;
+        transform: translate(563.93px, 861.12px);
+        > #Volume-Layer-17-Outlines-Group-2-Path-1 {
+          type: path;
+          d: var(--p100);
+          fill: none;
+          stroke: linear-gradient(from -143.4px -50.87px to 198.34px 51.03px, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.3) 19.3%, rgba(255, 255, 255, 0.002) 38.5%, rgba(255, 255, 255, 0) 38.6%, rgba(255, 255, 255, 0.25) 54.6%, rgba(255, 255, 255, 0.5) 70.7%, rgba(255, 255, 255, 0.498) 70.8%, rgba(255, 255, 255, 0.25) 85.3%, rgba(255, 255, 255, 0.248) 85.4%, rgba(255, 255, 255, 0) 100%);
+          stroke-width: 1px;
+        }
+      }
+    }
+
+    > #Volume-Layer-1-Outlines {
+      type: group;
+      transform-origin: 563.93px 861.12px;
+      > #Volume-Layer-1-Outlines-Group-3 {
+        type: group;
+        transform: translate(561.26px, 861.18px);
+        > #Volume-Layer-1-Outlines-Group-3-Path-1 {
+          type: path;
+          d: 'M -141.5 -9 C -141.5 -9 141.5 -9 141.5 -9 C 146.47 -9 150.5 -4.97 150.5 0 C 150.5 4.97 146.47 9 141.5 9 C 141.5 9 -141.5 9 -141.5 9 C -146.47 9 -150.5 4.97 -150.5 0 C -150.5 -4.97 -146.47 -9 -141.5 -9 Z';
+          fill: #18181b;
+        }
+      }
+
+      > #Volume-Layer-1-Outlines-Group-2 {
+        type: group;
+        transform: translate(377.38px, 861.11px);
+        > #Volume-Layer-1-Outlines-Group-2-merge {
+          type: path;
+          d: 'M 9.99 -7.85 C 9.99 -7.85 10.26 -7.66 10.26 -7.66 C 10.26 -7.66 10.62 -7.33 10.62 -7.33 C 10.62 -7.33 10.76 -7.18 10.76 -7.18 C 11.07 -6.85 11.46 -6.37 11.85 -5.73 C 12.62 -4.45 13.38 -2.54 13.38 0.01 C 13.38 2.56 12.62 4.47 11.85 5.76 C 11.46 6.4 11.07 6.88 10.76 7.21 C 10.76 7.21 10.49 7.48 10.49 7.48 C 10.49 7.48 10.3 7.66 10.3 7.66 C 10.3 7.66 10.2 7.75 10.2 7.75 C 10.2 7.75 10.03 7.83 10.03 7.83 C 9.67 7.97 8.84 8.2 8.32 7.54 C 7.91 7.03 7.94 6.31 8.35 5.83 C 8.35 5.83 8.71 5.49 8.71 5.49 C 8.71 5.49 8.8 5.39 8.8 5.39 C 9 5.18 9.28 4.84 9.56 4.37 C 10.12 3.45 10.7 2.01 10.7 0.01 C 10.7 -1.99 10.12 -3.42 9.56 -4.34 C 9.35 -4.69 9.14 -4.97 8.96 -5.17 C 8.96 -5.17 8.71 -5.45 8.71 -5.45 C 8.71 -5.45 8.53 -5.63 8.53 -5.63 C 7.95 -6.09 7.86 -6.93 8.32 -7.5 C 8.72 -8.02 9.43 -8.15 9.99 -7.85 Z M 4.53 -15.93 C 4.95 -15.75 5.25 -15.37 5.32 -14.92 C 5.32 -14.92 5.34 -14.7 5.34 -14.7 C 5.34 -14.7 5.34 14.73 5.34 14.73 C 5.34 15.26 5.02 15.75 4.52 15.96 C 4.1 16.14 3.62 16.08 3.24 15.83 C 3.24 15.83 3.07 15.68 3.07 15.68 C 3.07 15.68 -4.76 7.99 -4.76 7.99 C -4.76 7.99 -9.37 7.99 -9.37 7.99 C -11.45 7.99 -13.17 6.4 -13.36 4.36 C -13.36 4.36 -13.38 3.98 -13.38 3.98 C -13.38 3.98 -13.38 -4.02 -13.38 -4.02 C -13.38 -6.1 -11.79 -7.82 -9.75 -8.01 C -9.75 -8.01 -9.37 -8.03 -9.37 -8.03 C -9.37 -8.03 -4.75 -8.03 -4.75 -8.03 C -4.75 -8.03 3.07 -15.65 3.07 -15.65 C 3.46 -16.03 4.03 -16.14 4.53 -15.93 Z';
+          fill-rule: nonzero;
+          fill: #f4f4f5;
+        }
+      }
+
+      > #Volume-Layer-1-Outlines-Group-1 {
+        type: group;
+        transform: translate(747.81px, 861.11px);
+        > #Volume-Layer-1-Outlines-Group-1-merge {
+          type: path;
+          d: 'M 7.32 -7.85 C 7.32 -7.85 7.59 -7.66 7.59 -7.66 C 7.59 -7.66 7.94 -7.33 7.94 -7.33 C 7.94 -7.33 8.09 -7.18 8.09 -7.18 C 8.39 -6.85 8.78 -6.37 9.17 -5.73 C 9.95 -4.45 10.71 -2.54 10.71 0.01 C 10.71 2.56 9.95 4.47 9.17 5.76 C 8.79 6.4 8.39 6.88 8.09 7.21 C 8.09 7.21 7.82 7.48 7.82 7.48 C 7.82 7.48 7.63 7.66 7.63 7.66 C 7.63 7.66 7.52 7.75 7.52 7.75 C 7.52 7.75 7.35 7.83 7.35 7.83 C 7 7.97 6.17 8.2 5.64 7.54 C 5.24 7.03 5.26 6.31 5.67 5.83 C 5.67 5.83 6.03 5.49 6.03 5.49 C 6.03 5.49 6.13 5.39 6.13 5.39 C 6.33 5.18 6.6 4.84 6.89 4.37 C 7.45 3.45 8.03 2.01 8.03 0.01 C 8.03 -1.99 7.45 -3.42 6.89 -4.34 C 6.67 -4.69 6.47 -4.97 6.29 -5.17 C 6.29 -5.17 6.04 -5.45 6.04 -5.45 C 6.04 -5.45 5.85 -5.63 5.85 -5.63 C 5.28 -6.09 5.18 -6.93 5.64 -7.5 C 6.05 -8.02 6.76 -8.15 7.32 -7.85 Z M 9.99 -13.2 C 9.99 -13.2 10.22 -13.04 10.22 -13.04 C 10.22 -13.04 10.49 -12.82 10.49 -12.82 C 10.65 -12.66 10.89 -12.45 11.16 -12.16 C 11.71 -11.59 12.43 -10.75 13.16 -9.65 C 14.6 -7.45 16.05 -4.19 16.05 0.03 C 16.05 4.24 14.6 7.5 13.16 9.69 C 12.43 10.79 11.71 11.63 11.16 12.2 C 11.16 12.2 10.78 12.57 10.78 12.57 C 10.78 12.57 10.28 13.03 10.28 13.03 C 10.28 13.03 10.19 13.1 10.19 13.1 C 9.62 13.56 8.77 13.46 8.31 12.88 C 7.91 12.37 7.94 11.65 8.35 11.17 C 8.35 11.17 8.7 10.86 8.7 10.86 C 8.82 10.75 9.01 10.57 9.24 10.34 C 9.69 9.87 10.31 9.16 10.92 8.22 C 12.15 6.35 13.38 3.6 13.38 0.03 C 13.38 -3.55 12.15 -6.31 10.92 -8.18 C 10.41 -8.96 9.89 -9.59 9.47 -10.05 C 9.47 -10.05 9.02 -10.52 9.02 -10.52 C 9.02 -10.52 8.53 -10.97 8.53 -10.97 C 7.95 -11.43 7.86 -12.28 8.32 -12.85 C 8.72 -13.37 9.43 -13.5 9.99 -13.2 Z M 1.85 -15.93 C 2.28 -15.75 2.58 -15.37 2.65 -14.92 C 2.65 -14.92 2.67 -14.7 2.67 -14.7 C 2.67 -14.7 2.67 14.73 2.67 14.73 C 2.67 15.26 2.35 15.75 1.85 15.96 C 1.42 16.14 0.94 16.08 0.57 15.83 C 0.57 15.83 0.4 15.68 0.4 15.68 C 0.4 15.68 -7.43 7.99 -7.43 7.99 C -7.43 7.99 -12.04 7.99 -12.04 7.99 C -14.13 7.99 -15.84 6.4 -16.03 4.36 C -16.03 4.36 -16.05 3.98 -16.05 3.98 C -16.05 3.98 -16.05 -4.02 -16.05 -4.02 C -16.05 -6.1 -14.46 -7.82 -12.43 -8.01 C -12.43 -8.01 -12.04 -8.03 -12.04 -8.03 C -12.04 -8.03 -7.43 -8.03 -7.43 -8.03 C -7.43 -8.03 0.4 -15.65 0.4 -15.65 C 0.79 -16.03 1.36 -16.14 1.85 -15.93 Z';
+          fill-rule: nonzero;
+          fill: #f4f4f5;
+        }
+      }
+    }
+
+    > #Volume-Layer-18-Outlines {
+      type: group;
+      transform-origin: 508.07px 861.18px;
+      > #Volume-Layer-18-Outlines-Group-1 {
+        type: group;
+        transform: translate(570px, 591.64px);
+        > #Volume-Layer-18-Outlines-Group-1-Path-2 {
+          type: path;
+          d: var(--p90);
+          fill: linear-gradient(from -185.31px 269.28px to 62.22px 270.69px, #415be3 0%, #9f70e2 31.7%, #fc85e1 63.4%, #fc89d1 79.9%, #fd8dc1 96.5%);
+          animation: Volume-Layer-18-Outlines-Group-1-Path-2-k 3.633s var(--e10) 1 1.017s;
+          animation-fill-mode: both;
+        }
+      }
+    }
+  }
 }
 ` },
   { key: "14-sprite-sheet.css", label: "Sprite sheet", source: `/* Author: AI Generated, sprite sheet by Kenney (CC0)
    Author URL: https://kenney.nl/assets/toon-characters */
-/*
- * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
- * sprite sheet (Kenney, see the Author header): 864x640,
- * a 9x5 grid of 96x128 frames. The walk cycle is 8 frames on the row at
- * y=512 (x = 0, 96, 192 ... 672); the run cycle is 3 frames on the row at
- * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,
- * so a still image plays as a loop. The poser below toggles walk <-> run via
- * a click-driven @machine, each state pointing object-view-box at its row.
- *
- * NOTE: every crop rect is inset 0.5px on all four edges — Canvas2D's bilinear
- * filtering samples half a texel past the crop rect when it's scaled up,
- * pulling in a sliver of the neighboring frame; the atlas XML confirms the
- * grid itself is exact (uniform 96x128, no overhang), so this is filtering
- * bleed, not a bad rect. Upgrade path: a half-texel source inset or a
- * smoothing control in the player's shared walk.
- */
+/* Sprite-sheet animation via object-view-box: steps(N) pages a crop rect across a
+   9x5 grid of 96x128 frames, and a click-driven @machine toggles walk <-> run.
+   NOTE: crop rects are inset 0.5px because Canvas2D bilinear filtering bleeds the neighbouring frame. */
 
 :root {
   width: 800px;
@@ -9570,19 +10773,20 @@ export const examples: Example[] = [
 
 @keyframes walk {
   from { object-view-box: xywh(0.5px 512.5px 95px 127px); }
-  to   { object-view-box: xywh(768.5px 512.5px 95px 127px); }   /* 8 frames past the last */
+  to   { object-view-box: xywh(768.5px 512.5px 95px 127px); }   /* one frame past the last of 8 */
 }
 
 @keyframes run {
   from { object-view-box: xywh(576.5px 256.5px 95px 127px); }
-  to   { object-view-box: xywh(864.5px 256.5px 95px 127px); }   /* 3 frames past the last */
+  to   { object-view-box: xywh(864.5px 256.5px 95px 127px); }   /* one frame past the last of 3 */
 }
 
-/* One label symbol; each use-site swaps content (and anything else). */
+/* Shared label; each use-site sets its own content and position. */
 @define label {
   type: text;
   font-family: system-ui, sans-serif;
-  font-size: 15px; font-weight: 600;
+  font-size: 15px;
+  font-weight: 600;
   text-anchor: middle;
   fill: #e8ecf1;
 }
@@ -9590,29 +10794,37 @@ export const examples: Example[] = [
 #sheet-label {
   use: label;
   content: 'robot-walk.png — 9x5 frames';
-  x: 40px; y: 30px;
+  x: 40px;
+  y: 30px;
   text-anchor: start;
   fill: #9aa4b2;
 }
 
-/* The full sheet, unclamped, so you can see every pose row at once. */
+/* The whole sheet, uncropped. */
 #sheet {
   type: image;
   content: url('/examples/robot-walk.png');
-  x: 40px; y: 48px; width: 270px; height: 200px;
+  x: 40px;
+  y: 48px;
+  width: 270px;
+  height: 200px;
 }
 
 #walker-label {
   use: label;
   content: 'steps(8) pages the walk cycle';
-  x: 436px; y: 30px;
+  x: 436px;
+  y: 30px;
 }
 
-/* The paged sprite: crop to the walk row, advance a column per step. */
+/* Cropped to the walk row; each step advances one column. */
 #walker {
   type: image;
   content: url('/examples/robot-walk.png');
-  x: 340px; y: 48px; width: 192px; height: 256px;
+  x: 340px;
+  y: 48px;
+  width: 192px;
+  height: 256px;
   object-view-box: xywh(0.5px 512.5px 95px 127px);
   animation: walk 0.8s steps(8) infinite;
 }
@@ -9620,11 +10832,11 @@ export const examples: Example[] = [
 #gait-label {
   use: label;
   content: 'click to toggle walk / run';
-  x: 652px; y: 30px;
+  x: 652px;
+  y: 30px;
   font-size: 14px;
 }
 
-/* Gait selector: click toggles between the walk and run cycles. */
 @machine gait {
   initial: walk;
   state walk { to: run  on click(#toggle-btn); }
@@ -9634,7 +10846,10 @@ export const examples: Example[] = [
 #poser {
   type: image;
   content: url('/examples/robot-walk.png');
-  x: 580px; y: 48px; width: 144px; height: 192px;
+  x: 580px;
+  y: 48px;
+  width: 144px;
+  height: 192px;
   object-view-box: xywh(0.5px 512.5px 95px 127px);
   &:state(gait.walk) { animation: walk 0.8s steps(8) infinite; }
   &:state(gait.run)  { animation: run 0.45s steps(3) infinite; }
@@ -9642,7 +10857,10 @@ export const examples: Example[] = [
 
 #toggle-btn {
   type: rect;
-  x: 580px; y: 250px; width: 144px; height: 40px;
+  x: 580px;
+  y: 250px;
+  width: 144px;
+  height: 40px;
   rx: 8px;
   fill: #2a2f3e;
   stroke: #4d96ff;
@@ -9653,43 +10871,16 @@ export const examples: Example[] = [
 #toggle-btn-label {
   use: label;
   content: 'toggle';
-  x: 652px; y: 275px;
-  font-size: 13px; font-weight: 400;
+  x: 652px;
+  y: 275px;
+  font-size: 13px;
+  font-weight: 400;
   fill: #cdd6e3;
 }
 ` },
   { key: "15-procedural--astronomical-watch.css", label: "Procedural: Astronomical watch", source: `/* Author: AI Generated */
-/*
- * Astronomical complication watch — an orrery / moon-phase face driven purely
- * by reactive trig + modular math on input(time), no @keyframes. Scene time
- * runs 8x real (virtualSeconds = t/125) so every gear visibly turns.
- *
- * Timekeeping (unchanged register): each hand is a group pinned to the dial
- * center and rotated with calc(); rotating about the group's own untranslated
- * origin pivots exactly at center. Hour/minute sweep continuously (mod() wraps
- * the cycle) at geared ratios; the second hand is quantized with round(down, …)
- * so it steps once per virtual second instead of sweeping.
- *
- * Complications layered behind the hands:
- *  - Orrery: three planets riding concentric orbit tracks, placed by
- *    cos()/sin() of the shared clock scaled to very different periods
- *    (inner ~1.9s, mid ~4.4s, outer ~9.4s per revolution — inner fast,
- *    outer slow, like real orbital gearing).
- *  - Moon phase (6 o'clock sub-dial): a lit disc with a sky-coloured shadow
- *    disc sliding across it; the offset is a slow sine of the clock (~16s
- *    lunation). The shadow merges into the matching sub-dial sky, so the lit
- *    remainder reads as waxing/waning crescents through full and new.
- *    NOTE: this is a sliding-disc approximation, not a true spherical
- *    terminator — a real terminator would need an arc/clip carve; upgrade path
- *    is a clip-path against an offset ellipse if crisper phases are wanted.
- *  - Starfield: one \`repeat:\`ed dot whose position, size and twinkle are all
- *    sibling-index() hashes — no per-star rows.
- *
- * Layout at 480x480 keeps three visual classes distinct: hour marks are radial
- * bars, planets are glowing dots on dashed tracks, stars are the faintest and
- * smallest dots. A dashed r=190 ring is the minute track (60 dashes = 60
- * marks). The sub-dial is clipped so nothing spills past its bezel.
- */
+/* Astronomical watch driven purely by trig and modular math on input(time), no @keyframes:
+   geared hands, orrery, moon-phase sub-dial and hashed starfield. Scene time runs 8x real. */
 
 :root {
   width: 480px;
@@ -9709,8 +10900,7 @@ export const examples: Example[] = [
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
 }
 
-/* Minute track: a dashed ring whose 60 dashes are the minute marks —
-   dash + gap = circumference(r 190) / 60. */
+/* 60 dashes are the minute marks: dash + gap = circumference(r 190) / 60. */
 #minute-track {
   type: circle;
   cx: 240px;
@@ -9722,12 +10912,7 @@ export const examples: Example[] = [
   stroke-dasharray: 1.5 18.4;
 }
 
-/* --- Starfield: one recipe, \`repeat:\` stamps the whole sky. Placement is a
-   golden-angle spiral (i * 2.39996 rad) at a hashed radius in the 86..194 band,
-   which scatters evenly while staying clear of the hands and inside the bezel.
-   Every star twinkles, but the amplitude is itself a hash — most land near 0
-   (steady dim dots), a few pulse hard, so the old star/twinkle split falls out
-   of the math instead of two @defines and 14 rows. */
+/* Stars: golden-angle spiral at a hashed radius (86..194); twinkle amplitude is hashed, mostly ~0. */
 @define star {
   type: circle;
   r: calc(0.9 + mod(sibling-index() * 29, 7) * 0.09);
@@ -9737,15 +10922,13 @@ export const examples: Example[] = [
   opacity: calc(0.4 + sin(var(--t) / (520 + mod(sibling-index() * 47, 300))) * mod(sibling-index() * 13, 5) * 0.08);
 }
 
-/* Wrapped in a group so sibling-index() counts 1..26 within the starfield
-   rather than continuing the scene's top-level ordering. */
+/* Grouped so sibling-index() counts 1..26 within the starfield. */
 #starfield {
   type: group;
   > #stars { use: star; repeat: 26; }
 }
 
-/* --- Orrery: faint concentric tracks, planets placed by cos/sin of scaled t.
-   Track radii 58/86/114; planet angle = t / period (radians), inner fastest. */
+/* Orrery: dashed tracks at r 58/86/114; planet angle = t / period, inner fastest. */
 @define orbit-track {
   type: circle;
   cx: 240px;
@@ -9787,9 +10970,8 @@ export const examples: Example[] = [
   cy: calc(sin(var(--t) / 1500) * 114 + 240);
 }
 
-/* --- Moon phase sub-dial at 6 o'clock. Clipped to the bezel so the sliding
-   shadow disc never spills; shadow fill == sky fill so it reads as phase.
-   offset = sin(t / 2600) * 46 sweeps new → crescent → full and back. */
+/* Moon phase at 6 o'clock: a sky-coloured shadow disc slides over the lit disc, clipped to the bezel.
+   NOTE: sliding-disc approximation, not a true terminator; an offset-ellipse clip would be crisper. */
 #moon-phase {
   type: group;
   clip-path: circle(27 at 240 348);
@@ -9800,6 +10982,7 @@ export const examples: Example[] = [
     r: 27px;
     fill: #0a0a1e;
   }
+
   > #moon-lit {
     type: circle;
     cx: 240px;
@@ -9807,6 +10990,7 @@ export const examples: Example[] = [
     r: 22px;
     fill: #e6e6f2;
   }
+
   > #moon-shadow {
     type: circle;
     cy: 348px;
@@ -9826,9 +11010,7 @@ export const examples: Example[] = [
   stroke-width: 2px;
 }
 
-/* --- Twelve hour marks: radial bars authored pointing up from the pivot
-   (like the hands), each use-site rotated to its hour. rotate(0) = 12
-   o'clock; quarters get the longer accent bar. */
+/* Hour marks point up from the pivot like the hands; each use-site rotates to its hour. */
 @define tick {
   type: rect;
   x: -1.5px;
@@ -9849,9 +11031,7 @@ export const examples: Example[] = [
   fill: #4cc9f0;
 }
 
-/* Two repeats instead of twelve rows: quarters are just i*90deg. The eight
-   in-between hours are 1,2,4,5,7,8,10,11 — that's h = i + floor(i/2 - 0.5), so
-   one round(down, …) skips every quarter without a table or a conditional. */
+/* Quarters are i * 90deg; the eight other hours (1,2,4,5,7,8,10,11) are i + floor(i/2 - 0.5). */
 #ticks {
   type: group;
   > #ticks-major {
@@ -9871,9 +11051,7 @@ export const examples: Example[] = [
   }
 }
 
-/* --- Hands: each a group pinned to center, rotated live. The rect child points
-   straight up (negative y) from the group origin, so rotate: 0 reads as 12
-   o'clock and positive degrees sweep clockwise. */
+/* Hands are groups pinned to center; the rect points up, so rotate(0) is 12 o'clock. */
 #hour-hand {
   type: group;
   transform: translate(240px, 240px) rotate(calc(mod(var(--t) / 125 / 3600, 12) * 30deg));
@@ -9902,8 +11080,7 @@ export const examples: Example[] = [
   }
 }
 
-/* round(down, seconds, 1) floors to the current whole virtual second, so the
-   hand jumps to the next mark instead of sweeping — a real tick, not a sweep. */
+/* round(down, …) floors to the whole virtual second, so the hand ticks instead of sweeping. */
 #second-hand {
   type: group;
   transform: translate(240px, 240px) rotate(calc(round(down, mod(var(--t) / 125, 60), 1) * 6deg));
@@ -9929,34 +11106,18 @@ export const examples: Example[] = [
 }
 ` },
   { key: "16-procedural--x-logo.css", label: "Procedural: X logo", source: `/* Author: AI Generated */
-/* Procedural instancing — \`repeat:\` + \`sibling-index()\` formulas + motion path,
-   building the X (formerly Twitter) logo from a swarm of dots.
-   The generative trio in one scene: \`repeat:\` stamps 389 copies of one
-   @define'd dot, ONE shared @keyframes flies them all — each copy's inbound
-   arc, hold shimmer, burst vector and stagger derive from sibling-index()
-   (golden-angle hashing: i * 2.39996 rad scatters directions uniformly, and
-   mod() of coprime multiples decorrelates the other channels; deterministic,
-   so crush-safe where random(per-element) would reseed). The silhouette is no
-   table: it's ONE multi-subpath scanline path (horizontal in-glyph spans), and
-   each copy rides it via CSS Motion Path — offset-distance spaces copies by
-   equal arc length, which is even area fill because the ink is the fill. No
-   per-copy rows remain at all: size, jitter and stagger are formulas, so the
-   whole swarm is ONE @define + ONE path (and it crush-minifies cleanly).
-   Glow is a radial-gradient fill, deliberately NOT filter/drop-shadow: a
-   per-node blur pass at this count is the Canvas2D perf cliff. */
+/* Procedural instancing: \`repeat:\` stamps 389 dots riding the X logo's scanline path via offset-path;
+   size, jitter, stagger and flight are sibling-index() hashes (crush-safe, unlike random()).
+   NOTE: glow is a radial-gradient fill, not a blur filter; per-node blur at this count is a perf cliff. */
+
 :root {
   width: 800px;
   height: 600px;
   background: #000000;
 }
 
-/* One recipe; repeat: stamps the swarm as #swarm-1 .. #swarm-389. offset-path
-   is the X silhouette; offset-distance = index/count spaces the copies evenly
-   along it. cx/cy are a per-copy hash jitter (cy just over half the 8.2px line
-   spacing, so adjacent scanlines interleave and the grid dissolves); r is
-   mostly a tight small-dot spread (3.6..5.1) plus a rare pow-skewed
-   spike (~8 bright big dots up to ~8px). The stagger folds per copy: mod() of a
-   coprime multiple spreads phases evenly. */
+/* offset-distance = index / count spaces copies evenly along the silhouette; cy jitter just over half
+   the 8.2px line spacing interleaves adjacent scanlines; r adds a rare pow()-skewed big dot. */
 @define dot {
   type: circle;
   r: calc(3.6 + mod(sibling-index() * 37, 16) * 0.1 + pow(mod(sibling-index() * 53, 101) / 101, 26) * 4.5);
@@ -9973,10 +11134,8 @@ export const examples: Example[] = [
 
 #swarm { use: dot; repeat: 389; }
 
-/* One flight plan, 389 distinct flights: every vector is a formula of
-   sibling-index(). in-angle a = i*2.39996; the curve apex sits at a nudged
-   angle (bow = cos(i*3.7)*0.55 rad) so approaches arc instead of beelining;
-   the burst heads out on an unrelated hashed angle with its own reach. */
+/* Golden-angle (i * 2.39996 rad) inbound arc with a hashed bow, hold shimmer, then a burst on an
+   unrelated hashed angle. */
 @keyframes fly {
   0% {
     transform: translate(
@@ -9985,6 +11144,7 @@ export const examples: Example[] = [
     opacity: 0;
     animation-timing-function: ease-in;
   }
+
   19% {
     transform: translate(
       calc(cos(sibling-index() * 2.39996 + cos(sibling-index() * 3.7) * 0.55) * (150 + mod(sibling-index() * 41, 90))),
@@ -9992,18 +11152,23 @@ export const examples: Example[] = [
     opacity: 0.6;
     animation-timing-function: ease-out;
   }
+
   38% { transform: translate(0px, 0px); opacity: 1; animation-timing-function: ease-in-out; }
+
   47% {
     transform: translate(calc(sin(sibling-index() * 11.3) * 1.5), calc(cos(sibling-index() * 17.9) * 1.5));
     opacity: calc(0.8 + mod(sibling-index() * 13, 20) * 0.01);
     animation-timing-function: ease-in-out;
   }
+
   56% {
     transform: translate(calc(sin(sibling-index() * 23.1) * 1.5), calc(cos(sibling-index() * 29.7) * 1.5));
     opacity: 1;
     animation-timing-function: ease-in-out;
   }
+
   63% { transform: translate(0px, 0px); opacity: 1; animation-timing-function: ease-in; }
+
   93%, 100% {
     transform: translate(
       calc(cos(sibling-index() * 4.123) * (360 + mod(sibling-index() * 53, 280))),
@@ -10014,13 +11179,12 @@ export const examples: Example[] = [
 ` },
   { key: "17-procedural--particle-field.css", label: "Procedural: Particle field", source: `/* Author: AI Generated, after @yuruyurau
    Author URL: https://x.com/yuruyurau */
-/* Procedural field — 10000 \`repeat:\` copies placed entirely by one calc()
-   expression of sibling-index() and input(time), no @keyframes anywhere.
-   Ported from a p5.js one-liner; original by @yuruyurau on X.
-   p5:  a=(x,y,d=mag(k=4*cos(x/21),e=y/8-20))=>circle(
-          (q=3*sin(k*2)+.3/k+sin(y/19)*k*(9+2*sin(e*14-d*3+t*2)))+50*cos(c=d-t)+200,
-          q*sin(c)+d*39-475, k*k>15?2:1)
-   x = sibling-index(); y = x/235; t = PI/4 rad per second. */
+/* 10000 \`repeat:\` dots placed by one calc() of sibling-index() and input(time), no @keyframes.
+   Port of this p5.js one-liner, with x = sibling-index(), y = x/235, t = PI/4 rad/s: */
+/* a=(x,y,d=mag(k=4*cos(x/21),e=y/8-20))=>circle(
+     (q=3*sin(k*2)+.3/k+sin(y/19)*k*(9+2*sin(e*14-d*3+t*2)))+50*cos(c=d-t)+200,
+     q*sin(c)+d*39-475, k*k>15?2:1) */
+
 :root {
   width: 400px;
   height: 400px;

@@ -1,12 +1,11 @@
 /* Author: AI Generated, after @yuruyurau
    Author URL: https://x.com/yuruyurau */
-/* Procedural field — 10000 `repeat:` copies placed entirely by one calc()
-   expression of sibling-index() and input(time), no @keyframes anywhere.
-   Ported from a p5.js one-liner; original by @yuruyurau on X.
-   p5:  a=(x,y,d=mag(k=4*cos(x/21),e=y/8-20))=>circle(
-          (q=3*sin(k*2)+.3/k+sin(y/19)*k*(9+2*sin(e*14-d*3+t*2)))+50*cos(c=d-t)+200,
-          q*sin(c)+d*39-475, k*k>15?2:1)
-   x = sibling-index(); y = x/235; t = PI/4 rad per second. */
+/* 10000 `repeat:` dots placed by one calc() of sibling-index() and input(time), no @keyframes.
+   Port of this p5.js one-liner, with x = sibling-index(), y = x/235, t = PI/4 rad/s: */
+/* a=(x,y,d=mag(k=4*cos(x/21),e=y/8-20))=>circle(
+     (q=3*sin(k*2)+.3/k+sin(y/19)*k*(9+2*sin(e*14-d*3+t*2)))+50*cos(c=d-t)+200,
+     q*sin(c)+d*39-475, k*k>15?2:1) */
+
 :root {
   width: 400px;
   height: 400px;

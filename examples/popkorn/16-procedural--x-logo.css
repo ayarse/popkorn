@@ -1,32 +1,16 @@
 /* Author: AI Generated */
-/* Procedural instancing — `repeat:` + `sibling-index()` formulas + motion path,
-   building the X (formerly Twitter) logo from a swarm of dots.
-   The generative trio in one scene: `repeat:` stamps 389 copies of one
-   @define'd dot, ONE shared @keyframes flies them all — each copy's inbound
-   arc, hold shimmer, burst vector and stagger derive from sibling-index()
-   (golden-angle hashing: i * 2.39996 rad scatters directions uniformly, and
-   mod() of coprime multiples decorrelates the other channels; deterministic,
-   so crush-safe where random(per-element) would reseed). The silhouette is no
-   table: it's ONE multi-subpath scanline path (horizontal in-glyph spans), and
-   each copy rides it via CSS Motion Path — offset-distance spaces copies by
-   equal arc length, which is even area fill because the ink is the fill. No
-   per-copy rows remain at all: size, jitter and stagger are formulas, so the
-   whole swarm is ONE @define + ONE path (and it crush-minifies cleanly).
-   Glow is a radial-gradient fill, deliberately NOT filter/drop-shadow: a
-   per-node blur pass at this count is the Canvas2D perf cliff. */
+/* Procedural instancing: `repeat:` stamps 389 dots riding the X logo's scanline path via offset-path;
+   size, jitter, stagger and flight are sibling-index() hashes (crush-safe, unlike random()).
+   NOTE: glow is a radial-gradient fill, not a blur filter; per-node blur at this count is a perf cliff. */
+
 :root {
   width: 800px;
   height: 600px;
   background: #000000;
 }
 
-/* One recipe; repeat: stamps the swarm as #swarm-1 .. #swarm-389. offset-path
-   is the X silhouette; offset-distance = index/count spaces the copies evenly
-   along it. cx/cy are a per-copy hash jitter (cy just over half the 8.2px line
-   spacing, so adjacent scanlines interleave and the grid dissolves); r is
-   mostly a tight small-dot spread (3.6..5.1) plus a rare pow-skewed
-   spike (~8 bright big dots up to ~8px). The stagger folds per copy: mod() of a
-   coprime multiple spreads phases evenly. */
+/* offset-distance = index / count spaces copies evenly along the silhouette; cy jitter just over half
+   the 8.2px line spacing interleaves adjacent scanlines; r adds a rare pow()-skewed big dot. */
 @define dot {
   type: circle;
   r: calc(3.6 + mod(sibling-index() * 37, 16) * 0.1 + pow(mod(sibling-index() * 53, 101) / 101, 26) * 4.5);
@@ -43,10 +27,8 @@
 
 #swarm { use: dot; repeat: 389; }
 
-/* One flight plan, 389 distinct flights: every vector is a formula of
-   sibling-index(). in-angle a = i*2.39996; the curve apex sits at a nudged
-   angle (bow = cos(i*3.7)*0.55 rad) so approaches arc instead of beelining;
-   the burst heads out on an unrelated hashed angle with its own reach. */
+/* Golden-angle (i * 2.39996 rad) inbound arc with a hashed bow, hold shimmer, then a burst on an
+   unrelated hashed angle. */
 @keyframes fly {
   0% {
     transform: translate(
@@ -55,6 +37,7 @@
     opacity: 0;
     animation-timing-function: ease-in;
   }
+
   19% {
     transform: translate(
       calc(cos(sibling-index() * 2.39996 + cos(sibling-index() * 3.7) * 0.55) * (150 + mod(sibling-index() * 41, 90))),
@@ -62,18 +45,23 @@
     opacity: 0.6;
     animation-timing-function: ease-out;
   }
+
   38% { transform: translate(0px, 0px); opacity: 1; animation-timing-function: ease-in-out; }
+
   47% {
     transform: translate(calc(sin(sibling-index() * 11.3) * 1.5), calc(cos(sibling-index() * 17.9) * 1.5));
     opacity: calc(0.8 + mod(sibling-index() * 13, 20) * 0.01);
     animation-timing-function: ease-in-out;
   }
+
   56% {
     transform: translate(calc(sin(sibling-index() * 23.1) * 1.5), calc(cos(sibling-index() * 29.7) * 1.5));
     opacity: 1;
     animation-timing-function: ease-in-out;
   }
+
   63% { transform: translate(0px, 0px); opacity: 1; animation-timing-function: ease-in; }
+
   93%, 100% {
     transform: translate(
       calc(cos(sibling-index() * 4.123) * (360 + mod(sibling-index() * 53, 280))),

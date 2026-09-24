@@ -1,37 +1,24 @@
 /* Author: AI Generated */
-/* Symbols and motion path — a night circuit where one route does four jobs.
-   The pedagogical payload: `--circuit` holds the track geometry ONCE, and every
-   node that needs it (the asphalt, the racing line, the cars, the marshal
-   posts) folds the same string in. `@define` a car once, `use:` it four times,
-   override only what differs (colour, lap time, grid slot) at the use-site.
-   Then the same `offset-path` shows both of its faces: animated
-   `offset-distance` drives the cars around, while a STATIC `offset-distance`
-   computed from `sibling-index()` distributes fourteen repeated posts evenly
-   along the circuit — placement by arc length, not by hand-typed coordinates.
-   `offset-rotate: auto` aims both at the tangent, so cars steer through the
-   corners and posts stand square to the kerb. */
+/* Symbols and motion path — one `--circuit` route shared by track, cars and posts:
+   animated `offset-distance` drives the cars, a static one spaces the posts. */
+
 :root {
   width: 800px;
   height: 600px;
   background: #0b0e14;
 
-  /* One closed circuit, referenced four times below. A :root var used in a
-     structural property (`d`, `offset-path`, `clip-path`, `mask`) is folded to
-     its literal at build time, so this is deduplication, not a live binding. */
+  /* Structural props fold :root vars at build time: dedup, not a live binding */
   --circuit: "M 380 490 C 310 483 250 470 190 470 C 120 470 90 400 120 340 C 150 280 260 300 300 250 C 340 200 340 130 400 110 C 470 88 560 120 620 160 C 700 215 720 330 660 410 C 610 478 480 500 380 490 Z";
 }
 
-/* Infield: the same path, filled instead of stroked, to sink the middle. */
+/* The same path, filled instead of stroked */
 #infield {
   type: path;
   d: var(--circuit);
   fill: #0f1420;
 }
 
-/* Kerb: two fatter copies of the same path, stacked under the asphalt so only
-   their 8px rim shows on each side. The red one is dashed, so the white one
-   below shows through the gaps — a striped kerb the whole way round, from a
-   `stroke-dasharray` instead of a hundred hand-placed blocks. */
+/* Kerb: fatter strokes under the asphalt; the dashed red over white makes the stripes */
 #kerb-white {
   type: path;
   d: var(--circuit);
@@ -40,6 +27,7 @@
   stroke-width: 72px;
   stroke-linejoin: round;
 }
+
 #kerb-red {
   type: path;
   d: var(--circuit);
@@ -50,9 +38,7 @@
   stroke-dasharray: 22px 22px;
 }
 
-/* Asphalt: one fat round-joined stroke. Track width 56px sets every other
-   measurement in the scene — the cars are 45px long, the checkers span 4 rows
-   of 14px, the posts stand 44px off the centreline (just clear of the verge). */
+/* Track width 56px sets every other measurement in the scene */
 #asphalt {
   type: path;
   d: var(--circuit);
@@ -62,7 +48,7 @@
   stroke-linejoin: round;
 }
 
-/* Racing line: same path again, hairline and dashed. */
+/* Racing line: hairline and dashed */
 #racing-line {
   type: path;
   d: var(--circuit);
@@ -72,16 +58,13 @@
   stroke-dasharray: 16px 22px;
 }
 
-/* Start/finish checkers. Four dashed rows, alternating the dash phase by half a
-   period, make a checkerboard out of one repeated node — `repeat: 4` stamps the
-   row, `sibling-index()` stacks it and flips `stroke-dashoffset`. The group
-   rides the circuit at distance 0 rather than carrying hand-typed coordinates:
-   the path start IS the start line, and `offset-rotate: auto` squares the band
-   to the asphalt for free. Children stay authored around the local origin. */
+/* Checkerboard from one repeated dashed row with alternating dash phase; the group
+   sits at distance 0 on the circuit, squared to the asphalt by `offset-rotate`. */
 #start-line {
   offset-path: path(var(--circuit));
   offset-distance: 0%;
   offset-rotate: auto;
+
   > #row {
     type: path;
     d: "M -21 0 L 21 0";
@@ -99,15 +82,14 @@
   50%      { opacity: 1;   }
 }
 
-/* Symbol one: a marshal post — a stub of a mast with an amber lamp on top. It
-   rides the circuit like the cars do, but its `offset-distance` never animates:
-   the motion path is being used purely as a placement tool. Geometry is authored
-   around the local origin, then pushed out to y: -40 and beyond so
-   `offset-rotate: auto` (which aligns local +x with the tangent, and therefore
-   local -y with the outside of the loop) stands it just clear of the kerb. */
+/* Marshal post: offset-path used purely for placement; local -y points outside
+   the loop under `offset-rotate: auto`, so y: -50 stands it clear of the kerb. */
 @define marshal {
   type: rect;
-  x: -1.5px; y: -50px; width: 3px; height: 14px;
+  x: -1.5px;
+  y: -50px;
+  width: 3px;
+  height: 14px;
   rx: 1px;
   fill: #3d4557;
   offset-path: path(var(--circuit));
@@ -116,15 +98,15 @@
 
   > #lamp {
     type: circle;
-    cx: 0px; cy: -52px; r: 4px;
+    cx: 0px;
+    cy: -52px;
+    r: 4px;
     fill: #fbbf24;
     filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.7));
   }
 }
 
-/* Fourteen posts, zero hand-typed positions: index/count spreads them by arc
-   length so the spacing stays even through the corners. The family gets its own
-   group because sibling-count() counts ALL siblings, not just the repeated ones. */
+/* Spread evenly by arc length; own group because sibling-count() counts all siblings */
 #marshals {
   > #post {
     use: marshal;
@@ -134,21 +116,14 @@
   }
 }
 
-/* offset-distance walks the route by ARC LENGTH, so a car holds a steady speed
-   through the bends instead of racing the straights. Linear easing plus a
-   closed path means the loop point is seamless. */
+/* offset-distance is by arc length, so speed holds steady through the bends */
 @keyframes lap {
   from { offset-distance: 0%;   }
   to   { offset-distance: 100%; }
 }
 
-/* Symbol two: the car, drawn nose-first along +x (nose at +24, gearbox at -21)
-   so `offset-rotate: auto` points it the way it's travelling. The SYMBOL NODE
-   ITSELF is the coloured shell — a shape paints its own geometry first, then its
-   children — so the wings, tyres and cockpit ride on top as fixed dark parts
-   while `fill` stays a single-declaration override at every use-site. (Children
-   can't be overridden per instance: a use-site's children are appended to the
-   definition's, not merged into them.) */
+/* Car drawn nose-first along +x; the symbol node is the shell so `fill` overrides
+   per use-site (use-site children append, they can't override the parts). */
 @define car {
   type: path;
   d: "M 25 0 L 22 -2.5 L 10 -3.5 L 6 -10 L -8 -11 L -19 -10 L -22 -5 L -22 5 L -19 10 L -8 11 L 6 10 L 10 3.5 L 22 2.5 Z";
@@ -158,22 +133,105 @@
   offset-rotate: auto;
   animation: lap 9s linear infinite;
 
-  > #front-wing { type: rect; x: 20px;  y: -10px; width: 4px; height: 20px; rx: 1px; fill: #2b3446; }
-  > #rear-wing  { type: rect; x: -25px; y: -9px;  width: 4px; height: 18px; rx: 1px; fill: #2b3446; }
-  > #tyre-fl { type: rect; x: 5px;   y: -13px; width: 9px;  height: 5px; rx: 2px; fill: #0d1017; }
-  > #tyre-fr { type: rect; x: 5px;   y: 8px;   width: 9px;  height: 5px; rx: 2px; fill: #0d1017; }
-  > #tyre-rl { type: rect; x: -16px; y: -14px; width: 10px; height: 6px; rx: 2px; fill: #0d1017; }
-  > #tyre-rr { type: rect; x: -16px; y: 8px;   width: 10px; height: 6px; rx: 2px; fill: #0d1017; }
-  > #cockpit { type: ellipse; cx: -2px; cy: 0px; rx: 5px; ry: 3px; fill: #0b0e14; opacity: 0.9; }
+  > #front-wing {
+    type: rect;
+    x: 20px;
+    y: -10px;
+    width: 4px;
+    height: 20px;
+    rx: 1px;
+    fill: #2b3446;
+  }
+
+  > #rear-wing {
+    type: rect;
+    x: -25px;
+    y: -9px;
+    width: 4px;
+    height: 18px;
+    rx: 1px;
+    fill: #2b3446;
+  }
+
+  > #tyre-fl {
+    type: rect;
+    x: 5px;
+    y: -13px;
+    width: 9px;
+    height: 5px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #tyre-fr {
+    type: rect;
+    x: 5px;
+    y: 8px;
+    width: 9px;
+    height: 5px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #tyre-rl {
+    type: rect;
+    x: -16px;
+    y: -14px;
+    width: 10px;
+    height: 6px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #tyre-rr {
+    type: rect;
+    x: -16px;
+    y: 8px;
+    width: 10px;
+    height: 6px;
+    rx: 2px;
+    fill: #0d1017;
+  }
+
+  > #cockpit {
+    type: ellipse;
+    cx: -2px;
+    cy: 0px;
+    rx: 5px;
+    ry: 3px;
+    fill: #0b0e14;
+    opacity: 0.9;
+  }
 }
 
-/* Four use-sites, three overrides each. The negative delay is the grid: it
-   starts each car already that far into its lap. The durations differ by a few
-   hundred milliseconds, so the pack shuffles instead of orbiting in formation. */
-#car1 { use: car; fill: #f43f5e; animation-duration: 8.4s; animation-delay: -0.4s; }
-#car2 { use: car; fill: #38bdf8; animation-duration: 8.9s; animation-delay: -1.9s; }
-#car3 { use: car; fill: #a3e635; animation-duration: 9.4s; animation-delay: -3.6s; }
-#car4 { use: car; fill: #a78bfa; animation-duration: 9.1s; animation-delay: -5.2s; }
+/* Negative delay is the grid slot; slightly different durations make the pack shuffle */
+#car1 {
+  use: car;
+  fill: #f43f5e;
+  animation-duration: 8.4s;
+  animation-delay: -0.4s;
+}
+
+#car2 {
+  use: car;
+  fill: #38bdf8;
+  animation-duration: 8.9s;
+  animation-delay: -1.9s;
+}
+
+#car3 {
+  use: car;
+  fill: #a3e635;
+  animation-duration: 9.4s;
+  animation-delay: -3.6s;
+}
+
+#car4 {
+  use: car;
+  fill: #a78bfa;
+  animation-duration: 9.1s;
+  animation-delay: -5.2s;
+}
 
 #title {
   type: text;

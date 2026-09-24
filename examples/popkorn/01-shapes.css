@@ -1,5 +1,6 @@
 /* Author: AI Generated */
 /* Shapes — gradients, polystar, rounded rects, text, clip-path */
+
 :root {
   width: 800px;
   height: 600px;
@@ -19,7 +20,6 @@
   stroke-width: 2px;
 }
 
-/* Radial-gradient orb */
 #orb {
   type: circle;
   cx: 230px;
@@ -28,7 +28,7 @@
   fill: radial-gradient(#ffe66d 0%, #ff6b6b 100%);
 }
 
-/* A five-point star (polystar geometry) with a gradient fill */
+/* Polystar geometry */
 #star {
   type: star;
   sides: 5;
@@ -46,10 +46,41 @@
   type: group;
   clip-path: circle(60 at 590 300);
 
-  > #b1 { type: rect; x: 528px; y: 240px; width: 124px; height: 30px; fill: #4ecdc4; }
-  > #b2 { type: rect; x: 528px; y: 270px; width: 124px; height: 30px; fill: #ffe66d; }
-  > #b3 { type: rect; x: 528px; y: 300px; width: 124px; height: 30px; fill: #f472b6; }
-  > #b4 { type: rect; x: 528px; y: 330px; width: 124px; height: 30px; fill: #60a5fa; }
+  > #b1 {
+    type: rect;
+    x: 528px;
+    y: 240px;
+    width: 124px;
+    height: 30px;
+    fill: #4ecdc4;
+  }
+
+  > #b2 {
+    type: rect;
+    x: 528px;
+    y: 270px;
+    width: 124px;
+    height: 30px;
+    fill: #ffe66d;
+  }
+
+  > #b3 {
+    type: rect;
+    x: 528px;
+    y: 300px;
+    width: 124px;
+    height: 30px;
+    fill: #f472b6;
+  }
+
+  > #b4 {
+    type: rect;
+    x: 528px;
+    y: 330px;
+    width: 124px;
+    height: 30px;
+    fill: #60a5fa;
+  }
 }
 
 /* Text takes a gradient fill just like a shape */
@@ -74,7 +105,7 @@
   fill: #8b8ba7;
 }
 
-/* Conic-gradient pie, tucked in the top-left corner outside the card */
+/* Conic-gradient pie */
 #pie {
   type: circle;
   cx: 50px;
@@ -86,7 +117,7 @@
     #ffe66d 220deg, #ffe66d 360deg);
 }
 
-/* Repeating-conic sunburst, mirrored into the top-right corner */
+/* Repeating-conic sunburst */
 #sunburst {
   type: circle;
   cx: 755px;
@@ -96,7 +127,7 @@
     #fbbf24 0deg, #fbbf24 12deg, #7c3aed 12deg, #7c3aed 24deg);
 }
 
-/* Repeating-linear barber-pole stripes, tucked below the card */
+/* Repeating-linear stripes */
 #stripes {
   type: rect;
   x: 300px;

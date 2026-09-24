@@ -1,21 +1,8 @@
 /* Author: AI Generated, sprite sheet by Kenney (CC0)
    Author URL: https://kenney.nl/assets/toon-characters */
-/*
- * Sprite-sheet animation via object-view-box. robot-walk.png is a real CC0
- * sprite sheet (Kenney, see the Author header): 864x640,
- * a 9x5 grid of 96x128 frames. The walk cycle is 8 frames on the row at
- * y=512 (x = 0, 96, 192 ... 672); the run cycle is 3 frames on the row at
- * y=256 (x = 576, 672, 768). steps(N) pages xywh's x by one frame per step,
- * so a still image plays as a loop. The poser below toggles walk <-> run via
- * a click-driven @machine, each state pointing object-view-box at its row.
- *
- * NOTE: every crop rect is inset 0.5px on all four edges — Canvas2D's bilinear
- * filtering samples half a texel past the crop rect when it's scaled up,
- * pulling in a sliver of the neighboring frame; the atlas XML confirms the
- * grid itself is exact (uniform 96x128, no overhang), so this is filtering
- * bleed, not a bad rect. Upgrade path: a half-texel source inset or a
- * smoothing control in the player's shared walk.
- */
+/* Sprite-sheet animation via object-view-box: steps(N) pages a crop rect across a
+   9x5 grid of 96x128 frames, and a click-driven @machine toggles walk <-> run.
+   NOTE: crop rects are inset 0.5px because Canvas2D bilinear filtering bleeds the neighbouring frame. */
 
 :root {
   width: 800px;
@@ -24,19 +11,20 @@
 
 @keyframes walk {
   from { object-view-box: xywh(0.5px 512.5px 95px 127px); }
-  to   { object-view-box: xywh(768.5px 512.5px 95px 127px); }   /* 8 frames past the last */
+  to   { object-view-box: xywh(768.5px 512.5px 95px 127px); }   /* one frame past the last of 8 */
 }
 
 @keyframes run {
   from { object-view-box: xywh(576.5px 256.5px 95px 127px); }
-  to   { object-view-box: xywh(864.5px 256.5px 95px 127px); }   /* 3 frames past the last */
+  to   { object-view-box: xywh(864.5px 256.5px 95px 127px); }   /* one frame past the last of 3 */
 }
 
-/* One label symbol; each use-site swaps content (and anything else). */
+/* Shared label; each use-site sets its own content and position. */
 @define label {
   type: text;
   font-family: system-ui, sans-serif;
-  font-size: 15px; font-weight: 600;
+  font-size: 15px;
+  font-weight: 600;
   text-anchor: middle;
   fill: #e8ecf1;
 }
@@ -44,29 +32,37 @@
 #sheet-label {
   use: label;
   content: 'robot-walk.png — 9x5 frames';
-  x: 40px; y: 30px;
+  x: 40px;
+  y: 30px;
   text-anchor: start;
   fill: #9aa4b2;
 }
 
-/* The full sheet, unclamped, so you can see every pose row at once. */
+/* The whole sheet, uncropped. */
 #sheet {
   type: image;
   content: url('/examples/robot-walk.png');
-  x: 40px; y: 48px; width: 270px; height: 200px;
+  x: 40px;
+  y: 48px;
+  width: 270px;
+  height: 200px;
 }
 
 #walker-label {
   use: label;
   content: 'steps(8) pages the walk cycle';
-  x: 436px; y: 30px;
+  x: 436px;
+  y: 30px;
 }
 
-/* The paged sprite: crop to the walk row, advance a column per step. */
+/* Cropped to the walk row; each step advances one column. */
 #walker {
   type: image;
   content: url('/examples/robot-walk.png');
-  x: 340px; y: 48px; width: 192px; height: 256px;
+  x: 340px;
+  y: 48px;
+  width: 192px;
+  height: 256px;
   object-view-box: xywh(0.5px 512.5px 95px 127px);
   animation: walk 0.8s steps(8) infinite;
 }
@@ -74,11 +70,11 @@
 #gait-label {
   use: label;
   content: 'click to toggle walk / run';
-  x: 652px; y: 30px;
+  x: 652px;
+  y: 30px;
   font-size: 14px;
 }
 
-/* Gait selector: click toggles between the walk and run cycles. */
 @machine gait {
   initial: walk;
   state walk { to: run  on click(#toggle-btn); }
@@ -88,7 +84,10 @@
 #poser {
   type: image;
   content: url('/examples/robot-walk.png');
-  x: 580px; y: 48px; width: 144px; height: 192px;
+  x: 580px;
+  y: 48px;
+  width: 144px;
+  height: 192px;
   object-view-box: xywh(0.5px 512.5px 95px 127px);
   &:state(gait.walk) { animation: walk 0.8s steps(8) infinite; }
   &:state(gait.run)  { animation: run 0.45s steps(3) infinite; }
@@ -96,7 +95,10 @@
 
 #toggle-btn {
   type: rect;
-  x: 580px; y: 250px; width: 144px; height: 40px;
+  x: 580px;
+  y: 250px;
+  width: 144px;
+  height: 40px;
   rx: 8px;
   fill: #2a2f3e;
   stroke: #4d96ff;
@@ -107,7 +109,9 @@
 #toggle-btn-label {
   use: label;
   content: 'toggle';
-  x: 652px; y: 275px;
-  font-size: 13px; font-weight: 400;
+  x: 652px;
+  y: 275px;
+  font-size: 13px;
+  font-weight: 400;
   fill: #cdd6e3;
 }

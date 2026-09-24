@@ -1,15 +1,14 @@
 /* Author: AI Generated */
 /* Mask — big text revealed through a sweeping bar (luminance mask) */
+
 :root {
   width: 800px;
   height: 600px;
 }
 
-/* The mask source is a white bar that sweeps across. Driving a luminance mask,
-   it is never drawn itself — only its brightness shows the content through. */
 @keyframes sweep {
   0%   { transform: translateX(-700px); }
-  100% { transform: translateX(700px);  }
+  100% { transform: translateX(700px); }
 }
 
 #reveal {
@@ -24,6 +23,7 @@
   mask: #wipe luminance;
 }
 
+/* mask source: never drawn itself, only its brightness lets the text through */
 #wipe {
   type: rect;
   x: 100px;

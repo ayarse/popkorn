@@ -1,27 +1,8 @@
 /* Author: AI Generated */
-/* State machine — a pull-chain lamp, and the whole @machine vocabulary with it:
-   two concurrent machines on independent clocks, a state that plays once and
-   advances itself `on complete`, a `state-time` timeout, several transitions
-   competing out of one state, and per-state styling.
+/* State machine — a pull-chain lamp: two concurrent @machines on independent clocks,
+   `on complete` handover, a `state-time` timeout, competing transitions, per-state styling.
+   Click the chain, then leave the lamp on and wait. */
 
-     @machine lamp   off -> warmup -> on -> off. `warmup` is the incandescent
-                     strike: it plays ONCE and hands over
-                     `on complete`, so the steady lit look never re-runs it. `on` has two
-                     ways out — the chain, or a 10s energy-saver timeout that
-                     switches the lamp off if you walk away (first trigger to
-                     fire wins).
-     @machine pull   the chain's own graph: still -> swing on click, back
-                     `on complete`. It reacts to the SAME click as `lamp` and
-                     knows nothing about it — proof the two run independently.
-                     Note the timeout can switch the lamp off without the chain
-                     ever moving, and the chain still swings when the lamp is
-                     already lit.
-
-   Click the chain. Then leave the lamp on and wait.
-
-   The bulb is drawn in an unscaled ~200x260 "recipe" space inside #lamp, which
-   translates + scales it to the centre of the 800x600 stage; every glass/base
-   coordinate below is in that local recipe space (globe centre 100,98). */
 :root {
   width: 800px;
   height: 600px;
@@ -37,30 +18,24 @@
   }
 }
 
-/* A second graph on its own clock. `still`/`swing` are unique names, so the
-   rules below can say :state(swing) without naming the machine. */
+/* the chain's own graph; `swing` is a unique state name, so :state(swing) needs no machine prefix */
 @machine pull {
   initial: still;
   state still { to: swing on click(#chain); }
   state swing { to: still on complete; }
 }
 
-/* ---- warmup: the strike, played once on the way to `on` ----
-   A filament doesn't fade up, it catches: full brightness almost at once, one
-   dip as it settles, then steady. The whole thing is under half a second — long
-   enough to read as a switch-on, short enough that it never feels like a
-   loading bar. Every warmup animation is finite — `on complete` waits for the
-   LONGEST one, so a single infinite animation in this state would strand the
-   machine here forever. Each one lands exactly on its `on` value and then holds
-   statically, so the handover between the two states is invisible. */
+/* warmup strike: every warmup animation must be finite (`on complete` waits for the longest)
+   and end on its `on` value, so the handover is invisible */
 @keyframes surge {
   0%   { opacity: 0;    animation-timing-function: ease-out; }
-  26%  { opacity: 1;    }
+  26%  { opacity: 1; }
   44%  { opacity: 0.52; }
-  62%  { opacity: 1;    }
+  62%  { opacity: 1; }
   80%  { opacity: 0.86; }
-  100% { opacity: 1;    }
+  100% { opacity: 1; }
 }
+
 @keyframes roomSurge {
   0%   { opacity: 0;    animation-timing-function: ease-out; }
   26%  { opacity: 0.55; }
@@ -69,214 +44,306 @@
   80%  { opacity: 0.47; }
   100% { opacity: 0.55; }
 }
+
 @keyframes raysIn {
   0%   { opacity: 0; transform: scale(0.7); animation-timing-function: ease-out; }
-  100% { opacity: 1; transform: scale(1);   }
+  100% { opacity: 1; transform: scale(1); }
 }
 
-/* ---- on: the steady look. Static opacity holds where the surge landed, and
-   the loops own a channel the surge never touched (scale). ---- */
+/* steady `on` loops animate scale, a channel the surge never touches */
 @keyframes haloBreathe {
-  0%, 100% { transform: scale(1);    }
+  0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.09); }
 }
+
 @keyframes rayPulse {
-  0%, 100% { transform: scale(1);    }
+  0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.06); }
 }
 
-/* ---- pull: a damped swing that plays once and settles ---- */
+/* damped chain swing, played once */
 @keyframes chainPull {
-  0%   { transform: rotate(0deg);  }
+  0%   { transform: rotate(0deg); }
   14%  { transform: rotate(10deg); }
   38%  { transform: rotate(-7deg); }
   60%  { transform: rotate(4.5deg); }
   80%  { transform: rotate(-2deg); }
-  100% { transform: rotate(0deg);  }
+  100% { transform: rotate(0deg); }
 }
 
-/* ---- wall ---- a dim night-time backdrop so the light has something to land on */
 #wall {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  type: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
   fill: radial-gradient(circle 560px at 400px 260px, #25283a 0%, #161826 60%, #0d0e17 100%);
 }
 
-/* ---- room ---- warm wash that only exists while the lamp is lit ---- */
+/* warm room wash while lit */
 #room {
-  type: rect; x: 0; y: 0; width: 800px; height: 600px;
+  type: rect;
+  x: 0;
+  y: 0;
+  width: 800px;
+  height: 600px;
   fill: radial-gradient(circle 460px at 400px 232px, #ffc978 0%, #ffb35c55 40%, #ffb35c00 78%);
   opacity: 0;
   &:state(lamp.warmup) { animation: roomSurge 460ms ease-out; }
   &:state(lamp.on)     { opacity: 0.55; }
 }
 
-/* ---- the bulb assembly, authored in local recipe space, scaled to centre ---- */
+/* bulb authored in a local ~200x260 space (globe centre 100,98), scaled onto the stage */
 #lamp {
   type: group;
   transform: translate(210px, 44px) scale(1.9);
 
-  /* 1. outer halo — soft bloom behind the glass, breathes while lit ---- */
   > #outerHalo {
-    type: circle; cx: 100px; cy: 98px; r: 110px;
+    type: circle;
+    cx: 100px;
+    cy: 98px;
+    r: 110px;
     fill: radial-gradient(circle 110px at 100px 98px, #ffdf8ed9 0%, #ffce6659 45%, #ffc14d00 100%);
-    transform-origin: center; opacity: 0;
+    transform-origin: center;
+    opacity: 0;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; animation: haloBreathe 3.2s ease-in-out infinite; }
   }
 
-  /* 2. rays — a fan of spokes over the crown that scales in, then pulses ---- */
   > #rays {
-    type: group; transform-origin: 100px 98px; opacity: 0;
+    type: group;
+    transform-origin: 100px 98px;
+    opacity: 0;
     &:state(lamp.warmup) { animation: raysIn 380ms ease-out; }
     &:state(lamp.on)     { opacity: 1; animation: rayPulse 3.2s ease-in-out infinite; }
+
     > #ray {
       repeat: 7;
-      type: path; d: 'M 100 10 L 100 -14'; stroke: #ffe29a; stroke-width: 5px; stroke-linecap: round;
-      transform-origin: 100px 98px; rotate: calc((sibling-index() - 4) * 30deg); opacity: 0.85;
+      type: path;
+      d: 'M 100 10 L 100 -14';
+      stroke: #ffe29a;
+      stroke-width: 5px;
+      stroke-linecap: round;
+      transform-origin: 100px 98px;
+      rotate: calc((sibling-index() - 4) * 30deg);
+      opacity: 0.85;
     }
   }
 
-  /* 3. inner glow — the bright core inside the glass ---- */
   > #innerGlow {
-    type: circle; cx: 100px; cy: 98px; r: 77px;
+    type: circle;
+    cx: 100px;
+    cy: 98px;
+    r: 77px;
     fill: radial-gradient(circle 77px at 100px 98px, #fff7d6e6 0%, #ffe9a873 70%, #ffe9a800 100%);
     opacity: 0;
     &:state(lamp.warmup) { animation: surge 440ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
 
-  /* ---- screw base ---- metal off, brass-warmed once the lamp is live. Plain
-     style swaps, no animation. Each one is stated TWICE, for `warmup` and for
-     `on`: a rule matches one state, and there is no `:state(a), :state(b)`
-     list, so a look that spans two states is written out per state — the metal
-     must already be warm while the glow is coming up, or it reads as a cold
-     base under a lit bulb. ---- */
+  /* screw base warms to brass; no `:state(a), :state(b)` lists, so warmup and on are each stated */
   > #tip {
-    type: ellipse; cx: 100px; cy: 241px; rx: 8px; ry: 5px; fill: #4d5563;
+    type: ellipse;
+    cx: 100px;
+    cy: 241px;
+    rx: 8px;
+    ry: 5px;
+    fill: #4d5563;
     &:state(lamp.warmup) { fill: #5c5138; }
-    &:state(lamp.on) { fill: #5c5138; }
+    &:state(lamp.on)     { fill: #5c5138; }
   }
+
   > #taper {
-    type: path; d: 'M 82 226 L 118 226 L 109 240 L 91 240 Z'; fill: #5d6573;
+    type: path;
+    d: 'M 82 226 L 118 226 L 109 240 L 91 240 Z';
+    fill: #5d6573;
     &:state(lamp.warmup) { fill: #6e5f43; }
-    &:state(lamp.on) { fill: #6e5f43; }
+    &:state(lamp.on)     { fill: #6e5f43; }
   }
+
   > #collar {
-    type: rect; x: 80px; y: 186px; width: 40px; height: 10px; rx: 3px; fill: #6e7684;
+    type: rect;
+    x: 80px;
+    y: 186px;
+    width: 40px;
+    height: 10px;
+    rx: 3px;
+    fill: #6e7684;
     &:state(lamp.warmup) { fill: #7d6f52; }
-    &:state(lamp.on) { fill: #7d6f52; }
+    &:state(lamp.on)     { fill: #7d6f52; }
   }
-  /* the shell the threads wrap around, so the gaps between them read as metal */
+  /* shell behind the threads, so the gaps read as metal */
   > #shell {
-    type: rect; x: 82px; y: 195px; width: 36px; height: 32px; fill: #5d6573;
+    type: rect;
+    x: 82px;
+    y: 195px;
+    width: 36px;
+    height: 32px;
+    fill: #5d6573;
     &:state(lamp.warmup) { fill: #6e5f43; }
-    &:state(lamp.on) { fill: #6e5f43; }
+    &:state(lamp.on)     { fill: #6e5f43; }
   }
-  /* three threads at one shared slant; own group so sibling-index() counts only them */
+  /* own group so sibling-index() counts only the threads */
   > #threads {
     type: group;
     > #thread {
       repeat: 3;
-      type: rect; x: 78px; y: calc(187px + sibling-index() * 10.5px); width: 44px; height: 8px; rx: 4px;
-      transform-origin: center; rotate: -5deg;
+      type: rect;
+      x: 78px;
+      y: calc(187px + sibling-index() * 10.5px);
+      width: 44px;
+      height: 8px;
+      rx: 4px;
+      transform-origin: center;
+      rotate: -5deg;
       fill: linear-gradient(90deg, #8d97a5 0%, #c6cdd8 50%, #7f8896 100%);
       &:state(lamp.warmup) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
-      &:state(lamp.on) { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
+      &:state(lamp.on)     { fill: linear-gradient(90deg, #a08a63 0%, #e8d9ae 50%, #93794f 100%); }
     }
   }
 
-  /* ---- glass silhouette ---- cold frosted gradient always; #hotGlass fades
-     over it as the filament strikes. The glass is NOT the switch — the chain is. */
+  /* cold glass; #hotGlass fades in over it */
   > #bulb {
     type: path;
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
     fill: linear-gradient(135deg, #eef2f7 0%, #d7dee8 55%, #b9c4d4 100%);
-    stroke: #ffffff59; stroke-width: 1.2px;
+    stroke: #ffffff59;
+    stroke-width: 1.2px;
     opacity: 0.9;
   }
 
-  /* hot glass — same silhouette, lit radial; fades in over the cold glass ---- */
   > #hotGlass {
     type: path;
     d: 'M 100 40 C 66 40 45 66 45 98 C 45 122 57 138 68 152 C 76 162 81 172 82 186 L 118 186 C 119 172 124 162 132 152 C 143 138 155 122 155 98 C 155 66 134 40 100 40 Z';
     fill: radial-gradient(circle 86px at 100px 100px, #fffdf2 0%, #fff3c4 35%, #ffd873 70%, #ffb64a 100%);
-    opacity: 0; pointer-events: none;
+    opacity: 0;
+    pointer-events: none;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
 
-  /* ---- filament ---- grey when off, white-hot when on; a bloom underlay
-     brightens the whole squiggle while lit ---- */
+  /* blurred underlay that blooms the filament while lit */
   > #filamentGlow {
-    type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
-    fill: none; stroke: #ffb347; stroke-width: 8px; stroke-linecap: round; stroke-linejoin: round;
-    filter: blur(3px); opacity: 0; pointer-events: none;
+    type: path;
+    d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
+    fill: none;
+    stroke: #ffb347;
+    stroke-width: 8px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
     &:state(lamp.warmup) { animation: surge 420ms ease-out; }
     &:state(lamp.on)     { opacity: 1; }
   }
+
   > #supports {
-    type: path; d: 'M 91 184 V 148 M 109 184 V 148';
-    fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round;
+    type: path;
+    d: 'M 91 184 V 148 M 109 184 V 148';
+    fill: none;
+    stroke: #8a94a6;
+    stroke-width: 3.5px;
+    stroke-linecap: round;
     &:state(lamp.warmup) { stroke: #fff7d6; }
-    &:state(lamp.on) { stroke: #fff7d6; }
-  }
-  > #filament {
-    type: path; d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
-    fill: none; stroke: #8a94a6; stroke-width: 3.5px; stroke-linecap: round; stroke-linejoin: round;
-    &:state(lamp.warmup) { stroke: #fff7d6; }
-    &:state(lamp.on) { stroke: #fff7d6; }
+    &:state(lamp.on)     { stroke: #fff7d6; }
   }
 
-  /* specular crescent — the glass reads as glass in both states ---- */
+  > #filament {
+    type: path;
+    d: 'M 84 148 C 84 128 92 128 92 144 C 92 128 100 128 100 144 C 100 128 108 128 108 144 C 108 128 116 128 116 148';
+    fill: none;
+    stroke: #8a94a6;
+    stroke-width: 3.5px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    &:state(lamp.warmup) { stroke: #fff7d6; }
+    &:state(lamp.on)     { stroke: #fff7d6; }
+  }
+
   > #specular {
-    type: path; d: 'M 66 70 C 74 56 88 50 99 49 C 88 56 80 64 74 76 C 70 84 68 92 68 100 C 62 92 62 79 66 70 Z';
-    fill: #ffffff; opacity: 0.72; pointer-events: none;
+    type: path;
+    d: 'M 66 70 C 74 56 88 50 99 49 C 88 56 80 64 74 76 C 70 84 68 92 68 100 C 62 92 62 79 66 70 Z';
+    fill: #ffffff;
+    opacity: 0.72;
+    pointer-events: none;
     &:state(lamp.warmup) { opacity: 0.85; }
-    &:state(lamp.on) { opacity: 0.85; }
+    &:state(lamp.on)     { opacity: 0.85; }
   }
 }
 
-/* ---- the pull chain ---- the scene's only click target. That one click
-   reaches both machines: `lamp` changes what the room looks like, `pull` swings
-   the cord as if it were tugged — neither knows about the other.
-   `:state(swing)` goes unqualified because no other machine has that state. */
+/* the only click target; one click drives both `lamp` and `pull` independently */
 #chain {
   type: group;
   transform-origin: 660px 34px;
   &:state(swing) { animation: chainPull 1.15s ease-out; }
 
   > #cord {
-    type: path; d: 'M 660 36 L 660 292';
-    fill: none; stroke: #b8ad92; stroke-width: 4.5px; stroke-linecap: round;
+    type: path;
+    d: 'M 660 36 L 660 292';
+    fill: none;
+    stroke: #b8ad92;
+    stroke-width: 4.5px;
+    stroke-linecap: round;
     stroke-dasharray: 0.1px 7px;
   }
-  /* The pull is the hit area, so it is drawn at a size you can actually aim
-     at — a hairline cord makes a miserable click target. */
+  /* the hit area, sized to be easy to aim at */
   > #knob {
-    type: rect; x: 646px; y: 290px; width: 28px; height: 52px; border-radius: 14px;
+    type: rect;
+    x: 646px;
+    y: 290px;
+    width: 28px;
+    height: 52px;
+    border-radius: 14px;
     fill: linear-gradient(135deg, #f3e7c6 0%, #c2ae7e 55%, #8d7d55 100%);
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
     cursor: pointer;
   }
+
   > #knobRing {
-    type: rect; x: 646px; y: 302px; width: 28px; height: 3px;
-    fill: #6b5e43; opacity: 0.55; pointer-events: none;
+    type: rect;
+    x: 646px;
+    y: 302px;
+    width: 28px;
+    height: 3px;
+    fill: #6b5e43;
+    opacity: 0.55;
+    pointer-events: none;
   }
+
   > #knobShine {
-    type: rect; x: 651px; y: 296px; width: 5px; height: 40px; border-radius: 2.5px;
-    fill: #ffffff; opacity: 0.35; pointer-events: none;
+    type: rect;
+    x: 651px;
+    y: 296px;
+    width: 5px;
+    height: 40px;
+    border-radius: 2.5px;
+    fill: #ffffff;
+    opacity: 0.35;
+    pointer-events: none;
   }
 }
 
-/* ceiling plate the chain hangs from; static, so it sits outside the swinging group */
+/* static ceiling plate, outside the swinging group */
 #mount {
-  type: rect; x: 644px; y: 22px; width: 32px; height: 14px; border-radius: 4px;
+  type: rect;
+  x: 644px;
+  y: 22px;
+  width: 32px;
+  height: 14px;
+  border-radius: 4px;
   fill: linear-gradient(180deg, #5a5f70 0%, #3a3e4c 100%);
 }
 
 #hint {
-  type: text; content: "PULL THE CHAIN"; x: 400px; y: 572px;
-  font-size: 13px; font-family: sans-serif; text-anchor: middle; letter-spacing: 3px;
+  type: text;
+  content: "PULL THE CHAIN";
+  x: 400px;
+  y: 572px;
+  font-size: 13px;
+  font-family: sans-serif;
+  text-anchor: middle;
+  letter-spacing: 3px;
   fill: #7d8199;
   &:state(lamp.on) { content: "PULL AGAIN, OR LEAVE IT 10S"; fill: #b9a37a; }
 }

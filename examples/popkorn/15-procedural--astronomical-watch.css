@@ -1,35 +1,6 @@
 /* Author: AI Generated */
-/*
- * Astronomical complication watch — an orrery / moon-phase face driven purely
- * by reactive trig + modular math on input(time), no @keyframes. Scene time
- * runs 8x real (virtualSeconds = t/125) so every gear visibly turns.
- *
- * Timekeeping (unchanged register): each hand is a group pinned to the dial
- * center and rotated with calc(); rotating about the group's own untranslated
- * origin pivots exactly at center. Hour/minute sweep continuously (mod() wraps
- * the cycle) at geared ratios; the second hand is quantized with round(down, …)
- * so it steps once per virtual second instead of sweeping.
- *
- * Complications layered behind the hands:
- *  - Orrery: three planets riding concentric orbit tracks, placed by
- *    cos()/sin() of the shared clock scaled to very different periods
- *    (inner ~1.9s, mid ~4.4s, outer ~9.4s per revolution — inner fast,
- *    outer slow, like real orbital gearing).
- *  - Moon phase (6 o'clock sub-dial): a lit disc with a sky-coloured shadow
- *    disc sliding across it; the offset is a slow sine of the clock (~16s
- *    lunation). The shadow merges into the matching sub-dial sky, so the lit
- *    remainder reads as waxing/waning crescents through full and new.
- *    NOTE: this is a sliding-disc approximation, not a true spherical
- *    terminator — a real terminator would need an arc/clip carve; upgrade path
- *    is a clip-path against an offset ellipse if crisper phases are wanted.
- *  - Starfield: one `repeat:`ed dot whose position, size and twinkle are all
- *    sibling-index() hashes — no per-star rows.
- *
- * Layout at 480x480 keeps three visual classes distinct: hour marks are radial
- * bars, planets are glowing dots on dashed tracks, stars are the faintest and
- * smallest dots. A dashed r=190 ring is the minute track (60 dashes = 60
- * marks). The sub-dial is clipped so nothing spills past its bezel.
- */
+/* Astronomical watch driven purely by trig and modular math on input(time), no @keyframes:
+   geared hands, orrery, moon-phase sub-dial and hashed starfield. Scene time runs 8x real. */
 
 :root {
   width: 480px;
@@ -49,8 +20,7 @@
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
 }
 
-/* Minute track: a dashed ring whose 60 dashes are the minute marks —
-   dash + gap = circumference(r 190) / 60. */
+/* 60 dashes are the minute marks: dash + gap = circumference(r 190) / 60. */
 #minute-track {
   type: circle;
   cx: 240px;
@@ -62,12 +32,7 @@
   stroke-dasharray: 1.5 18.4;
 }
 
-/* --- Starfield: one recipe, `repeat:` stamps the whole sky. Placement is a
-   golden-angle spiral (i * 2.39996 rad) at a hashed radius in the 86..194 band,
-   which scatters evenly while staying clear of the hands and inside the bezel.
-   Every star twinkles, but the amplitude is itself a hash — most land near 0
-   (steady dim dots), a few pulse hard, so the old star/twinkle split falls out
-   of the math instead of two @defines and 14 rows. */
+/* Stars: golden-angle spiral at a hashed radius (86..194); twinkle amplitude is hashed, mostly ~0. */
 @define star {
   type: circle;
   r: calc(0.9 + mod(sibling-index() * 29, 7) * 0.09);
@@ -77,15 +42,13 @@
   opacity: calc(0.4 + sin(var(--t) / (520 + mod(sibling-index() * 47, 300))) * mod(sibling-index() * 13, 5) * 0.08);
 }
 
-/* Wrapped in a group so sibling-index() counts 1..26 within the starfield
-   rather than continuing the scene's top-level ordering. */
+/* Grouped so sibling-index() counts 1..26 within the starfield. */
 #starfield {
   type: group;
   > #stars { use: star; repeat: 26; }
 }
 
-/* --- Orrery: faint concentric tracks, planets placed by cos/sin of scaled t.
-   Track radii 58/86/114; planet angle = t / period (radians), inner fastest. */
+/* Orrery: dashed tracks at r 58/86/114; planet angle = t / period, inner fastest. */
 @define orbit-track {
   type: circle;
   cx: 240px;
@@ -127,9 +90,8 @@
   cy: calc(sin(var(--t) / 1500) * 114 + 240);
 }
 
-/* --- Moon phase sub-dial at 6 o'clock. Clipped to the bezel so the sliding
-   shadow disc never spills; shadow fill == sky fill so it reads as phase.
-   offset = sin(t / 2600) * 46 sweeps new → crescent → full and back. */
+/* Moon phase at 6 o'clock: a sky-coloured shadow disc slides over the lit disc, clipped to the bezel.
+   NOTE: sliding-disc approximation, not a true terminator; an offset-ellipse clip would be crisper. */
 #moon-phase {
   type: group;
   clip-path: circle(27 at 240 348);
@@ -140,6 +102,7 @@
     r: 27px;
     fill: #0a0a1e;
   }
+
   > #moon-lit {
     type: circle;
     cx: 240px;
@@ -147,6 +110,7 @@
     r: 22px;
     fill: #e6e6f2;
   }
+
   > #moon-shadow {
     type: circle;
     cy: 348px;
@@ -166,9 +130,7 @@
   stroke-width: 2px;
 }
 
-/* --- Twelve hour marks: radial bars authored pointing up from the pivot
-   (like the hands), each use-site rotated to its hour. rotate(0) = 12
-   o'clock; quarters get the longer accent bar. */
+/* Hour marks point up from the pivot like the hands; each use-site rotates to its hour. */
 @define tick {
   type: rect;
   x: -1.5px;
@@ -189,9 +151,7 @@
   fill: #4cc9f0;
 }
 
-/* Two repeats instead of twelve rows: quarters are just i*90deg. The eight
-   in-between hours are 1,2,4,5,7,8,10,11 — that's h = i + floor(i/2 - 0.5), so
-   one round(down, …) skips every quarter without a table or a conditional. */
+/* Quarters are i * 90deg; the eight other hours (1,2,4,5,7,8,10,11) are i + floor(i/2 - 0.5). */
 #ticks {
   type: group;
   > #ticks-major {
@@ -211,9 +171,7 @@
   }
 }
 
-/* --- Hands: each a group pinned to center, rotated live. The rect child points
-   straight up (negative y) from the group origin, so rotate: 0 reads as 12
-   o'clock and positive degrees sweep clockwise. */
+/* Hands are groups pinned to center; the rect points up, so rotate(0) is 12 o'clock. */
 #hour-hand {
   type: group;
   transform: translate(240px, 240px) rotate(calc(mod(var(--t) / 125 / 3600, 12) * 30deg));
@@ -242,8 +200,7 @@
   }
 }
 
-/* round(down, seconds, 1) floors to the current whole virtual second, so the
-   hand jumps to the next mark instead of sweeping — a real tick, not a sweep. */
+/* round(down, …) floors to the whole virtual second, so the hand ticks instead of sweeping. */
 #second-hand {
   type: group;
   transform: translate(240px, 240px) rotate(calc(round(down, mod(var(--t) / 125, 60), 1) * 6deg));
