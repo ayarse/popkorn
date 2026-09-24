@@ -68,6 +68,7 @@ export {
   viewportMatrix,
 } from "./runtime/viewport.js";
 export { buildSceneGraph } from "./scene/builder.js";
+export { resolveClip } from "./scene/clip.js";
 export type { Matrix3x3 } from "./scene/matrix.js";
 export {
   IDENTITY_MATRIX,

@@ -7,6 +7,7 @@ import {
   computeLocalMatrix,
   computePathBounds,
   computeSceneDuration,
+  computeWorldMatrix,
   type GradientData,
   type Matrix3x3,
   type PathCommand,
@@ -15,7 +16,9 @@ import {
   polystarToCommands,
   type Renderer,
   RenderLoop,
+  type ResolvedClip,
   readsInput,
+  resolveClip,
   resolveGradient,
   resolveTransformOrigin,
   roundedRectPath,
@@ -37,6 +40,8 @@ interface Contour {
 
 interface Snap {
   m: Matrix3x3;
+  world: Matrix3x3;
+  clip: Contour[] | null; // scene-space clip-path outline
   anchor: Vec;
   alpha: number;
   fill: string | null;
@@ -54,6 +59,12 @@ interface Rec {
   snaps: Snap[];
   order: SceneNode[]; // children in frame-0 paint order
   orderKey: string;
+}
+
+/** A run of paint sharing one clip context; becomes one layer. Items topmost first. */
+interface Segment {
+  clips: SceneNode[];
+  items: Item[];
 }
 
 const MAX_FRAMES = 3600;
@@ -212,6 +223,26 @@ function toContours(cmds: PathCommand[]): Contour[] {
   const sink = new ContourSink();
   applyCommandsToPath(sink, cmds);
   return sink.contours.filter((c) => c.v.length > 1);
+}
+
+function clipContours(c: ResolvedClip, m: Matrix3x3): Contour[] {
+  const cmds =
+    c.type === "path"
+      ? c.commands
+      : shapeCommands(
+          (c.type === "rect"
+            ? { ...c, type: "rect", rx: 0, ry: 0 }
+            : c) as unknown as ShapeData,
+        )!;
+  const [a, cc, e, b, d, f] = m;
+  const pt = (p: Vec) => [a * p[0] + cc * p[1] + e, b * p[0] + d * p[1] + f];
+  const vec = (p: Vec) => [a * p[0] + cc * p[1], b * p[0] + d * p[1]];
+  return toContours(cmds).map((k) => ({
+    c: k.c,
+    v: k.v.map(pt),
+    i: k.i.map(vec),
+    o: k.o.map(vec),
+  }));
 }
 
 /** Commands for a shape, matching the outline the Canvas2D backend traces. */
@@ -533,15 +564,16 @@ export class Converter {
 
     for (let f = 0; f <= op; f++) {
       loop.seek(Math.min((f * 1000) / fr, duration));
-      for (const rec of recs.values()) this.sample(rec, f);
+      for (const rec of recs.values()) this.sample(rec, f, recs);
     }
 
-    const it: Item[] = [this.group(root, recs)];
+    const segs = this.segments(root, recs, []);
     const bg = ast.canvas?.background;
     if (bg && bg !== "transparent") {
       const c = rgb(bg);
-      if (c.a > 0)
-        it.push({
+      if (c.a > 0) {
+        if (segs[0]?.clips.length !== 0) segs.unshift({ clips: [], items: [] });
+        segs[0].items.push({
           ty: "gr",
           nm: "background",
           it: [
@@ -561,6 +593,7 @@ export class Converter {
             trItem(),
           ],
         });
+      }
     }
 
     for (const [feature, ids] of this.skipped) {
@@ -582,12 +615,16 @@ export class Converter {
       nm: "popkorn",
       ddd: 0,
       assets: [],
-      layers: [
-        {
+      // Lottie lists layers topmost first.
+      layers: segs.reverse().map((seg, i) => {
+        const masks = this.masks(seg.clips, recs);
+        return {
           ddd: 0,
-          ind: 1,
+          ind: i + 1,
           ty: 4,
-          nm: "scene",
+          nm: seg.clips.length
+            ? `clip ${seg.clips.map((n) => `#${n.id}`).join(" ")}`
+            : "scene",
           sr: 1,
           ks: {
             o: { a: 0, k: 100 },
@@ -597,17 +634,53 @@ export class Converter {
             s: { a: 0, k: [100, 100, 100] },
           },
           ao: 0,
-          shapes: it,
+          ...(masks.length ? { hasMask: true, masksProperties: masks } : {}),
+          shapes: seg.items,
           ip: 0,
           op,
           st: 0,
           bm: 0,
-        },
-      ],
+        };
+      }),
     };
   }
 
-  private sample(rec: Rec, f: number) {
+  /** Layer masks for a clip chain: the outer clip adds, nested clips intersect. */
+  private masks(clips: SceneNode[], recs: Map<SceneNode, Rec>): Item[] {
+    const out: Item[] = [];
+    clips.forEach((node, k) => {
+      const frames = recs.get(node)!.snaps.map((s) => s.clip ?? []);
+      const sig = (cs: Contour[]) => cs.map(signature).join(",");
+      const held = frames.some((cs) => sig(cs) !== sig(frames[0]));
+      if (held)
+        this.skip(
+          "clip-path morph between incompatible paths exported as holds",
+          node,
+        );
+      const count = Math.max(...frames.map((cs) => cs.length));
+      // NOTE: Lottie masks are single contours; compound clips union (holes fill in), nested ones keep the first.
+      if (count > 1)
+        this.skip(
+          "clip-path with several contours exported as their union",
+          node,
+        );
+      for (let j = 0; j < (k ? Math.min(count, 1) : count); j++)
+        out.push({
+          inv: false,
+          mode: k ? "i" : "a",
+          pt: shapeProp(
+            frames.map((cs) => cs[j]),
+            held,
+          ),
+          o: { a: 0, k: 100 },
+          x: { a: 0, k: 0 },
+          nm: `#${node.id}`,
+        });
+    });
+    return out;
+  }
+
+  private sample(rec: Rec, f: number, recs: Map<SceneNode, Rec>) {
     const n = rec.node;
     const kids = n.sortedChildren ?? n.children;
     const key = kids.map((k) => k.id).join("\n");
@@ -618,7 +691,6 @@ export class Converter {
       this.skip("animated z-index uses its first-frame order", n);
 
     if (n.filter || n.boxShadow) this.skip("filter/box-shadow not exported", n);
-    if (n.clipPath) this.skip("clip-path not exported", n);
     if (n.mask) this.skip("mask not exported (content left unmasked)", n);
     if (n.mixBlendMode !== "normal")
       this.skip("mix-blend-mode not exported", n);
@@ -635,8 +707,16 @@ export class Converter {
     }
 
     const o = resolveTransformOrigin(n);
+    const parent = n.parent && recs.get(n.parent);
+    const world = computeWorldMatrix(
+      n,
+      parent ? parent.snaps[f].world : undefined,
+    );
+    const clip = resolveClip(n);
     rec.snaps.push({
       m: computeLocalMatrix(n),
+      world,
+      clip: clip && clipContours(clip, world),
       anchor: [o.x, o.y],
       alpha: n.hidden || n.displayNone ? 0 : n.opacity,
       fill: n.fill,
@@ -650,53 +730,73 @@ export class Converter {
     });
   }
 
-  private group(node: SceneNode, recs: Map<SceneNode, Rec>): Item {
+  /** The node's subtree as groups, split into runs wherever the clip context changes. */
+  private segments(
+    node: SceneNode,
+    recs: Map<SceneNode, Rec>,
+    clips: SceneNode[],
+  ): Segment[] {
     const rec = recs.get(node)!;
-    const it: Item[] = [];
-    for (let i = rec.order.length - 1; i >= 0; i--) {
-      const child = rec.order[i];
-      if (recs.has(child)) it.push(this.group(child, recs));
+    const own = node.clipPath ? [...clips, node] : clips;
+    const runs: Segment[] = []; // bottom to top
+    const push = (s: Segment) => {
+      const last = runs[runs.length - 1];
+      if (last?.clips === s.clips) last.items = [...s.items, ...last.items];
+      else runs.push({ clips: s.clips, items: s.items });
+    };
+    const shapes = this.shapeItems(rec);
+    if (shapes.length) push({ clips: own, items: shapes });
+    for (const child of rec.order)
+      if (recs.has(child))
+        for (const s of this.segments(child, recs, own)) push(s);
+    if (!runs.length) {
+      if (node.clipPath) return [];
+      runs.push({ clips: own, items: [] });
     }
-    it.push(...this.shapeItems(rec));
+    const tr = this.transform(rec);
+    const nm = node.id || node.type;
+    return runs.map((s) => ({
+      clips: s.clips,
+      items: [{ ty: "gr", nm, it: [...s.items, tr] }],
+    }));
+  }
 
+  private transform(rec: Rec): Item {
     let prev: number | null = null;
     const trs = rec.snaps.map((s) => {
       const t = decompose(s.m, s.anchor, prev);
       prev = t.r;
       return t;
     });
-    it.push(
-      trItem({
-        p: prop(
-          trs.map((t) => t.p),
-          EPS,
-        ),
-        a: prop(
-          rec.snaps.map((s) => s.anchor),
-          EPS,
-        ),
-        s: prop(
-          trs.map((t) => t.s),
-          EPS,
-        ),
-        r: prop(
-          trs.map((t) => [t.r]),
-          EPS,
-          true,
-        ),
-        o: prop(
-          rec.snaps.map((s) => [s.alpha * 100]),
-          EPS_OPACITY,
-          true,
-        ),
-        sk: prop(
-          trs.map((t) => [t.sk]),
-          EPS,
-          true,
-        ),
-      }),
-    );
-    return { ty: "gr", nm: node.id || node.type, it };
+    return trItem({
+      p: prop(
+        trs.map((t) => t.p),
+        EPS,
+      ),
+      a: prop(
+        rec.snaps.map((s) => s.anchor),
+        EPS,
+      ),
+      s: prop(
+        trs.map((t) => t.s),
+        EPS,
+      ),
+      r: prop(
+        trs.map((t) => [t.r]),
+        EPS,
+        true,
+      ),
+      o: prop(
+        rec.snaps.map((s) => [s.alpha * 100]),
+        EPS_OPACITY,
+        true,
+      ),
+      sk: prop(
+        trs.map((t) => [t.sk]),
+        EPS,
+        true,
+      ),
+    });
   }
 
   /** The node's own paint as groups: geometry + trim + stroke/fill. */

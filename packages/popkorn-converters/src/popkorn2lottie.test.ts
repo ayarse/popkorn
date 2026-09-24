@@ -112,6 +112,40 @@ describe("popkorn2lottie", () => {
     });
   });
 
+  test("clip-path splits layers and masks in scene space; nested clips intersect", () => {
+    const { lottie, warnings } = convertPopkorn(`
+      :root { width: 200px; height: 100px; }
+      #a { type: rect; width: 10px; height: 10px; fill: #f00; }
+      #g { type: group; transform: translate(50px, 0px); clip-path: circle(10 at 5 5);
+        > #r { type: rect; width: 20px; height: 20px; fill: #0f0; }
+        > #in { type: rect; width: 8px; height: 8px; fill: #00f; clip-path: inset(2px); }
+      }
+      #c { type: rect; width: 10px; height: 10px; fill: #fff; }
+    `) as { lottie: any; warnings: string[] };
+    expect(warnings).toEqual([]);
+    expect(lottie.layers.map((l: any) => l.nm)).toEqual([
+      "scene",
+      "clip #g #in",
+      "clip #g",
+      "scene",
+    ]);
+    expect(lottie.layers.map((l: any) => l.ind)).toEqual([1, 2, 3, 4]);
+    const [outer, inner] = lottie.layers[1].masksProperties;
+    expect(outer.mode).toBe("a");
+    expect(inner.mode).toBe("i");
+    const xs = (m: any) => m.pt.k.v.map((p: number[]) => p[0]);
+    expect(Math.min(...xs(outer))).toBeCloseTo(45, 3);
+    expect(Math.max(...xs(outer))).toBeCloseTo(65, 3);
+    expect(inner.pt.k.v).toEqual([
+      [52, 2],
+      [56, 2],
+      [56, 6],
+      [52, 6],
+    ]);
+    expect(lottie.layers[2].masksProperties).toHaveLength(1);
+    expect(lottie.layers[0].masksProperties).toBeUndefined();
+  });
+
   test("decomposes rotate/scale around transform-origin with anchor = origin", () => {
     const { lottie } = roundTrip(`
       :root { width: 200px; height: 200px; }
