@@ -1,5 +1,12 @@
 # @popkorn/react-native
 
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [fb74439]
+  - @popkorn/player@0.2.8
+
 ## 0.2.7
 
 ### Patch Changes

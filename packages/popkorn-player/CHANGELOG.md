@@ -1,5 +1,12 @@
 # @popkorn/player
 
+## 0.2.8
+
+### Patch Changes
+
+- fb74439: Support `matrix(a, b, c, d, e, f)` in `transform`: it decomposes onto the translate/rotate/scale/skewX channels, so it animates like the other transform functions.
+- @popkorn/parser@0.2.8
+
 ## 0.2.7
 
 ### Patch Changes
