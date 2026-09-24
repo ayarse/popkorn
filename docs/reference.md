@@ -295,6 +295,7 @@ or number is (including `@keyframes` bound to the copies).
   transform: rotate(45deg);
   transform: scale(1.5);
   transform: skew(15deg, 5deg); /* skewX(15deg) skewY(5deg) also work */
+  transform: matrix(0.9, 0.2, 0.3, 1, 40, 10); /* a, b, c, d, e, f */
   transform: translate(100px, 50px) rotate(45deg) scale(1.5);
 }
 ```
@@ -303,6 +304,12 @@ or number is (including `@keyframes` bound to the copies).
 `skew(a)` skews x only. Like the other channels they pivot around
 `transform-origin` and animate in `@keyframes`. Handy for cheap perspective
 fakes in CSS art.
+
+`matrix(a, b, c, d, e, f)` is the CSS 2D affine matrix. It decomposes onto the
+same channels (translate, rotate, scale, skewX), so it animates in `@keyframes`
+and mixes with other functions last-wins per channel. Use it to fit a rectangle
+onto any parallelogram. Transforms are affine only: there is no `perspective`
+or `matrix3d`.
 
 The individual CSS transform properties `translate:`, `rotate:`, and `scale:`
 also work and write the **same** channels as `transform:` — so

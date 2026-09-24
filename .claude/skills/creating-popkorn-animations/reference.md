@@ -607,10 +607,10 @@ mask: #maskLayer alpha; /* alpha | alpha-invert | luminance | luminance-invert *
 transform: translate(400px, 300px) rotate(45deg) scale(1.2);
 ```
 
-Supported: `translate(x[,y])`, `translateX`, `translateY`, `rotate(deg)`, `scale(s)` or `scale(sx,sy)`, `scaleX`, `scaleY`.
-**`skew`/`skewX`/`skewY` NOT supported** (silently ignored).
+Supported: `translate(x[,y])`, `translateX`, `translateY`, `rotate(deg)`, `scale(s)` or `scale(sx,sy)`, `scaleX`, `scaleY`, `skew(ax[,ay])`, `skewX`, `skewY`, `matrix(a,b,c,d,e,f)`.
+`matrix()` decomposes onto the translate/rotate/scale/skewX channels, so it animates like any other transform and pairs with numeric `transform-origin` for a free-form affine placement (map a rectangle onto any parallelogram, e.g. a slanted screen). There is **no perspective** (no `matrix3d`/`perspective`): a true 4-corner quad needs the points projected into the path data.
 
-Composition: translate → motion-path offset → transform-origin sandwich (`T(origin)·R·S·T(-origin)`). Rotation is a plain numeric lerp — **no shortest-arc**, so `rotate(0deg)→rotate(360deg)` spins a full turn. World matrix = parentWorld × local.
+Composition: translate → motion-path offset → transform-origin sandwich (`T(origin)·R·S·K·T(-origin)`, K = skew). Rotation is a plain numeric lerp — **no shortest-arc**, so `rotate(0deg)→rotate(360deg)` spins a full turn. World matrix = parentWorld × local.
 
 ### Individual transform properties
 
@@ -1299,7 +1299,7 @@ More worked scenes (static composition, keyframe groups, state machines) live in
 - **1000ms duration is real**, not a sentinel; the second shorthand time value is always the delay.
 - **`infinite` = ∞ iterations**.
 - **Rotation lerps linearly** (no shortest-arc) — intentional for full-turn spins.
-- **Unsupported (parse but do nothing):** `skew`, `object-fit`, `href`/`src` (use `content: url()`), `points` (use `sides`). (`steps()`/`linear()` easing **are** supported — see §13; `text-align`/`line-height`/`letter-spacing` and `mix-blend-mode` **are** supported — see §5/§6.)
+- **Unsupported (parse but do nothing):** `object-fit`, `href`/`src` (use `content: url()`), `points` (use `sides`). (`steps()`/`linear()` easing **are** supported — see §13; `text-align`/`line-height`/`letter-spacing` and `mix-blend-mode` **are** supported — see §5/§6.)
 - **`var()` is typed (number/color/string); `input()` stays numeric only** — see §3.
 - **Gradients + path `d` ARE animatable** — but only between _compatible_ endpoints (same gradient type/stop count; identical path command sequence); incompatible pairs step instead of interpolate.
 - **`opacity` cascades** to descendants (group opacity dims its whole subtree).

@@ -115,6 +115,23 @@ test("skew() shorthand in @keyframes drives skewX and skewY channels", () => {
   expect(node.transform.skewY).toBeCloseTo(10, 6);
 });
 
+test("matrix() decomposes onto the channels and rebuilds the same matrix", () => {
+  const cases = [
+    [0.8, 0.3, 0.45, 1.1, 12, -7], // rotate + non-uniform scale + shear
+    [-1, 0, 0, 1, 5, 0], // mirror
+    [1, 0, 0, 1, 0, 0], // identity
+  ];
+  for (const [a, b, c, d, e, f] of cases) {
+    const scene = build(
+      `#r { type: rect; width: 10px; height: 10px; transform: matrix(${a}, ${b}, ${c}, ${d}, ${e}, ${f}); }`,
+    );
+    const m = computeLocalMatrix(scene.children[0]);
+    const want = [a, c, e, b, d, f];
+    const got = [m[0], m[1], m[2], m[3], m[4], m[5]];
+    for (let i = 0; i < 6; i++) expect(got[i]).toBeCloseTo(want[i], 9);
+  }
+});
+
 test("step-end parses from the animation shorthand and per-keyframe", () => {
   const root = build(`
     @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; animation-timing-function: step-end; } 100% { opacity: 1; } }

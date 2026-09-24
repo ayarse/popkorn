@@ -23,6 +23,26 @@ type TransformKey =
   | "skewX"
   | "skewY";
 
+/** CSS matrix(a, b, c, d) as the channels computeLocalMatrix composes: rotate · scale · skewX (degrees). */
+export function decomposeMatrix(
+  a: number,
+  b: number,
+  c: number,
+  d: number,
+): { rotate: number; scaleX: number; scaleY: number; skewX: number } {
+  const sx = Math.hypot(a, b);
+  // NOTE: a collapsed x axis keeps rotate = skew = 0 and drops c.
+  if (sx < 1e-9) return { rotate: 0, scaleX: 0, scaleY: d, skewX: 0 };
+  const cos = a / sx;
+  const sin = b / sx;
+  return {
+    rotate: (Math.atan2(b, a) * 180) / Math.PI,
+    scaleX: sx,
+    scaleY: d * cos - c * sin,
+    skewX: (Math.atan((c * cos + d * sin) / sx) * 180) / Math.PI,
+  };
+}
+
 // Report each transform channel to `set`; bindings pass a live `resolve`.
 export function extractTransform(
   value: Value,
@@ -66,6 +86,19 @@ export function extractTransform(
       case "skewY":
         set("skewY", resolve(args[0]));
         break;
+      case "matrix": {
+        if (args.length < 6) break;
+        const [a, b, c, d, e, f] = args.map(resolve);
+        const m = decomposeMatrix(a, b, c, d);
+        set("translateX", e);
+        set("translateY", f);
+        set("rotate", m.rotate);
+        set("scaleX", m.scaleX);
+        set("scaleY", m.scaleY);
+        set("skewX", m.skewX);
+        set("skewY", 0);
+        break;
+      }
     }
   };
 
