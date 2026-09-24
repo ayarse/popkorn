@@ -125,8 +125,8 @@ describe("popkorn2lottie", () => {
     expect(warnings).toEqual([]);
     expect(lottie.layers.map((l: any) => l.nm)).toEqual([
       "scene",
-      "clip #g #in",
-      "clip #g",
+      "#g #in",
+      "#g",
       "scene",
     ]);
     expect(lottie.layers.map((l: any) => l.ind)).toEqual([1, 2, 3, 4]);
@@ -144,6 +144,28 @@ describe("popkorn2lottie", () => {
     ]);
     expect(lottie.layers[2].masksProperties).toHaveLength(1);
     expect(lottie.layers[0].masksProperties).toBeUndefined();
+  });
+
+  test("mask exports as a track matte placed where the walk paints the source", () => {
+    const { lottie, warnings } = convertPopkorn(`
+      :root { width: 200px; height: 100px; }
+      #src { type: group; transform: translate(30px, 0px);
+        > #dot { type: circle; cx: 5px; cy: 5px; r: 5px; fill: #fff; }
+      }
+      #g { type: group; transform: translate(50px, 0px); mask: #src luminance-invert;
+        > #r { type: rect; width: 20px; height: 20px; fill: #0f0; }
+      }
+    `) as { lottie: any; warnings: string[] };
+    expect(warnings).toEqual([]);
+    const [matte, content, ...rest] = lottie.layers;
+    expect(rest).toEqual([]);
+    expect(matte).toMatchObject({ nm: "matte #src", td: 1, ind: 1 });
+    expect(content).toMatchObject({ nm: "#g", tt: 4, ind: 2 });
+    const root = matte.shapes[0];
+    const src = root.it[0];
+    expect(src.nm).toBe("src");
+    expect(src.it.at(-1).p.k).toEqual([30, 0]);
+    expect(src.it[0].nm).toBe("dot");
   });
 
   test("decomposes rotate/scale around transform-origin with anchor = origin", () => {

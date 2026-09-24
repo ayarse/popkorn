@@ -9,6 +9,7 @@ import {
   computeSceneDuration,
   computeWorldMatrix,
   type GradientData,
+  type MaskMode,
   type Matrix3x3,
   type PathCommand,
   type PathSink,
@@ -61,11 +62,40 @@ interface Rec {
   orderKey: string;
 }
 
-/** A run of paint sharing one clip context; becomes one layer. Items topmost first. */
+/** A run of paint under one chain of clipping/masked ancestors; becomes one layer. Items topmost first. */
 interface Segment {
-  clips: SceneNode[];
+  ctx: SceneNode[];
   items: Item[];
 }
+
+const TRACK_MATTE: Record<MaskMode, number> = {
+  alpha: 1,
+  "alpha-invert": 2,
+  luminance: 3,
+  "luminance-invert": 4,
+};
+
+const layer = (nm: string, shapes: Item[], op: number, extra: Item = {}) => ({
+  ddd: 0,
+  ind: 0,
+  ty: 4,
+  nm,
+  sr: 1,
+  ks: {
+    o: { a: 0, k: 100 },
+    r: { a: 0, k: 0 },
+    p: { a: 0, k: [0, 0, 0] },
+    a: { a: 0, k: [0, 0, 0] },
+    s: { a: 0, k: [100, 100, 100] },
+  },
+  ao: 0,
+  ...extra,
+  shapes,
+  ip: 0,
+  op,
+  st: 0,
+  bm: 0,
+});
 
 const MAX_FRAMES = 3600;
 // Keyframe-reduction tolerances: px/deg/% channels, opacity (0-100), colors (0-1).
@@ -552,7 +582,6 @@ export class Converter {
 
     const recs = new Map<SceneNode, Rec>();
     const collect = (node: SceneNode) => {
-      if (node.isMaskSource) return;
       if (node.type === "text" || node.type === "image") {
         this.skip(`${node.type} not exported`, node);
         return;
@@ -572,7 +601,7 @@ export class Converter {
     if (bg && bg !== "transparent") {
       const c = rgb(bg);
       if (c.a > 0) {
-        if (segs[0]?.clips.length !== 0) segs.unshift({ clips: [], items: [] });
+        if (segs[0]?.ctx.length !== 0) segs.unshift({ ctx: [], items: [] });
         segs[0].items.push({
           ty: "gr",
           nm: "background",
@@ -615,34 +644,60 @@ export class Converter {
       nm: "popkorn",
       ddd: 0,
       assets: [],
-      // Lottie lists layers topmost first.
-      layers: segs.reverse().map((seg, i) => {
-        const masks = this.masks(seg.clips, recs);
-        return {
-          ddd: 0,
-          ind: i + 1,
-          ty: 4,
-          nm: seg.clips.length
-            ? `clip ${seg.clips.map((n) => `#${n.id}`).join(" ")}`
-            : "scene",
-          sr: 1,
-          ks: {
-            o: { a: 0, k: 100 },
-            r: { a: 0, k: 0 },
-            p: { a: 0, k: [0, 0, 0] },
-            a: { a: 0, k: [0, 0, 0] },
-            s: { a: 0, k: [100, 100, 100] },
-          },
-          ao: 0,
-          ...(masks.length ? { hasMask: true, masksProperties: masks } : {}),
-          shapes: seg.items,
-          ip: 0,
-          op,
-          st: 0,
-          bm: 0,
-        };
-      }),
+      layers: this.layers(segs, recs, op),
     };
+  }
+
+  /** Layers topmost first; a masked run gets its track matte directly above it. */
+  private layers(segs: Segment[], recs: Map<SceneNode, Rec>, op: number) {
+    const out: Item[] = [];
+    for (const seg of segs.slice().reverse()) {
+      const matte = this.matte(seg.ctx, recs);
+      if (matte)
+        out.push(
+          layer(`matte #${matte.source.id}`, matte.items, op, { td: 1 }),
+        );
+      const masks = this.masks(
+        seg.ctx.filter((n) => n.clipPath),
+        recs,
+      );
+      out.push(
+        layer(
+          seg.ctx.length ? seg.ctx.map((n) => `#${n.id}`).join(" ") : "scene",
+          seg.items,
+          op,
+          {
+            ...(masks.length ? { hasMask: true, masksProperties: masks } : {}),
+            ...(matte ? { tt: TRACK_MATTE[matte.mode] } : {}),
+          },
+        ),
+      );
+    }
+    out.forEach((l, i) => {
+      l.ind = i + 1;
+    });
+    return out;
+  }
+
+  /** The mask source's subtree under its ancestors' transforms, i.e. where the walk paints it. */
+  private matte(ctx: SceneNode[], recs: Map<SceneNode, Rec>) {
+    const masked = ctx.filter((n) => n.mask);
+    for (const n of masked.slice(1))
+      this.skip("nested mask keeps only its outermost matte", n);
+    const mask = masked[0]?.mask;
+    if (!mask) return null;
+    const segs = this.segments(mask.source, recs, []);
+    if (segs.some((s) => s.ctx.length))
+      this.skip("clip-path/mask inside a mask source ignored", mask.source);
+    let items = segs.reverse().flatMap((s) => s.items);
+    for (let p = mask.source.parent; p; p = p.parent) {
+      const rec = recs.get(p);
+      if (rec)
+        items = [
+          { ty: "gr", nm: p.id || p.type, it: [...items, this.transform(rec)] },
+        ];
+    }
+    return { source: mask.source, mode: mask.mode, items };
   }
 
   /** Layer masks for a clip chain: the outer clip adds, nested clips intersect. */
@@ -691,7 +746,6 @@ export class Converter {
       this.skip("animated z-index uses its first-frame order", n);
 
     if (n.filter || n.boxShadow) this.skip("filter/box-shadow not exported", n);
-    if (n.mask) this.skip("mask not exported (content left unmasked)", n);
     if (n.mixBlendMode !== "normal")
       this.skip("mix-blend-mode not exported", n);
     if (f === 0) {
@@ -730,33 +784,34 @@ export class Converter {
     });
   }
 
-  /** The node's subtree as groups, split into runs wherever the clip context changes. */
+  /** The node's subtree as groups, split into runs wherever the clip/mask context changes. */
   private segments(
     node: SceneNode,
     recs: Map<SceneNode, Rec>,
-    clips: SceneNode[],
+    ctx: SceneNode[],
   ): Segment[] {
     const rec = recs.get(node)!;
-    const own = node.clipPath ? [...clips, node] : clips;
+    const layered = node.clipPath || node.mask;
+    const own = layered ? [...ctx, node] : ctx;
     const runs: Segment[] = []; // bottom to top
     const push = (s: Segment) => {
       const last = runs[runs.length - 1];
-      if (last?.clips === s.clips) last.items = [...s.items, ...last.items];
-      else runs.push({ clips: s.clips, items: s.items });
+      if (last?.ctx === s.ctx) last.items = [...s.items, ...last.items];
+      else runs.push({ ctx: s.ctx, items: s.items });
     };
     const shapes = this.shapeItems(rec);
-    if (shapes.length) push({ clips: own, items: shapes });
+    if (shapes.length) push({ ctx: own, items: shapes });
     for (const child of rec.order)
-      if (recs.has(child))
+      if (recs.has(child) && !child.isMaskSource)
         for (const s of this.segments(child, recs, own)) push(s);
     if (!runs.length) {
-      if (node.clipPath) return [];
-      runs.push({ clips: own, items: [] });
+      if (layered) return [];
+      runs.push({ ctx: own, items: [] });
     }
     const tr = this.transform(rec);
     const nm = node.id || node.type;
     return runs.map((s) => ({
-      clips: s.clips,
+      ctx: s.ctx,
       items: [{ ty: "gr", nm, it: [...s.items, tr] }],
     }));
   }
