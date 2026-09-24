@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { localToolResult, PendingCalls } from "./copilot-session";
+import { isToolImage, localToolResult, PendingCalls } from "./copilot-session";
 
 describe("localToolResult", () => {
   test("read_docs returns the authoring guide", () => {
@@ -72,4 +72,11 @@ describe("PendingCalls", () => {
     expect(result.isError).toBe(true);
     expect(result.text).toContain("timed out");
   });
+});
+
+test("isToolImage accepts only base64 image payloads", () => {
+  expect(isToolImage({ data: "abc", mimeType: "image/jpeg" })).toBe(true);
+  expect(isToolImage({ data: "abc", mimeType: "text/html" })).toBe(false);
+  expect(isToolImage({ data: 1, mimeType: "image/png" })).toBe(false);
+  expect(isToolImage(null)).toBe(false);
 });

@@ -11,9 +11,9 @@ import {
   type ToolEvent,
   toolLabel,
 } from "@/lib/agent";
-import { isToolError } from "@/lib/agent-defs";
+import { IN_APP_TOOL_DEFS, isToolError } from "@/lib/agent-defs";
 import { loadAgentExamples } from "@/lib/agent-examples";
-import { buildOutline, runTools, TOOL_DEFS } from "@/lib/agent-tools";
+import { buildOutline, runTools } from "@/lib/agent-tools";
 import { track } from "@/lib/analytics";
 
 // Scenes under this many chars (~2K tokens, most gallery scenes) are inlined
@@ -180,7 +180,7 @@ export function useAgentChat(
 
     try {
       await runAgent(config, apiMessages, {
-        tools: TOOL_DEFS,
+        tools: IN_APP_TOOL_DEFS,
         executeTool: tools.execute,
         signal: ac.signal,
         onToken,

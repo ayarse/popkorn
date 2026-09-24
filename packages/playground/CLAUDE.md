@@ -162,6 +162,11 @@ live editor buffer via the same `executeTool` path as the BYOK Copilot.
 The session id lives in localStorage and, when signed in, on the Clerk
 account (`unsafeMetadata.mcpSession`, account wins), so one MCP URL serves
 every browser and device. `read_docs` is answered in the DO without a relay.
+`render_frames` is the one async, image-returning tool: the tab draws a
+labelled JPEG contact sheet (`lib/frame-sheet.ts`, off the export loop) and
+the reply's `images` become MCP image content. It's MCP-only
+(`IN_APP_TOOL_DEFS` drops it) because the BYOK loop sends text-only tool
+results to models that may not take images.
 The worker entry is custom (`src/server/entry.ts`) because DO classes must
 be exported from `main`. Tool defs + system prompt live import-light in
 `lib/agent-defs.ts` so the DO bundle never pulls in parser/player.

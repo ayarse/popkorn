@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toolLabel } from "@/lib/agent";
 import { isToolError } from "@/lib/agent-defs";
 import { loadAgentExamples } from "@/lib/agent-examples";
-import { executeTool, type ToolContext } from "@/lib/agent-tools";
+import { executeToolAsync, type ToolContext } from "@/lib/agent-tools";
 import { track } from "@/lib/analytics";
 import { handleTabFrame } from "./tab-frame";
 
@@ -107,9 +107,11 @@ export function useOwnAgent(
           applyRef.current(next);
         },
         examples,
+        renderFrames: async (src, args) =>
+          (await import("@/lib/frame-sheet")).renderFrameSheet(src, args),
       };
-      const frame = handleTabFrame(e.data, {
-        execute: (name, args) => executeTool(name, args, ctx),
+      const frame = await handleTabFrame(e.data, {
+        execute: (name, args) => executeToolAsync(name, args, ctx),
         isError: isToolError,
       });
       if (frame === null) return;
@@ -139,6 +141,7 @@ export function useOwnAgent(
           id: frame.id,
           result: frame.result,
           isError: frame.isError,
+          images: frame.images,
         }),
       );
     };

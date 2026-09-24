@@ -12,7 +12,7 @@ import {
   type SceneNode,
   transformPoint,
 } from "@popkorn/player";
-import { readDocs, USER_EDIT_NOTE } from "./agent-defs";
+import { readDocs, type ToolOutput, USER_EDIT_NOTE } from "./agent-defs";
 import { applyEdits } from "./edits";
 
 export type ToolContext = {
@@ -21,6 +21,11 @@ export type ToolContext = {
   // Optional curated gallery scenes for the read_example tool. Absent (the
   // default) → the tool reports that no examples are available.
   examples?: { name: string; source: string }[];
+  // Browser-only render_frames backend; absent → the tool reports it's unavailable.
+  renderFrames?: (
+    source: string,
+    args: Record<string, unknown>,
+  ) => Promise<ToolOutput>;
 };
 
 // ----------------------------------------------------------------------------
@@ -906,6 +911,19 @@ export function executeTool(
   } catch (e) {
     return `Error running ${name}: ${e instanceof Error ? e.message : String(e)}`;
   }
+}
+
+/** executeTool plus render_frames, the one async, image-returning tool. */
+export async function executeToolAsync(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+): Promise<ToolOutput> {
+  if (name !== "render_frames") return { text: executeTool(name, args, ctx) };
+  if (!ctx.renderFrames) {
+    return { text: "Error: render_frames isn't available in this session." };
+  }
+  return ctx.renderFrames(ctx.getSource(), args);
 }
 
 // One run's tool executor over the live editor buffer. `live` mirrors the

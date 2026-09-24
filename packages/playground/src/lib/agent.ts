@@ -143,6 +143,12 @@ export function toolLabel(ev: ToolEvent): string {
       return "edited scene";
     case "rewrite_scene":
       return "rewrote scene";
+    case "render_frames": {
+      const t = ev.args.times;
+      return Array.isArray(t)
+        ? `rendered ${t.length} frames`
+        : "rendered frames";
+    }
     default:
       return ev.name;
   }

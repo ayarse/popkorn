@@ -6,7 +6,7 @@
 // responses are all Claude Code's http transport requires; extend here if a
 // client ever demands the stream.
 
-import type { ToolDef } from "../lib/agent-defs";
+import type { ToolDef, ToolImage } from "../lib/agent-defs";
 
 export type McpTool = {
   name: string;
@@ -14,7 +14,11 @@ export type McpTool = {
   inputSchema: object;
 };
 
-export type ToolCallResult = { text: string; isError: boolean };
+export type ToolCallResult = {
+  text: string;
+  isError: boolean;
+  images?: ToolImage[];
+};
 
 export type McpDeps = {
   tools: McpTool[];
@@ -97,7 +101,14 @@ export async function handleMcpMessage(
         result = { text: (e as Error).message, isError: true };
       }
       return ok(msg.id, {
-        content: [{ type: "text", text: result.text }],
+        content: [
+          { type: "text", text: result.text },
+          ...(result.images ?? []).map((img) => ({
+            type: "image",
+            data: img.data,
+            mimeType: img.mimeType,
+          })),
+        ],
         isError: result.isError,
       });
     }

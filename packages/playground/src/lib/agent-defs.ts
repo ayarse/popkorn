@@ -82,6 +82,8 @@ export const SYSTEM_PROMPT = [
   "- Be fast: issue independent tool calls in parallel in one turn, and don't re-read after a successful edit. Edit results already report parse errors, new diagnostics (unknown properties with did-you-mean, missing @keyframes), and nodes whose placement moved; fix any they report.",
   "- New scene from scratch: one rewrite_scene with the complete scene, art and motion. Stage first, palette as custom --props, every shape placed and painted. Structure for motion: anything whose transform animates gets a wrapper group carrying a static translate for placement, with the shape in local coords and its pivot at the origin (keyframes overwrite the whole transform each frame, so placement must not live in the animated channel).",
   "- Design original art for the request: choose your own subject, palette, and composition. Never add captions, labels, or title text unless the user asks for text.",
+  "- Animate with craft, not defaults: plan beats, layer parent and child motion with offsets, put overshoot in the easing curves, deform soft shapes with `d` morphs, reveal with masks, and vary every element (see Motion craft in the guide).",
+  "- If you have render_frames, look before you finish: after rewrite_scene and after any motion or layout edit, render the key poses and fix what you see. Parsing clean says nothing about how it looks.",
   "- Keep the stage transparent: no `background` on :root and no full-stage backdrop shape, unless the user asks for a background or the subject is inherently a scene (a sky, a room). The gallery examples all have backgrounds; don't copy that. Popkorn animations are embedded on other pages, where a transparent stage composites cleanly.",
   "- read_example is a syntax reference, not a template: consult one only when read_docs doesn't settle how to express a feature, and never carry over its subject, palette, caption text, or structure.",
   "- Changes to an existing scene: surgical apply_edit calls, each an exact, unique search string just long enough to be unique. Use replace_all for a repeated literal (a color across a palette swap; the outline's Palette line lists them). rewrite_scene is only for a brand-new scene or a full rewrite.",
@@ -104,6 +106,11 @@ export type ToolDef = {
   type: "function";
   function: { name: string; description: string; parameters: object };
 };
+
+/** A base64 image a tool hands back alongside its text (render_frames). */
+export type ToolImage = { data: string; mimeType: string };
+
+export type ToolOutput = { text: string; images?: ToolImage[] };
 
 // NOTE: tool results are plain strings, so failure is sniffed from known
 // error/rejection prefixes rather than a structured status.
@@ -279,4 +286,32 @@ export const TOOL_DEFS: ToolDef[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "render_frames",
+      description:
+        "Render the live scene paused at chosen times and return one contact-sheet image: frames left-to-right, top-to-bottom, each labelled with its time, transparent stage areas shown as a checkerboard. Call it after rewrite_scene and after any motion or layout edit, then fix what you see. Pick times at the poses that matter (rest, each motion extreme, a reveal, the loop seam) rather than even spacing; omit `times` for 6 evenly spaced frames over one loop.",
+      parameters: {
+        type: "object",
+        properties: {
+          times: {
+            type: "array",
+            items: { type: "number" },
+            description: "Seconds into the timeline, up to 12 frames.",
+          },
+          width: {
+            type: "number",
+            description: "Frame width in px, 160–480 (default 320).",
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
 ];
+
+// NOTE: in-app tool results are text-only (not every model takes images); an image user turn is the upgrade path.
+export const IN_APP_TOOL_DEFS = TOOL_DEFS.filter(
+  (d) => d.function.name !== "render_frames",
+);

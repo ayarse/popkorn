@@ -3,6 +3,7 @@ import {
   readDocs,
   SYSTEM_PROMPT,
   TOOL_DEFS,
+  type ToolImage,
 } from "../lib/agent-defs";
 import { handleMcpMessage, type ToolCallResult, toMcpTools } from "./mcp";
 
@@ -30,6 +31,15 @@ type DurableCtx = {
   getWebSockets(): SessionSocket[];
 };
 declare const WebSocketPair: new () => { 0: SessionSocket; 1: SessionSocket };
+
+export function isToolImage(v: unknown): v is ToolImage {
+  const img = v as ToolImage;
+  return (
+    typeof img?.data === "string" &&
+    typeof img?.mimeType === "string" &&
+    img.mimeType.startsWith("image/")
+  );
+}
 
 const NOT_CONNECTED =
   "Playground tab not connected. Open usepopkorn.dev, click Connect in the Copilot panel, and keep the tab open.";
@@ -181,7 +191,12 @@ export class CopilotSession {
 
   webSocketMessage(_ws: SessionSocket, message: string | ArrayBuffer): void {
     if (typeof message !== "string") return;
-    let frame: { id?: number; result?: string; isError?: boolean };
+    let frame: {
+      id?: number;
+      result?: string;
+      isError?: boolean;
+      images?: unknown;
+    };
     try {
       frame = JSON.parse(message);
     } catch {
@@ -192,6 +207,9 @@ export class CopilotSession {
     this.calls.resolve(frame.id, {
       text: frame.result,
       isError: frame.isError === true,
+      ...(Array.isArray(frame.images)
+        ? { images: frame.images.filter(isToolImage) }
+        : {}),
     });
   }
 

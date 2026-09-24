@@ -1,8 +1,10 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { parse } from "@popkorn/parser";
+import { IN_APP_TOOL_DEFS, isToolError } from "@/lib/agent-defs";
 import {
   buildOutline,
   executeTool,
+  executeToolAsync,
   placementWarning,
   runTools,
   TOOL_DEFS,
@@ -169,10 +171,64 @@ test("TOOL_DEFS has one definition per tool", () => {
       "read_example",
       "read_lines",
       "read_rules",
+      "render_frames",
       "rewrite_scene",
       "search",
     ].sort(),
   );
+});
+
+test("the in-app Copilot gets every tool but render_frames", () => {
+  expect(IN_APP_TOOL_DEFS.map((d) => d.function.name).sort()).toEqual(
+    TOOL_DEFS.map((d) => d.function.name)
+      .filter((n) => n !== "render_frames")
+      .sort(),
+  );
+});
+
+describe("executeToolAsync", () => {
+  const ctx = (extra: Partial<ToolContext> = {}): ToolContext => ({
+    getSource: () => ":root { width: 10px; height: 10px; }",
+    commit: () => {},
+    ...extra,
+  });
+
+  test("wraps a sync tool's text", async () => {
+    const out = await executeToolAsync(
+      "read_lines",
+      { start: 1, end: 1 },
+      ctx(),
+    );
+    expect(out.images).toBeUndefined();
+    expect(out.text).toContain("width: 10px");
+  });
+
+  test("render_frames without a renderer is an in-band error", async () => {
+    const out = await executeToolAsync("render_frames", {}, ctx());
+    expect(isToolError(out.text)).toBe(true);
+  });
+
+  test("render_frames hands the live source and args to the renderer", async () => {
+    let seen: [string, Record<string, unknown>] | null = null;
+    const out = await executeToolAsync(
+      "render_frames",
+      { times: [0.5] },
+      ctx({
+        renderFrames: async (src, args) => {
+          seen = [src, args];
+          return {
+            text: "Rendered 1 frame(s)",
+            images: [{ data: "x", mimeType: "image/jpeg" }],
+          };
+        },
+      }),
+    );
+    expect(seen).toEqual([
+      ":root { width: 10px; height: 10px; }",
+      { times: [0.5] },
+    ]);
+    expect(out.images).toHaveLength(1);
+  });
 });
 
 const SCENE = `#ball {

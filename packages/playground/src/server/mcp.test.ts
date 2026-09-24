@@ -115,6 +115,28 @@ describe("handleMcpMessage", () => {
     });
   });
 
+  test("tools/call appends tool images as MCP image content", async () => {
+    const res: any = await handleMcpMessage(
+      {
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: { name: "render_frames", arguments: {} },
+      },
+      deps({
+        callTool: async () => ({
+          text: "Rendered 2 frame(s)",
+          isError: false,
+          images: [{ data: "abc", mimeType: "image/jpeg" }],
+        }),
+      }),
+    );
+    expect(res.result.content).toEqual([
+      { type: "text", text: "Rendered 2 frame(s)" },
+      { type: "image", data: "abc", mimeType: "image/jpeg" },
+    ]);
+  });
+
   test("tools/call missing arguments defaults to {}", async () => {
     let seen: Record<string, unknown> | null = null;
     await handleMcpMessage(
