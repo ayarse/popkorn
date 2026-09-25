@@ -1,5 +1,14 @@
 # @popkorn/converters
 
+## 0.2.8
+
+### Patch Changes
+
+- af40a06: Convert skew instead of dropping it: Lottie layer skew (`sk`/`sa`, static and animated) maps onto rotate/scale/skewX matching lottie-web's matrix, and SVG shear, `skewX`/`skewY` SMIL and `skew()`/`matrix()` keyframes map onto the node's skewX instead of baking geometry.
+- Updated dependencies [fb74439]
+  - @popkorn/player@0.2.8
+  - @popkorn/parser@0.2.8
+
 ## 0.2.7
 
 ### Patch Changes
