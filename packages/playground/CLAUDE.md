@@ -170,6 +170,10 @@ results to models that may not take images.
 The worker entry is custom (`src/server/entry.ts`) because DO classes must
 be exported from `main`. Tool defs + system prompt live import-light in
 `lib/agent-defs.ts` so the DO bundle never pulls in parser/player.
+**WebMCP** (`hooks/use-webmcp.ts`) registers the same `TOOL_DEFS` on
+`document.modelContext` for in-browser agents, falling back to Chrome's
+pre-150 `navigator.modelContext`. There's no server `instructions` there,
+so agents get the guide only by calling `read_docs` with no arguments.
 
 ## Verify
 

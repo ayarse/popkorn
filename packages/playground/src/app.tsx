@@ -11,6 +11,7 @@ import { TimelinePanel } from "@/components/timeline-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useScene } from "@/hooks/use-scene";
+import { useWebMcp } from "@/hooks/use-webmcp";
 import { maybeStartTour } from "@/lib/tour";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ const CHAT_OPEN_KEY = "popkorn:copilot-open";
 
 function App() {
   const scene = useScene();
+  useWebMcp(scene.source, scene.applyGenerated);
   const [showImport, setShowImport] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [chatOpen, setChatOpenState] = useState(false);

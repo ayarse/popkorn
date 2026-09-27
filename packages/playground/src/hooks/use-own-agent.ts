@@ -35,6 +35,25 @@ function writeStoredId(id: string) {
   }
 }
 
+/** Tool context over the live editor buffer, shared by every external agent
+ * transport. commit() writes the ref directly because two tool calls can land
+ * between React renders. */
+export async function liveToolContext(
+  sourceRef: { current: string },
+  applyRef: { current: (css: string) => void },
+): Promise<ToolContext> {
+  return {
+    getSource: () => sourceRef.current,
+    commit: (next) => {
+      sourceRef.current = next;
+      applyRef.current(next);
+    },
+    examples: await loadAgentExamples(),
+    renderFrames: async (src, args) =>
+      (await import("@/lib/frame-sheet")).renderFrameSheet(src, args),
+  };
+}
+
 /** Bring-your-own-agent session: holds the tab side of the CopilotSession
  * WebSocket and executes relayed tool calls against the live editor buffer.
  * The session id is minted client-side and persisted in localStorage, and on
@@ -99,17 +118,7 @@ export function useOwnAgent(
 
     ws.onmessage = async (e) => {
       if (typeof e.data !== "string") return;
-      const examples = await loadAgentExamples();
-      const ctx: ToolContext = {
-        getSource: () => sourceRef.current,
-        commit: (next) => {
-          sourceRef.current = next;
-          applyRef.current(next);
-        },
-        examples,
-        renderFrames: async (src, args) =>
-          (await import("@/lib/frame-sheet")).renderFrameSheet(src, args),
-      };
+      const ctx = await liveToolContext(sourceRef, applyRef);
       const frame = await handleTabFrame(e.data, {
         execute: (name, args) => executeToolAsync(name, args, ctx),
         isError: isToolError,
