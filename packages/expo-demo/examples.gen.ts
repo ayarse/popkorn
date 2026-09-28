@@ -343,374 +343,307 @@ export const examples: Example[] = [
 }
 ` },
   { key: "03-hierarchy.css", label: "Hierarchy", source: `/* Author: AI Generated */
-/* Hierarchy — a solar system nested 3–5 groups deep: each group adds one motion
-   and children inherit all of their ancestors', so the Moon rides two orbits. */
+/* Hierarchy — a solar system in three-quarter view, built from nested frames.
+   #plane squashes every orbit into an ellipse; each planet climbs back out:
+   orbit (rotate) → carrier (translate) → upright (un-rotate) → depth (scale with
+   distance) → round (un-squash). Whatever hangs between those levels inherits
+   exactly the motions above it: the Moon orbits in the tilted plane, Earth's
+   surface spins, and each night side stays turned away from the Sun. */
 
 :root {
   width: 800px;
   height: 600px;
-  background: #05060f;
+  background: #04050d;
 }
 
-/* One turn, reused for every orbit and every spin */
 @keyframes orbit {
   0%   { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
 
-@keyframes sunPulse {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.06); }
+/* Near side of the orbit (25%) grows and brightens, far side (75%) recedes */
+@keyframes depth {
+  0%   { transform: scale(1);   opacity: 0.85; animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); }
+  25%  { transform: scale(1.2); opacity: 1;    animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0); }
+  50%  { transform: scale(1);   opacity: 0.85; animation-timing-function: cubic-bezier(0.61, 1, 0.88, 1); }
+  75%  { transform: scale(0.8); opacity: 0.65; animation-timing-function: cubic-bezier(0.12, 0, 0.39, 0); }
+  100% { transform: scale(1);   opacity: 0.85; }
 }
 
-/* Corona, pulsing a touch out of phase with the body */
-@keyframes glowPulse {
-  0%, 100% { transform: scale(1);    opacity: 0.5; }
-  50%      { transform: scale(1.15); opacity: 0.8; }
+@keyframes breathe {
+  0%   { transform: scale(1);    opacity: 0.8; }
+  50%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1);    opacity: 0.8; }
 }
 
 @keyframes twinkle {
-  0%, 100% { opacity: 0.25; }
-  50%      { opacity: 1;    }
+  0%   { opacity: 0.2; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.2; }
 }
 
-/* Root frame: centres the stage; every orbit inherits it */
+/* One star stamped 70 times, scattered by prime-stride sibling math */
+#stars {
+  type: group;
+
+  > #star {
+    type: circle;
+    repeat: 70;
+    cx: calc(mod(sibling-index() * 211, 797) * 1px);
+    cy: calc(mod(sibling-index() * 127, 599) * 1px);
+    r: calc(0.5px + mod(sibling-index(), 4) * 0.3px);
+    fill: #dfe6ff;
+    animation: twinkle 3.4s ease-in-out infinite;
+    animation-delay: calc(mod(sibling-index() * 7, 13) * -0.26s);
+  }
+}
+
 #system {
   type: group;
-  transform: translate(400px, 300px);
+  transform: translate(400px, 290px);
 
-  /* Starfield, coords relative to centre */
-  > #s1 {
-    type: circle;
-    cx: -350px;
-    cy: -230px;
-    r: 1.5px;
-    fill: #ffffff;
-    opacity: 0.7;
-  }
-
-  > #s2 {
-    type: circle;
-    cx: -280px;
-    cy: 180px;
-    r: 1px;
-    fill: #cdd6ff;
-    opacity: 0.5;
-  }
-
-  > #s3 {
-    type: circle;
-    cx: -180px;
-    cy: -120px;
-    r: 1.2px;
-    fill: #ffffff;
-    animation: twinkle 3s ease-in-out infinite;
-  }
-
-  > #s4 {
-    type: circle;
-    cx: 330px;
-    cy: -200px;
-    r: 1.5px;
-    fill: #fff2cc;
-    opacity: 0.8;
-  }
-
-  > #s5 {
-    type: circle;
-    cx: 300px;
-    cy: 120px;
-    r: 1px;
-    fill: #ffffff;
-    opacity: 0.45;
-  }
-
-  > #s6 {
-    type: circle;
-    cx: 210px;
-    cy: 250px;
-    r: 1.3px;
-    fill: #cdd6ff;
-    animation: twinkle 2.4s ease-in-out infinite;
-  }
-
-  > #s7 {
-    type: circle;
-    cx: -320px;
-    cy: 40px;
-    r: 1px;
-    fill: #ffffff;
-    opacity: 0.5;
-  }
-
-  > #s8 {
-    type: circle;
-    cx: 120px;
-    cy: -250px;
-    r: 1.4px;
-    fill: #fff2cc;
-    opacity: 0.7;
-  }
-
-  > #s9 {
-    type: circle;
-    cx: -110px;
-    cy: 230px;
-    r: 1px;
-    fill: #ffffff;
-    animation: twinkle 3.6s ease-in-out infinite;
-  }
-
-  > #s10 {
-    type: circle;
-    cx: 360px;
-    cy: 10px;
-    r: 1.2px;
-    fill: #cdd6ff;
-    opacity: 0.6;
-  }
-
-  > #s11 {
-    type: circle;
-    cx: 40px;
-    cy: 270px;
-    r: 1px;
-    fill: #ffffff;
-    opacity: 0.5;
-  }
-
-  > #s12 {
-    type: circle;
-    cx: -250px;
-    cy: -260px;
-    r: 1.3px;
-    fill: #fff2cc;
-    opacity: 0.65;
-  }
-
-  /* Faint guide rings, one per orbit radius */
-  > #ringMercury {
+  /* The Sun sits outside #plane, so it stays round */
+  > #corona {
     type: circle;
     cx: 0;
     cy: 0;
-    r: 90px;
-    fill: none;
-    stroke: #141b33;
-    stroke-width: 1px;
-  }
-
-  > #ringEarth {
-    type: circle;
-    cx: 0;
-    cy: 0;
-    r: 150px;
-    fill: none;
-    stroke: #141b33;
-    stroke-width: 1px;
-  }
-
-  > #ringMars {
-    type: circle;
-    cx: 0;
-    cy: 0;
-    r: 205px;
-    fill: none;
-    stroke: #141b33;
-    stroke-width: 1px;
-  }
-
-  > #ringSaturn {
-    type: circle;
-    cx: 0;
-    cy: 0;
-    r: 262px;
-    fill: none;
-    stroke: #141b33;
-    stroke-width: 1px;
-  }
-
-  /* Corona: the gradient's 8-digit alpha is the glow, no filter */
-  > #sunGlow {
-    type: circle;
-    cx: 0;
-    cy: 0;
-    r: 95px;
-    fill: radial-gradient(#ffcf7a 0%, #ffcf7a00 70%);
+    r: 170px;
+    fill: radial-gradient(circle 170px at 0px 0px, #ffb04a60 0%, #ff8a2a24 35%, #ff7a1a00 100%);
     transform-origin: center;
-    animation: glowPulse 4s ease-in-out infinite;
+    animation: breathe 5s ease-in-out infinite;
+  }
+
+  > #rays {
+    type: star;
+    cx: 0;
+    cy: 0;
+    sides: 16;
+    outer-radius: 96px;
+    inner-radius: 30px;
+    fill: radial-gradient(circle 96px at 0px 0px, #ffe2a048 0%, #ffe2a000 100%);
+    animation: orbit 60s linear infinite;
   }
 
   > #sun {
     type: circle;
     cx: 0;
     cy: 0;
-    r: 42px;
-    fill: radial-gradient(#fff6d5 0%, #ffb02e 100%);
-    transform-origin: center;
-    animation: sunPulse 4s ease-in-out infinite;
+    r: 28px;
+    fill: radial-gradient(#fffdf0 0%, #ffe38a 45%, #ff9d2e 85%, #e8621a 100%);
   }
 
-  /* Mercury: one group, one fast revolution */
-  > #mercuryOrbit {
+  /* The tilted orbital plane: every child is seen at 60° */
+  > #plane {
     type: group;
-    animation: orbit 5s linear infinite;
+    transform: scale(1, 0.5);
 
-    > #mercury {
-      type: circle;
-      cx: 90px;
-      cy: 0;
-      r: 7px;
-      fill: radial-gradient(#b8b0a8 0%, #6b6560 100%);
-    }
-  }
+    > #ringEarth  { type: circle; cx: 0; cy: 0; r: 115px; fill: none; stroke: #2a3358; stroke-width: 1px; }
+    > #ringMars   { type: circle; cx: 0; cy: 0; r: 195px; fill: none; stroke: #2a3358; stroke-width: 1px; }
+    > #ringSaturn { type: circle; cx: 0; cy: 0; r: 290px; fill: none; stroke: #2a3358; stroke-width: 1px; }
 
-  /* Earth: the deep branch, each level adds one frame of reference */
-  > #earthOrbit {                         /* L1 → revolves round the sun */
-    type: group;
-    animation: orbit 12s linear infinite;
-
-    > #earth {                            /* L2 — positions Earth */
+    > #earthOrbit {
       type: group;
-      transform: translate(150px, 0);
+      time-offset: -9s;                       /* starting phase, inherited by the subtree */
+      animation: orbit 14s linear infinite;
 
-      /* L3 → Earth's spin, on a sibling of the moon so spin ≠ orbit */
-      > #earthBody {
+      > #earthCarrier {
         type: group;
-        animation: orbit 6s linear infinite;
+        transform: translate(115px, 0);
 
-        > #ocean {
-          type: circle;
-          cx: 0;
-          cy: 0;
-          r: 15px;
-          fill: radial-gradient(#7fc4ff 0%, #1b5fa8 100%);
-        }
-
-        > #land1 {
-          type: ellipse;
-          cx: -5px;
-          cy: -4px;
-          rx: 6px;
-          ry: 4px;
-          fill: #3f9c5a;
-        }
-
-        > #land2 {
-          type: ellipse;
-          cx: 6px;
-          cy: 5px;
-          rx: 4px;
-          ry: 5px;
-          fill: #4caf6a;
-        }
-
-        > #land3 {
-          type: ellipse;
-          cx: 7px;
-          cy: -6px;
-          rx: 3px;
-          ry: 2px;
-          fill: #3f9c5a;
-        }
-      }
-
-      /* L3 → the Moon's revolution: inherits Earth's position, not its spin */
-      > #moonOrbit {
-        type: group;
-        animation: orbit 3.2s linear infinite;
-
-        > #moon {                         /* L4 — positions the Moon */
+        > #earthUpright {
           type: group;
-          transform: translate(38px, 0);
+          animation: orbit 14s linear infinite reverse;
 
-          /* The leaf: no motion of its own, yet it rides two inherited rotations */
-          > #moonBody {
-            type: circle;
-            cx: 0;
-            cy: 0;
-            r: 6px;
-            fill: radial-gradient(circle 8px at -2px -2px, #eef0f4 0%, #9aa0aa 100%);
+          > #earthDepth {
+            type: group;
+            animation: depth 14s linear infinite;
+
+            > #earthRound {
+              type: group;
+              transform: scale(1, 2);
+
+              /* Spins inside the round frame: turns without tumbling */
+              > #earthSurface {
+                type: group;
+                clip-path: circle(17 at 0 0);
+                animation: orbit 5s linear infinite;
+
+                > #ocean {
+                  type: circle;
+                  cx: 0;
+                  cy: 0;
+                  r: 17px;
+                  fill: radial-gradient(#4fa8ec 0%, #1a4f9c 100%);
+                }
+
+                > #land1 { type: ellipse; cx: -6px; cy: -4px; rx: 7px;   ry: 4.5px; fill: #4a9d5b; }
+                > #land2 { type: ellipse; cx: 7px;  cy: 6px;  rx: 4.5px; ry: 6px;   fill: #5aa865; }
+                > #land3 { type: ellipse; cx: 8px;  cy: -9px; rx: 4px;   ry: 2.5px; fill: #8a9d5a; }
+              }
+
+              /* Re-applies the orbit's turn, so the shadow always faces away */
+              > #earthNight {
+                type: group;
+                animation: orbit 14s linear infinite;
+
+                > #earthShade {
+                  type: circle;
+                  cx: 0;
+                  cy: 0;
+                  r: 17px;
+                  fill: radial-gradient(circle 27.2px at -13.6px 0px, #04050d00 58%, #04050deb 74%);
+                }
+              }
+            }
+
+            /* Above the round frame, so the Moon's orbit is tilted too */
+            > #moonOrbit {
+              type: group;
+              animation: orbit 3.5s linear infinite;
+
+              > #moonCarrier {
+                type: group;
+                transform: translate(46px, 0);
+
+                > #moonUpright {
+                  type: group;
+                  animation: orbit 3.5s linear infinite reverse;
+
+                  > #moon {
+                    type: circle;
+                    cx: 0;
+                    cy: 0;
+                    r: 5px;
+                    transform: scale(1, 2);
+                    fill: radial-gradient(#f0f2f6 0%, #a3a8b2 100%);
+                  }
+                }
+              }
+            }
           }
         }
       }
     }
-  }
 
-  /* Mars: orbit group → spinning body group */
-  > #marsOrbit {
-    type: group;
-    animation: orbit 18s linear infinite;
-
-    > #mars {
+    > #marsOrbit {
       type: group;
-      transform: translate(205px, 0);
-      animation: orbit 9s linear infinite;   /* Mars' day */
+      time-offset: -4s;
+      animation: orbit 22s linear infinite;
 
-      > #marsBody {
-        type: circle;
-        cx: 0;
-        cy: 0;
-        r: 11px;
-        fill: radial-gradient(#ff9e7d 0%, #b23a1e 100%);
-      }
+      > #marsCarrier {
+        type: group;
+        transform: translate(195px, 0);
 
-      > #marsCap {
-        type: ellipse;
-        cx: 0;
-        cy: -8px;
-        rx: 4px;
-        ry: 2.5px;
-        fill: #ffe3d6;
+        > #marsUpright {
+          type: group;
+          animation: orbit 22s linear infinite reverse;
+
+          > #marsDepth {
+            type: group;
+            animation: depth 22s linear infinite;
+
+            > #marsRound {
+              type: group;
+              transform: scale(1, 2);
+
+              > #marsBody {
+                type: circle;
+                cx: 0;
+                cy: 0;
+                r: 12px;
+                fill: radial-gradient(#f2a07a 0%, #b8472a 100%);
+              }
+
+              > #marsCap { type: ellipse; cx: 0; cy: -9.5px; rx: 4.5px; ry: 2.2px; fill: #fff1e8; }
+
+              > #marsNight {
+                type: group;
+                animation: orbit 22s linear infinite;
+
+                > #marsShade {
+                  type: circle;
+                  cx: 0;
+                  cy: 0;
+                  r: 12px;
+                  fill: radial-gradient(circle 19.2px at -9.6px 0px, #04050d00 58%, #04050deb 74%);
+                }
+              }
+            }
+          }
+        }
       }
     }
-  }
 
-  /* Saturn: #saturnUpright runs the same orbit in reverse, cancelling the rotation
-     so the ring stays level while the translate above still carries it round. */
-  > #saturnOrbit {                         /* L1 → revolves */
-    type: group;
-    animation: orbit 26s linear infinite;
-
-    > #saturnCarrier {                     /* L2 — positions Saturn on the ring */
+    /* Saturn: paint order does the depth — back half of the ring, body, front half */
+    > #saturnOrbit {
       type: group;
-      transform: translate(262px, 0);
+      time-offset: -27s;
+      animation: orbit 40s linear infinite;
 
-      > #saturnUpright {                   /* L3 → cancels the orbit's rotation */
+      > #saturnCarrier {
         type: group;
-        animation: orbit 26s linear infinite reverse;
+        transform: translate(290px, 0);
 
-        /* Behind the body in document order, so the body hides its front */
-        > #saturnRing {
-          type: ellipse;
-          cx: 0;
-          cy: 0;
-          rx: 34px;
-          ry: 11px;
-          fill: none;
-          stroke: #e7cf9c;
-          stroke-width: 4px;
-          opacity: 0.85;
-        }
-
-        > #saturnBody {
-          type: circle;
-          cx: 0;
-          cy: 0;
-          r: 16px;
-          fill: radial-gradient(#f5d9a0 0%, #c99a54 100%);
-        }
-
-        /* Inside the upright frame, so its orbit plane stays steady too */
-        > #titanOrbit {
+        > #saturnUpright {
           type: group;
-          animation: orbit 4s linear infinite;
+          animation: orbit 40s linear infinite reverse;
 
-          > #titan {
-            type: circle;
-            cx: 30px;
-            cy: 0;
-            r: 4px;
-            fill: radial-gradient(#ffd9a0 0%, #c98a4a 100%);
+          > #saturnDepth {
+            type: group;
+            animation: depth 40s linear infinite;
+
+            > #saturnRound {
+              type: group;
+              transform: scale(1, 2);
+
+              > #saturnBack {
+                type: group;
+                transform: rotate(-16deg);
+
+                > #ringBack {
+                  type: path;
+                  d: 'M -48 0 A 48 15 0 0 1 48 0 M -36 0 A 36 11 0 0 1 36 0';
+                  fill: none;
+                  stroke: #a8916a;
+                  stroke-width: 6px;
+                }
+
+                /* Bands sit in the tilted frame, so they follow the ring */
+                > #saturnBody {
+                  type: circle;
+                  cx: 0;
+                  cy: 0;
+                  r: 20px;
+                  fill: linear-gradient(from 0px -20px to 0px 20px, #f3dca6 0%, #d8b373 25%, #f0d7a0 45%, #c9a05e 62%, #e6c68a 80%, #b88e50 100%);
+                }
+              }
+
+              > #saturnNight {
+                type: group;
+                animation: orbit 40s linear infinite;
+
+                > #saturnShade {
+                  type: circle;
+                  cx: 0;
+                  cy: 0;
+                  r: 20px;
+                  fill: radial-gradient(circle 32px at -16px 0px, #04050d00 58%, #04050deb 74%);
+                }
+              }
+
+              > #saturnFront {
+                type: group;
+                transform: rotate(-16deg);
+
+                > #ringFront {
+                  type: path;
+                  d: 'M -48 0 A 48 15 0 0 0 48 0 M -36 0 A 36 11 0 0 0 36 0';
+                  fill: none;
+                  stroke: #ecd6a4;
+                  stroke-width: 6px;
+                }
+              }
+            }
           }
         }
       }
