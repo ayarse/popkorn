@@ -24,7 +24,7 @@ export function SceneByline({
   if (!title && !author) return null;
 
   return (
-    <div className="flex min-w-0 items-baseline gap-2 px-1 text-[13px]">
+    <div className="flex min-w-0 items-baseline gap-2 overflow-hidden px-1 text-[13px]">
       {title && (
         <span className="truncate font-medium text-foreground">{title}</span>
       )}
