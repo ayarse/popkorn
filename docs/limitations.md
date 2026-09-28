@@ -1,149 +1,164 @@
-# Format limitations
+# Limitations
 
-Popkorn is a close CSS dialect, scoped on purpose. Its capability target is
-motion graphics: the things a shipping Lottie player renders and animates, not
-the full CSS layout engine. Most of what's listed here is deliberate scope, and
-every entry comes with the thing to reach for instead. For worked recipes that
-translate classic CSS-art tricks into scene-graph shapes, see
-[CSS art → Popkorn](css-art-in-popkorn.md).
+Popkorn is young, and it's small on purpose. It aims at motion graphics, the
+kind of thing a Lottie player draws and animates, rather than everything CSS
+can do in a browser. So some of what's missing is a choice, and some is simply
+work that hasn't happened yet. This page is the honest list of both, along with
+what to reach for in the meantime.
 
-One meta-limitation frames all the others: an unknown property name gets an
-`unknown-property` warning (with a did-you-mean hint), but a known property
-with a value it can't use is dropped silently at build time. `width: 10vw`,
-`x: 1e2px`, and `fill: color-mix(...)` all parse and draw nothing. When a
-declaration seems dead, check its value against the
-[format reference](reference.md) before debugging anything else.
+If you're porting classic CSS art, [CSS art → Popkorn](css-art-in-popkorn.md)
+has worked recipes for most of the tricks below.
 
-## No box model, no layout
+## First, the one that trips everyone up
 
-There is no `position`, `margin`, `padding`, flexbox, or grid; the box-model
-properties are rejected with a warning. A scene is a scene graph: explicit
-shapes with coordinates, composed under groups with transforms. This is the
-foundational trade, and it's permanent.
+Popkorn tells you when it doesn't recognize a property name: you get an
+`unknown-property` warning, usually with a did-you-mean hint. But when the
+property is fine and the *value* isn't something it can use, the declaration is
+quietly dropped at build time. `width: 10vw`, `x: 1e2px` and
+`fill: color-mix(...)` all parse without complaint and then draw nothing.
 
-Instead: `left`/`top` are accepted as aliases for `x`/`y` (`right`/`bottom`
-are rejected, since there is no containing box), `border: <w> solid <c>`
-rewrites to `stroke-width` + `stroke`, and `padding` becomes arithmetic on the
-child's coordinates.
+So if a line seems to do nothing, check its value against the
+[format reference](reference.md) before digging anywhere else. It saves a lot
+of head-scratching.
 
-## `box-shadow`: spread and inset need a basic shape
+## Where to run it, and how to make scenes
 
-`box-shadow` works with CSS syntax: offsets, blur, spread, color, `inset`, and
-comma-separated lists, all animatable. Spread is realized only on `rect`,
-`circle`, and `ellipse`; on a `path`, `star`, or `polygon` an outer shadow's
-spread is ignored. `inset` needs a shape outline, so it is dropped on text,
-images, and groups.
+On the web, Popkorn plays through canvas or SVG. On mobile, React Native is
+supported today through [React Native Skia](https://shopify.github.io/react-native-skia/),
+which is what the Skia backend is built on. We'd like to go further with native
+players, so Flutter, React Native and everything in between can run Popkorn
+more directly and more fully.
 
-Instead: for a spread shadow on free-form geometry, draw a second, larger copy
-of the path behind it with `filter: blur(...)`. An inset ring on a group is a
-stroked shape nested inside it.
+Authoring tools are the other big gap. There's no visual editor yet: you write
+the CSS by hand, ask an assistant like the playground's Copilot to write it
+(see [Prompting with AI](prompting.md)), or convert an existing Lottie or SVG
+file (see [Importing](importing.md)). A Figma plugin that exports Figma Motion
+animations to Popkorn is planned.
 
-## Circular corners only
+To be straightforward about it: how quickly these arrive depends on whether
+people actually use Popkorn. If it finds an audience, native players and better
+tooling are the next things to build.
 
-`border-radius` takes one value or the 2 to 4 value per-corner form (and the
-four `border-*-radius` longhands), but every corner is circular. The eight-value
-elliptical form (`10px / 20px`) is rejected.
+## Scenes, not layout
 
-Instead: draw a `path`. An elliptical corner is one arc or quadratic curve.
+There's no box model here. `position`, `margin`, `padding`, flexbox and grid
+don't exist, and the box-model properties are rejected with a warning. A
+Popkorn scene is a scene graph: shapes at explicit coordinates, grouped and
+moved with transforms. That's the foundation the whole format sits on, and it
+won't change.
 
-## No pseudo-elements
+A few familiar habits still carry over. `left` and `top` work as aliases for
+`x` and `y` (`right` and `bottom` don't, since there's no containing box to
+measure from). `border: <w> solid <c>` becomes `stroke-width` plus `stroke`.
+And padding is just arithmetic on the child's coordinates.
 
-No `::before`/`::after`: a pseudo-element selector is a parse error, and there
-are no `content` boxes to decorate. Every visible layer is a real node with an
-id.
+## Every layer is a real node
 
-Instead: promote each pseudo-element to a named child shape. Scenes read better
-for it: the notch, the speaker, and the camera each get a name instead of
-hiding inside one selector.
+There's no `::before` or `::after`. A pseudo-element selector is a parse error,
+and there are no `content` boxes to decorate. Instead, give each of those
+layers its own named child shape. It tends to read better anyway: the notch,
+the speaker and the camera each get a name instead of hiding inside one
+selector.
 
-## Colors are values, not expressions
+## Shapes and shadows
 
-Hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, `oklab()`/`oklch()`, and named colors
-all work. There are no color *functions*: no `color-mix()`, no relative color
-syntax, and nothing like Sass `darken()`/`lighten()`.
+`border-radius` takes a single value, the two-to-four value per-corner form,
+or the four `border-*-radius` longhands. Every corner is circular, though, so
+the eight-value elliptical form (`10px / 20px`) is rejected. For an elliptical
+corner, draw a `path`: it's one arc or quadratic curve.
 
-A whole color can ride a custom property: `fill: var(--brand)` binds live, so a
-host `setVariable` recolors the node at runtime. A color's channels can't be
-computed, though: `input()` yields numbers, and `rgb(var(--r), 0, 0)` does not
-resolve its arguments. Gradients through `var()` are not live either.
+`box-shadow` uses normal CSS syntax: offsets, blur, spread, color, `inset` and
+comma-separated lists, all animatable. Spread only takes effect on `rect`,
+`circle` and `ellipse`; on a `path`, `star` or `polygon`, an outer shadow's
+spread is ignored. `inset` needs a shape outline to work with, so it's dropped
+on text, images and groups. For a spread shadow on free-form geometry, put a
+larger copy of the path behind it with `filter: blur(...)`. For an inset ring
+on a group, nest a stroked shape inside it.
 
-Instead: precompute derived colors to literals (a comment noting the recipe,
-like `/* darken(#272C31, 10%) */`, keeps the intent). To change color over
-time, animate `fill`/`stroke` in `@keyframes`; solid colors, gradient stops,
-and compatible gradients all interpolate there, in Oklab when either endpoint
-is an `oklab()`/`oklch()` color.
+For shape modifiers, merge-path union works. Subtract and intersect don't, and
+neither do the offset-path, zig-zag, pucker and round-corners modifiers, which
+matches what shipping Lottie players implement. Bake the result into the
+`path` data instead, or express a subtract as an `evenodd` fill or an inverted
+mask.
 
-## Transforms: 2D only
+## Colors
 
-`translate`, `rotate`, `scale`, `skew`/`skewX`/`skewY` and `matrix()`, all
-animatable. No 3D, no `perspective`, no camera. Transform angles are degrees: `rad`, `grad`,
-and `turn` convert inside the trig functions and `oklch()` hues, but
-`rotate(0.5turn)` reads as half a degree. Rotation interpolates linearly with no
-shortest-arc logic, deliberately, so `rotate(0deg)` to `rotate(360deg)` spins a
-full turn.
+Hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, `oklab()`/`oklch()` and named colors
+all work. What's missing is color *math*: no `color-mix()`, no relative color
+syntax, nothing like Sass `darken()` or `lighten()`.
 
-Instead: write angles in `deg`. Faux-3D reads (flips, tilts) are
-`scaleX`/`scaleY` animations, or a `skew` for a cheap perspective fake.
+A whole color can live in a custom property, and it stays live:
+`fill: var(--brand)` means a host `setVariable` call recolors the node at
+runtime. You can't compute individual channels, though. `input()` gives you
+numbers, and `rgb(var(--r), 0, 0)` doesn't resolve its arguments. Gradients
+passed through `var()` aren't live either.
 
-## Text animates as a whole node
+The workaround is to precompute derived colors as literals, with a comment to
+keep the intent (`/* darken(#272C31, 10%) */`). To change a color over time,
+animate `fill` or `stroke` in `@keyframes`: solid colors, gradient stops and
+compatible gradients all interpolate, in Oklab whenever either end is an
+`oklab()` or `oklch()` color.
 
-Text supports `\n` multi-line content, `text-align`, `line-height`, and
-`letter-spacing`, but there are no per-glyph animators: a text node draws and
-animates as one unit.
+## Transforms are 2D
 
-Instead: per-character motion is one text node per character, usually stamped
-from a `@define` symbol with a negative `animation-delay` stagger.
+You get `translate`, `rotate`, `scale`, `skew`/`skewX`/`skewY` and `matrix()`,
+all animatable. There's no 3D, no `perspective` and no camera. For flips and
+tilts, a `scaleX`/`scaleY` animation or a `skew` fakes the depth convincingly.
 
-## No scripting
+Angles deserve a note. Transform angles are read as degrees: `rad`, `grad` and
+`turn` convert correctly inside the trig functions and `oklch()` hues, but
+`rotate(0.5turn)` means half a degree. Stick to `deg` in transforms. Rotation
+also interpolates linearly with no shortest-path logic, deliberately, so
+`rotate(0deg)` to `rotate(360deg)` gives you a full spin.
 
-There are no JS expressions in the format, by design. Reactivity is
-declarative: `var()`/`input()` bindings, `calc()` and the math functions,
-`transition`, and `@machine` state machines. When a use case outgrows those,
-the answer is a richer binding vocabulary, not an embedded script engine.
+## Text moves as one piece
 
-## Blend modes don't isolate a group
+Text supports multi-line content with `\n`, `text-align`, `line-height` and
+`letter-spacing`. There are no per-glyph animators, so a text node draws and
+animates as a single unit. For per-character motion, use one text node per
+character, usually stamped out from a `@define` symbol and staggered with a
+negative `animation-delay`.
 
-`mix-blend-mode` takes the full CSS keyword set, but the blend applies to each
-shape's own paint. A group's blend mode is not an isolated composite: its
-children blend individually, including against each other.
+## Blending and filters
 
-Instead: put `mix-blend-mode` on the shapes that should blend. Where
-overlapping children must blend as one unit, merge them into a single `path`.
-
-## Filters: the CSS function set
+`mix-blend-mode` accepts the full set of CSS keywords, but it applies to each
+shape's own paint. A group's blend mode isn't an isolated composite: its
+children blend individually, including against each other. Put
+`mix-blend-mode` on the shapes that should blend, and where overlapping
+children need to blend as one, merge them into a single `path`.
 
 `filter` takes the CSS functions: `blur`, `drop-shadow`, `brightness`,
-`contrast`, `saturate`, `grayscale`, `sepia`, `invert`, `opacity`, and
-`hue-rotate`. There are no `url(#...)` SVG filter references. A filter list
-animates only between keyframes with the same function sequence; a mismatch
-holds instead of interpolating. The React Native/Skia backend draws filters
-unfiltered, and that includes outer `box-shadow`s without spread, which render
-through the same path.
+`contrast`, `saturate`, `grayscale`, `sepia`, `invert`, `opacity` and
+`hue-rotate`. SVG filter references (`url(#...)`) aren't supported. A filter
+list only animates between keyframes that use the same sequence of functions;
+if they don't match, the value holds instead of interpolating, so keep the
+lists the same shape and use `blur(0px)` as a placeholder.
 
-Instead: keep keyframe filter lists structurally identical (use `blur(0px)` as a
-placeholder). For shadows that must show on Skia, use a spread shadow on a basic
-shape, or a blurred copy of the shape.
+On the React Native/Skia backend, filters currently draw unfiltered. That
+includes outer `box-shadow`s without spread, which go through the same path.
+If a shadow has to show up on Skia, use a spread shadow on a basic shape, or a
+blurred copy of the shape.
 
-## Shape modifiers: union only
+## No scripting, by design
 
-Merge-path union is supported. Subtract and intersect modes, and the
-offset-path/zig-zag/pucker/round-corners shape modifiers, are skipped, matching
-what shipping Lottie players actually implement.
+There are no JS expressions in the format, and that's intentional. Reactivity
+is declarative: `var()`/`input()` bindings, `calc()` and the math functions,
+`transition`, and `@machine` state machines. When something outgrows those,
+the plan is a richer binding vocabulary rather than an embedded script engine.
 
-Instead: bake the modified outline into the `path` data, or express a subtract
-as an `evenodd` fill or an inverted mask.
+## Small grammar differences
 
-## Grammar strictness
+A few CSS habits don't parse. `//` line comments are a parse error, so use
+`/* */`. Exponent notation like `1e2` isn't a number. The supported units are
+`px`, `em`, `rem`, `%`, `s`, `ms`, and the angles `deg`, `rad`, `grad` and
+`turn`; there's no `vw`, `vh` or `pt`. `em` and `rem` parse, but they have no
+font-relative effect, and the parser warns when you use them.
 
-A few CSS habits don't parse: `//` line comments are a parse error (use
-`/* */`), and exponent notation (`1e2`) is not a number. Units are `px`, `em`,
-`rem`, `%`, `s`, `ms`, and the angles `deg`, `rad`, `grad`, `turn`; there is no
-`vw`/`vh`/`pt`. `em`/`rem` parse but have no font-relative effect, and the
-parser warns when they're used.
+## What might change
 
-## Which of these might change
-
-The box model, scripting, and 3D are settled scope: they define what Popkorn
-is. Per-glyph text animation and group-isolated blending are gaps that may
-close as real scenes demand them. If a scene needs one today, precompute by
-hand rather than waiting.
+The box model, scripting and 3D are settled: they're part of what makes
+Popkorn what it is. Per-glyph text animation and group-isolated blending are
+gaps that could close as real scenes need them. Native players and authoring
+tools, including the Figma plugin, are on the roadmap, and adoption is what
+moves them forward. If you need one of these today, the workarounds above get
+you most of the way.

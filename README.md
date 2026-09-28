@@ -138,7 +138,7 @@ This matters for three groups of readers:
   formatters highlight them, and a change shows up as a readable diff.
 
 Popkorn isn't exactly CSS. It's a dialect that stays as close as it can, and
-the gaps are listed in [Format limitations](docs/limitations.md).
+the gaps are listed in [Limitations](docs/limitations.md).
 
 ## Where scenes come from
 
@@ -217,7 +217,7 @@ tuning is the next big area of work.
 - [State machines](docs/state-machines.md) and [Player API](docs/player-api.md)
 - [CSS art in Popkorn](docs/css-art-in-popkorn.md): common CSS-art tricks,
   rewritten as a scene graph
-- [Format reference](docs/reference.md), [Format limitations](docs/limitations.md),
+- [Format reference](docs/reference.md), [Limitations](docs/limitations.md),
   and [Architecture](docs/architecture.md)
 
 To run the playground locally:

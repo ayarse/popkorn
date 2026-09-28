@@ -82,7 +82,7 @@ export const DOCS = [
     file: "limitations.md",
     group: "Reference",
     description:
-      "Popkorn is a close CSS dialect, scoped on purpose to motion graphics. What it deliberately leaves out, and why.",
+      "What Popkorn leaves out on purpose, what it can't do yet, and where platforms and authoring tools stand today.",
   },
   {
     key: "architecture",

@@ -38,8 +38,8 @@ New here? The fastest way to get a feel for it is the
 ## Reference
 
 - [Format reference](reference.md): every shape, property, and value.
-- [Format limitations](limitations.md): where the dialect differs from CSS,
-  and what to use instead.
+- [Limitations](limitations.md): where the dialect differs from CSS, what
+  to use instead, and where platforms and tooling stand today.
 - [Architecture](architecture.md): how the pipeline fits together, for
   contributors.
 
