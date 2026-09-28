@@ -70,7 +70,9 @@ function RadioMenu<T extends string>({
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5">
               <Icon className="size-3.5" />
-              {options.find((o) => o.value === value)?.label}
+              <span className="hidden @3xl:inline">
+                {options.find((o) => o.value === value)?.label}
+              </span>
               <ChevronDown className="size-3 opacity-60" />
             </Button>
           </DropdownMenuTrigger>

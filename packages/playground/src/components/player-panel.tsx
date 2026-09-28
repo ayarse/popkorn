@@ -59,8 +59,9 @@ export function PlayerPanel({
     <div className="flex flex-1 flex-col bg-background overflow-hidden">
       {/* Toolbar */}
       {/* Scrolls sideways rather than clipping: on a phone the owner controls
-          and the view controls together outrun the width. */}
-      <div className="flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          and the view controls together outrun the width. Button labels drop
+          below @3xl, e.g. with the copilot open. */}
+      <div className="@container flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <SceneByline community={community} source={source} />
         {community?.mine && (
           <div className="flex shrink-0 items-center gap-1">

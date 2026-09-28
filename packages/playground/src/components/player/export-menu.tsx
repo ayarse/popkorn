@@ -38,9 +38,11 @@ export function ExportMenu({
                 disabled={exporting !== null}
               >
                 <Film className="size-3.5" />
-                {exporting !== null
-                  ? `Exporting ${exporting.format}… ${Math.round(exporting.progress * 100)}%`
-                  : "Export"}
+                {exporting !== null ? (
+                  `Exporting ${exporting.format}… ${Math.round(exporting.progress * 100)}%`
+                ) : (
+                  <span className="hidden @3xl:inline">Export</span>
+                )}
                 {exporting === null && (
                   <ChevronDown className="size-3 opacity-60" />
                 )}

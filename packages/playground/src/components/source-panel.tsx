@@ -5,11 +5,10 @@ import "prismjs/components/prism-css";
 import "prismjs/themes/prism-tomorrow.css";
 import type { Diagnostic } from "@popkorn/parser";
 import {
+  CodeXml,
   FoldVertical,
   PanelBottomClose,
-  PanelBottomOpen,
   PanelLeftClose,
-  PanelLeftOpen,
   Shrink,
   UnfoldVertical,
 } from "lucide-react";
@@ -52,7 +51,6 @@ export function SourcePanel({
   // below it on mobile (collapse to a bottom bar) — pick the matching affordance.
   const isMobile = useIsMobile();
   const CollapseIcon = isMobile ? PanelBottomClose : PanelLeftClose;
-  const ExpandIcon = isMobile ? PanelBottomOpen : PanelLeftOpen;
   const tipSide = isMobile ? "top" : "right";
 
   // Cache the highlighted HTML by source. Editor re-renders (e.g. the collapse
@@ -83,7 +81,7 @@ export function SourcePanel({
             onClick={onToggleCollapse}
             aria-label="Expand source editor"
           >
-            <ExpandIcon className="size-4" />
+            <CodeXml className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent side={tipSide}>Expand editor</TooltipContent>
