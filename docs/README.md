@@ -4,8 +4,8 @@ Popkorn is a portable format for motion graphics, and a small runtime that plays
 it on the web and on mobile. These pages go deeper than the
 [project README](../README.md).
 
-New here? The fastest way to get a feel for it is the
-[live playground](https://usepopkorn.dev), then read on.
+The fastest way to get a feel for Popkorn is the
+[live playground](https://usepopkorn.dev); these pages fill in the rest.
 
 ## Start here
 
@@ -26,7 +26,7 @@ New here? The fastest way to get a feel for it is the
 
 - [State machines](state-machines.md): named states and transitions for
   toggles, taps, and app-driven behavior.
-- [CSS art → Popkorn](css-art-in-popkorn.md): a hack-by-hack translation table
+- [CSS art in Popkorn](css-art-in-popkorn.md): a hack-by-hack translation table
   for single-div CSS art tricks, from `::before`/`::after` layering to
   `box-shadow` copies, into a real scene graph.
 

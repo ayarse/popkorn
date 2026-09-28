@@ -1,17 +1,16 @@
 # @popkorn/react-native
 
-A React Native Skia renderer for [Popkorn](https://github.com/ayarse/popkorn#readme), a proof of concept.
-It plays Popkorn scenes on `@shopify/react-native-skia`, so the same file runs on
-React Native **and** the web (via `react-native-web` + CanvasKit).
+A React Native renderer for [Popkorn](https://github.com/ayarse/popkorn#readme),
+built on `@shopify/react-native-skia`. The same scene file plays in a React
+Native app and on the web through `react-native-web` and CanvasKit. It is in
+very early proof-of-concept stages, with the supported surface still growing.
 
-It implements the `Renderer` contract from `@popkorn/player` on top of the
-imperative `Skia.*` API and drives the renderer-agnostic `RenderLoop`, so scene
-building, animation, timing, and viewport math are shared verbatim with the
-Canvas2D player.
+The package implements the `Renderer` interface from `@popkorn/player` on top of
+Skia's imperative API and drives the player's `RenderLoop`. Scene building,
+animation, timing, and viewport math all come from `@popkorn/player`, so a scene
+behaves the same here as it does in the browser.
 
 ## Install
-
-Install the library along with its other dependencies:
 
 ```sh
 bun add @popkorn/react-native @shopify/react-native-skia react react-native
@@ -83,14 +82,18 @@ const renderer = new SkiaRenderer(Skia, { width, height });
 renderer.setCanvas(recorder.beginRecording(bounds));
 ```
 
-Text, images, track mattes, and touch input all render now: text goes through a
-system font manager, images through a per-source decode cache (transparent until
-the decode lands), track mattes composite via nested `saveLayer` blends, and
-touch is wired through React Native's responder so taps fire state-machine
-triggers.
+## Rendering support
 
-## WIP
+Shapes, paths, gradients, text, images, track mattes, and touch input are
+supported. Text is drawn with the platform's system fonts. Images decode once
+per source and draw transparent until the decode finishes. Track mattes
+composite through nested `saveLayer` blends. Touch goes through React Native's
+responder system, so taps fire state-machine triggers.
 
-- **Custom fonts.** Text uses the platform's system fonts only — there is no
-  custom-font/typeface loading yet.
-- **Arcs.** SVG `A` commands are polyline-approximated (24 segments).
+Still in progress:
+
+- **Custom fonts.** Text uses system fonts only; loading custom typefaces is
+  not yet supported.
+- **Filters.** CSS `filter` is skipped on Skia, and filtered elements draw
+  unfiltered (with a one-time warning).
+- **Arcs.** SVG `A` path commands are approximated with 24-segment polylines.

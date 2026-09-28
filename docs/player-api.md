@@ -84,12 +84,12 @@ All events are namespaced under `popkorn:`.
 | `popkorn:timeupdate`| `{ time, duration }`       | every rendered frame (drives external scrubbers). |
 | `popkorn:click`     | `{ id, path, x, y }`       | a click lands on a shape (see below).             |
 
-`duration` is `Infinity` for an unbounded scene — one driven by a `@machine` or
-built entirely from infinite loops, which free-runs and has no honest end. The
+`duration` is `Infinity` for an unbounded scene: one driven by a `@machine` or
+built entirely from infinite loops, which free-runs with no natural end point. The
 web component hides its scrubber and time readout in that case; if you drive your
 own scrubber off `popkorn:timeupdate`, guard for a non-finite `duration`.
 
-`popkorn:click` needs no opt-in — it fires for any scene when a press and
+`popkorn:click` needs no opt-in: it fires for any scene when a press and
 release land on the same shape. `id` is the hit node's id (the nearest
 `cursor: pointer` / interactive ancestor when one exists, else the topmost
 shape); `path` is the ancestor ids from the root to that node (for
@@ -105,8 +105,8 @@ player.addEventListener("popkorn:click", (e) => {
 
 Marking the group `cursor: pointer` retargets `detail.id` to the group itself,
 so you can match `id` directly and `path` is only needed when the group isn't
-marked. There is deliberately no `onClick()` / `matches()` helper — this
-listener is the whole API.
+marked. This one listener covers every click case, so there is no separate
+per-shape click helper to learn.
 
 For interactive scenes, the player also dispatches `popkorn:statechange` and
 `popkorn:machine-event` (see [State machines](state-machines.md)).
@@ -114,7 +114,9 @@ For interactive scenes, the player also dispatches `popkorn:statechange` and
 ## In React
 
 The web component works in React; wrap it so you can pass a scene as a prop.
-React under-reflects custom-element properties, so set `.source` in an effect.
+`source` is a property rather than an attribute. React 19 assigns props to
+matching custom-element properties, but React 18 and earlier set attributes
+only, so setting `.source` in an effect, as below, works in both.
 
 ```tsx
 import { useRef, useEffect } from "react";

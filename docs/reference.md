@@ -12,26 +12,26 @@ Canvas size and background go in the `:root` rule (the same rule that holds
   width: 800px;
   height: 600px;
   background: #1a1a2e;
-  overflow: hidden; /* default — crop content to the stage box */
+  overflow: hidden; /* default: crop content to the stage box */
 }
 ```
 
 Content is clipped to the `width`×`height` stage box by default (`overflow:
-hidden`), matching an After Effects comp / Lottie player — anything drawn past
+hidden`), matching an After Effects comp / Lottie player: anything drawn past
 the edge is cropped, and a pointer outside the box hits nothing. Set `overflow:
 visible` to let content spill past the artboard (clipping is also skipped when
 `:root` declares no `width`/`height`, since there's no stage to clip to).
 
 ## Selectors & Values
 
-Selectors are `#id`, `.class`, or `:root` — any other `:pseudo` selector at the
+Selectors are `#id`, `.class`, or `:root`; any other `:pseudo` selector at the
 top level is a parse error. Lengths accept `px`, `em`, `rem`, `%`, and the time
 units `s` / `ms`, plus the angle units `deg` / `grad` / `rad` / `turn`; many
 properties also take a bare number (fractions for `trim-*`/`offset-distance`,
 milliseconds for `time-*`/`visible-*`, counts for `sides`). Popkorn lengths are
 unitless scene coordinates: `px` is accepted as cosmetic sugar (the number is
 used as-is), and `em`/`rem` parse and round-trip but have no font-relative
-effect — the parser warns (`unit-has-no-effect`) when they're used. Numeric values also
+effect (the parser warns (`unit-has-no-effect`) when they're used). Numeric values also
 accept `calc()` (`+`/`-`/`*`/`/`, parens, `var()`/`input()` operands) and the CSS
 math functions: comparison `min()`, `max()`, `clamp(MIN, VAL, MAX)`; stepped
 `round([nearest|up|down|to-zero,] value, step)`, `mod()` (sign of the divisor),
@@ -41,8 +41,8 @@ radians, angle units convert) and `asin()`, `acos()`, `atan()`, `atan2(y, x)`
 `log(x[, base])`, `exp()`; and `abs()`, `sign()`, plus the `e` and `pi`
 constants. Two zero-arg **structural** functions round it out: `sibling-index()`
 and `sibling-count()` (a node's 1-based position among all its siblings, and the
-total), resolved to a constant at build time per node — see [Repeat & sibling
-math](#repeat--sibling-math). Each argument is a full `calc()` expression; they
+total), resolved to a constant at build time per node (see [Repeat & sibling
+math](#repeat--sibling-math)). Each argument is a full `calc()` expression; they
 nest in and out of `calc()`, and re-evaluate per frame with reactive operands. Colors accept hex 3–8 digits (`#rgb` …
 `#rrggbbaa`), `rgb()`/`rgba()`, `hsl()`/`hsla()`, `oklab()`/`oklch()`, and CSS named colors, for
 both solid colors and gradient stops. Block comments (`/* … */`) and a trailing
@@ -56,17 +56,17 @@ format always uses the canonical name):
 
 | You may write | Rewrites to | Notes |
 | --- | --- | --- |
-| `left` / `top` | `x` / `y` | `right` / `bottom` are rejected — no containing box; position with `x`/`y`. On `circle`/`ellipse`, `x`/`y` set the bounding-box top-left and are converted to `cx`/`cy` (static only; explicit `cx`/`cy` wins). |
+| `left` / `top` | `x` / `y` | `right` / `bottom` are rejected: there is no containing box, so position with `x`/`y`. On `circle`/`ellipse`, `x`/`y` set the bounding-box top-left and are converted to `cx`/`cy` (static only; explicit `cx`/`cy` wins). |
 | `color` | `fill` | Handy for text. |
 | `background` | `fill` | On `:root` this still sets the stage color. |
-| `border-radius: <r>` | `rx` + `ry` | A single value stays uniform. 2–4 values expand to the per-corner longhands (`border-top-left-radius` etc., CSS shorthand fill order). The elliptical slash form (`10px / 20px`) is rejected — corners are circular; use `type: path`. |
+| `border-radius: <r>` | `rx` + `ry` | A single value stays uniform. 2–4 values expand to the per-corner longhands (`border-top-left-radius` etc., CSS shorthand fill order). The elliptical slash form (`10px / 20px`) is rejected: corners are circular, so use `type: path`. |
 | `border: <w> solid <c>` | `stroke-width` + `stroke` | Only `solid` (and `none`); other styles are rejected. |
 
-Aliases work everywhere a declaration does — rule bodies, `@keyframes`,
-`&:hover`/`&:active`, and `@define` — so e.g. animating `border-radius` in
+Aliases work everywhere a declaration does (rule bodies, `@keyframes`,
+`&:hover`/`&:active`, and `@define`), so for example animating `border-radius` in
 `@keyframes` animates `rx`/`ry`. Box-model properties (`padding`, `margin`,
 `position`) are rejected with a warning: Popkorn has no box model. (`display` is
-supported, with a visibility meaning — see Layering & Visibility.)
+supported, with a visibility meaning; see Layering & Visibility.)
 
 On a `rect`, setting only `rx` (or only `ry`) rounds both axes, as in SVG.
 
@@ -119,7 +119,7 @@ On a `rect`, setting only `rx` (or only `ry`) rounds both axes, as in SVG.
   }
 }
 
-/* Path — arbitrary SVG geometry */
+/* Path: arbitrary SVG geometry */
 #path {
   type: path;
   d: 'M10 10 L50 50 L10 50 Z';
@@ -168,7 +168,7 @@ ramps it up from that shared radius rather than from zero.
   text-anchor: middle;     /* start | middle | end; default start */
   text-align: center;      /* CSS spelling of the same thing, see below */
   letter-spacing: 1px;     /* extra space between characters; default 0 */
-  line-height: 1.4;        /* unitless multiplier, px, or %; default 1.2em */
+  line-height: 1.4;        /* unitless multiplier, px, or %; default 1.2 × font-size */
   fill: #ffffff;
 }
 ```
@@ -179,8 +179,8 @@ ramps it up from that shared radius rather than from zero.
 `content` may contain `\n`-separated lines; a multi-line text node measures
 each line, takes the widest as its width, and stacks the lines by
 `line-height`. `line-height` accepts a unitless number (a multiplier on
-`font-size`), a `px` length, or a `%` of `font-size`; left at its default `0`
-it falls back to `font-size * 1.2`, matching CSS's normal line-height.
+`font-size`), a `px` length, or a `%` of `font-size`. Left unset, it is
+`font-size * 1.2`, matching CSS's `normal` line-height.
 
 Text nodes carry `fill`/`stroke`/gradients/opacity/transforms/clipping like any
 other shape. `x`, `y`, `font-size`, `letter-spacing`, and `line-height` are
@@ -189,8 +189,8 @@ animatable and bindable.
 ## Star & Polygon
 
 `type: star` and `type: polygon` are pure-geometry shapes (radius, points,
-rotation) synthesized into the path pipeline — so they get fill, stroke, trim,
-gradients, hit-testing and `fill-rule` for free. Geometry matches Lottie/After
+rotation) synthesized into the path pipeline, so they get fill, stroke, trim,
+gradients, hit-testing and `fill-rule` like any path. Geometry matches Lottie/After
 Effects: with `rotation: 0` the first point faces straight up.
 
 ```css
@@ -254,7 +254,7 @@ target) and composes with `use:`.
 #field { use: dot; repeat: 150; }                            /* or a symbol */
 ```
 
-Expansion happens at build time, right after `use:` merge — the copies are
+Expansion happens at build time, right after `use:` merge. The copies are
 ordinary scene nodes, so the render loop, transforms, animation, and
 hit-testing are untouched. The count is **structural**: a static
 `var()`/`calc()` folds to a literal, but a reactive `input()`/`var()` is a build
@@ -264,15 +264,15 @@ a node with `display: none` rather than repeating it zero times).
 
 **Identity.** Copies derive ids from the declared id, 1-based: `#field` →
 `field-1` … `field-N`. Descendants re-suffix the same way, so `#field-2`'s child
-`#arm` becomes `#arm-2` — keeping every id unique and per-copy targetable, and
+`#arm` becomes `#arm-2`, keeping every id unique and per-copy targetable, and
 `popkorn:click` reports the derived id. A later pure-property rule on a derived
 id overrides just that copy (`#field-3 { fill: red }`); a rule that *re-declares*
 the node (its own `type:`/`use:`/children) whose id collides with a copy is a
 build error. Nested repeats multiply naturally (a `repeat:`ed node inside a
 `repeat:`ed subtree).
 
-**Variation.** `repeat:` stamps *identical* copies — differentiate them with
-`sibling-index()` / `sibling-count()` (and `random(per-element)`) in ordinary
+**Variation.** `repeat:` stamps *identical* copies; differentiate them with
+`sibling-index()` / `sibling-count()` (and [`random(per-element, …)`](#random-values)) in ordinary
 property formulas. Both count **all** siblings, so give a repeated family its own
 parent group. They resolve at build time into constants, valid anywhere a length
 or number is (including `@keyframes` bound to the copies).
@@ -286,6 +286,39 @@ or number is (including `@keyframes` bound to the copies).
 /* jitter */  translate: random(per-element, -8px, 8px) random(per-element, -8px, 8px);
 /* re-stack */ z-index: calc(0 - sibling-index());
 ```
+
+## Random values
+
+`random()` is the CSS Values 5 function: a value picked from a range, rolled
+once when the scene is built and then held as a constant.
+
+```
+random([per-element || --ident]?, <min>, <max>[, by <step>])
+```
+
+```css
+#star  { r: random(2px, 6px); }                        /* one roll */
+#dot   { use: dot; repeat: 40;
+         cx: random(per-element, 0px, 800px);          /* one roll per copy */
+         opacity: random(per-element, 0.2, 1, by 0.2); }
+#a     { cy: random(--row, 100px, 300px); }            /* #a and #b share */
+#b     { cy: random(--row, 100px, 300px); }            /* one roll */
+```
+
+- `<min>` and `<max>` are numbers or lengths with the same unit; the result
+  carries that unit. `by <step>` snaps the result to `min + n * step`, never
+  past `max`.
+- Without `per-element`, each call site rolls once, so every node that shares a
+  declaration (symbol instances, `repeat:` copies) gets the same value. With
+  `per-element`, each node rolls its own.
+- `--ident` names a roll: calls with the same ident and range share one value
+  across declarations.
+- Rolls are deterministic. The seed comes from the scene source, so the same
+  file always builds the same scene; editing the file can reroll values.
+- It works anywhere a number or length does, including `@keyframes` (rolled per
+  animated node) and inside `calc()`. It is static: the value doesn't change
+  over the timeline.
+- A malformed call raises the `invalid-random` diagnostic.
 
 ## Transforms
 
@@ -302,8 +335,8 @@ or number is (including `@keyframes` bound to the copies).
 
 `skew(ax, ay)` / `skewX(a)` / `skewY(a)` shear the shape (angles in `deg`);
 `skew(a)` skews x only. Like the other channels they pivot around
-`transform-origin` and animate in `@keyframes`. Handy for cheap perspective
-fakes in CSS art.
+`transform-origin` and animate in `@keyframes`. Skew is a common way to fake
+perspective in CSS art.
 
 `matrix(a, b, c, d, e, f)` is the CSS 2D affine matrix. It decomposes onto the
 same channels (translate, rotate, scale, skewX), so it animates in `@keyframes`
@@ -312,7 +345,7 @@ onto any parallelogram. Transforms are affine only: there is no `perspective`
 or `matrix3d`.
 
 The individual CSS transform properties `translate:`, `rotate:`, and `scale:`
-also work and write the **same** channels as `transform:` — so
+also work and write the **same** channels as `transform:`, so
 `translate: 100px 50px` equals `transform: translate(100px, 50px)`. Mixing them
 with `transform:` on one node is last-declaration-wins per channel (not CSS's
 additive layering).
@@ -365,8 +398,7 @@ fill: conic-gradient(in oklch longer hue, #0011ff, #fff300, #0011ff);
 Hue methods are `shorter` (the CSS default), `longer`, `increasing`,
 `decreasing`. An unrecognized space degrades to sRGB rather than erroring.
 
-> Only `oklab`/`oklch` are realized: sRGB is already the default, and the other
-> Color 4 spaces have no demand yet. Out-of-gamut results clip per channel
+> The interpolation spaces are sRGB (the default), `oklab`, and `oklch`. Out-of-gamut results clip per channel
 > rather than gamut-mapping along constant lightness. `in <space>` gradients are
 > realized by inserting intermediate sRGB stops, so all three backends show the
 > same ramp.
@@ -409,8 +441,8 @@ turn):
 }
 ```
 
-Each gradient has a `repeating-` variant — `repeating-linear-gradient`,
-`repeating-radial-gradient`, `repeating-conic-gradient` — that tiles the stop
+Each gradient has a `repeating-` variant (`repeating-linear-gradient`,
+`repeating-radial-gradient`, `repeating-conic-gradient`) that tiles the stop
 run across the whole extent (stripes, rings, checker sweeps):
 
 ```css
@@ -422,10 +454,10 @@ run across the whole extent (stripes, rings, checker sweeps):
 
 A gradient `fill`/`stroke` is animatable in `@keyframes`: each stop's offset and
 color are interpolated, along with the linear angle, the conic `from`/`at`, and
-the radial radius/center/focal. The two endpoints must be *compatible* — same
+the radial radius/center/focal. The two endpoints must be *compatible*: same
 gradient type, same stop count, the same `repeating` flag, and the same
-explicit-geometry presence (both or neither specify `from`/`to`, `at`/`focal`)
-— so stops pair up index-for-index. Incompatible gradients step (hold the
+explicit-geometry presence (both or neither specify `from`/`to`, `at`/`focal`),
+so stops pair up index-for-index. Incompatible gradients step (hold the
 departing value) instead of interpolating.
 
 > Renderer note: conic gradients paint natively on the Canvas2D and Skia
@@ -456,7 +488,7 @@ departing value) instead of interpolating.
 top-bottom / left-right, 4 → top right bottom left).
 
 Multiple `path()` values are unioned into one clip region (a point inside **any**
-of them is kept) — this maps Lottie's additive multi-mask:
+of them is kept). This maps Lottie's additive multi-mask:
 
 ```css
 #masked {
@@ -473,7 +505,7 @@ can't be tweened.
 
 `mask` masks a node by another node's **alpha** or **luminance**. The matte
 source is referenced by id (it can live anywhere in the scene) and is *not*
-painted on its own — only sampled as the matte:
+painted on its own, only sampled as the matte:
 
 ```css
 #reveal {
@@ -502,7 +534,7 @@ source canvas is tainted by a cross-origin image (pixel readback is blocked).
 ## Filters
 
 `filter` applies CSS filter functions to a node and its subtree. The supported
-functions are the standard CSS ones — nothing is invented:
+functions are the standard CSS ones:
 
 ```css
 #glow {
@@ -526,16 +558,16 @@ functions are the standard CSS ones — nothing is invented:
 }
 ```
 
-- `blur(<length>)` — Gaussian blur; the radius is the `stdDeviation`.
-- `drop-shadow(<dx> <dy> <blur>? <color>?)` — offset, blur radius, and color
+- `blur(<length>)`: Gaussian blur; the radius is the `stdDeviation`.
+- `drop-shadow(<dx> <dy> <blur>? <color>?)`: offset, blur radius, and color
   (color optional, defaults to black).
 - `brightness()`, `contrast()`, `saturate()`, `grayscale()`, `sepia()`,
-  `invert()`, `opacity()` — a single `<number>` or `<percent>` (`50%` == `0.5`;
+  `invert()`, `opacity()`: a single `<number>` or `<percent>` (`50%` == `0.5`;
   omitted defaults to `1`).
-- `hue-rotate(<angle>)` — an angle in `deg` (omitted defaults to `0`).
+- `hue-rotate(<angle>)`: an angle in `deg` (omitted defaults to `0`).
 
 `blur`/`drop-shadow` lengths are authored in the node's **local** space and
-**scale with the node's transform** — a scaled-up element's blur scales too,
+**scale with the node's transform**: a scaled-up element's blur scales too,
 matching CSS; the color-adjust functions are scale-free. On a node with children
 the subtree is composited offscreen and blitted back through the filter; a leaf
 shape is filtered the same way. **The whole filter list is animatable** in
@@ -597,8 +629,8 @@ renders nothing.
 ### Source cropping & sprite sheets
 
 `object-view-box: xywh(<x> <y> <w> <h>)` crops the source to a sub-rect (in image
-pixels) before it's scaled into the box — the CSS property for cropping a
-replaced element. The four numbers are the frame's top-left and size on the
+pixels) before it's scaled into the box (the CSS property for cropping a
+replaced element). The four numbers are the frame's top-left and size on the
 sheet, so paging a sprite sheet is just moving `x`:
 
 ```css
@@ -617,7 +649,7 @@ sheet, so paging a sprite sheet is just moving `x`:
 
 `object-view-box: none` (the default) draws the whole bitmap. The crop is
 **animatable** (each `xywh` component interpolates, so `steps(N)` pages discrete
-frames) and **bindable** — a host can drive the frame with `var()`/`input()`:
+frames) and **bindable**, so a host can drive the frame with `var()`/`input()`:
 
 ```css
 #hero { object-view-box: xywh(calc(var(--frame) * 64px) 0 64px 64px); }
@@ -631,7 +663,7 @@ not.
 ## Trim Paths
 
 Trim paths reveal only part of a node's **stroke** (the fill is always drawn in
-full) — the effect behind Lottie-style progressive line drawing. Valid on any
+full). This is the effect behind Lottie-style progressive line drawing. Valid on any
 strokeable node (`path`, `circle`, `ellipse`, `rect`, `star`, `polygon`). The trims are percentages
 of the outline length and are animatable.
 
@@ -654,7 +686,7 @@ of the outline length and are animatable.
 
 - `trim-start` (default `0%`) and `trim-end` (default `100%`) select the visible
   window of the outline.
-- `trim-offset` (default `0%`) rotates the start point around the outline —
+- `trim-offset` (default `0%`) rotates the start point around the outline;
   animate it for a "marching" dash on a closed shape (circle/ellipse/rect).
 - `stroke-linecap` sets the stroke's end caps: `butt` (default), `round`, or `square`.
 
@@ -687,10 +719,10 @@ identically on all three backends.
 
 Other stroke properties:
 
-- `stroke-linejoin` — corner join: `miter` (default), `round`, or `bevel`.
-- `stroke-miterlimit` — miter cap ratio, default `4` (SVG/Lottie, not Canvas's
+- `stroke-linejoin`: corner join: `miter` (default), `round`, or `bevel`.
+- `stroke-miterlimit`: miter cap ratio, default `4` (SVG/Lottie, not Canvas's
   10); only affects miter joins.
-- `paint-order: stroke` — draw the stroke *behind* the fill (so only its outer
+- `paint-order: stroke`: draw the stroke *behind* the fill (so only its outer
   edge shows). Default `normal` is fill first, stroke on top.
 
 ## Fill Rule
@@ -709,7 +741,7 @@ their hit-testing and clipping): `nonzero` (default) or `evenodd`. With
 ```
 
 The Lottie importer leans on this to turn merged shapes into a single `nonzero`
-path with one subpath per shape — a union of fills. Fills union exactly; a
+path with one subpath per shape, a union of fills. Fills union exactly; a
 **stroke** on a merged path shows interior seams (subpath outlines aren't
 booleaned away). Subtract/intersect/exclude merge modes don't convert (see
 [Importing Lottie and SVG](importing.md)).
@@ -739,7 +771,7 @@ Animation shorthand: `name duration timing-function iteration-count direction fi
 (tokens are matched by type, so order is flexible; of two time values the first
 is duration and the second is delay). Duration defaults to `1s`. A **bare
 number** in the shorthand is read as iteration-count only when it's a positive
-integer below 100 — for any other count use the `animation-iteration-count`
+integer below 100; for any other count use the `animation-iteration-count`
 longhand. Multiple animations can be comma-separated in one declaration
 (`animation: spin 2s linear infinite, fade 1s ease`).
 
@@ -763,13 +795,13 @@ animation holds its final frame rather than snapping back to base.
 `accumulate`. With `add`/`accumulate`, numeric channels are *added* onto what
 base + bindings + earlier animations already wrote this frame (an omitted
 property contributes 0, not the base value); color/gradient/path channels always
-replace. It is a longhand only — the `animation` shorthand resets it to
+replace. It is a longhand only: the `animation` shorthand resets it to
 `replace`.
 
 Timing functions: `linear`, `ease`, `ease-in`, `ease-out`, `ease-in-out`,
 `cubic-bezier(x1, y1, x2, y2)`, `steps(n, <position>)`, `linear(<stops>)`,
-`step-start`, and `step-end` — a step/hold that keeps the departing keyframe's
-value until the next keyframe, then jumps. `steps()` positions are
+`step-start`, and `step-end` (a step/hold that keeps the departing keyframe's
+value until the next keyframe, then jumps). `steps()` positions are
 `jump-start`/`start`, `jump-end`/`end` (default), `jump-none`, and `jump-both`.
 `linear()` (CSS Easing L2) is *not* clamped, so control points above 1 give
 spring/overshoot curves.
@@ -788,15 +820,15 @@ Keyframe blocks need not be authored in ascending order (they're sorted). Each
 property animates off the keyframes that declare it, so a property omitted from
 an intermediate keyframe interpolates straight across it, per CSS. If a
 property's earliest keyframe isn't at 0% or its latest isn't at 100%, the
-missing edge is synthesized from the element's base value, per CSS — the
+missing edge is synthesized from the element's base value, per CSS. The
 implicit keyframe uses the animation's default timing function (an explicit
 edge keyframe's own easing still wins when one is authored).
 
-A path's `d` is animatable — **path morphing**. The two keyframe paths must be
+A path's `d` is animatable (**path morphing**). The two keyframe paths must be
 *compatible*: the same command sequence (same letters in the same order, same
 counts) after parsing, so their numeric arguments interpolate pairwise.
 Incompatible sequences step (hold the departing path) instead of morphing.
-Arc (`A`) boolean flags don't interpolate — they step to the departing value.
+Arc (`A`) boolean flags don't interpolate; they step to the departing value.
 Trim, fill-rule and hit-testing all keep working on the morphing path.
 
 ```css
@@ -808,11 +840,11 @@ Trim, fill-rule and hit-testing all keep working on the morphing path.
 
 A **negative delay** starts an animation as if it had already been running for
 that long (the first `|delay|` of the timeline is skipped, iteration counting
-included) — handy for staggering copies of the same animation:
+included). Use it to stagger copies of the same animation:
 
 ```css
 #a { animation: drift 3s linear infinite; }
-#b { animation: drift 3s linear infinite; animation: drift 3s linear infinite -1s; }
+#b { animation: drift 3s linear infinite -1s; }   /* one second ahead of #a */
 ```
 
 ## Motion Paths
@@ -837,17 +869,17 @@ it by arc length (`0%`–`100%`, animatable); `offset-rotate` orients the node.
 }
 ```
 
-- `offset-path: path("<svg d>")` — the motion path (static).
-- `offset-distance: <pct>` — arc-length position, `0%` by default; animate it to
+- `offset-path: path("<svg d>")`: the motion path (static).
+- `offset-distance: <pct>`: arc-length position, `0%` by default; animate it to
   travel the path. At `0%` (or with no path) placement is a no-op, so the node
   sits at its authored position.
-- `offset-rotate: auto | <angle>deg | auto <angle>deg` — `auto` follows the
+- `offset-rotate: auto | <angle>deg | auto <angle>deg`: `auto` follows the
   tangent, an angle is a fixed orientation, `auto <angle>` is tangent plus a
   fixed offset. Default `auto`.
 
 ## Time Scoping
 
-`time-offset` and `time-scale` retime a node **and its whole subtree** — the
+`time-offset` and `time-scale` retime a node **and its whole subtree**: the
 node's own animations plus every descendant's. They rewrite the local timeline
 to `(t - time-offset) * time-scale`, so all timing downstream (delays,
 iterations, fill modes, motion-path distance) just follows along.
@@ -861,16 +893,16 @@ iterations, fill modes, motion-path distance) just follows along.
 }
 ```
 
-- `time-offset: <time>` — delay the subtree's timeline (`s` / `ms`), default `0`.
-- `time-scale: <number>` — playback rate; `0.5` is half speed, `2` is double.
+- `time-offset: <time>`: delay the subtree's timeline (`s` / `ms`), default `0`.
+- `time-scale: <number>`: playback rate; `0.5` is half speed, `2` is double.
   Must be `> 0` (invalid values warn and fall back to `1`), default `1`.
 
-Both are static (not animatable). Nested scopes compose — each applies to the
-local time it inherits — which is how imported compositions (Lottie precomps,
+Both are static (not animatable). Nested scopes compose, each applying to the
+local time it inherits. This is how imported compositions (Lottie precomps,
 with per-instance start time and stretch) keep independent clocks.
 
 `time-remap` maps inherited time through an explicit curve instead of a linear
-offset/scale — this is how imported After Effects time remapping plays.
+offset/scale. This is how imported After Effects time remapping plays.
 It's a comma list of stops, each `<input-time> <output-time> [easing]` (times in
 `s`/`ms`, easing governs the segment to the next stop); outside the input domain
 the endpoints hold. When present it **replaces** `time-offset`/`time-scale`.
@@ -884,7 +916,7 @@ the endpoints hold. When present it **replaces** `time-offset`/`time-scale`.
 
 Unlike `time-offset`/`time-scale`, `time-remap` is **animatable**. Given a
 single time value in `@keyframes` or a `:state()`, it becomes a scalar the
-animation drives — scrubbing the subtree to that instant of its local timeline.
+animation drives, scrubbing the subtree to that instant of its local timeline.
 This is how a `@machine` plays, loops, or reverses a segment of a subtree's
 master timeline (e.g. stepping between levels):
 
@@ -897,31 +929,31 @@ master timeline (e.g. stepping between levels):
 By default siblings paint in document order (first child behind, last in front).
 `z-index` overrides that: siblings paint in **ascending** z-index, with document
 order breaking ties, and hit-testing uses the same order. Negative values are
-valid — and the main use — for painting a nested child *behind* its parent's
+valid, and their main use is painting a nested child *behind* its parent's
 other children. Groups have no geometry of their own, so parent-vs-child
 layering reduces to sibling ordering. An integer, default `0`. It is bindable
 (`z-index: var(--depth)`, calc) and animatable in `@keyframes`, re-evaluated per
-frame — driving one via a host `setVariable()` re-sorts the siblings live (a
+frame; driving one via a host `setVariable()` re-sorts the siblings live (a
 depth-sorted sprite field). CSS animates z-index as an `<integer>`, so a sampled
-value is rounded. A scene with no dynamic z-index pays no per-frame re-sort.
+value is rounded.
 
 `display: none` removes a node **and its subtree** from both the render walk and
-hit-testing — exactly like being outside a visibility window (nothing to paint,
+hit-testing, exactly like being outside a visibility window (nothing to paint,
 nothing to hover). Any other value (`block`, …) is visible; default is visible.
 It is bindable and animatable through the numeric vocabulary: `display:
 var(--alive)` (or a calc/`input()` expression) resolves per frame with `0` →
 `none` and any non-zero → visible, so a host toggles a pooled entity in and out
 each frame without an opacity hack. (This mirrors CSS's `display: if(style(…))`
-capability through Popkorn's existing bindings — there is no `if()` syntax.)
+capability through Popkorn's bindings; there is no `if()` syntax.)
 Because display is discrete in CSS, a `@keyframes` value is a threshold, not a
 tween: only an exact `0` hides.
 
 `visible-from` / `visible-until` window a node (and its subtree) to a time range
-(`s` / `ms`), evaluated against the time the node *inherits* — i.e. the
+(`s` / `ms`), evaluated against the time the node *inherits*, that is, the
 containing (parent) scope's timeline, before the node's own `time-offset` /
-`time-scale` apply — so visibility lives in the parent comp's clock, matching
+`time-scale` apply. Visibility therefore lives in the parent comp's clock, matching
 Lottie layer `ip`/`op`. Outside `[from, until)` the node is
-skipped by both the render walk and hit-testing — nothing to paint, nothing to
+skipped by both the render walk and hit-testing: nothing to paint, nothing to
 hover. This is how imported layers with a shorter life than the composition
 (sticker exports that swap a layer in per time slice) appear and disappear
 without an opacity hack. Static; defaults are "always visible".
@@ -980,7 +1012,7 @@ Notes on bindings:
   properties can reference other custom properties (resolved recursively).
 - The CSS `var(--x, fallback)` two-argument form is parsed: the fallback is used
   when `--x` is undefined, and a nested `var()`/`input()` fallback works. A
-  comma-separated fallback *list* (`var(--x, a, b)`) is not supported — give a
+  comma-separated fallback *list* (`var(--x, a, b)`) is not supported; give a
   single fallback value.
 
 ## States, Transitions & Hit-Testing
@@ -1006,8 +1038,8 @@ states.
 }
 ```
 
-- A state block can override any animatable property (anything with a registry
-  handler) as an instant snap — `fill`, `stroke`, `stroke-width`, `opacity`, and
+- A state block can override any animatable property as an instant snap:
+  `fill`, `stroke`, `stroke-width`, `opacity`, and
   `transform` (with the individual `translate`/`rotate`/`scale`) are the common
   ones, but geometry and other animatable properties work too. Text strings
   (`content`, `font-family`, `font-weight`, `text-anchor`/`text-align`) can be
@@ -1031,7 +1063,7 @@ state block overrides the node-level transition when entering that state
 - Hits bubble like the DOM: an interactive group is hit whenever any descendant
   contains the point; the nearest interactive ancestor-or-self is credited, so a
   directly-interactive child still wins inside its own geometry.
-- Groups have no geometry of their own — a group only becomes a target via a
+- Groups have no geometry of their own: a group only becomes a target via a
   bubbled descendant hit. A node's `clip-path` also clips hit-testing, and mask
   sources aren't hittable.
 - `pointer-events: none` removes a node **and its whole subtree** from
@@ -1041,25 +1073,25 @@ state block overrides the node-level transition when entering that state
   Static keyword; not animatable.
 
 **Clicks** fire a `popkorn:click` DOM event with no opt-in whenever a press and
-release land on the same shape — even for a scene with no `@machine` or
+release land on the same shape, even for a scene with no `@machine` or
 `:hover`. `detail` is `{ id, path, x, y }`: `id` is the hit node's id (the
 nearest `cursor: pointer` / interactive ancestor when one exists, else the
 topmost shape), `path` is the ancestor ids from the root to that node, and
-`x`/`y` are the click point in scene coordinates. Click resolution hit-tests the
-full tree; the cheap per-frame hover path (interactive nodes only) is unchanged.
+`x`/`y` are the click point in scene coordinates. Clicks hit-test every shape;
+hover only considers interactive nodes.
 
 ## State Machines
 
 `&:hover`/`&:active` restyle a node while a pointer is on it; a `@machine` adds
-named states that **outlive the pointer** and can start animations — toggles,
+named states that **outlive the pointer** and can start animations: toggles,
 "intro once then loop", tap-driven reactions, app-state-driven styling. Multiple
 `@machine` blocks run concurrently and independently.
 
 A scene with a `@machine` has **no duration**: it never ends or loops as a clip
 (the player's `loop` attribute is inert, the clock runs forward monotonically),
 because machine state lives off the timeline. Per-state animations either loop
-(`infinite`) or run once and hold their final frame while the state stays active
-— so a `:state()` animation defaults to `animation-fill-mode: both` (hold the
+(`infinite`) or run once and hold their final frame while the state stays active,
+so a `:state()` animation defaults to `animation-fill-mode: both` (hold the
 start frame before its delay, the end frame after completion) instead of the
 node-level `forwards`; write an explicit fill mode to override.
 
@@ -1084,7 +1116,7 @@ node-level `forwards`; write an explicit fill mode to override.
 }
 ```
 
-**Transitions** — one or more `to:` per state:
+**Transitions:** one or more `to:` per state:
 
 ```
 to: <state> [on <trigger>] [when <guard> [and <guard>]*];
@@ -1098,10 +1130,10 @@ only.
 
 | Trigger | Meaning |
 |---|---|
-| `click(#id)` `pointerdown(#id)` `pointerup(#id)` `hoverstart(#id)` `hoverend(#id)` | pointer event on a named node (the existing hit-tester) |
+| `click(#id)` `pointerdown(#id)` `pointerup(#id)` `hoverstart(#id)` `hoverend(#id)` | pointer event on a named node, resolved by the same hit-testing as `:hover` |
 | `click(:root)` etc. | same events on the whole scene (tap anywhere) |
 | `complete` | the current state's animations finished (non-infinite) |
-| `event(name)` | a named external event fired by the host — see host API |
+| `event(name)` | a named external event fired by the host (see host API) |
 
 Pointer and `complete` triggers need zero host code. `event()` is the escape
 hatch for signals the player can't see itself (app logic, sensors).
@@ -1119,16 +1151,16 @@ when style(state-time > 2s)            /* time in current state → timeouts */
 `state-time` is a reserved per-machine input measuring time in the current state.
 
 `mix <duration> [<easing>]` on a `to:` tweens the state change as a cross-fade:
-each animatable channel is blended through the registry over the duration, while
+each animatable property interpolates over the duration, while
 incompatible gradient/path channels step at the eased midpoint. Interrupting a
 mix drops the old outgoing side. Environment `media.*` inputs
 (`media.prefers-reduced-motion`, `media.hover`, `media.width`, `media.height`)
 work in guards and anywhere `input()` is read.
 
-**State styling: `:state()`** — while machine `M` is in state `S`, `#node:state(S)`
+**State styling: `:state()`.** While machine `M` is in state `S`, `#node:state(S)`
 matches (namespace as `:state(M.S)` when two machines share a state name). These
-are full rules — crucially including `animation:`, which **(re)starts from the
-state's entry time on entry** — and may carry `> #child { … }` rules that restyle
+are full rules, including `animation:`, which **(re)starts from the
+state's entry time on entry**. They may also carry `> #child { … }` rules that restyle
 a direct descendant. `:hover`/`:active` keep working and still apply last.
 
 ```css
@@ -1188,36 +1220,18 @@ else:
 `scroll.progress` is a built-in input: scroll position normalized to 0..1 by the
 scrollable range (the raw offset stays available as `scroll.y`).
 
-## Importing SVG
+## Importing SVG and Lottie
 
-Alongside the Lottie importer, `@popkorn/converters` turns an SVG into a Popkorn
-scene (the `popkorn-convert` CLI, or the playground's **Import** button). The
-mapping is the natural one:
-
-- `<rect>`/`<circle>`/`<ellipse>`/`<line>`/`<polyline>`/`<polygon>`/`<path>` →
-  the matching Popkorn shapes; `<g>` → a group.
-- `fill`/`stroke`/`stroke-width`/`stroke-linecap`/`stroke-linejoin`/
-  `stroke-dasharray`/`fill-rule`/`opacity` → their Popkorn equivalents.
-- `<linearGradient>`/`<radialGradient>` (incl. `objectBoundingBox` units,
-  `gradientTransform`, and `stop-opacity`) → Popkorn gradient fills.
-- `transform` (`matrix`/`translate`/`rotate(a cx cy)`/`scale`/`skewX`/`skewY`)
-  is decomposed onto each node's `transform`, shear included as `skewX`.
-- `<clipPath>` and luminance `<mask>` → Popkorn clip/mask.
-
-**Animation imports too** — CSS `@keyframes` from `<style>` blocks and basic
-SMIL `<animate>`/`<animateTransform>` map into Popkorn `@keyframes` +
-`animation-*` (opacity/fill/stroke/transform/dash channels). Unmappable cases
-degrade to a warning: `@media`-wrapped keyframes, gradient keyframes, `<set>`,
-`<animateMotion>`, event/sync-base begins, and additive/accumulate. Animated
-skew (`skewX`/`skewY`, `skew()`/`matrix()` keyframes) imports as-is.
-Deliberately skipped, matching the Lottie skips: `<pattern>`, `<marker>`,
-`<foreignObject>`, and `<textPath>`.
+`@popkorn/converters` turns SVG artwork and Lottie animations into Popkorn
+scenes, from the `popkorn-convert` CLI or the playground's **Import** button.
+[Importing Lottie and SVG](importing.md) covers what maps, what is skipped, and
+the warnings a skipped feature produces.
 
 ## Diagnostics
 
 `parse(source)` returns the AST with a `diagnostics: Diagnostic[]` field, and
-`validate(source)` returns just that array — position-tracked warnings/hints for
-authoring mistakes (parsing always continues; existing callers can ignore it). A
+`validate(source)` returns just that array: position-tracked warnings/hints for
+authoring mistakes (parsing always continues, so the array is advisory). A
 `Diagnostic` is `{ code, severity: "error" | "warning" | "info", message, hint?,
 start, end }` where `start`/`end` are character offsets into the source;
 `offsetToLineCol(source, offset)` maps an offset to a 1-based line/column.
@@ -1234,5 +1248,4 @@ closing quote before a newline/EOF), `unit-has-no-effect` (a font-relative unit
 like `em`/`rem` on a length, since Popkorn lengths are scene units with no font
 context), and `invalid-random` (a malformed `random()` call: an unrecognized
 keyword argument, a `by <step>` clause missing its keyword, mismatched units
-between `min`/`max`/`step`, or a `min` greater than `max`). The list is
-deliberately small; the structure makes adding cases trivial.
+between `min`/`max`/`step`, or a `min` greater than `max`).

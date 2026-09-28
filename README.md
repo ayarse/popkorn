@@ -126,25 +126,22 @@ with the same meaning.** Motion along a curve is `offset-path`. A hold is
 Easing is `cubic-bezier()`. Interaction states are `:hover` and `:active`, and
 tweening between them is `transition`.
 
-This matters for three groups of readers:
+Anyone who writes CSS can already read a scene; the additions are shape
+types, SVG-style geometry, and a few motion-graphics properties like trim paths
+and masks. Language models have seen a lot of CSS too, so they write working
+Popkorn from a short guide without fine-tuning, and most of the scenes in the
+playground gallery were written that way. Tooling comes along as well: scenes
+are `.css` files, so GitHub, editors and formatters highlight them, and a
+change shows up as a readable diff.
 
-- **People who write CSS** can already read a scene. The additions are small:
-  shape types, SVG-style geometry, and a few motion-graphics properties like
-  trim paths and masks.
-- **Language models** have seen a lot of CSS. They write working Popkorn from
-  a short guide without fine-tuning. Every scene in the playground gallery was
-  written this way.
-- **Tools** get it for free. Scenes are `.css` files, so GitHub, editors and
-  formatters highlight them, and a change shows up as a readable diff.
-
-Popkorn isn't exactly CSS. It's a dialect that stays as close as it can, and
-the gaps are listed in [Limitations](docs/limitations.md).
+Popkorn is a dialect that stays as close to CSS as it can, and the gaps are
+listed in [Limitations](docs/limitations.md).
 
 ## Where scenes come from
 
 There's no dedicated authoring tool yet. Today a scene usually starts as an
-import (Lottie or SVG) or as a prompt to the playground's Copilot. Some people
-write them by hand, which works fine because the format is small.
+import (Lottie or SVG) or as a prompt to the playground's Copilot. Writing one
+by hand is always an option too, since the format is small.
 
 Design tools are next. A Figma plugin that exports Figma Motion timelines to
 Popkorn is in progress. The parser, converters and runtime are open source,

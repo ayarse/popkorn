@@ -1,6 +1,6 @@
 # @popkorn/player
 
-The `<popkorn-player>` web component and Canvas2D engine that plays the Popkorn format, a small, CSS-like format for interactive motion graphics. See the [main README](https://github.com/ayarse/popkorn#readme) for what Popkorn is and why.
+The web runtime for Popkorn, a format for portable motion graphics written in a close CSS dialect. It provides the `<popkorn-player>` web component and the player underneath it, which draws scenes to a canvas. See the [main README](https://github.com/ayarse/popkorn#readme) for what Popkorn is and why.
 
 ## Installation
 
@@ -8,11 +8,11 @@ The `<popkorn-player>` web component and Canvas2D engine that plays the Popkorn 
 bun add @popkorn/player
 ```
 
-## Quick Start
+## Quick start
 
-### Using the Web Component
+### The web component
 
-The simplest way to use the player is via the `<popkorn-player>` custom element:
+Load the package and give a `<popkorn-player>` element a scene:
 
 ```html
 <script type="module">
@@ -39,7 +39,7 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 </script>
 ```
 
-### Web Component Attributes
+### Attributes
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
@@ -52,7 +52,7 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 | `autoplay` | boolean | Whether playback auto-starts (default true; set `autoplay="false"` to opt out) |
 | `fit` | string | How the scene fits the host: `contain` (default), `cover`, `fill`, or `none` |
 
-### Web Component Properties
+### Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -66,10 +66,10 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 | `autoplay` | boolean | Get/set whether playback auto-starts |
 | `fit` | string | Get/set the fit mode |
 | `currentTime` | number (read-only) | Current timeline position in milliseconds |
-| `duration` | number (read-only) | Scene duration in milliseconds; `Infinity` for an unbounded scene |
+| `duration` | number (read-only) | Scene duration in milliseconds: 0 with no animations, `Infinity` for an unbounded scene (infinite loops or a state machine) |
 | `paused` | boolean (read-only) | Whether the timeline is currently frozen |
 
-### Web Component Methods
+### Methods
 
 | Method | Description |
 |--------|-------------|
@@ -84,25 +84,25 @@ The simplest way to use the player is via the `<popkorn-player>` custom element:
 | `fire(name)` | Fire a trigger variable or a machine event into the scene |
 | `getTimelineTracks()` | A serializable snapshot of every animated node's timing and keyframes, for an external timeline UI |
 
-### Web Component Events
+### Events
 
 All events are namespaced under `popkorn:`.
 
 | Event | Detail | Description |
 |-------|--------|-------------|
-| `popkorn:ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when scene is parsed and ready (`duration` in ms, 0 when the scene has no animations, `Infinity` for an unbounded state-machine/all-loops scene) |
-| `popkorn:complete` | — | Fired once when a non-looping timeline reaches its end |
+| `popkorn:ready` | `{ sceneRoot: SceneNode, duration: number }` | Fired when the scene is parsed and ready to play; `duration` matches the `duration` property |
+| `popkorn:complete` | none | Fired once when a non-looping timeline reaches its end |
 | `popkorn:error` | `{ error: Error }` | Fired on parse or `src` load / initialization error |
 | `popkorn:timeupdate` | `{ time: number, duration: number }` | Fired every rendered frame (drives external scrubbers) |
 | `popkorn:click` | `{ id: string, path: string[], x: number, y: number }` | Fired (no opt-in) when a press+release land on the same shape; `id`/`path` credit the nearest `cursor: pointer`/interactive ancestor, `x`/`y` are scene coordinates |
 
 For interactive scenes the player also dispatches `popkorn:statechange` and
-`popkorn:machine-event` — see the
+`popkorn:machine-event`; see the
 [state machines guide](https://github.com/ayarse/popkorn/blob/main/docs/state-machines.md).
 
-## React Integration
+## React
 
-For React apps, you can create a simple wrapper:
+In React, a small wrapper sets `source` through a ref:
 
 ```tsx
 import { useRef, useEffect } from 'react';
@@ -129,9 +129,9 @@ function MotionCanvas({ source, width = 800, height = 600, background }) {
 }
 ```
 
-## Advanced Usage
+## Driving the player directly
 
-For more control, you can use the lower-level APIs directly:
+The web component is a thin layer over the parser, scene builder and render loop, which can be used on their own:
 
 ```ts
 import {
@@ -142,72 +142,48 @@ import {
   AnimationScheduler,
 } from '@popkorn/player';
 
-// Parse the scene source
-const ast = parse(source);
+const scene = buildSceneGraph(parse(source));
+const renderer = new Canvas2DRenderer(document.querySelector('canvas'));
 
-// Build scene graph
-const scene = buildSceneGraph(ast);
-
-// Set up renderer
-const canvas = document.querySelector('canvas');
-const renderer = new Canvas2DRenderer(canvas);
-
-// Create animation scheduler
-const scheduler = new AnimationScheduler();
-
-// Create and start render loop
-const loop = new RenderLoop(renderer, scheduler);
+const loop = new RenderLoop(renderer, new AnimationScheduler());
 loop.setScene(scene);
 loop.setBackgroundColor('#1a1a2e');
 loop.start();
-
-// Later: stop playback
+// ...
 loop.stop();
 ```
 
-## Module Exports
+## Module exports
 
-### Parser (re-exported)
-- `parse` and its AST types (`StyleSheet`, `Rule`, `Declaration`, `Value`, `KeyframeRule`, `StateRule`, `PseudoState`, `CanvasConfig`, `VariableDefinition`)
+The package index also exports the pieces the web component is built from, for
+hosts that drive playback themselves and for authors of new rendering backends.
 
-### Web Component
-- `PopkornPlayer`, `registerPopkornPlayer()` - The custom element and its manual registration function
-- `TimelineTrack`, `TimelineAnimation`, `TimelineAnimationProperty` (types) - the shape `getTimelineTracks()` returns, for building an external timeline UI
+The parser is re-exported as `parse`, with its AST types (`StyleSheet`, `Rule`,
+`Declaration`, `KeyframeRule`, `Value`, `VariableDefinition`). The web
+component is `PopkornPlayer`, with `registerPopkornPlayer()` for manual
+registration; `TimelineTrack`, `TimelineAnimation` and
+`TimelineAnimationProperty` type what `getTimelineTracks()` returns.
 
-### Renderer
-- `Canvas2DRenderer` - Canvas 2D implementation
-- `Renderer` (type) - the primitive renderer interface every backend implements
-- `PaintStateRenderer`, `resolveGradient`, `resolveStrokeDash`, `paintOrderSequence` - paint semantics shared across backends
-- `CONFORMANCE_CASES`, `registerConformance`, `MASK_MODES` (+ trace/observation types) - the cross-backend conformance suite
-- Matrix utilities: `multiplyMatrices`, `translationMatrix`, `rotationMatrix`, `scaleMatrix`, `invertMatrix`, `transformPoint`, `IDENTITY_MATRIX`
-- Color utilities: `colorToCSS`, `parseColor`, `LUMA_COEFFICIENTS`
+| Area | Exports |
+|------|---------|
+| Scene | `buildSceneGraph`, `resetNodeToBase`, `resolveClip`; types `SceneNode`, `Transform`, `ShapeData`, `MaskMode`, `TextAnchor`, `TimingFunction` |
+| Transforms and matrices | `computeLocalMatrix`, `computeWorldMatrix`, `resolveTransformOrigin`, `multiplyMatrices`, `transformPoint`, `lerp`, `IDENTITY_MATRIX` |
+| Paths and geometry | `parsePath`, `applyCommandsToPath`, `computePathBounds`, `computePathLength`, `roundedRectPath`, `polystarToCommands`, `anchorX`, `setTextMeasurer` |
+| Animation | `AnimationScheduler`, `computeSceneDuration`, `applyEasing` |
+| Runtime | `RenderLoop`, `hitTest`, `InputTracker`, `InteractionManager`, `VariableResolver`, `readsInput`, `sceneExportLength` |
+| Viewport | `computeViewport`, `viewportMatrix`, `deviceToScene`; types `FitMode`, `Viewport` |
+| Rendering | `Canvas2DRenderer`, the `Renderer` interface type, `PaintStateRenderer`, `maskModeParts`, `resolveGradient`, `ellipseBox`, `resolveStrokeDash`, `paintOrderSequence`, `PendingImages`, `newImageDest`, `resolveImageDest`, `parseColor`, `tryParseColor`, `LUMA_COEFFICIENTS` |
 
-### Scene
-- `SceneBuilder`, `buildSceneGraph` - Build scene from AST
-- `SceneNode`, `Transform`, `ShapeData` (types) - Scene graph types
-- `createSceneNode`, `createDefaultTransform`, `cloneTransform`, `resetNodeToBase`, `snapshotNode` - Factory and snapshot functions
-- `parsePath`, `applyCommandsToPath`, `computePathBounds`, `computePathLength`, `roundedRectPath` - Path parsing and measurement
-- `polystarToCommands` - Star/polygon shape geometry
-- Transform utilities: `computeLocalMatrix`, `computeWorldMatrix`, `lerp`, `setTextMeasurer`
-
-### Animation
-- `AnimationScheduler`, `computeSceneDuration` - Animation timing controller and scene duration calculation
-- `applyEasing` - Apply easing functions
-- `interpolateKeyframes` - Keyframe interpolation
-
-### Runtime
-- `RenderLoop`, `wrapTime` - Main render loop orchestrator
-- `hitTest` - Hit-testing against the scene graph
-- `createInputTracker`, `InputTracker` - Mouse/pointer input tracking
-- `createInteractionManager`, `InteractionManager` - Hover/active/click state
-- `createVariableResolver`, `VariableResolver` - CSS variable resolution
-- `computeViewport`, `viewportMatrix`, `deviceToScene`, `IDENTITY_VIEWPORT` - Fit/DPR viewport mapping
+For backend authors, `registerConformance(runner, harness)` registers the
+cross-backend conformance cases (`CONFORMANCE_CASES`, `MASK_MODES`) with a test
+runner against a harness for a new `Renderer`. The Canvas2D, SVG and Skia
+backends are held to the same table.
 
 ## Scene syntax
 
 See [docs/reference.md](https://github.com/ayarse/popkorn/blob/main/docs/reference.md) for the full format reference.
 
-### Basic Shapes
+### Shapes
 
 ```css
 #rect {

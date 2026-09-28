@@ -38,8 +38,8 @@ Reading it:
 - Each `state` block lists its **transitions**. `to: on on click(#bulb)` reads as
   "when `#bulb` is clicked, go to the `on` state."
 
-The player owns pointer handling on every platform, so `click(#bulb)` just works.
-No listeners, no `fire()` calls, nothing in your page.
+The player owns pointer handling on every platform, so `click(#bulb)` needs no
+listeners, no `fire()` calls, and nothing in your page.
 
 ## Making states look different: `:state()`
 
@@ -52,8 +52,7 @@ you style them. While machine `lamp` is in state `on`, the pseudo-class
 #room:state(lamp.on) { animation: roomOn 800ms ease-out; }
 ```
 
-The important part: a state rule can start an **animation**, something a `:hover`
-can never do. Entering a state (re)starts its animations from that moment. A
+Unlike a `:hover` rule, a state rule can start an **animation**. Entering a state (re)starts its animations from that moment. A
 one-shot animation holds its final frame while the state stays active; a looping
 one keeps looping.
 
@@ -76,7 +75,7 @@ The `on ...` part of a transition is its trigger.
 Pointer and `complete` triggers need zero host code. `event()` is the escape
 hatch for signals the player cannot sense on its own.
 
-`complete` makes sequences trivial: play once, then settle.
+`complete` handles sequences such as playing an intro once and then settling:
 
 ```css
 @machine hero {
@@ -140,7 +139,7 @@ state pressing {
 
 ## Driving it from your app
 
-Two directions.
+Events flow both ways.
 
 **In.** Pointer and `complete` triggers are automatic. For everything else, your
 app fires a named event and the machine reacts with `on event(name)`:
@@ -183,14 +182,15 @@ The rest of the component's event surface (`popkorn:ready`, `popkorn:timeupdate`
 - **Any-state transitions.** A `state *` block is checked before the current
   state, for global escapes like a reset: `state * { to: idle on event(reset); }`.
 - **Concurrent machines.** Multiple `@machine` blocks run independently, so a
-  blink loop and your button logic never tangle.
+  blink loop and your button logic stay independent of each other.
 - **No duration.** A scene with a machine never ends or loops as a clip; the clock
   runs forward and the state lives off the timeline. `player.duration` reports
   `Infinity` and the `loop` attribute is inert. The same is true of any scene
-  with `:state()` rules (a machine isn't required) and of a scene whose
-  animations are all `infinite` — neither has an honest end either.
+  containing `:state()` rules, even with no `@machine` to drive them (those
+  rules then never match), and of a scene whose animations are all `infinite`,
+  since neither has a natural end point.
 - **Scrubbing a segment with `time-remap`.** `time-remap` pins a subtree to an
-  instant of its local timeline, and it's animatable — so a state can drive a
+  instant of its local timeline, and it's animatable, so a state can drive a
   segment of a converted Lottie by animating it, instead of starting and
   stopping separate tracks. See `examples/popkorn/13-lottie--interactive-volume.css`.
 
@@ -211,11 +211,11 @@ interpolated (mismatched gradients or path shapes) step at the midpoint of the
 mix rather than blending. If a new transition fires mid-mix, the in-progress
 mix is dropped and the machine cross-fades from where it is to the new state.
 
-## Not here yet
+## Out of scope
 
-- Hierarchical states, history states, string inputs, and event payloads are
-  deliberately left out, matching what shipping interactive-animation runtimes
-  settle on.
+Hierarchical states, history states, string inputs, and event payloads are
+deliberately left out, matching what shipping interactive-animation runtimes
+settle on.
 
 ## See also
 

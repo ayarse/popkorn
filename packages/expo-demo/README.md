@@ -1,76 +1,72 @@
 # @popkorn/expo-demo
 
-Expo app to test the `@popkorn/react-native` renderer on a real device. One
-screen: a full-screen `PopkornView` with
+An Expo app for trying the `@popkorn/react-native` renderer on a real device.
+It is a single screen: a full-screen `PopkornView` with a row of chips for
+picking a scene from the `examples/popkorn/*.css` gallery (the same scenes as
+the playground, plus a Thanksgiving turkey), swatches for the color behind
+transparent scenes, and two buttons. **Edit CSS** opens a bottom-sheet editor
+with syntax highlighting; **Load** swaps the scene in, and parse errors show
+inline. **Load URL** fetches a `.css` scene from a URL, or reads the URL off a
+QR code with **Scan QR**.
 
-- an **example picker** — horizontal chips for the `examples/popkorn/*.css`
-  gallery (plus the turkey), same scenes as the playground;
-- **background swatches** to fill behind transparent scenes (like the
-  playground's stage-background control);
-- a floating **Edit CSS** button opening a bottom-sheet editor
-  (syntax-highlighted input + Load/Cancel), swapping the scene on Load (parse
-  errors show inline, no crash);
-- a **Load URL** button — fetch a `.css` scene from a URL, or **Scan QR** to
-  read the URL off a QR code (camera) and load it.
+The default scene is the turkey, converted from
+`examples/lottie/thanksgiving-turkey.json` and inlined in `turkey.ts`. It is
+made of plain shapes and paths. The Skia renderer also draws text (system
+fonts), images, and track mattes. Custom fonts and CSS filters are not yet
+supported on Skia; filtered scenes draw unfiltered. See the
+`@popkorn/react-native` README for details.
 
-The default scene is the Thanksgiving turkey
-(`examples/lottie/thanksgiving-turkey.json`, converted to Popkorn CSS and
-inlined in `turkey.ts`) — pure shapes and paths. The Skia PoC also renders
-text (system fonts), images (decode-cached), and track mattes; custom fonts
-are the remaining gap (see `@popkorn/react-native`'s README).
+Metro can't glob or import raw `.css` files, so the gallery is inlined into
+`examples.gen.ts` (for the same reason, `turkey.ts` holds its scene as a
+string). The file is generated; after editing `examples/popkorn/*.css`, run
+`bun --filter @popkorn/expo-demo gen` from the repo root.
 
-The gallery is inlined into `examples.gen.ts` because Metro can't glob or import
-raw `.css` (same reason `turkey.ts` is a string). After editing
-`examples/popkorn/*.css`, regenerate: `bun run gen`.
+## Running on a device
 
-## Running on a physical device
-
-`@shopify/react-native-skia` ships native code that **is not bundled in Expo
-Go**, so a **development build is required** — Expo Go will error on the missing
-native module. Use `expo run:*` (a local dev build):
+`@shopify/react-native-skia` ships native code that Expo Go doesn't include,
+so the app needs a development build. `expo run:*` compiles the native
+project, installs the app, and starts Metro:
 
 ```sh
 bun install                       # once, from the repo root
 
 cd packages/expo-demo
-bunx expo run:ios      # builds + installs on a connected iPhone / simulator
+bunx expo run:ios      # connected iPhone or simulator
 # or
-bunx expo run:android  # builds + installs on a connected Android device
+bunx expo run:android  # connected Android device
 ```
 
-`expo run:*` compiles the native project, installs the app, and starts Metro.
-Reconnect later with `bunx expo start --dev-client` and open the installed app.
+To reconnect later, run `bunx expo start --dev-client` and open the installed
+app.
 
-For a device build without Xcode/Android Studio locally, use EAS:
+Without Xcode or Android Studio locally, build on EAS instead:
 `bunx eas build --profile development --platform ios` (or `android`), install
-the resulting build, then `bunx expo start --dev-client`.
+the build, then run `bunx expo start --dev-client`.
 
-> Expo Go (`bunx expo start`, scan the QR) will **not** work here because of the
-> native Skia dependency.
+Several dependencies carry native code: `@shopify/react-native-skia`,
+`react-native-reanimated` with its `react-native-worklets` peer (required by
+Skia 2.x even though the demo doesn't call Reanimated directly), `expo-camera`
+for QR scanning, and `react-native-safe-area-context`. Adding or upgrading any
+of them means rebuilding the dev client with `bunx expo run:ios` (or
+`run:android`).
 
 ## Notes
 
-- Monorepo Metro resolution is set in `metro.config.js` (watch the repo root,
-  resolve hoisted deps from both node_modules). `@popkorn/react-native` and
-  `@popkorn/player` ship raw TS from `src/`; `babel-preset-expo` transpiles it.
-- `@shopify/react-native-skia` 2.x requires `react-native-reanimated` (and its
-  `react-native-worklets` peer) as native dependencies, even though this demo
-  doesn't call Reanimated APIs directly. `babel-preset-expo` auto-detects
-  `react-native-worklets` and wires its Babel plugin in — no `babel.config.js`
-  changes needed. Adding/upgrading either package changes native code, so
-  **rebuild the dev client**: `bunx expo run:ios` (or `run:android`).
-- To sanity-check bundling without a device:
-  `bunx expo export --platform ios`.
-- QR scanning uses `expo-camera` (native code) with the camera-permission
-  plugin wired in `app.json` — **rebuild the dev client** after pulling this in
-  (`bunx expo run:ios`/`run:android`). The URL fetch itself is a plain
-  `fetch()`; only the QR camera needs the rebuild.
-- Safe areas use `react-native-safe-area-context` (adds native code — rebuild
-  the dev client after pulling this in, same as above). The CSS editor uses
-  `@rivascva/react-native-code-editor`, which is pure JS (a `TextInput`
-  overlaid on `react-syntax-highlighter`) — no native module, no rebuild
-  needed for that one.
-- `react-syntax-highlighter` re-parses the whole source synchronously on every
-  render, so the editor falls back to a plain (unhighlighted) `TextInput`
-  above `HIGHLIGHT_LINE_CAP` (300 lines, `App.tsx`) — the turkey scene alone
-  is 2300+ lines.
+Metro's monorepo resolution lives in `metro.config.js`: it watches the repo
+root and resolves hoisted dependencies from both `node_modules` folders.
+`@popkorn/react-native` and `@popkorn/player` ship raw TypeScript from `src/`,
+which `babel-preset-expo` transpiles. The preset also detects
+`react-native-worklets` and adds its Babel plugin, so `babel.config.js` needs
+no worklets entry.
+
+To check that the app bundles without a device, run
+`bunx expo export --platform ios`.
+
+The camera permission for QR scanning is configured through the `expo-camera`
+plugin in `app.json`. The URL fetch is a plain `fetch()`.
+
+The CSS editor is `@rivascva/react-native-code-editor`, a pure-JS `TextInput`
+over `react-syntax-highlighter`. The highlighter re-parses the whole source on
+every render, so above `HIGHLIGHT_LINE_CAP` (300 lines, in `App.tsx`) the
+editor switches to a plain `TextInput`. The turkey scene is well over that
+limit.

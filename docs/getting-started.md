@@ -7,7 +7,7 @@ put a scene in your own project, it's one web component.
 
 **▶ [usepopkorn.dev](https://usepopkorn.dev)**
 
-No install, it runs in your browser. Edit the example scenes, tweak values and
+Nothing to install: it runs in your browser. Edit the example scenes, tweak values and
 watch them update, or import a Lottie or SVG to see it convert.
 
 ## Your first scene
@@ -51,21 +51,18 @@ when you point at it.
 }
 ```
 
-Piece by piece:
-
-- **`:root`** sets the canvas size and background. It's also where scene-wide
-  variables and inputs live.
-- **`@keyframes bounce`** is an animation track, exactly as in CSS. The
-  per-keyframe `animation-timing-function` gives the fall and rise the easing an
-  animator would reach for.
-- **`#ball`** is a shape. `type: circle` picks the shape; `cx`/`cy`/`r` place and
-  size it; `fill` paints it. `animation` runs the track, and the `transition` +
-  `&:hover` add an interaction.
+The `:root` rule sets the canvas size and background, and it's also where
+scene-wide variables and inputs live. `@keyframes bounce` is an animation track,
+written exactly as in CSS; the per-keyframe `animation-timing-function` gives the
+fall and rise the easing an animator would reach for. `#ball` is a shape:
+`type: circle` picks the shape, `cx`/`cy`/`r` place and size it, and `fill` paints
+it. Its `animation` runs the track, and `transition` with `&:hover` adds an
+interaction.
 
 Point at the ball and its color warms, tweened by the `transition`, while the
-bounce never pauses or restarts. Interactions in Popkorn layer on top of running
-animations rather than fighting them, because the whole scene plays on one
-continuous timeline.
+bounce keeps going without a pause or restart. Interactions in Popkorn layer on
+top of running animations, because the whole scene plays on one continuous
+timeline.
 
 ## Put it on a page
 
@@ -92,8 +89,8 @@ file. The full component API (attributes, properties, events) lives in the
 
 ## Bring existing art
 
-You don't have to start from a blank file. Already have a Lottie or an SVG? Drop
-it into the [playground](https://usepopkorn.dev) with the **Import**
+You don't have to start from a blank file. If you already have a Lottie or an
+SVG, drop it into the [playground](https://usepopkorn.dev) with the **Import**
 button and it becomes a Popkorn scene you can read and tweak on the spot.
 
 ## Where to go next

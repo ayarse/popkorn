@@ -30,25 +30,25 @@ formats.
 **From Lottie:** vector shapes, fills and gradients, strokes and dashes, masks
 and track mattes, transforms (including baked anchor points and layer parenting),
 and keyframe animation with easing, trim paths, and precomp time remapping.
-Basic static text layers come across too — font, size, fill, stroke, and
-justification. Real-world files, including minified bodymovin output, are normalized on the way
-in, so the quirks of exported JSON mostly sort themselves out. The importer is
-checked continuously against a corpus of real Lottie files.
+Basic static text layers come across too: font, size, fill, stroke, and
+justification. Real-world files, including minified bodymovin output, are
+normalized on the way in (inferred animation flags, legacy keyframe forms, split
+position, 0-255 color arrays). Converter changes are measured with a batch run
+over the LottieFiles test corpus, a public set of real Lottie files.
 
 **From SVG:** all the standard shapes and paths, fills, gradients, and strokes,
 plus animation. CSS `@keyframes` from `<style>` blocks and basic SMIL
 (`<animate>` / `<animateTransform>`) map into Popkorn keyframes and `animation-*`
 properties. Simple filters map to CSS: a blur becomes `filter: blur()`, and a
-drop shadow — including the multi-primitive chains Illustrator and Figma export
-— becomes `filter: drop-shadow()`. Optimizer output is handled too: svgo and
+drop shadow, including the multi-primitive chains Illustrator and Figma export,
+becomes `filter: drop-shadow()`. Optimizer output is handled too: svgo and
 Illustrator compact path notation, CSS units, and `!important` all parse.
 
 ## What doesn't, and what happens then
 
 Some things have no equivalent in Popkorn and are skipped. When that happens the
-converter emits a **warning naming exactly what it dropped**, so an import is
-never silently wrong, and everything that does map still produces a working
-scene.
+converter emits a **warning naming what it dropped**, and everything that does
+map still produces a working scene.
 
 - **Lottie:** JavaScript expressions and a few rare shape modifiers. Text is
   partly supported: static layers convert, but animated text documents, text
@@ -60,15 +60,16 @@ scene.
   drop shadow, and animation channels that don't map (such as gradient
   keyframes, `<set>`, and `<animateMotion>`).
 
-These match what shipping players skip too. Run `--validate` first if you want to
-see the warnings for a file before converting it — it writes no CSS and exits
+The Lottie skips match what shipping Lottie players leave out too. Run
+`--validate` first to see the warnings for a file before converting it: it
+writes no CSS and exits
 with a nonzero status when the output has validation errors (a `--batch` run
 likewise exits nonzero if any file fails).
 
 ## After importing
 
 The output is ordinary Popkorn: a readable scene you can open, diff, and edit by
-hand or hand to Copilot. Import is a starting point, not a black box.
+hand or hand to Copilot.
 
 ## See also
 

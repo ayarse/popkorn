@@ -21,8 +21,8 @@ other formats today.
 | Rendering         | Own renderer per platform     | Own renderer per platform     | Own renderer per platform, no DOM or WebView   |
 | Maturity          | Industry standard             | Production                    | Early proof of concept                         |
 
-Popkorn is the youngest of the three by far, and its runtime list is shorter.
-What it adds is a source file you can open, diff, and change without going
+Popkorn is at an early proof-of-concept stage, and its runtime list is still
+growing. What it adds is a source file you can open, diff, and change without going
 back to a design tool. For Lottie users it's also a round trip: import a file,
 edit it as text, and export it back to Lottie.
 
@@ -69,7 +69,7 @@ Most shipping Lottie players skip these too. The full list is in
 | Trim paths                   | `trim-start`, `trim-end`, `trim-offset`        |
 | Track matte, mask            | Masks: alpha or luminance, plain or inverted   |
 
-Once a file is converted, it's no longer a black box. You can recolor it, retime a
+Once a file is converted, every part of it is readable text. You can recolor it, retime a
 single animation, or add a `:hover`. None of that needs a trip back to After Effects.
 
 ### Size
@@ -105,7 +105,7 @@ or images, such as a README, a slide deck, or a social post. Because the
 timeline depends only on time, every export renders exactly the same frames
 the player shows.
 
-Treat the exports as a bridge, not the destination. Each one captures the
+Treat the exports as a bridge to the Popkorn player. Each one captures the
 animation and nothing else. `:hover`, `@machine` state machines,
 `setVariable`, and events coming back to your app all need the Popkorn player.
 So a good path is to export Lottie where you can't change the runtime yet, and
