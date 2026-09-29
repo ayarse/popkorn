@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import popkornIconRaw from "@/assets/popkorn-icon.svg?raw";
+import popkornIcon from "@/assets/popkorn-icon.svg?url";
 import { cn } from "@/lib/utils";
 
 type BrandMarkProps = {
@@ -16,13 +16,7 @@ export function BrandMark({ suffix, className }: BrandMarkProps) {
         className,
       )}
     >
-      <div className="flex size-5 items-center justify-center rounded-md bg-foreground text-background">
-        <span
-          // biome-ignore lint/security/noDangerouslySetInnerHtml: bundled trusted SVG icon
-          dangerouslySetInnerHTML={{ __html: popkornIconRaw }}
-          className="[&>svg]:size-3 [&>svg]:fill-current"
-        />
-      </div>
+      <img src={popkornIcon} alt="" className="size-7 shrink-0" />
       <h1 className="text-[15px] font-semibold tracking-tight">Popkorn</h1>
       {suffix}
     </Link>

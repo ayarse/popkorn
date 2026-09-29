@@ -3,7 +3,7 @@ import { ClerkProvider } from "@clerk/tanstack-react-start";
 import { dark } from "@clerk/themes";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import type { ReactNode } from "react";
-import favicon from "@/assets/favicon.svg?url";
+import favicon from "@/assets/popkorn-icon.svg?url";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "@/globals.css?url";
 import "@fontsource/jetbrains-mono/400.css";
