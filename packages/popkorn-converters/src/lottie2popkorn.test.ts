@@ -311,7 +311,7 @@ test("an unsupported layer effect (ef) warns instead of silently dropping, and s
   expect([...c.blocked].some((b) => b.includes("effect"))).toBe(false); // warn, not block
 });
 
-test("Gaussian Blur (ty 29) maps to filter: blur(Blurriness / 4 px), no warning", () => {
+test("Gaussian Blur (ty 29) maps to filter: blur(Blurriness × 0.3 px), no warning", () => {
   const doc = comp(30, [0, 30]);
   doc.layers[0].ef = [
     {
@@ -324,7 +324,7 @@ test("Gaussian Blur (ty 29) maps to filter: blur(Blurriness / 4 px), no warning"
   const c = new Converter();
   const css = c.convert(doc);
   expect(validate(css)).toEqual([]);
-  expect(css).toContain("filter: blur(22.33px)"); // 89.3 / 4
+  expect(css).toContain("filter: blur(26.79px)"); // 89.3 × 0.3
   expect(c.warnings.some((w) => w.includes("Gaussian Blur"))).toBe(false); // mapped, not warned
 });
 

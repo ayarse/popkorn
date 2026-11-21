@@ -151,8 +151,8 @@ Every one of these shipped at least once. Cheap to check, likely culprits:
   *departing* keyframe; anchor bakes into position (`translate = p − a`,
   origin = `a`); parenting is transform-only; sibling contours sharing a
   group fill are ONE nonzero compound path; layer `ip/op` →
-  `visible-from/until`; AE Gaussian blurriness ≈ 4 × CSS blur radius
-  (lottie-web SVG convention); verify AE polar conventions (e.g. drop-shadow
+  `visible-from/until`; CSS blur radius = AE Gaussian blurriness × 0.3
+  (lottie-web/thorvg; drop-shadow softness is ÷ 4); verify AE polar conventions (e.g. drop-shadow
   direction) against lottie-web source, not intuition.
 - Regression test in the converter suite; end-to-end grep of the real file's
   output (e.g. `rgba(` count 0 → 222 is better evidence than a unit test).

@@ -917,7 +917,7 @@ export class Converter {
   /**
    * Map a layer's supported effects to a CSS `filter` declaration, or null.
    * Calibration mirrors lottie-web's SVG renderer:
-   *   - Gaussian Blur (ty 29): `blur(Blurriness / 4 px)`.
+   *   - Gaussian Blur (ty 29): `blur(Blurriness × 0.3 px)` (kBlurrinessToSigma).
    *   - Drop Shadow (ty 25, SVGDropShadowEffect): sub-effects in fixed order
    *     [0]=color (0..1 rgb), [1]=opacity (0..255), [2]=direction (deg),
    *     [3]=distance, [4]=softness. Offset dx = distance·cos((dir−90)°),
@@ -940,7 +940,7 @@ export class Converter {
           this.warnOnce(
             `animated Gaussian Blur on '${name}' baked to its first value`,
           );
-        const px = (p.at(0)[0] ?? 0) / 4;
+        const px = (p.at(0)[0] ?? 0) * 0.3;
         if (px > 0) parts.push(`blur(${num(px)}px)`);
       } else if (e.ty === 25) {
         const sub = e.ef || [];
