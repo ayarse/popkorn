@@ -106,7 +106,7 @@ export interface Renderer {
   setStrokeMiterLimit(limit: number): void;
   // Trim the stroke to a sub-range of the outline; null strokes the whole outline.
   setTrim(trim: TrimDescriptor | null): void;
-  // Empty array = solid; ignored while a trim is active.
+  // Empty array = solid; under a trim it dashes the trimmed stroke.
   setDash(dashArray: number[], dashOffset: number): void;
   // Fill winding rule for the next path/star/polygon fill and clip.
   setFillRule(rule: FillRule): void;

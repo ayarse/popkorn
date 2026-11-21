@@ -11,6 +11,7 @@ import {
   type GradientData,
   type MaskMode,
   type Matrix3x3,
+  matrixScale,
   type PathCommand,
   type PathSink,
   parseColor,
@@ -54,6 +55,7 @@ interface Snap {
   trim: Vec; // [start, end, offset] fractions
   dashOffset: number;
   shape: ShapeData;
+  blur: number; // scene-space Gaussian std-dev, NaN when the filter isn't a lone blur()
 }
 
 interface Rec {
@@ -61,6 +63,7 @@ interface Rec {
   snaps: Snap[];
   order: SceneNode[]; // children in frame-0 paint order
   orderKey: string;
+  blurred?: boolean; // exported as its own layer with a Gaussian Blur effect
 }
 
 /** A run of paint under one chain of clipping/masked ancestors; becomes one layer. Items topmost first. */
@@ -96,6 +99,43 @@ const layer = (nm: string, shapes: Item[], op: number, extra: Item = {}) => ({
   op,
   st: 0,
   bm: 0,
+});
+
+/** AE Gaussian Blur; lottie-web (SVG) and thorvg both read sigma = Blurriness × 0.3. */
+const gaussianBlur = (rec: Rec, ix: number): Item => ({
+  ty: 29,
+  nm: "Gaussian Blur",
+  np: 5,
+  mn: "ADBE Gaussian Blur 2",
+  ix,
+  en: 1,
+  ef: [
+    {
+      ty: 0,
+      nm: "Blurriness",
+      mn: "ADBE Gaussian Blur 2-0001",
+      ix: 1,
+      v: prop(
+        rec.snaps.map((s) => [s.blur / 0.3]),
+        EPS,
+        true,
+      ),
+    },
+    {
+      ty: 7,
+      nm: "Blur Dimensions",
+      mn: "ADBE Gaussian Blur 2-0002",
+      ix: 2,
+      v: { a: 0, k: 1 },
+    },
+    {
+      ty: 7,
+      nm: "Repeat Edge Pixels",
+      mn: "ADBE Gaussian Blur 2-0003",
+      ix: 3,
+      v: { a: 0, k: 0 },
+    },
+  ],
 });
 
 const MAX_FRAMES = 3600;
@@ -601,6 +641,12 @@ export class Converter {
       loop.seek(duration > 0 && t >= duration ? duration - 1e-3 : t);
       for (const rec of recs.values()) this.sample(rec, f, recs);
     }
+    for (const rec of recs.values()) {
+      const bs = rec.snaps.map((s) => s.blur);
+      if (bs.some(Number.isNaN))
+        this.skip("filter/box-shadow not exported", rec.node);
+      else rec.blurred = bs.some((b) => b > 0);
+    }
 
     const segs = this.segments(root, recs, []);
     const bg = ast.canvas?.background;
@@ -631,6 +677,7 @@ export class Converter {
       }
     }
 
+    const layers = this.layers(segs, recs, op);
     for (const [feature, ids] of this.skipped) {
       const list = ids
         .slice(0, 3)
@@ -650,7 +697,7 @@ export class Converter {
       nm: "popkorn",
       ddd: 0,
       assets: [],
-      layers: this.layers(segs, recs, op),
+      layers,
     };
   }
 
@@ -667,6 +714,16 @@ export class Converter {
         seg.ctx.filter((n) => n.clipPath),
         recs,
       );
+      const blurs = seg.ctx.filter((n) => recs.get(n)!.blurred);
+      // Lottie blurs a layer before its masks/matte; Popkorn blurs a node after its own clip/mask.
+      const under = seg.ctx.indexOf(blurs[0]);
+      if (under >= 0)
+        for (const n of seg.ctx.slice(under))
+          if (n.clipPath || n.mask)
+            this.skip(
+              "clip-path/mask under a blur exported with a sharp edge",
+              n,
+            );
       out.push(
         layer(
           seg.ctx.length ? seg.ctx.map((n) => `#${n.id}`).join(" ") : "scene",
@@ -675,6 +732,9 @@ export class Converter {
           {
             ...(masks.length ? { hasMask: true, masksProperties: masks } : {}),
             ...(matte ? { tt: TRACK_MATTE[matte.mode] } : {}),
+            ...(blurs.length
+              ? { ef: blurs.map((n, i) => gaussianBlur(recs.get(n)!, i + 1)) }
+              : {}),
           },
         ),
       );
@@ -694,7 +754,10 @@ export class Converter {
     if (!mask) return null;
     const segs = this.segments(mask.source, recs, []);
     if (segs.some((s) => s.ctx.length))
-      this.skip("clip-path/mask inside a mask source ignored", mask.source);
+      this.skip(
+        "clip-path/mask/blur inside a mask source ignored",
+        mask.source,
+      );
     let items = segs.reverse().flatMap((s) => s.items);
     for (let p = mask.source.parent; p; p = p.parent) {
       const rec = recs.get(p);
@@ -755,7 +818,7 @@ export class Converter {
     } else if (key !== rec.orderKey)
       this.skip("animated z-index uses its first-frame order", n);
 
-    if (n.filter || n.boxShadow) this.skip("filter/box-shadow not exported", n);
+    if (n.boxShadow) this.skip("filter/box-shadow not exported", n);
     if (n.mixBlendMode !== "normal")
       this.skip("mix-blend-mode not exported", n);
     if (f === 0) {
@@ -777,6 +840,7 @@ export class Converter {
       parent ? parent.snaps[f].world : undefined,
     );
     const clip = resolveClip(n);
+    const fl = n.filter;
     rec.snaps.push({
       m: computeLocalMatrix(n),
       world,
@@ -792,6 +856,12 @@ export class Converter {
       trim: [n.trimStart, n.trimEnd, n.trimOffset],
       dashOffset: n.strokeDashOffset,
       shape: { ...n.shapeData } as ShapeData,
+      // Matches renderFilter: the radius scales with the node's world scale.
+      blur: !fl?.length
+        ? 0
+        : fl.length === 1 && fl[0].type === "blur"
+          ? fl[0].radius * matrixScale(world)
+          : Number.NaN,
     });
   }
 
@@ -802,7 +872,8 @@ export class Converter {
     ctx: SceneNode[],
   ): Segment[] {
     const rec = recs.get(node)!;
-    const layered = node.clipPath || node.mask;
+    // NOTE: a blurred subtree split into several layers (inner clip/mask/blur) blurs per layer, not as one composite.
+    const layered = node.clipPath || node.mask || rec.blurred;
     const own = layered ? [...ctx, node] : ctx;
     const runs: Segment[] = []; // bottom to top
     const push = (s: Segment) => {
@@ -1086,7 +1157,7 @@ export class Converter {
         EPS,
         true,
       ),
-      m: 2,
+      m: rec.node.trimMode === "sequential" ? 2 : 1,
     };
   }
 

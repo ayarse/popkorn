@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getNumericValue, isRandomValue, mapValue, someValue } from "./ast.js";
-import { parse } from "./parser.js";
+import { parse, validate } from "./parser.js";
 import { serialize } from "./serializer.js";
 
 // Strip position metadata (source-offset spans + diagnostics) so structural
@@ -152,6 +152,17 @@ test("cursor: pointer parses as a keyword declaration", () => {
   const decl = parse("#btn { cursor: pointer; }").rules[0].declarations[0];
   expect(decl.property).toBe("cursor");
   expect(decl.value).toEqual({ type: "keyword", value: "pointer" });
+});
+
+test("trim-mode parses as a keyword declaration and is a known property", () => {
+  const src = "#p { trim-mode: sequential; }";
+  const decl = parse(src).rules[0].declarations[0];
+  expect(decl.property).toBe("trim-mode");
+  expect(decl.value).toEqual({ type: "keyword", value: "sequential" });
+  expect(serialize(parse(src))).toContain("trim-mode: sequential");
+  expect(validate(src).filter((d) => d.code === "unknown-property")).toEqual(
+    [],
+  );
 });
 
 test("var() reference", () => {

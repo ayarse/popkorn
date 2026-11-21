@@ -180,7 +180,7 @@ test("outlineLength cache invalidates when d morphs (trim tracks the new length)
   expect(outlineLength(node)).toBeCloseTo(300, 6);
   const endTrim = computeTrim(node)!;
   // trim-end 50% of a longer outline => a longer visible dash than at base.
-  expect(endTrim.dashArray[0]).toBeGreaterThan(baseTrim.dashArray[0]);
+  expect(endTrim.length).toBeGreaterThan(baseTrim.length);
 });
 
 // --- gradient animates end-to-end through the pipeline ----------------------

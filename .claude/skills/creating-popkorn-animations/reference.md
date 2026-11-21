@@ -318,6 +318,7 @@ Set with `type: <keyword>`. Omitted → **`group`**. Read in a first pass, so de
 | `fill-rule`                               | `nonzero` \| `evenodd`                                                               | `nonzero`                                 |
 | `opacity`                                 | fraction                                                                             | `1`                                       |
 | `trim-start` / `trim-end` / `trim-offset` | `%`→fraction, clamped 0..1                                                           | `0` / `1` / `0`                           |
+| `trim-mode`                               | `simultaneous` \| `sequential` (multi-subpath paths; not animatable)                  | `simultaneous`                            |
 | `box-shadow`                              | `[inset] <dx> <dy> [<blur>] [<spread>] [<color>]`, comma-separated                   | none                                      |
 
 ### `box-shadow`
@@ -337,7 +338,9 @@ Gotchas:
 
 - **A stroke only paints if a stroke color is set** — default `stroke-width: 1` alone paints nothing.
 - Gradient overrides solid color if both set; a gradient with no stops → no paint.
-- Trim affects only the **stroke** (fill always draws full). When a trim window is active, `stroke-dasharray` is ignored. Empty trim window → nothing strokes.
+- Trim affects only the **stroke** (fill always draws full). Empty trim window → nothing strokes.
+- Trim + `stroke-dasharray` compose like Lottie: trim first, then dash what's left — the dash pattern starts at the visible trim start and travels with it when `trim-start`/`trim-offset` animate. A window crossing a closed shape's start point stays one continuous stroke.
+- `trim-mode` only matters for a `path` with several subpaths (`M … M …`): `simultaneous` (default) trims each subpath by the same percentages at once; `sequential` runs one window across all subpaths in order (draw-on one after another).
 - **`opacity` cascades**: a group's opacity multiplies down onto every descendant (child effective alpha = ancestors' opacities × own). So `opacity` on a group dims the whole subtree. (Caveat: it multiplies per-node, not an offscreen group composite — overlapping children in a translucent group show through each other.)
 - Unrecognized enum keywords drop to the default.
 

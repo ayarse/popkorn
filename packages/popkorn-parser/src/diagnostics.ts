@@ -96,6 +96,7 @@ export const KNOWN_PROPERTIES = new Set<string>([
   "trim-start",
   "trim-end",
   "trim-offset",
+  "trim-mode",
   // time scoping
   "time-offset",
   "time-scale",

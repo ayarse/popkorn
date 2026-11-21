@@ -73,6 +73,7 @@ export type { Matrix3x3 } from "./scene/matrix.js";
 export {
   IDENTITY_MATRIX,
   lerp,
+  matrixScale,
   multiplyMatrices,
   transformPoint,
 } from "./scene/matrix.js";

@@ -71,11 +71,13 @@ export function isGradientData(v: unknown): v is GradientData {
   );
 }
 
-// Trim-path window as a dash pattern in local outline-length units.
+// Trim window on one contour in outline-length units; an authored dash restarts at `start`.
 export interface TrimDescriptor {
   visible: boolean; // false => the trim window is empty, stroke nothing
-  dashArray: number[]; // [] => stroke the whole outline (no dashing)
-  dashOffset: number; // maps to ctx.lineDashOffset
+  start: number; // window start along the outline, in [0, total)
+  length: number; // window length; wraps past `total` back to 0
+  total: number; // contour outline length
+  continuous: boolean; // a wrapping window runs through the seam as one stroke
 }
 
 // Clip-path in local-space geometry, shared by renderer and hit-test.

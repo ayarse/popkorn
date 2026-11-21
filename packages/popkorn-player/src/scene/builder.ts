@@ -86,6 +86,7 @@ import {
   STROKE_LINE_CAPS,
   STROKE_LINE_JOINS,
   TEXT_ANCHORS,
+  TRIM_MODES,
 } from "./types.js";
 import {
   applyPaint,
@@ -802,6 +803,9 @@ class SceneBuilder {
         break;
       case "trim-offset":
         node.trimOffset = clamp01(normalizeFraction(value));
+        break;
+      case "trim-mode":
+        node.trimMode = oneOf(value, TRIM_MODES) ?? node.trimMode;
         break;
 
       case "opacity":

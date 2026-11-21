@@ -152,6 +152,16 @@ export function resetNodeToBase(node: SceneNode): void {
   node.strokeDashOffset = b.strokeDashOffset;
   node.offsetDistance = b.offsetDistance;
   node.timeRemapValue = b.timeRemapValue;
+  // Restoring animated geometry stales the outline caches the registry's apply had refreshed.
+  const sd = node.shapeData as unknown as Record<string, unknown>;
+  const bsd = b.shapeData as unknown as Record<string, unknown>;
+  for (const k in bsd) {
+    if (sd[k] !== bsd[k]) {
+      node.outlineLengthDirty = true;
+      node.polystarDirty = true;
+      break;
+    }
+  }
   Object.assign(node.shapeData, b.shapeData);
   // Fresh copies so per-frame morphs never touch the base.
   node.fillGradient = cloneGradient(b.fillGradient);
@@ -175,6 +185,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     trimStart: 0,
     trimEnd: 1,
     trimOffset: 0,
+    trimMode: "simultaneous",
     strokeLineCap: "butt",
     strokeLineJoin: "miter",
     strokeMiterLimit: 4,
@@ -186,6 +197,7 @@ export function createSceneNode(id: string, type: ShapeType): SceneNode {
     pointerEvents: "auto",
     cachedOutlineLength: null,
     outlineLengthDirty: true,
+    cachedContours: null,
     cachedTextBounds: null,
     textBoundsDirty: true,
     cachedPolystarCommands: null,

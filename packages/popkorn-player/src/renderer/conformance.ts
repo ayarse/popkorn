@@ -1,4 +1,6 @@
 import { insetShadowCommands, shapeClip } from "../scene/box-shadow.js";
+import { createSceneNode, snapshotNode } from "../scene/node.js";
+import { parsePath } from "../scene/path-parser.js";
 import type {
   BlendMode,
   CircleData,
@@ -6,10 +8,13 @@ import type {
   MaskMode,
   PathData,
   RectData,
+  SceneNode,
+  TrimMode,
 } from "../scene/types.js";
 import { filterToCSS } from "./filter-css.js";
 import { resolveGradient } from "./gradient-geometry.js";
 import type { Renderer } from "./interface.js";
+import { computeTrim, drawContourTrims } from "./stroke.js";
 import type { GradientData } from "./types.js";
 
 /**
@@ -292,6 +297,44 @@ function insetShadowCases(): ConformanceCase[] {
   ];
 }
 
+const LINE_40 = parsePath("M0 0 L40 0");
+
+// An open-contour trim window in outline units.
+function trimSpan(start: number, length: number, total: number) {
+  return { visible: true, start, length, total, continuous: false };
+}
+
+function trimmedNode(
+  d: string,
+  start: number,
+  end: number,
+  offset: number,
+  mode: TrimMode = "simultaneous",
+): SceneNode {
+  const n = createSceneNode("t", "path");
+  n.shapeData = { type: "path", commands: parsePath(d) };
+  n.trimStart = start;
+  n.trimEnd = end;
+  n.trimOffset = offset;
+  n.trimMode = mode;
+  n.base = snapshotNode(n);
+  return n;
+}
+
+function pathCommands(n: SceneNode) {
+  return n.shapeData.type === "path" ? n.shapeData.commands : [];
+}
+
+// A filled two-contour path trimmed to 50%, drawn through the shared walk's split.
+function driveContourTrim(r: Renderer, mode: TrimMode): void {
+  const n = trimmedNode("M0 0 L10 0 M0 20 L30 20", 0, 0.5, 0, mode);
+  n.fill = "#0000ff";
+  n.stroke = "#000000";
+  r.setFill(n.fill);
+  r.setStroke(n.stroke, 2);
+  drawContourTrims(r, n);
+}
+
 export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
   // --- #3 paint order -------------------------------------------------------
   {
@@ -406,42 +449,69 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
 
   // --- #2 trim/dash composition; empty trim window strokes nothing -----------
   {
-    // Dash inside trim: window 30, arc [5,15]; [3,3] ON runs at [6,9],[12,15] -> [3,3,3,21] offset -6.
+    // Dash inside trim: arc [5,15]; [3,3] restarts at the window start -> ON [5,8],[11,14].
     name: "authored dash composes inside a trim window",
     ops: (r) => {
       r.setFill(null);
       r.setStroke("#000000", 2);
       r.setDash([3, 3], 0);
-      r.setTrim({ visible: true, dashArray: [10, 20], dashOffset: -5 });
-      r.drawPath([
-        { type: "M", x: 0, y: 0 },
-        { type: "L", x: 40, y: 0 },
-      ]);
+      r.setTrim(trimSpan(5, 10, 40));
+      r.drawPath(LINE_40);
     },
     assert: (t, expect) => {
       const stroke = t.paints.find((p) => p.kind === "stroke");
       expect(stroke !== undefined).toBe(true);
-      expect(stroke!.dashArray).toEqual([3, 3, 3, 21]);
-      expect(stroke!.dashOffset).toBe(-6);
+      expect(stroke!.dashArray).toEqual([3, 3, 3, 71]);
+      expect(stroke!.dashOffset).toBe(-5);
     },
   },
   {
-    // Trim-only is unchanged by dash composition.
-    name: "trim window with no authored dash is unchanged",
+    // Trim-only: one ON run, then a 2x-total gap.
+    name: "trim window with no authored dash strokes the window",
     ops: (r) => {
       r.setFill(null);
       r.setStroke("#000000", 2);
-      r.setTrim({ visible: true, dashArray: [10, 20], dashOffset: -5 });
-      r.drawPath([
-        { type: "M", x: 0, y: 0 },
-        { type: "L", x: 40, y: 0 },
-      ]);
+      r.setTrim(trimSpan(5, 10, 40));
+      r.drawPath(LINE_40);
     },
     assert: (t, expect) => {
       const stroke = t.paints.find((p) => p.kind === "stroke");
       expect(stroke !== undefined).toBe(true);
-      expect(stroke!.dashArray).toEqual([10, 20]);
+      expect(stroke!.dashArray).toEqual([10, 70]);
       expect(stroke!.dashOffset).toBe(-5);
+    },
+  },
+  {
+    // Dash phase travels with the trim: window at 7 puts the first [4,4] dash at 7, not at 8.
+    name: "dash phase starts at the trim start",
+    ops: (r) => {
+      r.setFill(null);
+      r.setStroke("#000000", 2);
+      r.setDash([4, 4], 0);
+      r.setTrim(trimSpan(7, 20, 40));
+      r.drawPath(LINE_40);
+    },
+    assert: (t, expect) => {
+      const stroke = t.paints.find((p) => p.kind === "stroke");
+      expect(stroke!.dashArray).toEqual([4, 4, 4, 4, 4, 60]);
+      expect(stroke!.dashOffset).toBe(-7);
+    },
+  },
+  {
+    // Full window + 25% offset on a closed 40-long square: [5,5] starts at 10 and runs through the seam.
+    name: "full trim with an offset keeps the authored dash",
+    ops: (r) => {
+      const n = trimmedNode("M0 0 L10 0 L10 10 L0 10 Z", 0, 1, 0.25);
+      r.setFill(null);
+      r.setStroke("#000000", 2);
+      r.setDash([5, 5], 0);
+      r.setTrim(computeTrim(n));
+      r.drawPath(pathCommands(n));
+    },
+    assert: (t, expect) => {
+      const stroke = t.paints.find((p) => p.kind === "stroke");
+      expect(stroke!.dashArray).toEqual([5, 5, 5, 5, 5, 5, 5, 45]);
+      expect(stroke!.dashOffset).toBe(0);
     },
   },
   {
@@ -483,23 +553,43 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     },
   },
   {
-    // Trim offset + dash: window 40, arc [10,30]; [5,5] ON at [10,15],[20,25] -> [5,5,5,25] offset -10.
+    // Trim offset + dash: arc [10,30]; [5,5] ON at [10,15],[20,25].
     name: "trim offset composes with a dash",
     ops: (r) => {
       r.setFill(null);
       r.setStroke("#000000", 2);
       r.setDash([5, 5], 0);
-      r.setTrim({ visible: true, dashArray: [20, 20], dashOffset: -10 });
-      r.drawPath([
-        { type: "M", x: 0, y: 0 },
-        { type: "L", x: 40, y: 0 },
-      ]);
+      r.setTrim(trimSpan(10, 20, 40));
+      r.drawPath(LINE_40);
     },
     assert: (t, expect) => {
       const stroke = t.paints.find((p) => p.kind === "stroke");
       expect(stroke !== undefined).toBe(true);
-      expect(stroke!.dashArray).toEqual([5, 5, 5, 25]);
+      expect(stroke!.dashArray).toEqual([5, 5, 5, 65]);
       expect(stroke!.dashOffset).toBe(-10);
+    },
+  },
+  {
+    // Contours 10 + 30 long, trim-end 50%: each contour shows its own first half.
+    name: "trim-mode simultaneous trims each contour on its own",
+    ops: (r) => driveContourTrim(r, "simultaneous"),
+    assert: (t, expect) => {
+      const fills = t.paints.filter((p) => p.kind === "fill");
+      const strokes = t.paints.filter((p) => p.kind === "stroke");
+      expect(fills.length).toBe(1);
+      expect(strokes.map((p) => p.dashArray)).toEqual([
+        [5, 15],
+        [15, 45],
+      ]);
+    },
+  },
+  {
+    // Same path, sequential: the window covers 20 of 40 -> all of contour 1, then 10 of contour 2.
+    name: "trim-mode sequential trims the contours as one outline",
+    ops: (r) => driveContourTrim(r, "sequential"),
+    assert: (t, expect) => {
+      const strokes = t.paints.filter((p) => p.kind === "stroke");
+      expect(strokes.map((p) => p.dashArray)).toEqual([[], [10, 50]]);
     },
   },
   {
@@ -507,7 +597,13 @@ export const CONFORMANCE_CASES: readonly ConformanceCase[] = [
     ops: (r) => {
       r.setFill(null);
       r.setStroke("#000000", 2);
-      r.setTrim({ visible: false, dashArray: [], dashOffset: 0 });
+      r.setTrim({
+        visible: false,
+        start: 0,
+        length: 0,
+        total: 0,
+        continuous: false,
+      });
       r.drawPath([
         { type: "M", x: 0, y: 0 },
         { type: "L", x: 40, y: 0 },

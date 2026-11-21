@@ -1094,3 +1094,116 @@ test("stroke: an outer-group stroke hoists to one stroke-only node behind the fi
   expect(css).not.toMatch(/fill: #ff0000;[^}]*stroke:/s);
   expect(buildSceneGraph(parse(css))).toBeTruthy();
 });
+
+test("converter: tm.m 2 (individually) emits trim-mode: sequential on the merged path", () => {
+  const doc = (m: number, groups: boolean) => ({
+    fr: 30,
+    ip: 0,
+    op: 30,
+    w: 100,
+    h: 100,
+    layers: [
+      {
+        ty: 4,
+        ind: 1,
+        nm: "L",
+        ks: {},
+        shapes: [
+          {
+            ty: "gr",
+            it: [
+              ...(groups
+                ? [0, 20].map((y) => ({
+                    ty: "gr",
+                    it: [
+                      {
+                        ty: "el",
+                        s: { a: 0, k: [8, 8] },
+                        p: { a: 0, k: [0, y] },
+                      },
+                      {
+                        ty: "tr",
+                        p: { a: 0, k: [y, 0] },
+                      },
+                    ],
+                  }))
+                : [0, 20].map((y) => ({
+                    ty: "el",
+                    s: { a: 0, k: [8, 8] },
+                    p: { a: 0, k: [0, y] },
+                  }))),
+              {
+                ty: "tm",
+                s: { a: 0, k: 0 },
+                e: { a: 0, k: 50 },
+                o: { a: 0, k: 0 },
+                m,
+              },
+              {
+                ty: "st",
+                c: { a: 0, k: [1, 0, 0, 1] },
+                o: { a: 0, k: 100 },
+                w: { a: 0, k: 2 },
+              },
+              { ty: "tr" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const seq = new Converter();
+  const css = seq.convert(doc(2, false));
+  expect(css.match(/trim-mode: sequential/g)?.length).toBe(1);
+  expect(seq.warnings.some((w) => w.includes("individually"))).toBe(false);
+  expect(new Converter().convert(doc(1, false))).not.toContain("trim-mode");
+  // Separate shapes can't share one window: each keeps it, with a warning.
+  const split = new Converter();
+  split.convert(doc(2, true));
+  expect(split.warnings.some((w) => w.includes("individually"))).toBe(true);
+});
+
+test("converter: a trimmed el keeps Lottie's start point and direction as a path", () => {
+  const doc = (d: number) => ({
+    fr: 30,
+    ip: 0,
+    op: 30,
+    w: 100,
+    h: 100,
+    layers: [
+      {
+        ty: 4,
+        ind: 1,
+        nm: "L",
+        ks: {},
+        shapes: [
+          {
+            ty: "gr",
+            it: [
+              { ty: "el", d, s: { a: 0, k: [8, 8] }, p: { a: 0, k: [0, 0] } },
+              {
+                ty: "tm",
+                s: { a: 0, k: 0 },
+                e: { a: 0, k: 50 },
+                o: { a: 0, k: 0 },
+              },
+              {
+                ty: "st",
+                c: { a: 0, k: [1, 0, 0, 1] },
+                o: { a: 0, k: 100 },
+                w: { a: 0, k: 2 },
+              },
+              { ty: "tr" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  const cw = new Converter().convert(doc(1));
+  expect(cw).toContain("type: path");
+  expect(cw).toMatch(/d: 'M 0 -4 C 2\.\d+ -4 4 /);
+  expect(new Converter().convert(doc(3))).toMatch(
+    /d: 'M 0 -4 C -2\.\d+ -4 -4 /,
+  );
+});

@@ -160,6 +160,20 @@ describe("popkorn2lottie", () => {
     expect([tm.s.k, tm.e.k]).toEqual([80, 80]);
   });
 
+  test("trim-mode maps to tm.m and survives the round trip", () => {
+    for (const [mode, m] of [
+      ["simultaneous", 1],
+      ["sequential", 2],
+    ] as const) {
+      const src = `#p { type: path; d: "M0 0 L10 0 M0 20 L30 20"; stroke: #f00; stroke-width: 2; trim-end: 50%; trim-mode: ${mode}; }`;
+      const { shape, lottie } = node(src);
+      expect(shape.find((i: any) => i.ty === "tm").m).toBe(m);
+      expect(shape.filter((i: any) => i.ty === "sh").length).toBe(2);
+      const back = convertLottie(lottie).css;
+      expect(back.includes("trim-mode: sequential")).toBe(m === 2);
+    }
+  });
+
   test("single-curve closed path keeps its one-vertex contour", () => {
     const { shape } = node(
       `#p { type: path; d: "M 50 10 C 90 90 10 90 50 10 Z"; fill: #f00; }`,
@@ -287,10 +301,63 @@ describe("popkorn2lottie", () => {
     const { warnings } = roundTrip(`
       :root { width: 100px; height: 100px; }
       #t { type: text; content: "hi"; }
-      #g { type: circle; r: 5px; fill: #fff; filter: blur(2px); }
+      #g { type: circle; r: 5px; fill: #fff; filter: brightness(2); }
+      #h { type: circle; r: 5px; fill: #fff; filter: blur(2px) brightness(2); }
     `);
     expect(warnings).toContain("text not exported: #t");
-    expect(warnings).toContain("filter/box-shadow not exported: #g");
+    expect(warnings).toContain("filter/box-shadow not exported: #g, #h");
+  });
+
+  const blurOf = (l: any) => l.ef?.[0]?.ef[0].v;
+
+  test("blur() exports its own layer with a world-scaled Gaussian Blur", () => {
+    const { lottie, warnings } = convertPopkorn(`
+      :root { width: 100px; height: 100px; }
+      #a { type: rect; width: 10px; height: 10px; fill: #f00; }
+      #g { type: group; transform: scale(2); opacity: 0.5;
+        > #b { type: circle; r: 5px; fill: #fff; filter: blur(3px); }
+      }
+      #c { type: rect; width: 10px; height: 10px; fill: #00f; }
+    `) as { lottie: any; warnings: string[] };
+    expect(warnings).toEqual([]);
+    expect(lottie.layers.map((l: any) => l.nm)).toEqual([
+      "scene",
+      "#b",
+      "scene",
+    ]);
+    const [fx] = lottie.layers[1].ef;
+    expect(fx).toMatchObject({ ty: 29, mn: "ADBE Gaussian Blur 2", en: 1 });
+    expect(blurOf(lottie.layers[1]).k).toBeCloseTo(20, 3);
+    expect(lottie.layers[0].ef).toBeUndefined();
+    const g = lottie.layers[1].shapes[0].it[0];
+    expect(g.nm).toBe("g");
+    expect(g.it.at(-1).o.k).toBe(50);
+  });
+
+  test("animated blur radius animates Blurriness", () => {
+    const { lottie } = convertPopkorn(`
+      :root { width: 100px; height: 100px; }
+      #b { type: circle; r: 5px; fill: #fff; animation: f 1s linear; }
+      @keyframes f { from { filter: blur(0px); } to { filter: blur(6px); } }
+    `) as { lottie: any };
+    const v = blurOf(lottie.layers[0]);
+    expect(v.a).toBe(1);
+    expect(v.k[0].s[0]).toBeCloseTo(0, 3);
+    expect(v.k.at(-1).s[0]).toBeCloseTo(20, 1);
+  });
+
+  test("clip-path on a blurred node warns; an ancestor clip does not", () => {
+    const { lottie, warnings } = convertPopkorn(`
+      :root { width: 100px; height: 100px; }
+      #g { type: group; clip-path: inset(1px);
+        > #b { type: circle; r: 5px; fill: #fff; filter: blur(1px); clip-path: inset(2px); }
+      }
+    `) as { lottie: any; warnings: string[] };
+    expect(warnings).toEqual([
+      "clip-path/mask under a blur exported with a sharp edge: #b",
+    ]);
+    expect(lottie.layers[0].masksProperties).toHaveLength(2);
+    expect(lottie.layers[0].ef).toHaveLength(1);
   });
 
   test("path morph animates one sh with compatible vertices", () => {
@@ -332,7 +399,7 @@ describe("popkorn2lottie", () => {
       const a = drawsAt(source, times);
       const b = drawsAt(css, times);
       for (let i = 0; i < times.length; i++) {
-        // Text/images/filters are dropped by the export, so compare as a subsequence.
+        // Text/images/non-blur filters are dropped by the export, so compare as a subsequence.
         let j = 0;
         for (const d of b[i]) {
           while (

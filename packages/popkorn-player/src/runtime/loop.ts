@@ -12,7 +12,7 @@ import {
   isGeometricShadow,
 } from "../renderer/filter-css.js";
 import type { Renderer } from "../renderer/interface.js";
-import { computeTrim } from "../renderer/stroke.js";
+import { computeTrim, drawContourTrims } from "../renderer/stroke.js";
 import type { DeviceRect } from "../scene/bounds.js";
 import { maskDeviceBounds, subtreeDeviceBounds } from "../scene/bounds.js";
 import {
@@ -794,7 +794,8 @@ export class RenderLoop {
       }
       case "path": {
         const p = node.shapeData;
-        this.renderer.drawPath(p.commands);
+        if (!drawContourTrims(this.renderer, node))
+          this.renderer.drawPath(p.commands);
         break;
       }
       case "star":

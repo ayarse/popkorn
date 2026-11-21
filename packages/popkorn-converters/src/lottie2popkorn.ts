@@ -323,6 +323,10 @@ type TrimInfo = {
   startCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
   endCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
   offsetCh: { kfs: Kf[]; sample: (t: number) => Sample } | null;
+  // m:2 "individually": one window over the shapes in order.
+  sequential: boolean;
+  // Rules carrying it; a sequential trim spanning several can't run across them.
+  uses: number;
 };
 
 /** Per-comp context threaded through layer conversion. */
@@ -2177,6 +2181,9 @@ export class Converter {
                     }),
                   }
                 : null,
+
+            sequential: it.m === 2,
+            uses: 0,
           };
           break;
         }
@@ -2310,6 +2317,13 @@ export class Converter {
           rule.decls.push(
             `trim-offset: ${num(effectiveTrim.offset * 100, 3)}%`,
           );
+        if (effectiveTrim.sequential) {
+          rule.decls.push("trim-mode: sequential");
+          if (!layer && ++effectiveTrim.uses === 2)
+            this.warnOnce(
+              "trim individually (m:2) across separate shapes trims each shape on its own",
+            );
+        }
         if (effectiveTrim.startCh)
           rule.channels.push({
             priority: 1,
@@ -2435,7 +2449,14 @@ export class Converter {
     if (siblingDraws.length === 1) {
       const it = siblingDraws[0];
       const base = prefix + "-" + (it.nm ? it.nm : `s${dcount++}`);
-      emit(() => this.buildDrawable(it, base));
+      // A trim keys off the outline's start point, so el/rc keep Lottie's as a path.
+      const asPath =
+        effectiveTrim && stroke && (it.ty === "el" || it.ty === "rc");
+      emit(() =>
+        asPath
+          ? this.buildMergedPath([it], this.uniqueId(base), fillRule)
+          : this.buildDrawable(it, base),
+      );
     } else if (siblingDraws.length > 1) {
       emit(() =>
         this.buildMergedPath(
@@ -3027,7 +3048,15 @@ function rectToD(p: number[], s: number[], r: number): string {
 }
 
 /** Ellipse as four kappa cubics, starting at the top. */
-function ellipseToD(cx: number, cy: number, rx: number, ry: number): string {
+// From the top, clockwise; Lottie `d: 3` mirrors it to run counter-clockwise.
+function ellipseToD(
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  reversed = false,
+): string {
+  if (reversed) rx = -rx;
   const ox = rx * KAPPA,
     oy = ry * KAPPA;
   return [
@@ -3103,7 +3132,7 @@ function drawableToDAt(it: any, t: number): string {
       s = prop(it.s);
     const pv = p!.at(t),
       sv = s!.at(t);
-    return ellipseToD(pv[0], pv[1], sv[0] / 2, sv[1] / 2);
+    return ellipseToD(pv[0], pv[1], sv[0] / 2, sv[1] / 2, it.d === 3);
   }
   if (it.ty === "sr") return polystarToD(it, t);
   return "";

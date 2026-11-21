@@ -66,7 +66,7 @@ Most shipping Lottie players skip these too. The full list is in
 | Layer in/out points          | `visible-from` / `visible-until`               |
 | Precomp                      | Nested group, or a `@define` symbol when reused |
 | Time remap                   | `time-remap`                                   |
-| Trim paths                   | `trim-start`, `trim-end`, `trim-offset`        |
+| Trim paths                   | `trim-start`, `trim-end`, `trim-offset`, `trim-mode` |
 | Track matte, mask            | Masks: alpha or luminance, plain or inverted   |
 
 Once a file is converted, every part of it is readable text. You can recolor it, retime a

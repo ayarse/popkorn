@@ -102,6 +102,10 @@ export type StrokeLineCap = (typeof STROKE_LINE_CAPS)[number];
 export const STROKE_LINE_JOINS = ["miter", "round", "bevel"] as const;
 export type StrokeLineJoin = (typeof STROKE_LINE_JOINS)[number];
 
+// Multi-contour trim: each contour trimmed on its own (Lottie m:1) or one window over all in order (m:2).
+export const TRIM_MODES = ["simultaneous", "sequential"] as const;
+export type TrimMode = (typeof TRIM_MODES)[number];
+
 // 'stroke' paints stroke behind the fill (SVG `paint-order: stroke`).
 export type PaintOrder = "normal" | "stroke";
 
@@ -173,6 +177,13 @@ export interface Transform {
   transformOrigin: TransformOrigin; // CSS transform-origin
 }
 
+// One subpath of a path's commands (starts at its M).
+export interface PathContour {
+  commands: PathCommand[];
+  length: number;
+  closed: boolean;
+}
+
 export interface SceneNode {
   id: string;
   className?: string;
@@ -193,12 +204,13 @@ export interface SceneNode {
   trimStart: number;
   trimEnd: number;
   trimOffset: number;
+  trimMode: TrimMode;
   strokeLineCap: StrokeLineCap;
   strokeLineJoin: StrokeLineJoin;
   // Canvas defaults to 10; SVG/Lottie use 4, so sharp corners bevel sooner.
   strokeMiterLimit: number;
 
-  // Static dash pattern + animatable offset; trim wins over dashing when both set.
+  // Static dash pattern + animatable offset; dashes what a trim leaves.
   strokeDashArray: number[];
   strokeDashOffset: number;
 
@@ -215,6 +227,8 @@ export interface SceneNode {
   // Lazy caches; the registry's geometry handlers set the dirty flags.
   cachedOutlineLength: number | null;
   outlineLengthDirty: boolean;
+  // Path subpaths with their lengths; filled alongside cachedOutlineLength.
+  cachedContours: PathContour[] | null;
 
   cachedTextBounds: { width: number; height: number } | null;
   textBoundsDirty: boolean;

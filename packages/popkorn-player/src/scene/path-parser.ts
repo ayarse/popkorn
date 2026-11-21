@@ -1,7 +1,7 @@
 import type { CornerRadii, PathCommand } from "../renderer/types.js";
 import { clamp01 } from "./matrix.js";
 import { polystarToCommands } from "./polystar.js";
-import type { SceneNode, ShapeData } from "./types.js";
+import type { PathContour, SceneNode, ShapeData } from "./types.js";
 
 // Per-corner rect outline ([tl, tr, br, bl], clockwise), shared by SVG and Skia so corners can't drift.
 // NOTE: radii clamp independently to half the shorter side; CSS proportional overflow scaling isn't implemented.
@@ -693,15 +693,47 @@ export function shapeOutlineLength(sd: ShapeData): number {
   }
 }
 
-// Recomputed only when the registry flags outlineLengthDirty.
+// Subpaths split at each M; a single subpath reuses `commands` without copying.
+export function pathContours(commands: PathCommand[]): PathContour[] {
+  const contours: PathContour[] = [];
+  let from = 0;
+  for (let i = 1; i <= commands.length; i++) {
+    if (i < commands.length && commands[i].type !== "M") continue;
+    const cmds =
+      from === 0 && i === commands.length ? commands : commands.slice(from, i);
+    contours.push({
+      commands: cmds,
+      length: computePathLength(cmds),
+      closed: cmds[cmds.length - 1].type === "Z",
+    });
+    from = i;
+  }
+  return contours;
+}
+
+// Recomputed only when the registry flags outlineLengthDirty; paths also refresh cachedContours.
 export function outlineLength(node: SceneNode): number {
   if (!node.outlineLengthDirty && node.cachedOutlineLength !== null) {
     return node.cachedOutlineLength;
   }
-  const len = shapeOutlineLength(node.shapeData);
+  let len: number;
+  if (node.shapeData.type === "path") {
+    const contours = pathContours(node.shapeData.commands);
+    node.cachedContours = contours;
+    len = 0;
+    for (const c of contours) len += c.length;
+  } else {
+    len = shapeOutlineLength(node.shapeData);
+  }
   node.cachedOutlineLength = len;
   node.outlineLengthDirty = false;
   return len;
+}
+
+// A path's cached subpaths (empty for other shapes).
+export function outlineContours(node: SceneNode): PathContour[] {
+  outlineLength(node);
+  return node.shapeData.type === "path" ? (node.cachedContours ?? []) : [];
 }
 
 const PATH_TOKEN =

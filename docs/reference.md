@@ -688,7 +688,22 @@ of the outline length and are animatable.
   window of the outline.
 - `trim-offset` (default `0%`) rotates the start point around the outline;
   animate it for a "marching" dash on a closed shape (circle/ellipse/rect).
+- `trim-mode` (default `simultaneous`) decides how a path with several
+  subpaths is trimmed. `simultaneous` trims each subpath on its own, so every
+  piece draws in at once. `sequential` treats the subpaths as one long outline
+  in document order, so they draw in one after another. Shapes with a single
+  outline look the same either way. Matches Lottie's "Trim Multiple Shapes".
 - `stroke-linecap` sets the stroke's end caps: `butt` (default), `round`, or `square`.
+
+```css
+#three-lines {
+  type: path;
+  d: 'M0 0 h40 M0 20 h40 M0 40 h40';
+  stroke: #4ecdc4;
+  trim-end: 50%;
+  trim-mode: sequential;   /* the first line, then half of the second */
+}
+```
 
 `trim-start >= trim-end` hides the stroke entirely. The trim properties accept a
 bare number as a `0..1` fraction as well as a percentage; values clamp to range.
@@ -713,8 +728,11 @@ bare number as a `0..1` fraction as well as a percentage; values clamp to range.
 }
 ```
 
-Trim paths and dashes compose: when both are set on one node the authored dash
-is realized *inside* the trim window (a dash-of-a-dash), and this works
+Trim paths and dashes compose the way Lottie does: the trim cuts the stroke
+first, then the dash runs along what's left. The pattern starts at the visible
+start of the trim, so it travels with the window as `trim-start` or
+`trim-offset` animate. On a closed shape a window that crosses the outline's
+start point keeps one continuous dash pattern through it. This works
 identically on all three backends.
 
 Other stroke properties:
