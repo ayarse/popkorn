@@ -112,6 +112,76 @@ describe("popkorn2lottie", () => {
     });
   });
 
+  test("dashed circle exports as a path so the dash starts at 3 o'clock", () => {
+    const { lottie } = roundTrip(`
+      #c { type: circle; cx: 50px; cy: 50px; r: 40px; stroke: #fff; stroke-width: 4; stroke-dasharray: 100 200; }
+    `);
+    const [shape] = lottie.layers[0].shapes[0].it[0].it;
+    expect(shape.it[0].ty).toBe("sh");
+    expect(shape.it[0].ks.k.v[0]).toEqual([90, 50]);
+  });
+
+  const node = (src: string) => {
+    const { lottie, warnings } = convertPopkorn(src) as {
+      lottie: any;
+      warnings: string[];
+    };
+    const g = lottie.layers[0].shapes[0].it[0];
+    return { lottie, warnings, shape: g.it[0].it, tr: g.it.at(-1) };
+  };
+
+  test("infinite animation's last frame samples before the loop wraps", () => {
+    const { tr } = node(`
+      #s { type: rect; width: 10px; height: 10px; fill: #0f0; animation: mv 1s linear infinite; }
+      @keyframes mv { from { transform: translate(0px, 0px); } to { transform: translate(50px, 0px); } }
+    `);
+    expect(tr.p.k.at(-1).s).toEqual([50, 0]);
+  });
+
+  test("rx alone rounds both corner axes", () => {
+    const { shape } = node(
+      `#r { type: rect; width: 40px; height: 20px; rx: 8px; fill: #f00; }`,
+    );
+    expect(shape[0]).toMatchObject({ ty: "rc", r: { k: 8 } });
+  });
+
+  test("elliptical rect corners warn", () => {
+    const { warnings } = node(
+      `#r { type: rect; width: 40px; height: 20px; rx: 12px; ry: 4px; fill: #f00; }`,
+    );
+    expect(warnings.some((w) => w.includes("elliptical"))).toBe(true);
+  });
+
+  test("backwards trim exports an empty window, not Lottie's swapped one", () => {
+    const { shape } = node(
+      `#c { type: circle; cx: 50px; cy: 50px; r: 20px; stroke: #f00; stroke-width: 2; trim-start: 0.8; trim-end: 0.2; }`,
+    );
+    const tm = shape.find((i: any) => i.ty === "tm");
+    expect([tm.s.k, tm.e.k]).toEqual([80, 80]);
+  });
+
+  test("single-curve closed path keeps its one-vertex contour", () => {
+    const { shape } = node(
+      `#p { type: path; d: "M 50 10 C 90 90 10 90 50 10 Z"; fill: #f00; }`,
+    );
+    expect(shape[0].ty).toBe("sh");
+    expect(shape[0].ks.k).toMatchObject({ c: true, v: [[50, 10]] });
+  });
+
+  test("mask source under a hidden ancestor still mattes", () => {
+    const { lottie } = node(`
+      #defs { type: group; display: none;
+        > #m { type: circle; cx: 50px; cy: 50px; r: 20px; fill: #fff; }
+      }
+      #g { type: group; mask: #m alpha;
+        > #r { type: rect; width: 100px; height: 100px; fill: #0f0; }
+      }
+    `);
+    const defs = lottie.layers[0].shapes[0].it[0];
+    expect(defs.nm).toBe("defs");
+    expect(defs.it.at(-1).o.k).toBe(100);
+  });
+
   test("clip-path splits layers and masks in scene space; nested clips intersect", () => {
     const { lottie, warnings } = convertPopkorn(`
       :root { width: 200px; height: 100px; }

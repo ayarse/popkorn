@@ -45,6 +45,7 @@ interface Snap {
   clip: Contour[] | null; // scene-space clip-path outline
   anchor: Vec;
   alpha: number;
+  opacity: number; // node opacity, ignoring hidden/display
   fill: string | null;
   stroke: string | null;
   fillG: GradientData | null;
@@ -252,7 +253,10 @@ class ContourSink implements PathSink {
 function toContours(cmds: PathCommand[]): Contour[] {
   const sink = new ContourSink();
   applyCommandsToPath(sink, cmds);
-  return sink.contours.filter((c) => c.v.length > 1);
+  // A closed one-vertex contour is a single-curve loop, not a stray point.
+  return sink.contours.filter(
+    (c) => c.v.length > 1 || (c.c && [...c.i[0], ...c.o[0]].some((v) => v)),
+  );
 }
 
 function clipContours(c: ResolvedClip, m: Matrix3x3): Contour[] {
@@ -330,10 +334,10 @@ function shapeCommands(sd: ShapeData): PathCommand[] | null {
   }
 }
 
-/** Uniform corner radius; a zero rx or ry squares the corner, as in CSS/Canvas. */
+/** Uniform corner radius; an unset radius follows the other, as in SVG and the player. */
 function cornerRadius(sd: { rx: number; ry: number }): number {
   // NOTE: elliptical corners (rx != ry) round to the smaller radius; Lottie rc has one r.
-  return sd.rx > 0 && sd.ry > 0 ? Math.min(sd.rx, sd.ry) : 0;
+  return Math.max(0, Math.min(sd.rx || sd.ry, sd.ry || sd.rx));
 }
 
 function paintBox(sd: ShapeData) {
@@ -592,7 +596,9 @@ export class Converter {
     collect(root);
 
     for (let f = 0; f <= op; f++) {
-      loop.seek(Math.min((f * 1000) / fr, duration));
+      // The last frame samples just before the loop wraps to 0.
+      const t = Math.min((f * 1000) / fr, duration);
+      loop.seek(duration > 0 && t >= duration ? duration - 1e-3 : t);
       for (const rec of recs.values()) this.sample(rec, f, recs);
     }
 
@@ -694,7 +700,11 @@ export class Converter {
       const rec = recs.get(p);
       if (rec)
         items = [
-          { ty: "gr", nm: p.id || p.type, it: [...items, this.transform(rec)] },
+          {
+            ty: "gr",
+            nm: p.id || p.type,
+            it: [...items, this.transform(rec, true)],
+          },
         ];
     }
     return { source: mask.source, mode: mask.mode, items };
@@ -773,6 +783,7 @@ export class Converter {
       clip: clip && clipContours(clip, world),
       anchor: [o.x, o.y],
       alpha: n.hidden || n.displayNone ? 0 : n.opacity,
+      opacity: n.opacity,
       fill: n.fill,
       stroke: n.stroke,
       fillG: n.fillGradient,
@@ -816,7 +827,8 @@ export class Converter {
     }));
   }
 
-  private transform(rec: Rec): Item {
+  /** `ignoreHidden` for mask-source ancestors: the matte walk applies their opacity, not visibility. */
+  private transform(rec: Rec, ignoreHidden = false): Item {
     let prev: number | null = null;
     const trs = rec.snaps.map((s) => {
       const t = decompose(s.m, s.anchor, prev);
@@ -842,7 +854,7 @@ export class Converter {
         true,
       ),
       o: prop(
-        rec.snaps.map((s) => [s.alpha * 100]),
+        rec.snaps.map((s) => [(ignoreHidden ? s.opacity : s.alpha) * 100]),
         EPS_OPACITY,
         true,
       ),
@@ -864,7 +876,19 @@ export class Converter {
     const trimmed = snaps.some(
       (s) => s.trim[0] > 0 || s.trim[1] < 1 || s.trim[2] !== 0,
     );
-    const geom = this.geometry(rec, trimmed);
+    // Lottie el/rc start at a different point than Popkorn's outline, so trims and dashes need the exact path.
+    const geom = this.geometry(rec, trimmed || n.strokeDashArray.length > 0);
+    if (
+      snaps.some(
+        (s) =>
+          s.shape.type === "rect" &&
+          !s.shape.cornerRadii &&
+          s.shape.rx > 0 &&
+          s.shape.ry > 0 &&
+          s.shape.rx !== s.shape.ry,
+      )
+    )
+      this.skip("elliptical rect corners exported with the smaller radius", n);
 
     const fillOn = snaps.some((s) => s.fill && !s.fillG);
     const fillGOn = snaps.some((s) => s.fillG);
@@ -1040,9 +1064,11 @@ export class Converter {
   }
 
   private trimItem(rec: Rec): Item {
-    const t = rec.snaps.map((s) =>
-      s.trim.map((v) => Math.max(0, Math.min(1, v))),
-    );
+    // The player hides end <= start where Lottie swaps them, so collapse the window instead.
+    const t = rec.snaps.map((s) => {
+      const [a, b, o] = s.trim.map((v) => Math.max(0, Math.min(1, v)));
+      return [a, Math.max(a, b), o];
+    });
     return {
       ty: "tm",
       s: prop(
